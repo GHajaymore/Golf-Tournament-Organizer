@@ -17,6 +17,33 @@ import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
 import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { fieldRefusal } from "@/lib/services/field-change";
+import {
+  applyReplace,
+  candidateWhy,
+  clubTimeWords,
+  groupOf,
+  handicapUsedWords,
+  pairNameAfter,
+  readReplaceReason,
+  REPLACE_CUP_NOTE,
+  REPLACE_EVERY_ROUND_NOTE,
+  REPLACE_GROUPS_NOTE,
+  replaceAuditLine,
+  replaceRefusal,
+  swapPairMember,
+  voidedGamesWords,
+} from "@/lib/domain/tee-sheet-replace";
+import { replaceWorldFor, sidesHavePlay, voidSideEntries, type RoundSide } from "@/lib/services/tee-sheet-replace";
+import { settingsOf } from "@/lib/services/tournament";
+import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { zoneOfEvent } from "@/lib/services/club-clock";
+import { clubWallClock } from "@/lib/domain/club-clock";
+import { roundWordsFor } from "@/lib/services/action-shared";
+import { nameRefusal, PERSON_NAME_MAX } from "@/lib/domain/typed-limits";
+import { indexFigure, NO_INDEX, readHandicapIndex } from "@/lib/domain/handicap-label";
+import { GUEST } from "@/lib/domain/entry-standing";
+import { upsertMember, memberGender } from "@/lib/services/roster";
+import { TEAM_SESSION } from "@/lib/services/cup";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -403,6 +430,249 @@ export async function moveInTeeSheet(
 
   await refresh();
   return { ok: true, said: settled.removed.length ? `The sheet is saved. ${settled.removed.join(", ")} removed (no players left).` : "The sheet is saved with your changes." };
+}
+
+/** Who steps in: a member of the tournament, or a guest typed in on the spot (the index as typed, "" for none). */
+export type ReplaceWho = { kind: "member"; playerId: string } | { kind: "guest"; name: string; index: string };
+
+/** A refusal found inside the transaction: rolls everything back and is said as a sentence. */
+class ReplaceRefused extends Error {
+  constructor(public says: string) {
+    super(says);
+  }
+}
+
+/**
+ * REPLACE A PLAYER ON THE SAVED SHEET WITH SOMEBODY ELSE — a no-show, a last-minute cancellation (B43).
+ *
+ * ONE PRESS, ONE SLOT. The substitute takes the absentee's exact place: group, time, hole and — where
+ * partners play together — their place in the pair (`TeamMember`, keeping `position`; the side and its match
+ * are unchanged, so the pair stays eligible and its partner keeps their result). Nobody else moves, and the
+ * whole Teams screen stays locked. The rules are `domain/tee-sheet-replace.ts`, the same functions the screen
+ * drew its choices with. Allowed until the absentee's group has started (`slotLocksFor`, the CLUB's clock or
+ * a card in); the late-entry cutoff does NOT apply — the field stays the same size.
+ *
+ * WHO MAY CALL IT: staff of the tournament, an Assistant as much as the Organizer — a substitution is a
+ * withdrawal plus a late entry, both of which the day-of field rule already gives the desk.
+ *
+ * WHAT IS WRITTEN, IN ONE TRANSACTION (or nothing): the sheet (compare-and-set on `savedAt`, as the moves);
+ * the guest's entry (`standing: guest`, no email stored, "no index" when blank — never a scratch golfer); the
+ * pair's member; the week's attendance where the tournament asks one (out for the absentee, in for the sub,
+ * each naming the other and the staff member); the absentee's side-game entries for this round, voided; and
+ * the audit line. NOTHING IS DELETED: the absentee's player row stays, marked "replaced by" in the week's
+ * attendance and on the record. In a tournament that asks nothing each week the absentee stays entered (a
+ * withdrawal is its own press) and the answer says so.
+ */
+export async function replaceInTeeSheet(
+  stageId: string,
+  baseSavedAt: string,
+  absenteeId: string,
+  who: ReplaceWho,
+  reasonIn: string,
+): Promise<TeeSheetResult & { said?: string }> {
+  const session = await requireStaffSession();
+  if (typeof stageId !== "string" || !stageId || typeof baseSavedAt !== "string" || !baseSavedAt || typeof absenteeId !== "string" || !absenteeId) {
+    return { ok: false, error: "Look at the sheet again and choose." };
+  }
+  const reason = readReplaceReason(reasonIn);
+  if (!reason) return { ok: false, error: "Choose why: no-show, cancelled or other." };
+  if (!who || typeof who !== "object" || (who.kind !== "member" && who.kind !== "guest")) return { ok: false, error: "Choose who steps in." };
+  const refused = await fieldRefusal(session.eventId, "place-in-group");
+  if (refused) return { ok: false, error: refused };
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId: session.eventId },
+    select: { id: true, type: true, format: true, teeSheet: true, teeSheetPublished: true },
+  });
+  if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+  const sheet = parseTeeSheet(stage.teeSheet ?? "");
+  if (!sheet) return { ok: false, error: "Save a sheet for this round first." };
+  if (sheet.savedAt !== baseSavedAt) return { ok: false, error: "The sheet changed while you were choosing. Look again and choose." };
+
+  const mode = moveModeOf(stage);
+  if (mode === "groups") return { ok: false, error: REPLACE_GROUPS_NOTE };
+  if (stage.type === TEAM_SESSION) return { ok: false, error: REPLACE_CUP_NOTE };
+
+  const absentee = await prisma.player.findFirst({ where: { id: absenteeId, eventId: session.eventId }, select: { id: true, name: true } });
+  if (!absentee) return { ok: false, error: "That player isn't in this tournament." };
+
+  const locks = await slotLocksFor(session.eventId, stageId, sheet);
+  const { world, candidates, sides } = await replaceWorldFor(session.eventId, stageId, sheet, mode === "sides");
+  const slotRefusal = replaceRefusal(sheet, absenteeId, locks);
+  if (slotRefusal) return { ok: false, error: slotRefusal };
+
+  // Where partners play together, the pair the absentee holds a place in. A side's own card or a match's
+  // holes are not a player's `Scorecard`, so the lock above cannot see them: they are read here.
+  let pair: RoundSide | null = null;
+  if (mode === "sides") {
+    pair = sides.find((t) => t.members.some((m) => m.playerId === absenteeId)) ?? null;
+    if (pair && pair.stageId === null) return { ok: false, error: REPLACE_EVERY_ROUND_NOTE };
+    const inGroup = new Set(sheet.groups[groupOf(sheet, absenteeId)].playerIds);
+    const groupSides = sides.filter((t) => t.members.some((m) => inGroup.has(m.playerId))).map((t) => t.id);
+    if (await sidesHavePlay(session.eventId, stageId, groupSides)) {
+      return { ok: false, error: "A card is in for this group, so it has started. A group that has started can’t have a player swapped in. If somebody has gone home, that is a withdrawal." };
+    }
+  }
+
+  // WHO STEPS IN, and the handicap they will play off.
+  let sub: { id: string; name: string; index: string };
+  let guestToMake: { name: string; index: number | null } | null = null;
+  if (who.kind === "member") {
+    if (typeof who.playerId !== "string" || !who.playerId) return { ok: false, error: "Choose who steps in." };
+    const picked = candidates.find((c) => c.id === who.playerId);
+    if (!picked) return { ok: false, error: "That player isn't in the field." };
+    const why = candidateWhy(picked, absenteeId, world);
+    if (why) return { ok: false, error: `${picked.name}: ${why}` };
+    sub = { id: picked.id, name: picked.name, index: picked.index };
+  } else {
+    const name = String(who.name ?? "").trim();
+    const badName = nameRefusal(name, PERSON_NAME_MAX, "Enter the guest’s name.");
+    if (badName) return { ok: false, error: badName };
+    const typed = readHandicapIndex(typeof who.index === "string" ? who.index : "");
+    if (typed.kind === "unreadable") return { ok: false, error: "Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap. Leave it blank if they have none." };
+    if (typed.kind === "out-of-range") return { ok: false, error: "A handicap index runs from +10 to 54." };
+    const clash = await prisma.player.findFirst({ where: { eventId: session.eventId, name: { equals: name, mode: "insensitive" } }, select: { name: true } });
+    if (clash) return { ok: false, error: `${clash.name} is already in this tournament. Choose them from the list.` };
+    const index = typed.kind === "index" ? typed.value : null;
+    guestToMake = { name, index };
+    sub = { id: "", name, index: index === null ? NO_INDEX : indexFigure(index) };
+  }
+
+  const [event, zone, stages] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    zoneOfEvent(session.eventId),
+    prisma.stage.findMany({ where: { eventId: session.eventId }, select: { id: true, type: true, holes: true, nine: true }, orderBy: { position: "asc" } }),
+  ]);
+  if (!event) return { ok: false, error: "Tournament not found." };
+  const weekly = tracksPerRound(settingsOf(event).attendanceMode as AttendanceMode);
+  const round = await roundWordsFor(session.eventId, stageId);
+  const clubTime = clubTimeWords(clubWallClock(zone));
+
+  // A guest is a roster row of their own (never matched onto a member of the same name) and an entry.
+  let guestMemberId: string | null = null;
+  let guestGender = "";
+  if (guestToMake) {
+    guestMemberId = event.organizationId
+      ? await upsertMember(event.organizationId, { name: guestToMake.name, guest: true, handicap: guestToMake.index ?? undefined, handicapSource: guestToMake.index === null ? "none" : "manual" }, "staff")
+      : null;
+    guestGender = await memberGender(guestMemberId);
+  }
+
+  const result = await prisma
+    .$transaction(async (tx) => {
+      let subId = sub.id;
+      if (guestToMake) {
+        const maxSeed = await tx.player.aggregate({ where: { eventId: session.eventId }, _max: { seed: true } });
+        const made = await tx.player.create({
+          select: { id: true },
+          data: {
+            eventId: session.eventId,
+            memberId: guestMemberId,
+            // In an interclub league a pair is drawn from its club: the guest plays for the absentee's.
+            groupId: world.sameFlight ? world.flights[absenteeId] || null : null,
+            name: guestToMake.name,
+            handicap: guestToMake.index ?? 0,
+            seed: (maxSeed._max.seed ?? 0) + 1,
+            status: "confirmed",
+            standing: GUEST,
+            email: "",
+            phone: "",
+            // NO FIGURE, NO CLAIM: a blank is stored as "none" — gross only, never a scratch golfer nobody declared.
+            handicapSource: guestToMake.index === null ? "none" : "manual",
+            handicapType: "18",
+            gender: guestGender,
+          },
+        });
+        subId = made.id;
+      }
+
+      // The sheet, only if it is still the one read above: two desks must not both succeed.
+      const final = applyReplace(sheet, absenteeId, subId, locks);
+      if (!final.ok) throw new ReplaceRefused(final.says);
+      const next: TeeSheet = { ...final.sheet, savedAt: new Date().toISOString() };
+      const written = await tx.stage.updateMany({
+        where: { id: stageId, eventId: session.eventId, teeSheet: stage.teeSheet },
+        data: { teeSheet: JSON.stringify(next) },
+      });
+      if (written.count === 0) throw new ReplaceRefused("The sheet changed while you were choosing. Look again and choose.");
+
+      // The pair: the substitute takes the absentee's place in it, position kept; a pair named for its players is renamed.
+      if (pair) {
+        const swapped = swapPairMember(pair.members, absenteeId, subId);
+        if (!swapped.ok) throw new ReplaceRefused(swapped.says);
+        await tx.teamMember.updateMany({ where: { teamId: pair.id, playerId: absenteeId }, data: { playerId: subId } });
+        const names = new Map(
+          (await tx.player.findMany({ where: { id: { in: [...pair.members.map((m) => m.playerId), subId] } }, select: { id: true, name: true } })).map((p) => [p.id, p.name]),
+        );
+        const renamed = pairNameAfter(
+          pair.name,
+          pair.members.map((m) => names.get(m.playerId) ?? ""),
+          swapped.members.map((m) => names.get(m.playerId) ?? ""),
+        );
+        if (renamed !== pair.name) await tx.team.update({ where: { id: pair.id }, data: { name: renamed } });
+      }
+
+      // The week: out for the absentee, in for the sub — each naming the other, and who pressed.
+      if (weekly) {
+        const out = `${session.name} (replaced by ${sub.name})`;
+        const inn = `${session.name} (replacing ${absentee.name})`;
+        await tx.roundAttendance.upsert({
+          where: { stageId_playerId: { stageId, playerId: absenteeId } },
+          update: { status: "out", decidedAt: new Date(), decidedBy: out },
+          create: { eventId: session.eventId, stageId, playerId: absenteeId, status: "out", decidedBy: out },
+        });
+        await tx.roundAttendance.upsert({
+          where: { stageId_playerId: { stageId, playerId: subId } },
+          update: { status: "in", decidedAt: new Date(), decidedBy: inn },
+          create: { eventId: session.eventId, stageId, playerId: subId, status: "in", decidedBy: inn },
+        });
+      }
+
+      const voided = await voidSideEntries(tx, session.eventId, stageId, absenteeId);
+      await tx.auditLog.create({
+        data: {
+          eventId: session.eventId,
+          actor: session.name,
+          action: "replaced",
+          detail: replaceAuditLine({
+            absentee: absentee.name,
+            sub: sub.name,
+            staff: session.name,
+            clubTime,
+            round,
+            group: final.groupName,
+            reason,
+            handicap: handicapUsedWords(sub.index),
+            games: voidedGamesWords(voided),
+          }),
+        },
+      });
+      return { next, groupName: final.groupName, time: sheet.groups[final.group].time };
+    })
+    .catch((e: unknown) => {
+      if (e instanceof ReplaceRefused) return e;
+      throw e;
+    });
+  if (result instanceof ReplaceRefused) return { ok: false, error: result.says };
+
+  // A published sheet tells the one who stepped in their time, and nobody else: the notice is the diff.
+  if (stage.teeSheetPublished) {
+    await notifyTeeTimesPublished({
+      eventId: session.eventId,
+      stageId,
+      previous: sheet,
+      next: result.next,
+      firstPublish: false,
+      roundLabel: roundLabel(stages, stageId),
+      eventName: event.name,
+      firstHole: firstHoleForRound(stages.find((s) => s.id === stageId)),
+    });
+  }
+
+  await refresh();
+  const where = result.time ? `${result.groupName}, ${result.time}` : result.groupName;
+  const stays = weekly ? "" : ` ${absentee.name} is still entered in the tournament; withdraw them on Entries if they are not coming back.`;
+  return { ok: true, said: `${sub.name} is in ${where}, in place of ${absentee.name}.${stays}` };
 }
 
 /** The round's own sides, as the tee sheet goes out in them (`sidesByMatch`): whole pairs, or a match's four. */

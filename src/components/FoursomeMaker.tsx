@@ -11,6 +11,8 @@ import { moveInTeeSheet, saveTeeSheet, setTeeSheetPublished } from "@/app/action
 import { drawTimesFrom, sameSheet, sheetOnScreen, sheetStatusLine, startStyleOf, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { applyMoves, emptiedGroups, groupStep, GROUPS_NOTE, moveKindsOf, playerMoveOptions, removalLines, shortGroupWarnings, SIDES_NOTE, type MoveMode, type MoveOption, type SheetMove } from "@/lib/domain/tee-sheet-moves";
 import { Icon } from "./Icon";
+import { ReplacePlayer } from "./ReplacePlayer";
+import type { ReplaceCandidate, ReplaceWorld } from "@/lib/domain/tee-sheet-replace";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
 import { usesTwentyFourHourClock } from "@/lib/domain/locale";
@@ -78,7 +80,13 @@ export function FoursomeMaker({
   canMove = false,
   door = null,
   moveMode = "players",
+  replace = null,
 }: {
+  /**
+   * "Replace…" beside each player of a group that has not started (B43): what the panel chooses from and
+   * the sentence it states. Null where nobody may be swapped (not staff, a round played as matches, a cup session).
+   */
+  replace?: { candidates: ReplaceCandidate[]; world: ReplaceWorld; inSides: boolean; weekly: boolean } | null;
   /** What may move in this round (`moveModeOf`, the answer the server refuses by): players, whole sides, or only whole groups. */
   moveMode?: MoveMode;
   /** Why nobody can move anyone now (`fieldRefusal(…, "place-in-group")`), or null. The controls are not drawn while it is set. */
@@ -180,6 +188,8 @@ export function FoursomeMaker({
   // The DRAFT of moves on the saved sheet: kept here, written once on Save changes.
   const [moves, setMoves] = useState<SheetMove[]>([]);
   const [moveError, setMoveError] = useState("");
+  // What a replacement said: the player replaced is off the sheet afterwards, so the screen holds it.
+  const [replaceSaid, setReplaceSaid] = useState("");
   const [movePending, startMoveTransition] = useTransition();
 
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
@@ -911,6 +921,11 @@ export function FoursomeMaker({
         </div>
       )}
 
+      {replaceSaid && (
+        <p role="status" className="card elev-sm" style={{ margin: "0 0 12px", fontSize: 14 }}>
+          {replaceSaid}
+        </p>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
         {draftGroups.map((g, i) => {
           // A player who has left the field since the sheet was saved has no
@@ -1004,6 +1019,24 @@ export function FoursomeMaker({
                         </option>
                       ))}
                     </select>
+                  )}
+                  {moving && replace && !locks[i] && (
+                    // Not while a draft of moves is open: the slot numbers it shows are not yet the saved sheet's.
+                    moves.length === 0 ? (
+                      <ReplacePlayer
+                        stageId={stageId}
+                        savedAt={savedAt}
+                        player={{ id: p.id, name: p.name }}
+                        group={{ name: g.name || `Group ${i + 1}`, time: g.time }}
+                        candidates={replace.candidates}
+                        world={replace.world}
+                        inSides={replace.inSides}
+                        weekly={replace.weekly}
+                        disabled={movePending}
+                        door={door}
+                        onSaid={setReplaceSaid}
+                      />
+                    ) : null
                   )}
                   </div>
                 );

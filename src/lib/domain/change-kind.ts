@@ -29,6 +29,8 @@ export const FIELD_ACTIONS = [
   "disqualified", "reinstated",
   // A withdrawal undone, and a late entrant placed in a flight (day-of field changes, PR A).
   "put-back", "placed",
+  // One player's place on the tee sheet handed to another: a no-show, a cancellation (B43).
+  "replaced",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];

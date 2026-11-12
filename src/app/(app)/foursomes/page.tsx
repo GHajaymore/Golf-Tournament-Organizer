@@ -17,7 +17,9 @@ import { WeekField, type WeekFieldRow } from "@/components/WeekField";
 import { sidesByMatch, type Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
-import { type AttendanceMode } from "@/lib/domain/attendance";
+import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { replaceWorldFor } from "@/lib/services/tee-sheet-replace";
+import { TEAM_SESSION } from "@/lib/services/cup";
 import { sheetFieldFor } from "@/lib/services/sheet-field";
 import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn, DRIFT_PLACE_LINE } from "@/lib/domain/tee-sheet";
 import { clubWallClock } from "@/lib/domain/club-clock";
@@ -239,6 +241,21 @@ export default async function FoursomesPage({
   const canMove = !!(stage && savedSheet && isStaff);
   const moveDoor = canMove ? await fieldRefusal(session.eventId, "place-in-group") : null;
   const slotLocks = canMove && !moveDoor && stage && savedSheet ? await slotLocksFor(session.eventId, stage.id, savedSheet) : {};
+  /**
+   * "REPLACE…" BESIDE A PLAYER (B43): staff, on a saved sheet, where a player is a unit of their own or
+   * of a pair — not where the draw IS the pairing (individual match play) and not a cup session (its own
+   * screen). What it chooses from is `replaceWorldFor`, the facts the server refuses on.
+   */
+  const replaceMode = stage ? moveModeOf(stage) : "groups";
+  const replace =
+    canMove && !moveDoor && stage && savedSheet && replaceMode !== "groups" && stage.type !== TEAM_SESSION
+      ? await replaceWorldFor(session.eventId, stage.id, savedSheet, replaceMode === "sides").then((r) => ({
+          candidates: r.candidates,
+          world: r.world,
+          inSides: replaceMode === "sides",
+          weekly: tracksPerRound(attendanceMode),
+        }))
+      : null;
   // The round's day at the club — its own, or the tournament's first day for
   // the first round (as the late-entry cutoff reads it) — for which groups are out.
   const roundDay = stage ? cleanIsoDate(stage.playedOn) || (stage.id === rounds[0]?.id ? cleanIsoDate(state.event.startOn) : "") : "";
@@ -408,6 +425,7 @@ export default async function FoursomesPage({
         door={moveDoor}
         moveMode={stage ? moveModeOf(stage) : "groups"}
         locks={slotLocks}
+        replace={replace}
         requests={requestClustersNow}
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         // The round's sides, so partners go out together — `groupBySides`.
