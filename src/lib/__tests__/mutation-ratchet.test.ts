@@ -208,8 +208,9 @@ describe("the arithmetic core, and the nightly that runs it", () => {
  * before any other file can walk into the loop without one.
  */
 describe("a call that must end", () => {
-  type Spec = { moduleId: string; project: { name: string } };
-  const spec = (moduleId: string): Spec => ({ moduleId, project: { name: "" } });
+  // vitest 3+ sorts on the project's config (groupOrder, isolate), so the stand-in carries them.
+  type Spec = { moduleId: string; project: { name: string; config: { sequence: { groupOrder: number }; isolate: boolean } } };
+  const spec = (moduleId: string): Spec => ({ moduleId, project: { name: "", config: { sequence: { groupOrder: 0 }, isolate: true } } });
   // A vitest with no history of the files: BaseSequencer then keeps them in the order given.
   const ctx = { config: { root: process.cwd() }, cache: { getFileTestResults: () => undefined, getFileStats: () => undefined } };
   const sequencer = new EndsFirstSequencer(ctx as never);

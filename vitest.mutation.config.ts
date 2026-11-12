@@ -29,7 +29,7 @@
  * `npx vitest run`.
  */
 import { defineConfig } from "vitest/config";
-import type { TestSequencer, Vitest, WorkspaceSpec } from "vitest/node";
+import type { TestSequencer, Vitest, TestSpecification } from "vitest/node";
 import base from "./vitest.config";
 
 export const CANNOT_RUN_IN_THE_SANDBOX = [
@@ -78,13 +78,13 @@ const vitestOwnSequencer = async (ctx: Vitest) => new (await import("vitest/node
 export class EndsFirstSequencer implements TestSequencer {
   constructor(private readonly ctx: Vitest) {}
 
-  async shard(files: WorkspaceSpec[]): Promise<WorkspaceSpec[]> {
+  async shard(files: TestSpecification[]): Promise<TestSpecification[]> {
     return (await vitestOwnSequencer(this.ctx)).shard(files);
   }
 
-  async sort(files: WorkspaceSpec[]): Promise<WorkspaceSpec[]> {
+  async sort(files: TestSpecification[]): Promise<TestSpecification[]> {
     const sorted = await (await vitestOwnSequencer(this.ctx)).sort(files);
-    const ends = (spec: WorkspaceSpec) => ENDS_FILE.test(spec.moduleId.split("\\").join("/"));
+    const ends = (spec: TestSpecification) => ENDS_FILE.test(spec.moduleId.split("\\").join("/"));
     return [...sorted.filter(ends), ...sorted.filter((spec) => !ends(spec))];
   }
 }

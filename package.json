@@ -111,10 +111,14 @@
     "prisma": "^6.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.8"
+    "vite": "^7.3.8",
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",
-    "postcss": "^8.5.23"
+    "postcss": "^8.5.23",
+    "typed-rest-client": {
+      "qs": "^6.17.1"
+    }
   }
 }
