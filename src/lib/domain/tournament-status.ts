@@ -67,6 +67,8 @@ export interface RoundFacts {
   matchesOver: number;
   /** A saved tee sheet, where one is the question (a stroke round); null where it is not. */
   teeSheetSaved: boolean | null;
+  /** The saved sheet has been shown to players (`Stage.teeSheetPublished`); false where there is none. */
+  teeSheetPublished: boolean;
   /**
    * HAS THIS ROUND BEEN PLAYED AT ALL — the one definition, the widest of
    * today's three spellings (`roundsWithResults`): an individual or team card,

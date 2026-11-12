@@ -292,7 +292,7 @@ describe("completed", () => {
       const walkIn = (await prisma.player.findFirstOrThrow({ where: { eventId: medal, email: at("walk-in") } })).id;
       expect(await placeInTeeGroup(stageId, walkIn, 0)).toEqual({
         ok: false,
-        error: "The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.",
+        error: "The tournament is completed, so its tee sheets are final. An Organizer can reopen it on the dashboard.",
       });
     } finally {
       await prisma.event.update({ where: { id: medal }, data: { status: "live" } });

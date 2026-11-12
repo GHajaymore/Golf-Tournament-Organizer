@@ -90,6 +90,8 @@ import type { BracketView } from "@/lib/domain/bracket";
 import { tournamentStatus, drawFacts, addRoundLockOf, locksFor, lockFactsOf, type Family, type TournamentFacts } from "@/lib/domain/tournament-status";
 import { FAMILY_FIXTURES as STATUS_FAMILIES, launched as launchedFacts } from "@/lib/domain/__tests__/tournament-facts-fixtures";
 import { fieldChangeAllowed, fieldFactsOf, fieldStepOf, partOf, type FieldChange, type FieldStep, type FieldVerdict } from "@/lib/domain/field-change";
+import { teeSheetChangeAllowed, teeSheetStepOf, toldCount, type TeeSheetChangeAsk, type TeeSheetStep } from "@/lib/domain/tee-sheet-change";
+import type { TeeSheet } from "@/lib/domain/tee-sheet";
 import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
 import { formatFitsRound } from "@/lib/domain/round-choices";
 
@@ -3620,4 +3622,110 @@ describe("a net tie counted back by fractions of the handicap, at every field si
   it("CONTROL: the sweep reaches ties the hole-by-hole countback decides differently", () => {
     expect(disagreements).toBeGreaterThan(0);
   });
+});
+
+/**
+ * AN UPSTREAM EDIT TO THE TEE SHEET, EVERY ROUND TYPE × STEP × PUBLISHED × FIELD
+ * SIZE (J12, state machine PR 7c; the proposal's test plan, "an upstream edit,
+ * every scope × every step", for the tee-sheet row).
+ *
+ * The expectation is worked HERE from section 3's row and the ruling of 12 Nov,
+ * never read off the function:
+ *
+ *   before the draw  open · after the draw  open · after scores  open (the groups that
+ *   have started are held by their own locks) · completed  REFUSE, every change;
+ *   a PUBLISHED sheet is changed and SAID: a save that publishes, a move, a place and a
+ *   replace tell players ("told"); taking the sheet back, or saving it unpublished, hides it.
+ *
+ * Launch is not a step: every cell before completion runs both unlaunched and launched. A
+ * round robin, a bracket or a cup session files its results as matches and has no stroke
+ * "saved sheet" fact (null); it still has a sheet to move. Field sizes start at ONE: a field
+ * of one is one group, so a re-draw that moves nobody tells nobody. Invariants in every cell:
+ * the step meant; a refusal in words with a screen to go to, completion to the dashboard,
+ * never a committee correction; the count the screen says is the notice's own diff.
+ */
+describe("an upstream edit to the tee sheet, every round type × step × published × field size (J12)", () => {
+  const STEPS_7C: TeeSheetStep[] = ["before-draw", "after-draw", "after-scores", "completed"];
+  const ASKS_7C: { ask: TeeSheetChangeAsk; told: boolean; hides: boolean; touchesGroups: boolean }[] = [
+    { ask: { kind: "save", publish: true }, told: true, hides: false, touchesGroups: true },
+    { ask: { kind: "save", publish: false }, told: false, hides: true, touchesGroups: true },
+    { ask: { kind: "publish" }, told: false, hides: false, touchesGroups: false },
+    { ask: { kind: "unpublish" }, told: false, hides: true, touchesGroups: false },
+    { ask: { kind: "place" }, told: true, hides: false, touchesGroups: true },
+    { ask: { kind: "move" }, told: true, hides: false, touchesGroups: true },
+    { ask: { kind: "replace" }, told: true, hides: false, touchesGroups: true },
+  ];
+  /** A sheet of `n` players in fours, ten minutes apart — the Rules do not say how a club sends its groups out. */
+  const sheetOf = (n: number): TeeSheet => ({
+    savedAt: "t",
+    startType: "tee-times",
+    groups: Array.from({ length: Math.ceil(n / 4) }, (_, g) => ({
+      name: `Group ${g + 1}`,
+      startHole: 1,
+      time: `${8 + Math.floor((g * 10) / 60)}:${String((g * 10) % 60).padStart(2, "0")} AM`,
+      playerIds: Array.from({ length: Math.min(4, n - g * 4) }, (_, i) => `p${g * 4 + i}`),
+    })),
+  });
+
+  it("CONTROL: the sweep has every round type, and a field that has more than one group", () => {
+    expect(STAGE_TYPES.length).toBeGreaterThan(3);
+    expect(sheetOf(28).groups).toHaveLength(7);
+    expect(sheetOf(1).groups).toHaveLength(1);
+  });
+
+  for (const type of STAGE_TYPES) {
+    for (const step of STEPS_7C) {
+      for (const published of [false, true]) {
+        for (const n of [1, 2, 3, 8, 28]) {
+          it(`${type} · ${step} · ${published ? "published" : "not published"} · ${n} in the field`, () => {
+            const h2h = ["Round Robin", "Single Match Stage", "Bracket Stage", "Team Session"].includes(type);
+            // A sheet that has been drawn, or played, has a saved sheet; a round that has not been drawn has none.
+            const drawn = step !== "before-draw";
+            const round = {
+              id: "r1",
+              label: "Round 1",
+              hasResult: step === "after-scores" || step === "completed",
+              teeSheetSaved: h2h ? null : drawn,
+              teeSheetPublished: published && drawn,
+            };
+            for (const status of step === "completed" ? ["completed"] : ["draft", "live"]) {
+              const facts = { status, round };
+              const at = `${status} · ${type}`;
+              expect(teeSheetStepOf(facts), `${at}: the step meant`).toBe(h2h && step === "after-draw" ? "before-draw" : step);
+              for (const { ask, told, hides, touchesGroups } of ASKS_7C) {
+                const k = `${at} · ${ask.kind}`;
+                const v = teeSheetChangeAllowed(facts, ask);
+                if (step === "completed") {
+                  expect(v.ok, `${k}: refused`).toBe(false);
+                  if (v.ok) continue;
+                  expect(v.says.trim().length, `${k}: in words`).toBeGreaterThan(10);
+                  expect(v.says, `${k}: never a correction`).not.toMatch(/committee correction/i);
+                  expect(v.wayOut.href, `${k}: completion goes to the dashboard`).toBe("/dashboard");
+                  continue;
+                }
+                expect(v.ok, `${k}: open`).toBe(true);
+                if (!v.ok) continue;
+                const out = published && drawn;
+                expect(v.warn, `${k}: said only over a sheet players were sent`).toBe(!out ? null : told ? "told" : hides ? "hidden" : null);
+                expect(v.groupsDecide, `${k}: the groups decide in a round with scores`).toBe(step === "after-scores" && touchesGroups);
+              }
+              // The count the screen says is the notice's own: moving the last player into the first group tells exactly that player
+              // (their group's time differs) — and nobody, where there is only the one group.
+              const before = sheetOf(n);
+              const moved = sheetOf(n);
+              if (before.groups.length > 1) {
+                const mover = moved.groups[moved.groups.length - 1].playerIds.pop()!;
+                moved.groups[0].playerIds.push(mover);
+                const lone = moved.groups[moved.groups.length - 1].playerIds.length === 0;
+                if (lone) moved.groups.pop();
+                expect(toldCount(before, moved), `${at}: one player moved, one player told`).toBe(1);
+              } else {
+                expect(toldCount(before, moved), `${at}: nobody moved, nobody told`).toBe(0);
+              }
+            }
+          });
+        }
+      }
+    }
+  }
 });

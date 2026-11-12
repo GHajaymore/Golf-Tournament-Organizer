@@ -19,6 +19,7 @@ export function round(over: Partial<RoundFacts> & { id: string; position: number
     matches: 0,
     matchesOver: 0,
     teeSheetSaved: true,
+    teeSheetPublished: false,
     hasResult: false,
     closed: false,
     ...over,

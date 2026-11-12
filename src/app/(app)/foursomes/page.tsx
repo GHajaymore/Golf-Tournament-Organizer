@@ -27,7 +27,7 @@ import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { PlaceInGroup } from "@/components/PlaceInGroup";
 import { slotLocksFor } from "@/lib/services/tee-sheet-locks";
 import { moveModeOf } from "@/lib/domain/tee-sheet-moves";
-import { fieldRefusal } from "@/lib/services/field-change";
+import { teeSheetDoorsFor } from "@/lib/services/tee-sheet-change";
 import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
 import { cutFeederOf } from "@/lib/domain/cut-ready";
 import { shortDate } from "@/lib/domain/round-dates";
@@ -231,7 +231,9 @@ export default async function FoursomesPage({
    */
   const isStaff = session.role === "admin" || session.role === "assistant";
   const undrawn = savedSheet && isStaff ? undrawnOn(savedSheet, fieldIds) : [];
-  const placeDoor = undrawn.length > 0 ? await fieldRefusal(session.eventId, "place-in-group") : null;
+  // THE ONE TEE-SHEET RULE (`teeSheetChangeAllowed`), asked of this round — the same doors the actions refuse by.
+  const doors = stage ? await teeSheetDoorsFor(session.eventId, stage.id) : null;
+  const placeDoor = undrawn.length > 0 ? (doors?.place ?? null) : null;
   const nameOf = new Map(field.map((p) => [p.id, p.name]));
   /**
    * MOVING ON A SAVED SHEET (tee sheet moves): staff, while the field rule allows
@@ -239,7 +241,7 @@ export default async function FoursomesPage({
    * (`slotLocksFor`), the same reader the server action refuses on.
    */
   const canMove = !!(stage && savedSheet && isStaff);
-  const moveDoor = canMove ? await fieldRefusal(session.eventId, "place-in-group") : null;
+  const moveDoor = canMove ? (doors?.move ?? null) : null;
   const slotLocks = canMove && !moveDoor && stage && savedSheet ? await slotLocksFor(session.eventId, stage.id, savedSheet) : {};
   /**
    * "REPLACE…" BESIDE A PLAYER (B43): staff, on a saved sheet, where a player is a unit of their own or
@@ -424,6 +426,7 @@ export default async function FoursomesPage({
         firstHole={firstHole}
         canMove={canMove}
         door={moveDoor}
+        saveDoor={doors?.save ?? null}
         moveMode={stage ? moveModeOf(stage) : "groups"}
         locks={slotLocks}
         replace={replace}

@@ -17,6 +17,8 @@ import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
 import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { fieldRefusal } from "@/lib/services/field-change";
+import { afterTeeSheetChange, teeSheetVerdictFor } from "@/lib/services/tee-sheet-change";
+import { startedGroupsRefusal } from "@/lib/domain/tee-sheet-change";
 import { revokePlayerAccount } from "@/lib/services/player-access";
 import { withdrawEntry } from "@/lib/services/playing-history";
 import { isLaunched } from "@/lib/domain/lifecycle-state";
@@ -78,6 +80,8 @@ async function refresh() {
 export interface TeeSheetResult {
   ok: boolean;
   error?: string;
+  /** A change to a sheet players were already sent: what they were told (`teeSheetWarnWords`). Said beside the button pressed. */
+  warning?: string;
 }
 
 async function requireStaffSession() {
@@ -88,6 +92,12 @@ async function requireStaffSession() {
   }
   await assertEventWritable(session.eventId);
   return session;
+}
+
+/** The round's own label ("Round 2", or "" for a one-round tournament), for Recent changes. */
+async function labelOf(eventId: string, stageId: string): Promise<string> {
+  const stages = await prisma.stage.findMany({ where: { eventId }, select: { id: true, type: true, holes: true, nine: true }, orderBy: { position: "asc" } });
+  return roundLabel(stages, stageId);
 }
 
 /** A sheet has at most a field's worth of groups; anything bigger is not one. */
@@ -115,6 +125,9 @@ export async function saveTeeSheet(
     select: { id: true, teeSheet: true, teeSheetPublished: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+  // THE ONE TEE-SHEET RULE (`teeSheetChangeAllowed`): a completed tournament's sheet is final.
+  const verdict = await teeSheetVerdictFor(session.eventId, stageId, { kind: "save", publish: publish === true });
+  if (verdict && !verdict.ok) return { ok: false, error: verdict.says };
 
   // Serialize through the parser so only the known shape is ever stored —
   // whatever arrived is arbitrary caller input, not the component's object.
@@ -139,6 +152,12 @@ export async function saveTeeSheet(
   }
   const problems = validateTeeSheet(clean, new Set(field));
   if (problems.length) return { ok: false, error: problems[0] };
+  // A round with scores keeps every group that has started as it was; the rest may be drawn again.
+  const before = parseTeeSheet(stage.teeSheet ?? "");
+  if (verdict?.ok && verdict.groupsDecide && before) {
+    const kept = startedGroupsRefusal(before, clean, await slotLocksFor(session.eventId, stageId, before));
+    if (kept) return { ok: false, error: kept };
+  }
 
   await prisma.stage.update({
     where: { id: stageId },
@@ -172,8 +191,9 @@ export async function saveTeeSheet(
     });
   }
 
+  const warning = await afterTeeSheetChange(session.eventId, verdict, { label: await labelOf(session.eventId, stageId) }, { previous: before, next: clean });
   await refresh();
-  return { ok: true };
+  return warning ? { ok: true, warning } : { ok: true };
 }
 
 /** Show or hide the saved sheet from players — the announcement, undone-able. */
@@ -184,6 +204,8 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
     select: { teeSheet: true, teeSheetPublished: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+  const verdict = await teeSheetVerdictFor(session.eventId, stageId, { kind: published ? "publish" : "unpublish" });
+  if (verdict && !verdict.ok) return { ok: false, error: verdict.says };
   if (published && !stage.teeSheet) {
     return { ok: false, error: "Save a sheet before publishing it — there's nothing to show yet." };
   }
@@ -219,8 +241,10 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
     }
   }
 
+  // Taking an announced sheet back is the one change here that a published sheet has to say.
+  const warning = !published && stage.teeSheetPublished ? await afterTeeSheetChange(session.eventId, verdict, { label: await labelOf(session.eventId, stageId) }, { previous: parseTeeSheet(stage.teeSheet ?? ""), next: null }) : null;
   await refresh();
-  return { ok: true };
+  return warning ? { ok: true, warning } : { ok: true };
 }
 
 /**
@@ -235,8 +259,8 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
  *
  * WHO MAY CALL IT: staff of the tournament (`requireStaffSession`), an
  * Assistant as much as the Organizer — it is the desk's job on the morning —
- * and only while the one field rule allows it (`fieldRefusal`, change
- * "place-in-group": open until the tournament is completed). Every argument is
+ * and only while the one tee-sheet rule allows it (`teeSheetChangeAllowed`,
+ * "place": open until the tournament is completed). Every argument is
  * checked here, because a `"use server"` export is called with whatever the
  * caller sends.
  *
@@ -255,8 +279,8 @@ export async function placeInTeeGroup(
   if (typeof groupIndex !== "number" || !Number.isInteger(groupIndex) || groupIndex < 0) {
     return { ok: false, error: "Choose a group." };
   }
-  const refused = await fieldRefusal(session.eventId, "place-in-group");
-  if (refused) return { ok: false, error: refused };
+  const verdict = await teeSheetVerdictFor(session.eventId, stageId, { kind: "place" });
+  if (verdict && !verdict.ok) return { ok: false, error: verdict.says };
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId: session.eventId },
@@ -309,9 +333,10 @@ export async function placeInTeeGroup(
     });
   }
 
+  const warning = await afterTeeSheetChange(session.eventId, verdict, { label: await labelOf(session.eventId, stageId) }, { previous: sheet, next });
   await refresh();
   const when = placed.group.time ? `, off at ${placed.group.time}` : "";
-  return { ok: true, said: `${player.name} is in ${placed.group.name || "the group"}${when}.` };
+  return { ok: true, said: `${player.name} is in ${placed.group.name || "the group"}${when}.${warning ? ` ${warning}` : ""}` };
 }
 
 /** The most moves one Save carries: a draft is a few taps, never a re-draw. */
@@ -328,7 +353,7 @@ const MOST_MOVES = 60;
  * locked; nobody ends a group above four; a group left with nobody is removed on Save.
  *
  * WHO MAY CALL IT: staff of the tournament, an Assistant as much as the
- * Organizer, and only while the field rule allows (`place-in-group`). A player
+ * Organizer, and only while the tee-sheet rule allows it (`teeSheetChangeAllowed`, "move"). A player
  * is moved on their own only in an individual stroke round; where the round is
  * played in sides or matches only a whole side (`kind: "side"`, exactly one of
  * the round's own sides) or a whole group moves — partners are not split.
@@ -349,8 +374,8 @@ export async function moveInTeeSheet(
   }
   if (!Array.isArray(moves) || moves.length === 0) return { ok: false, error: "There is nothing to save." };
   if (moves.length > MOST_MOVES) return { ok: false, error: "That is too many changes at once. Save, then carry on." };
-  const refused = await fieldRefusal(session.eventId, "place-in-group");
-  if (refused) return { ok: false, error: refused };
+  const verdict = await teeSheetVerdictFor(session.eventId, stageId, { kind: "move" });
+  if (verdict && !verdict.ok) return { ok: false, error: verdict.says };
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId: session.eventId },
@@ -433,8 +458,10 @@ export async function moveInTeeSheet(
     });
   }
 
+  const warning = await afterTeeSheetChange(session.eventId, verdict, { label: await labelOf(session.eventId, stageId) }, { previous: sheet, next });
   await refresh();
-  return { ok: true, said: settled.removed.length ? `The sheet is saved. ${settled.removed.join(", ")} removed (no players left).` : "The sheet is saved with your changes." };
+  const saved = settled.removed.length ? `The sheet is saved. ${settled.removed.join(", ")} removed (no players left).` : "The sheet is saved with your changes.";
+  return { ok: true, said: warning ? `${saved} ${warning}` : saved };
 }
 
 /** Who steps in: a member of the tournament, or a guest typed in on the spot (the index as typed, "" for none). */
@@ -489,8 +516,8 @@ export async function replaceInTeeSheet(
   const reason = readReplaceReason(reasonIn);
   if (!reason) return { ok: false, error: "Choose why: no-show, cancelled or other." };
   if (!who || typeof who !== "object" || (who.kind !== "member" && who.kind !== "guest")) return { ok: false, error: "Choose who steps in." };
-  const refused = await fieldRefusal(session.eventId, "place-in-group");
-  if (refused) return { ok: false, error: refused };
+  const verdict = await teeSheetVerdictFor(session.eventId, stageId, { kind: "replace" });
+  if (verdict && !verdict.ok) return { ok: false, error: verdict.says };
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId: session.eventId },
@@ -713,12 +740,13 @@ export async function replaceInTeeSheet(
     });
   }
 
+  const warning = await afterTeeSheetChange(session.eventId, verdict, { label: roundLabel(stages, stageId) }, { previous: sheet, next: result.next });
   await refresh();
   const where = result.time ? `${result.groupName}, ${result.time}` : result.groupName;
   // A withdrawn entry has no way in, as with the Withdraw press (an address still used by somebody in the field is kept).
   if (!weekly && absentee.email.trim()) await revokePlayerAccount(session.eventId, absentee.email);
   const stays = weekly ? "" : ` ${absentee.name} is withdrawn from the field (their row is kept).`;
-  return { ok: true, said: `${sub.name} is in ${where}, in place of ${absentee.name}.${stays}` };
+  return { ok: true, said: `${sub.name} is in ${where}, in place of ${absentee.name}.${stays}${warning ? ` ${warning}` : ""}` };
 }
 
 /** The round's own sides, as the tee sheet goes out in them (`sidesByMatch`): whole pairs, or a match's four. */
