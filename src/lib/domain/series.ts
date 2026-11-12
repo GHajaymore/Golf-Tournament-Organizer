@@ -37,7 +37,16 @@ export interface EventFinish {
   eventId: string;
   eventName: string;
   /** rank is 1-based; several members may share one. */
-  finishers: Array<{ memberId: string; name: string; rank: number }>;
+  finishers: Array<{
+    memberId: string;
+    name: string;
+    rank: number;
+    /**
+     * A GUEST who stood in through Replace (`isGuestStandIn`): placed in the event, scores no individual season
+     * points (B46). REQUIRED, so every place that builds a finishing order says which each finisher is.
+     */
+    standIn: boolean;
+  }>;
 }
 
 export interface SeriesEntry {
@@ -110,10 +119,13 @@ export function seriesStandings(events: EventFinish[], config: SeriesConfig): Se
 
   for (const ev of events) {
     // How many share each rank, so ties split correctly.
+    // A stand-in still HOLDS a place, so it counts here: a member keeps the place they finished and a tie with one is
+    // shared as it was played (B46). What a stand-in does not do is score.
     const atRank = new Map<number, number>();
     for (const f of ev.finishers) atRank.set(f.rank, (atRank.get(f.rank) ?? 0) + 1);
 
     for (const f of ev.finishers) {
+      if (f.standIn) continue; // B46: a guest who stood in scores no individual season points.
       const points = pointsForRank(table, f.rank, atRank.get(f.rank) ?? 1);
       const existing = byMember.get(f.memberId) ?? {
         memberId: f.memberId,

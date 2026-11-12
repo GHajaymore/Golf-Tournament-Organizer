@@ -146,12 +146,12 @@ describe("the order of merit ignores a non-finisher", () => {
           eventId: "e1",
           eventName: "Spring Medal",
           finishers: [
-            { memberId: "m1", name: "First", rank: 1 },
-            { memberId: "m4", name: "Fourth", rank: 4 },
+            { memberId: "m1", name: "First", rank: 1, standIn: false },
+            { memberId: "m4", name: "Fourth", rank: 4, standIn: false },
             // What the old finishOrderFor produced for three no-shows.
-            { memberId: "mX", name: "No card A", rank: 0 },
-            { memberId: "mY", name: "No card B", rank: 0 },
-            { memberId: "mZ", name: "No card C", rank: 0 },
+            { memberId: "mX", name: "No card A", rank: 0, standIn: false },
+            { memberId: "mY", name: "No card B", rank: 0, standIn: false },
+            { memberId: "mZ", name: "No card C", rank: 0, standIn: false },
           ],
         },
       ],
@@ -180,7 +180,7 @@ describe("the order of merit ignores a non-finisher", () => {
         {
           eventId: "e1",
           eventName: "Spring Medal",
-          finishers: [{ memberId: "mX", name: "No card", rank: 0 }],
+          finishers: [{ memberId: "mX", name: "No card", rank: 0, standIn: false }],
         },
       ],
       config,

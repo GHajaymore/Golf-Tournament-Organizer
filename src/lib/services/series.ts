@@ -5,6 +5,8 @@ import { SEASON_LOCKED } from "../plans";
 import { organizationAllows } from "./entitlements";
 import { finishingPositions } from "./finish-order";
 import { cupResult } from "./cup";
+import { isGuestStandIn } from "../domain/attendance";
+import { isGuest } from "../domain/entry-standing";
 import { cupFinishingPositions } from "../domain/cup";
 import {
   seriesStandings,
@@ -119,9 +121,19 @@ export async function finishOrderFor(eventId: string): Promise<(EventFinish & { 
   const cup = await cupResult(eventId);
   const ordered = cup ? cupFinishingPositions(cup) : finishingPositions(state);
 
+  // B46: a guest who stood in through Replace holds a place but scores no individual season points.
+  const attendance = await prisma.roundAttendance.findMany({ where: { eventId }, select: { playerId: true, decidedBy: true } });
+  const decidedBy = new Map<string, string[]>();
+  for (const a of attendance) decidedBy.set(a.playerId, [...(decidedBy.get(a.playerId) ?? []), a.decidedBy]);
+  const guestIds = new Set(state.players.filter((p) => isGuest(p)).map((p) => p.id));
   const finishers = ordered
     .filter((o) => memberByPlayer.has(o.playerId))
-    .map((o) => ({ memberId: memberByPlayer.get(o.playerId)!, name: o.name, rank: o.rank }));
+    .map((o) => ({
+      memberId: memberByPlayer.get(o.playerId)!,
+      name: o.name,
+      rank: o.rank,
+      standIn: isGuestStandIn(guestIds.has(o.playerId), decidedBy.get(o.playerId) ?? []),
+    }));
 
   // `placed` is everybody who holds a finishing place, roster record or not:
   // what separates "we could not track them" from "they did not finish".

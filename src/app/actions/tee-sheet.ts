@@ -42,7 +42,7 @@ import {
 } from "@/lib/domain/tee-sheet-replace";
 import { replaceWorldFor, sidesHavePlay, voidSideEntries, type RoundSide } from "@/lib/services/tee-sheet-replace";
 import { settingsOf } from "@/lib/services/tournament";
-import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { REPLACING_MARK, STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { zoneOfEvent } from "@/lib/services/club-clock";
 import { clubWallClock } from "@/lib/domain/club-clock";
 import { roundWordsFor } from "@/lib/services/action-shared";
@@ -665,7 +665,7 @@ export async function replaceInTeeSheet(
       // The week: out for the absentee, in for the sub — each naming the other, and who pressed.
       if (weekly) {
         const out = `${session.name} (replaced by ${sub.name})`;
-        const inn = `${session.name} (replacing ${absentee.name})`;
+        const inn = `${session.name} ${REPLACING_MARK}${absentee.name})`;
         await tx.roundAttendance.upsert({
           where: { stageId_playerId: { stageId, playerId: absenteeId } },
           update: { status: "out", decidedAt: new Date(), decidedBy: out },

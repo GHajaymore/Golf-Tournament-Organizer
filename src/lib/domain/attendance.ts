@@ -33,6 +33,22 @@ import { deadlinePassed } from "../deadline";
  */
 export const STAND_IN_MARK = "(stand-in for ";
 
+/**
+ * THE MARK ON A SUBSTITUTE'S IN ROW, written by Replace: "<who pressed> (replacing <absentee>)". With `STAND_IN_MARK`
+ * (their OUT rows for the other weeks) it is how the rest of the app tells a stand-in from a guest entered any other way.
+ */
+export const REPLACING_MARK = "(replacing ";
+
+/**
+ * B46, THE ONE RULE (Golf Pro + Tournament Director, 12 Nov): a GUEST who stood in for an absent member through
+ * Replace scores NO individual season points. The pair's, team's and week's points are not this rule's business, and a
+ * guest entered any other way (a CSV row, the entry form) who plays the season is a regular and scores as one.
+ * Every input is required, so a caller cannot forget the standing or the rows.
+ */
+export function isGuestStandIn(guest: boolean, decidedBy: readonly string[]): boolean {
+  return guest && decidedBy.some((d) => d.includes(STAND_IN_MARK) || d.includes(REPLACING_MARK));
+}
+
 export const ATTENDANCE_MODES = ["everyone", "opt-out", "opt-in", "captains"] as const;
 export type AttendanceMode = (typeof ATTENDANCE_MODES)[number];
 
