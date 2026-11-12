@@ -1,4 +1,5 @@
 import { PLANS, type FeatureKey, type PlanKey } from "@/lib/plans";
+import { SCORED_GAME_COUNT } from "@/lib/formats";
 
 /**
  * Every feature the front door lists, as data.
@@ -49,7 +50,7 @@ export function featureGroups({ localGolf }: { localGolf: boolean }): FeatureGro
       key: "competition",
       title: "The competition",
       items: [
-        { t: "Sixteen formats", s: "fifteen scored automatically, one leaderboard", top: true },
+        { t: `${SCORED_GAME_COUNT} formats`, s: "scored by the app, any other game by hand, one leaderboard", top: true },
         { t: "Slope-and-rating course handicaps", s: "then the format's allowance", top: true },
         { t: "Multi-round events", s: "cuts made as a round closes, carry-forward", top: true },
         { t: "Brackets, flights and a plate", s: "seeded from live standings", top: true },
