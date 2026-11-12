@@ -229,12 +229,18 @@ if (dirty) finish(`NOT RUN — ${dirty} tracked files have uncommitted changes; 
 const commit = git("rev-parse", "--short", "HEAD");
 const app = appId();
 
-if (flag("build")) {
-  say(`building ${commit} (app ${app}) …`);
+// The database suite. `--audit-only` is the round's own job for it (round.yml `audit`, run BESIDE the build);
+// `--build` alone runs it first as it always did, and `--build --no-audit` is the round's build job, which
+// leaves it to that other job. Its verdict binds the round either way (merge.mjs `--audit=<job result>`).
+if (flag("audit-only") || (flag("build") && !flag("no-audit"))) {
   const audit = await run("npx vitest run --config vitest.audit.config.ts", { log: join(OUT, "audit.log"), minutes: 40 });
   const auditSaid = strip(readFileSync(join(OUT, "audit.log"), "utf8")).split("\n").filter((l) => /Test Files|Tests /.test(l)).map((l) => l.trim());
   say(`database suite: exit=${audit} ${auditSaid.join(" · ")}`);
   if (audit !== 0) finish("NOT RUN — the database suite failed", 8);
+  if (flag("audit-only")) finish(`DATABASE SUITE PASSED — ${commit}`, 0);
+}
+if (flag("build")) {
+  say(`building ${commit} (app ${app}) …`);
   stopServer();
   rmSync(DIST, { recursive: true, force: true });
   const built = await run("npm run build", { env: { NEXT_DIST_DIR: DIST, NEXT_NO_STANDALONE: "1", AUTH_SECRET: SECRET }, log: join(OUT, "build.log"), minutes: 30 });

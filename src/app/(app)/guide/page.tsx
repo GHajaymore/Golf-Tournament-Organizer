@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { inClubWords } from "@/lib/domain/golf-terms";
 import { PLANS, planTagline } from "@/lib/plans";
+import { SCORED_GAME_COUNT, SCORED_GAME_LABELS } from "@/lib/formats";
 
 /**
  * HOW TOURNEYHQ WORKS, in the console (Ajay, 2026-10-01: "include it as part
@@ -77,11 +78,7 @@ const P = ({ children }: { children: React.ReactNode }) => (
   <p style={{ margin: 0, maxWidth: 720, fontSize: 14.5, lineHeight: 1.65 }}>{children}</p>
 );
 
-const FORMATS = [
-  "Stroke Play", "Stableford", "Modified Stableford", "Match Play", "Four-Ball", "Best Ball", "Foursomes",
-  "Alternate Shot", "Greensomes", "Chapman / Pinehurst", "Shamble", "Scramble", "Texas Scramble", "Skins",
-  "Nassau", "Other, by hand",
-];
+const FORMATS = [...SCORED_GAME_LABELS, "Other, by hand"];
 
 export default async function GuidePage() {
   const session = await requireScreen("guide");
@@ -164,7 +161,7 @@ export default async function GuidePage() {
           height={364}
           alt="Handicap index, then course handicap from the course's slope and rating, then playing handicap with the round's allowance, then strokes received on holes by stroke index, giving net scores, Stableford points, match holes and skins."
         />
-        <P>Sixteen formats settle onto one leaderboard. Fifteen are scored automatically; &ldquo;Other&rdquo; is a club&rsquo;s own format, scored by hand.</P>
+        <P>{SCORED_GAME_COUNT} formats settle onto one leaderboard, scored by the app (Foursomes is also called Alternate Shot); &ldquo;Other&rdquo; is a club&rsquo;s own game, scored by hand.</P>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {FORMATS.map((f) => (
             <span key={f} className="tag tag-outline">{f}</span>

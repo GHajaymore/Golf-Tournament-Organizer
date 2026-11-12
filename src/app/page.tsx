@@ -15,7 +15,9 @@ import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/
 import { inDialect } from "@/lib/landing/dialect";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { landingPrices } from "@/lib/landing/pricing";
-import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
+import { FAQ_COUNT } from "@/lib/landing/faq";
+import { SCORED_GAME_COUNT } from "@/lib/formats";
+import { POLL_MS } from "@/lib/domain/freshness";
 import { featureCount, featureGroups } from "@/lib/landing/features";
 import { FRONT_DOOR_CSS_HREF } from "@/lib/landing/front-door-sheet";
 import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
@@ -382,7 +384,7 @@ export default async function LandingPage() {
                 <li><b>A live board by link</b><span>Anyone can watch; nobody signs in</span></li>
                 <li><b>Works without signal</b><span>Cards save and send later</span></li>
                 <li><b>Scores by voice</b><span>Say the hole, or the whole card</span></li>
-                <li><b>{FORMAT_NAMES.length} formats</b><span>Each scored by its own rules</span></li>
+                <li><b>{SCORED_GAME_COUNT} formats</b><span>Each scored by its own rules</span></li>
               </ul>
             </div>
           </div>
@@ -455,7 +457,7 @@ export default async function LandingPage() {
           <div className="m-wrap">
             <div className="m-grid">
               <p className="m-big"><span className="m-time" id="moment-time">11:42.</span> <span className="m-l1">A birdie on the 14th.</span> <span className="m-hl m-l2">The whole club sees it.</span></p>
-              <p className="m-aside">Every card moves the board the moment it is saved. On the phone in a member&rsquo;s hand, on the laptop in the office, on the television in the bar.</p>
+              <p className="m-aside">Every card sent reaches the board within {POLL_MS / 1000} seconds. On the phone in a member&rsquo;s hand, on the laptop in the office, on the television in the bar.</p>
             </div>
           </div>
         </section>
@@ -534,7 +536,7 @@ export default async function LandingPage() {
                 <div className="m-peek"><div className="m-phone">{plainShot({ name: "org-dashboard", alt: "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", sizes: SIZES.peek })}</div></div>
               </div>
               <div className="m-card">
-                <h3>Sixteen formats, one leaderboard.</h3>
+                <h3>{SCORED_GAME_COUNT} formats, one leaderboard.</h3>
                 <p>Stroke play to Stableford, match play to scramble, skins and Nassau. All on every plan.</p>
                 <div className="m-peek"><div className="m-phone">{plainShot({ name: "public-stableford", alt: "A live public board ranked by Stableford points.", sizes: SIZES.peek })}</div></div>
               </div>
