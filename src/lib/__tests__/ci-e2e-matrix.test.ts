@@ -216,3 +216,12 @@ describe("the time cut deals every spec to exactly one shard", () => {
     }
   });
 });
+
+describe("a round's longest part is not whole", () => {
+  it("cuts the small phone's whole suite (41.6 minutes on one machine, 2026-11-11) and the phone's", async () => {
+    const { SHARDS } = (await import("../../../scripts/qa/layers.mjs")) as unknown as { SHARDS: Record<string, number> };
+    expect(SHARDS["suite:small-phone"], "suite:small-phone is one machine again").toBeGreaterThanOrEqual(2);
+    expect(SHARDS["suite:phone"]).toBeGreaterThanOrEqual(2);
+    expect(SHARDS["iphone:phone"]).toBeGreaterThanOrEqual(2);
+  });
+});
