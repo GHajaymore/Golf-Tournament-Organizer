@@ -574,6 +574,17 @@ export const distinctScoredGames: string[] = GOLF_FORMATS
   .filter((f) => f.scored && !(f.name in SAME_GAME_AS))
   .map((f) => f.name);
 
+/**
+ * The games as a person reads them, one label each: a game that is also sold
+ * under another name carries it in brackets ("Foursomes (Alternate Shot)", the
+ * Rules' own heading, Rule 22), so a reader who knows either name finds it.
+ * The FAQ pills and the guide's tags both render THIS list.
+ */
+export const SCORED_GAME_LABELS: string[] = distinctScoredGames.map((g) => {
+  const aliases = Object.entries(SAME_GAME_AS).filter(([, of]) => of === g).map(([alias]) => alias);
+  return aliases.length ? `${g} (${aliases.join(", ")})` : g;
+});
+
 /** `distinctScoredGames.length` as a word-free figure for copy. */
 export const SCORED_GAME_COUNT = distinctScoredGames.length;
 

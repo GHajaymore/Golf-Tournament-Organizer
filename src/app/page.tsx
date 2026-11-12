@@ -457,7 +457,7 @@ export default async function LandingPage() {
           <div className="m-wrap">
             <div className="m-grid">
               <p className="m-big"><span className="m-time" id="moment-time">11:42.</span> <span className="m-l1">A birdie on the 14th.</span> <span className="m-hl m-l2">The whole club sees it.</span></p>
-              <p className="m-aside">Every card saved reaches the board within {POLL_MS / 1000} seconds. On the phone in a member&rsquo;s hand, on the laptop in the office, on the television in the bar.</p>
+              <p className="m-aside">Every card sent reaches the board within {POLL_MS / 1000} seconds. On the phone in a member&rsquo;s hand, on the laptop in the office, on the television in the bar.</p>
             </div>
           </div>
         </section>

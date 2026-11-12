@@ -1,4 +1,4 @@
-import { GOLF_FORMATS, isPlayable, lookupFormat } from "@/lib/formats";
+import { GOLF_FORMATS, SAME_GAME_AS, isPlayable, lookupFormat } from "@/lib/formats";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { basisFor } from "@/lib/domain/week-basis";
 
@@ -54,7 +54,6 @@ const HINTS: Record<string, string> = {
  * another name"), and listing both made a newcomer choose between two names
  * for one format. Kept in the catalogue, so a round set to it reads as before.
  */
-const SAME_GAME_AS: Record<string, string> = { "Alternate Shot": "Foursomes" };
 
 /** The format a round of this type is played in at most clubs, chosen for the organizer. */
 export function naturalFormatFor(type: string): string {

@@ -4,7 +4,7 @@ import { PLANS, retentionNotice } from "@/lib/plans";
 import { HANDICAP_EXAMPLE } from "./example";
 import type { LandingPrices } from "./pricing";
 import { faqWords, type LaunchState } from "@/lib/go-live";
-import { distinctScoredGames, SCORED_GAME_COUNT } from "@/lib/formats";
+import { SCORED_GAME_LABELS, SCORED_GAME_COUNT } from "@/lib/formats";
 
 /**
  * EVERY QUESTION THE FRONT DOOR ANSWERS, in one place.
@@ -54,7 +54,7 @@ const hc = HANDICAP_EXAMPLE;
  * (`distinctScoredGames` in formats.ts), then the club's own format scored by hand.
  * The count printed anywhere is `SCORED_GAME_COUNT`, never typed.
  */
-export const FORMAT_NAMES: string[] = [...distinctScoredGames, "Other, scored by hand"];
+export const FORMAT_NAMES: string[] = [...SCORED_GAME_LABELS, "Other, scored by hand"];
 
 export const FAQ: FaqGroup[] = [
   {

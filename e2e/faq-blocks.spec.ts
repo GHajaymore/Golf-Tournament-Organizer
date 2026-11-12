@@ -107,6 +107,7 @@ test("the questions page lays out its handicap sum, its formats and its prices",
     await fits(answer, el, "the list of formats");
     const pills = await boxes(page, "details.q#q-formats .fmts > span");
     expect(pills, "14 scored games and Other").toHaveLength(15);
+    expect(pills.map((p) => p.text), "Alternate Shot is one pill, with Foursomes").toContain("Foursomes (Alternate Shot)");
     for (const [i, a] of pills.entries()) {
       expect(a.w, `"${a.text}" has no box of its own`).toBeGreaterThan(20);
       for (const b of pills.slice(i + 1)) {
