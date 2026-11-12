@@ -118,14 +118,19 @@ export function seriesStandings(events: EventFinish[], config: SeriesConfig): Se
   const byMember = new Map<string, SeriesStanding>();
 
   for (const ev of events) {
+    // B46 (Golf Pro): the season is scored among the ELIGIBLE players only. A guest who stood in scores nothing and takes
+    // no place from anybody: a member 3rd behind the guest is 2nd here, one tied with the guest takes the whole of that
+    // place's points, and members tied with each other still split as they always did.
+    const eligible = ev.finishers.filter((f) => !f.standIn);
+    const reRanked = eligible.length < ev.finishers.length;
+    const rankAmong = (rank: number) =>
+      !reRanked || rank < 1 ? rank : 1 + eligible.filter((o) => o.rank >= 1 && o.rank < rank).length;
     // How many share each rank, so ties split correctly.
-    // A stand-in still HOLDS a place, so it counts here: a member keeps the place they finished and a tie with one is
-    // shared as it was played (B46). What a stand-in does not do is score.
     const atRank = new Map<number, number>();
-    for (const f of ev.finishers) atRank.set(f.rank, (atRank.get(f.rank) ?? 0) + 1);
+    for (const f of eligible) atRank.set(rankAmong(f.rank), (atRank.get(rankAmong(f.rank)) ?? 0) + 1);
 
-    for (const f of ev.finishers) {
-      if (f.standIn) continue; // B46: a guest who stood in scores no individual season points.
+    for (const f0 of eligible) {
+      const f = { ...f0, rank: rankAmong(f0.rank) };
       const points = pointsForRank(table, f.rank, atRank.get(f.rank) ?? 1);
       const existing = byMember.get(f.memberId) ?? {
         memberId: f.memberId,

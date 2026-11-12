@@ -60,62 +60,80 @@ afterAll(async () => {
   }
 });
 
-describe("a league week where a guest stands in, read from the season table", () => {
-  it("shows the guest with no points, the absentee unscored, and a CSV guest who plays still scoring", async () => {
-    const [y, m, d] = clubToday("UTC").split("-").map(Number);
-    const tomorrow = new Date(Date.UTC(y, m - 1, d + 1, 12)).toISOString().slice(0, 10);
-    const series = await prisma.series.create({ data: { organizationId: orgId, name: `${TAG} Season` } });
-    const event = await prisma.event.create({
-      data: {
-        organizationId: orgId, seriesId: series.id, name: `${TAG} Week 1`, dates: "", course: "", city: "", address: "", regDeadline: "",
-        shareToken: `${TAG}-w1-${Date.now()}`, status: "live", configUnlocked: false, attendanceMode: "opt-out", format: "stroke",
-      },
-    });
-    const eventId = event.id;
-    const adminUser = await prisma.user.create({ data: { email: at("admin"), name: `${TAG} Organizer`, password: "x", emailVerifiedAt: new Date() } });
-    await prisma.account.create({ data: { eventId, email: at("admin"), name: `${TAG} Organizer`, role: "admin" } });
-    const stage = await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: tomorrow } });
-
-    const person = async (key: string, i: number, guest: boolean) => {
-      const member = await prisma.member.create({ data: { organizationId: orgId, name: `${TAG} ${key}` } });
-      return (await prisma.player.create({ data: { eventId, memberId: member.id, name: `${TAG} ${key}`, email: guest ? "" : at(key), handicap: 10, seed: i, status: "confirmed", standing: guest ? "guest" : "member" } })).id;
-    };
-    const ann = await person("ann", 1, false); // absent
-    const bob = await person("bob", 2, false); // her partner
-    const cat = await person("cat", 3, false);
-    const csv = await person("csvguest", 4, true); // a guest entered by CSV, plays the season
-    await prisma.stage.update({
-      where: { id: stage.id },
-      data: {
-        teeSheetPublished: true,
-        teeSheet: JSON.stringify({ savedAt: SAVED, startType: "tee", groups: [{ name: "Group 1", startHole: 1, time: "9:00 AM", playerIds: [ann, bob, cat, csv] }] }),
-      },
-    });
-
-    jar.clear();
-    await createSession(adminUser.id);
-    await setActiveEvent(eventId);
-    const done = await replaceInTeeSheet(stage.id, SAVED, ann, { kind: "guest", name: `${TAG} Standin`, index: "12" }, "no-show");
-    expect(done.ok, JSON.stringify(done)).toBe(true);
-    const sub = await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Standin` } });
-
-    // Cards come in: the stand-in plays best of all, then Bob, Cat, the CSV guest. Ann has no card.
-    const card = (per: number) => JSON.stringify(Array.from({ length: 18 }, () => per));
-    for (const [pid, per] of [[sub.id, 3], [bob, 4], [cat, 5], [csv, 6]] as const) {
-      await prisma.scorecard.create({ data: { eventId, stageId: stage.id, playerId: pid, strokes: card(per) } });
-    }
-    await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
-
-    const table = await seriesTable(series.id);
-    expect(table?.allowed, JSON.stringify(table?.reason)).toBe(true);
-    const names = table!.standings.map((s) => s.name);
-    expect(names, "the guest stand-in is in the season table").not.toContain(`${TAG} Standin`);
-    expect(names, "the absentee scored for a week they did not play").not.toContain(`${TAG} ann`);
-    const pts = (n: string) => table!.standings.find((s) => s.name === `${TAG} ${n}`)?.total;
-    // The members keep the place they finished behind the stand-in: Bob 2nd = 80, Cat 3rd = 65, the CSV guest 4th = 55.
-    expect(pts("bob")).toBe(80);
-    expect(pts("cat")).toBe(65);
-    expect(pts("csvguest"), "a CSV guest who plays the season is a regular and scores").toBe(55);
-
+/**
+ * One league week through the real Replace action, then every card and the season table. `mode` is the club's weekly
+ * sign-up ("opt-out" asks each week; "everyone" asks nothing). `how` is who steps in for Ann: a guest CREATED by the press
+ * ("new") or a season-regular guest PICKED from the field ("picked").
+ */
+async function season(mode: "opt-out" | "everyone", how: "new" | "picked") {
+  const key = `${mode}-${how}`;
+  const [y, m, d] = clubToday("UTC").split("-").map(Number);
+  const tomorrow = new Date(Date.UTC(y, m - 1, d + 1, 12)).toISOString().slice(0, 10);
+  const series = await prisma.series.create({ data: { organizationId: orgId, name: `${TAG} Season ${key}` } });
+  const event = await prisma.event.create({
+    data: {
+      organizationId: orgId, seriesId: series.id, name: `${TAG} Week ${key}`, dates: "", course: "", city: "", address: "", regDeadline: "",
+      shareToken: `${TAG}-${key}-${Date.now()}`, status: "live", configUnlocked: false, attendanceMode: mode, format: "stroke",
+    },
   });
+  const eventId = event.id;
+  const adminUser = await prisma.user.create({ data: { email: at(`admin-${key}`), name: `${TAG} Organizer`, password: "x", emailVerifiedAt: new Date() } });
+  await prisma.account.create({ data: { eventId, email: at(`admin-${key}`), name: `${TAG} Organizer`, role: "admin" } });
+  const stage = await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: tomorrow } });
+
+  const person = async (name: string, i: number, guest: boolean) => {
+    const member = await prisma.member.create({ data: { organizationId: orgId, name: `${TAG} ${name}` } });
+    return (await prisma.player.create({ data: { eventId, memberId: member.id, name: `${TAG} ${name}`, email: guest ? "" : at(`${name}-${key}`), handicap: 10, seed: i, status: "confirmed", standing: guest ? "guest" : "member" } })).id;
+  };
+  const ann = await person("ann", 1, false); // absent
+  const bob = await person("bob", 2, false);
+  const cat = await person("cat", 3, false);
+  const csv = await person("csvguest", 4, true); // a guest entered by CSV, plays the season
+  const pick = await person("pickguest", 5, true); // a season-regular guest on the field, not on the sheet
+  await prisma.stage.update({
+    where: { id: stage.id },
+    data: {
+      teeSheetPublished: true,
+      teeSheet: JSON.stringify({ savedAt: SAVED, startType: "tee", groups: [{ name: "Group 1", startHole: 1, time: "9:00 AM", playerIds: [ann, bob, cat, csv] }] }),
+    },
+  });
+  jar.clear();
+  await createSession(adminUser.id);
+  await setActiveEvent(eventId);
+  const done = await replaceInTeeSheet(stage.id, SAVED, ann, how === "new" ? { kind: "guest", name: `${TAG} Standin`, index: "12" } : { kind: "member", playerId: pick }, "no-show");
+  expect(done.ok, JSON.stringify(done)).toBe(true);
+  const subId = how === "new" ? (await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Standin` } })).id : pick;
+
+  // The sub plays best of all, then Bob, Cat, the CSV guest. Ann has no card.
+  const card = (per: number) => JSON.stringify(Array.from({ length: 18 }, () => per));
+  for (const [pid, per] of [[subId, 3], [bob, 4], [cat, 5], [csv, 6]] as const) {
+    await prisma.scorecard.create({ data: { eventId, stageId: stage.id, playerId: pid, strokes: card(per) } });
+  }
+  await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
+  const table = await seriesTable(series.id);
+  expect(table?.allowed, JSON.stringify(table?.reason)).toBe(true);
+  const pts = (n: string) => table!.standings.find((s) => s.name === `${TAG} ${n}`)?.total;
+  return { table: table!, pts, eventId };
+}
+
+describe("a league week where a guest stands in, read from the season table (table 100/80/65/55...)", () => {
+  for (const mode of ["opt-out", "everyone"] as const) {
+    it(`${mode}: a guest CREATED by Replace has no points and takes no place; members move up; the CSV guest still scores; the absentee has none`, async () => {
+      const { table, pts } = await season(mode, "new");
+      const names = table.standings.map((s) => s.name);
+      expect(names, "the guest stand-in is in the season table").not.toContain(`${TAG} Standin`);
+      expect(names, "the absentee scored for a week they did not play").not.toContain(`${TAG} ann`);
+      // Among the eligible: Bob 1st = 100, Cat 2nd = 80, the CSV guest 3rd = 65 (a regular scores as one).
+      expect(pts("bob")).toBe(100);
+      expect(pts("cat")).toBe(80);
+      expect(pts("csvguest")).toBe(65);
+    });
+    it(`${mode}: a season-regular guest PICKED from the field is not a stand-in and scores in full`, async () => {
+      const { pts } = await season(mode, "picked");
+      expect(pts("pickguest"), "a picked guest lost their points").toBe(100);
+      expect(pts("bob")).toBe(80);
+      expect(pts("cat")).toBe(65);
+      expect(pts("csvguest")).toBe(55);
+    });
+  }
 });
