@@ -28,13 +28,6 @@
 import type { TeeSheet } from "./tee-sheet";
 import type { SlotLocks } from "./tee-sheet-moves";
 
-/**
- * THE MARK A STAND-IN CARRIES: the start of the `decidedBy` of the OUT rows written for a guest made by Replace.
- * One constant, so the writer (`replaceInTeeSheet`) and the finder (`addStage`, which keeps a stand-in out of
- * a week added later) cannot drift apart.
- */
-export const STAND_IN_MARK = "(stand-in for ";
-
 export const REPLACE_REASONS = ["no-show", "cancelled", "other"] as const;
 export type ReplaceReason = (typeof REPLACE_REASONS)[number];
 

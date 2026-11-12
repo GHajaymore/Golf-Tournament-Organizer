@@ -36,12 +36,11 @@ import {
   guestFigureRefusal,
   replaceRefusal,
   swapPairMember,
-  STAND_IN_MARK,
   voidedGamesWords,
 } from "@/lib/domain/tee-sheet-replace";
 import { replaceWorldFor, sidesHavePlay, voidSideEntries, type RoundSide } from "@/lib/services/tee-sheet-replace";
 import { settingsOf } from "@/lib/services/tournament";
-import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { zoneOfEvent } from "@/lib/services/club-clock";
 import { clubWallClock } from "@/lib/domain/club-clock";
 import { roundWordsFor } from "@/lib/services/action-shared";

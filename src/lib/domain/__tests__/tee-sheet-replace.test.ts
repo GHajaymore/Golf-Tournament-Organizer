@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { STAND_IN_MARK } from "../attendance";
 import {
   applyReplace,
   candidateWhy,
-  STAND_IN_MARK,
   clubTimeWords,
   guestFigureRefusal,
   handicapUsedWords,
