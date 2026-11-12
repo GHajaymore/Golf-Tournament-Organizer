@@ -203,7 +203,7 @@ jobs:
             echo "A FULL round: $(node -p "require('./change-plan.json').fullBecause || require('./change-plan.json').tier + ' tier'")" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: How many parts at a time
-        # SELF-ADJUSTING (Ajay, 2026-10-31; docs/release-strategy.md, step 9): clamp(40 − running − 10, 4, 16),
+        # SELF-ADJUSTING (Ajay, 2026-10-31; docs/release-strategy.md, step 9): clamp(40 − running − 6, 6, 16),
         # from the jobs already in progress in this repository; 12 on any error. scripts/qa/round-cap.mjs.
         id: cap
         env:
@@ -323,7 +323,7 @@ jobs:
       # fixed twelve left a lone round's runners idle, and sixteen beside another
       # round queued the deploy (the panel, 31 Oct). So since 2026-11-01 the plan
       # job counts what is already running and sets the cap:
-      # clamp(40 − running − 10 reserved, 4, 16), and 12 if it cannot ask
+      # clamp(40 − running − 6 reserved, 6, 16), and 12 if it cannot ask
       # (scripts/qa/round-cap.mjs; the number and why are in the run's summary).
       # `strategy` may read `needs` (GitHub's context table), and max-parallel
       # takes a number, hence fromJSON.

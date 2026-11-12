@@ -8,15 +8,30 @@
  * too many beside another round, a CI run and the deploy job (the deploy queued). So the cap follows
  * what is already running:
  *
- *     cap = clamp(40 − running − 10 reserved, at least 4, at most 16)
+ *     cap = clamp(40 − running − 6 reserved, at least 6, at most 16)      (was 10 and 4 until 2026-11-12)
  *
- * The ten reserved are for what must never wait behind a round: a CI run's jobs and the deploy job.
+ * The six reserved are for what must never wait behind a round: the deploy job (1) and the head of a
+ * PR's CI run. Measured 2026-11-12 00:42 UTC: 26 jobs running, two rounds at 4 and 7 parts, ~14 runners
+ * idle, because 40 − 26 − 10 = 4 was the floor. The arithmetic of the new numbers (account 40; a PR's
+ * CI is ~9 jobs at once; the deploy 1):
+ *   - one round alone: running ≈ 1 (this plan job) → 40 − 1 − 6 = 33 → 16 parts.
+ *   - two rounds: the second plans beside the first's ≤16 and ~3 others → 40 − 19 − 6 = 15 → 15 parts;
+ *     31 runners held, 9 free for CI and the deploy.
+ *   - two rounds + two PR CIs + the deploy, worst order (both CIs already running when the second round
+ *     plans): 16 + 18 = 34 running → raw 0 → floor 6; 16 + 6 + 18 + 1 = 41, one over the account, so the
+ *     deploy (a single job) waits for the first CI job to finish — minutes — not an hour (19 Oct) and
+ *     not behind a 16-part round (31 Oct). With the old 4 it was 39, but at the price of the idle
+ *     runners measured above; a higher floor than 6 (the 8 considered) would make it 43.
  *
  * WHAT "RUNNING" COUNTS: the jobs whose status is `in_progress` in this repository's runs that are
- * themselves in progress, asked of GitHub's API with the workflow's own token. It does not see other
- * repositories of the account (the token cannot), and it does not count QUEUED jobs (they hold no
- * runner yet). This plan job is one of the jobs it counts. On ANY error — no token, no `gh`, the API
- * refusing or rate-limited — it falls back to 12, the fixed number before this, and says so.
+ * themselves in progress, asked of GitHub's API with the workflow's own token. A job is `queued` while it
+ * waits for a runner, and that includes a part another round holds back with its own `max-parallel`: it
+ * has no runner, so it takes no share of the account and is NOT counted (counting it would take the same
+ * part from this round's cap that the other round has not yet used, and a second round would be sent to
+ * the floor). `in_progress` is the one status the API gives that means "holds a runner". It does not see
+ * other repositories of the account (the token cannot). This plan job is one of the jobs it counts. On
+ * ANY error — no token, no `gh`, the API refusing or rate-limited — it falls back to 12, the fixed
+ * number before this, and says so.
  */
 import { appendFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -24,8 +39,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ACCOUNT_JOBS = 40;
-export const RESERVED = 10;
-export const CAP_MIN = 4;
+export const RESERVED = 6;
+export const CAP_MIN = 6;
 export const CAP_MAX = 16;
 export const CAP_FALLBACK = 12;
 
