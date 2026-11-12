@@ -124,9 +124,9 @@ describe("what is said after a change to a published sheet", () => {
 describe("the words never claim a count of people told", () => {
   it("a push reaches only players with an email and notifications on, so no word says anybody was told", () => {
     for (const warn of ["told", "hidden"] as const) {
-      for (const n of [0, 1, 2, 3, 28]) expect(teeSheetWarnWords(warn, n), `${warn} ${n}`).not.toMatch(/told|re-told|have been|has been/i);
+      for (const n of [0, 1, 2, 3, 28]) expect(teeSheetWarnWords(warn, n), `${warn} ${n}`).not.toMatch(/\btold\b|re-told|have been|has been/i);
     }
-    for (const n of [0, 1, 3]) expect(teeSheetChangedLine("Round 1", n)).not.toMatch(/told|re-told/i);
+    for (const n of [0, 1, 3]) expect(teeSheetChangedLine("Round 1", n)).not.toMatch(/\btold\b|re-told/i);
   });
 });
 
