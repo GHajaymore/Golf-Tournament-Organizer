@@ -444,7 +444,10 @@ jobs:
         env:
           AUTH_SECRET: ci-e2e-secret
           PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/ran.json
-        run: npx playwright test --project=${{ matrix.project }} $(node scripts/qa/time-shard.mjs ${{ matrix.project }} ${{ matrix.shard }} ${{ matrix.shards }}) --reporter=github,list,json
+        run: |
+          # A failed deal must stop here: an empty file list would make playwright run the WHOLE project.
+          files=$(node scripts/qa/time-shard.mjs ${{ matrix.project }} ${{ matrix.shard }} ${{ matrix.shards }}) || exit 1
+          npx playwright test --project=${{ matrix.project }} $files --reporter=github,list,json
 
       - name: List the whole project, for the proof that the shards cover it
         # WITHOUT `--shard`: every test of the project as the config and the

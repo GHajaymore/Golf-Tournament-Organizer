@@ -106,7 +106,7 @@ describe("every viewport CI claims to test is actually tested", () => {
       yamlCode(WORKFLOW),
       "the e2e job no longer passes --project and --shard, so one job runs more than its cut of one viewport",
     ).toMatch(
-      /playwright test --project=\$\{\{\s*matrix\.project\s*\}\} \$\(node scripts\/qa\/time-shard\.mjs \$\{\{\s*matrix\.project\s*\}\} \$\{\{\s*matrix\.shard\s*\}\} \$\{\{\s*matrix\.shards\s*\}\}\)/,
+      /time-shard\.mjs \$\{\{\s*matrix\.project\s*\}\} \$\{\{\s*matrix\.shard\s*\}\} \$\{\{\s*matrix\.shards\s*\}\}\) \|\| exit 1[\s\S]*playwright test --project=\$\{\{\s*matrix\.project\s*\}\} \$files /,
     );
     expect(
       CONFIG,
