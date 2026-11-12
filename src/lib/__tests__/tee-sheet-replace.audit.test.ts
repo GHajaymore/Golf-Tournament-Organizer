@@ -435,6 +435,26 @@ describe("replaceInTeeSheet — one transaction", () => {
   });
 });
 
+describe("replaceInTeeSheet — a refusal AFTER the guest is made", () => {
+  it("a sheet saved by somebody else in the instant before the write rolls back the guest, their roster row and the rest", async () => {
+    const eventId = await makeEvent("lostrace", "opt-out");
+    const stageId = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
+    const p = await players(eventId, ["s1", "s2"]);
+    await setSheet(stageId, [["9:00 AM", [p.s1, p.s2]]]);
+    await as(adminId, eventId);
+    hook.beforeTx = async () => {
+      const other = JSON.parse(await rawSheet(stageId));
+      other.savedAt = "2026-12-01T00:00:00.000Z";
+      await prisma.stage.update({ where: { id: stageId }, data: { teeSheet: JSON.stringify(other) } });
+    };
+    const res = await replaceInTeeSheet(stageId, SAVED, p.s1, { kind: "guest", name: `${TAG} Lostguest`, index: "" }, "no-show");
+    expect(res).toEqual({ ok: false, error: "The sheet changed while you were choosing. Look again and choose." });
+    expect(await prisma.player.count({ where: { eventId, name: `${TAG} Lostguest` } }), "a refused press left a guest entry").toBe(0);
+    expect(await prisma.member.count({ where: { organizationId: orgId, name: `${TAG} Lostguest` } }), "a refused press left a roster row").toBe(0);
+    expect(await prisma.roundAttendance.count({ where: { eventId } })).toBe(0);
+  });
+});
+
 describe("replaceInTeeSheet — a pairs week", () => {
   let eventId = "";
   let stageId = "";
