@@ -80,7 +80,7 @@ describe("how the invite is sent", () => {
     expect(action).toMatch(/if \(!existingMembership\) \{/);
     // The lookup must precede the write, or it always finds the row it just made.
     expect(action.indexOf("const existingMembership")).toBeLessThan(
-      action.indexOf("await prisma.organizationMember.upsert"),
+      action.indexOf("await tx.organizationMember.upsert"),
     );
   });
 

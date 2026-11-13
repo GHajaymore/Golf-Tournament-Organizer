@@ -87,18 +87,15 @@ type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 async function askMembershipRule(
   tx: Tx,
   organizationId: string,
-  actorUserId: string | null,
+  actorEmail: string | null,
   targetCurrentRole: string | null,
   targetNewRole: string | null,
 ): Promise<MembershipVerdict> {
-  const actor = actorUserId
-    ? await tx.organizationMember.findUnique({
-        where: { organizationId_userId: { organizationId, userId: actorUserId } },
-        select: { role: true },
-      })
+  const actor = actorEmail
+    ? await tx.organizationMember.findFirst({ where: { organizationId, user: { email: actorEmail } }, select: { role: true } })
     : null;
   const commissionerCount = await tx.organizationMember.count({ where: { organizationId, role: "owner" } });
-  return mayChangeMembership({
+  const verdict = mayChangeMembership({
     // No membership at all is the ownerless hatch (a club with nobody): the
     // caller got here as an event Admin, so they hold Admin level.
     actorRole: actor?.role ?? (commissionerCount === 0 ? "admin" : null),
@@ -106,6 +103,7 @@ async function askMembershipRule(
     targetNewRole,
     commissionerCount,
   });
+  return verdict;
 }
 
 const SERIALIZABLE = { isolationLevel: "Serializable" as const };
@@ -167,7 +165,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * is being made, or has no name on it yet — somebody entered by email alone
    * — and never to replace one.
    */
-  const early = await prisma.$transaction((tx) => askMembershipRule(tx, org.organizationId, (adderEarly)?.userId ?? null, null, role));
+  const early = await prisma.$transaction((tx) => askMembershipRule(tx, org.organizationId, adderEarly?.email ?? null, null, role));
   if (!early.ok && role === "owner") return { ok: false, error: early.reason };
   const typedName = String(name ?? "").trim();
   const known = await prisma.user.findUnique({ where: { email: cleanEmail }, select: { id: true, name: true } });
@@ -207,7 +205,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    */
   const adder = await getSession();
   const verdict = await prisma.$transaction(async (tx) => {
-    const v = await askMembershipRule(tx, org.organizationId, adder?.userId ?? null, existingMembership?.role ?? null, role);
+    const v = await askMembershipRule(tx, org.organizationId, adder?.email ?? null, existingMembership?.role ?? null, role);
     if (!v.ok) return v;
     await tx.organizationMember.upsert({
       where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
@@ -282,7 +280,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
     // The target's role is re-read here: the one read above is outside the write.
     const fresh = await tx.organizationMember.findFirst({ where: { id: memberId, organizationId: org.organizationId }, select: { role: true } });
     if (!fresh) return { ok: false as const, reason: "Staff member not found." };
-    const v = await askMembershipRule(tx, org.organizationId, actor?.userId ?? null, fresh.role, next);
+    const v = await askMembershipRule(tx, org.organizationId, actor?.email ?? null, fresh.role, next);
     if (!v.ok) return v;
     await tx.organizationMember.update({ where: { id: memberId }, data: { role: next } });
     return v;
@@ -306,7 +304,7 @@ export async function removeOrganizationMember(memberId: string): Promise<OrgRes
   const verdict = await prisma.$transaction(async (tx) => {
     const fresh = await tx.organizationMember.findFirst({ where: { id: memberId, organizationId: org.organizationId }, select: { role: true } });
     if (!fresh) return { ok: false as const, reason: "Staff member not found." };
-    const v = await askMembershipRule(tx, org.organizationId, actor?.userId ?? null, fresh.role, null);
+    const v = await askMembershipRule(tx, org.organizationId, actor?.email ?? null, fresh.role, null);
     if (!v.ok) return v;
     await tx.organizationMember.delete({ where: { id: memberId } });
     return v;
