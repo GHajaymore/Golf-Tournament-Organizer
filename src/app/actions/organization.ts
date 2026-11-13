@@ -889,7 +889,10 @@ export async function leaveOrganization(organizationId: unknown): Promise<OrgRes
 
   // The same rule as removing anybody, asked inside the transaction that deletes.
   const left = await serially(async (tx) => {
-    const v = await askMembershipRule(tx, organizationId, session.email, mine.role, null);
+    // Somebody who is not a Commissioner may always leave; only the LAST Commissioner is kept.
+    const v: MembershipVerdict = mine.role === "owner"
+      ? await askMembershipRule(tx, organizationId, session.email, mine.role, null)
+      : { ok: true };
     if (!v.ok) return v;
     await tx.organizationMember.delete({ where: { id: mine.id } });
     return v;

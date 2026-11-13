@@ -140,7 +140,9 @@ export function OrganizationAccess({
   const ownerCount = staff.filter((p) => p.orgRole === "owner").length;
   /** The SAME rule the server asks, so a greyed control and a refusal never disagree. */
   const mayDo = (current: string | null, next: string | null) =>
-    mayChangeMembership({ actorRole, targetCurrentRole: current, targetNewRole: next, commissionerCount: ownerCount });
+    mayChangeMembership({ actorRole, targetCurrentRole: current, targetNewRole: next, // The LAST Commissioner stays pressable: the screen already warns "this will be refused" and the
+      // server says why in words. Only what rank forbids is greyed, so the count is held at two here.
+      commissionerCount: Math.max(ownerCount, 2) });
   const eventOnly = report.people.filter((p) => !p.orgRole);
 
   return (
