@@ -1,8 +1,15 @@
 "use client";
 import { useState } from "react";
-import { ScoreImport } from "./ScoreImport";
+import dynamic from "next/dynamic";
+import { PanelLoading, orNeedsSignal } from "./LazyPanel";
 import { Icon } from "./Icon";
 import type { FieldPlayer } from "@/lib/domain/score-import";
+
+// Behind a press: not part of the screen first load. See LazyPanel.tsx.
+const ScoreImport = dynamic(() => orNeedsSignal(import("./ScoreImport").then((m) => m.ScoreImport)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
 
 /**
  * "Import scores" on a team round's entry screen (2026-10-10) — the same
