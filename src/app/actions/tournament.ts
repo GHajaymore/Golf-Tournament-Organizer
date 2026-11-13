@@ -353,28 +353,36 @@ async function requireScoreEntryForStage(
     typeof stageId === "string" && stageId
       ? await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } })
       : null;
+  // A SIGNED-IN PERSON WHO REACHES THIS ROUND'S TOURNAMENT acts as themselves,
+  // and never needs the guest cookie: their own tournament, or one their access
+  // reaches (as before the guest link existed).
+  if (session && stage) {
+    if (stage.eventId === session.eventId) return requireScoreEntry(session);
+    const access = await effectiveAccess(session.email, stage.eventId);
+    if (access) {
+      return requireScoreEntry({
+        ...session,
+        eventId: stage.eventId,
+        accountId: access.accountId,
+        role: access.role,
+        viewRole: access.role,
+      });
+    }
+  }
   /**
-   * A GUEST'S PLAYER LINK, FOR ITS OWN EVENT'S ROUND ONLY (J39/J40; the review's
-   * S4). The round names its tournament; when that is the pass's event, the
-   * link speaks for its one entry, even beside a sign-in (unless the account is
-   * staff there). It is a player, so every guard below treats it as one, and
-   * "which card is mine" is the pass's entry only while confirmed (S5,
-   * `myPlayerIdsFor`). A round in any other event never sees the link.
-   * The four card actions that come through here are GUEST_ACTIONS.
+   * NOBODY SIGNED IN REACHES IT: a guest's player link for this round's own
+   * event, if this browser holds one (J39/J40; S4 — a member of club B invited
+   * to club A's outing has no access to A, so the link speaks for its entry
+   * there, unless they chose their own account, SF-1). It is a player, so every
+   * guard below treats it as one, and "which card is mine" is the pass's entry
+   * only while confirmed (S5, `myPlayerIdsFor`). A round in any other event
+   * never sees the link. The four card actions through here are GUEST_ACTIONS.
    */
   const guest = stage ? await guestActorFor(stage.eventId, session) : null;
   if (guest) return requireScoreEntry(guest);
   if (!session) throw new Error("Not authenticated");
-  if (!stage || stage.eventId === session.eventId) return requireScoreEntry(session);
-  const access = await effectiveAccess(session.email, stage.eventId);
-  if (!access) return requireScoreEntry(session);
-  return requireScoreEntry({
-    ...session,
-    eventId: stage.eventId,
-    accountId: access.accountId,
-    role: access.role,
-    viewRole: access.role,
-  });
+  // Their own tournament's gate, where `assertEventStage` refuses the round, exactly as before.
+  return requireScoreEntry(session);
 }
 
 /**

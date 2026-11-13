@@ -128,3 +128,34 @@ describe("SF-3: a waiting guest is refused by the page, not only the layout", ()
     expect("const session = await requirePlayerViewer();").not.toContain("await requirePlayingViewer()");
   });
 });
+
+/**
+ * A SIGNED-IN ACTOR WHO REACHES THE ROUND NEVER NEEDS THE GUEST COOKIE (CI on
+ * #1125: 31 existing audit tests that call the card actions with a stubbed
+ * session failed on `cookies` "outside a request scope"). The account's own
+ * paths return before the guest is asked; and a cookie that cannot be read is
+ * NO guest, never access.
+ */
+describe("the guest is asked only when no signed-in actor reaches the round", () => {
+  const tournament = readSource("src", "app", "actions", "tournament.ts");
+  const gate = tournament.slice(tournament.indexOf("async function requireScoreEntryForStage("), tournament.indexOf("const ownPlayerIds"));
+  it("the account's own and reached tournaments return before guestActorFor is called", () => {
+    const own = gate.indexOf("if (stage.eventId === session.eventId) return requireScoreEntry(session);");
+    const reached = gate.indexOf("if (access) {");
+    const guest = gate.indexOf("guestActorFor(");
+    expect(own).toBeGreaterThan(0);
+    expect(reached).toBeGreaterThan(own);
+    expect(guest, "the guest cookie is read before the account's own path").toBeGreaterThan(reached);
+  });
+  it("an unreadable cookie is no guest and no chosen view; Next's own control flow is rethrown", () => {
+    const auth = readSource("src", "lib", "guest-auth.ts");
+    expect(auth).toMatch(/catch \(e\) \{\s*unstable_rethrow\(e\);\s*return undefined;\s*\}/);
+    expect(auth).toContain("readGuestCookieValue(verify(await readCookie(GUEST_COOKIE)))");
+    expect(auth).toContain("const v = await readCookie(PLAYER_VIEW_COOKIE);");
+  });
+  it("outside a request (no cookies at all) there is no guest", async () => {
+    const { getGuestSession, playerViewChosen } = await import("@/lib/guest-auth");
+    expect(await getGuestSession()).toBeNull();
+    expect(await playerViewChosen()).toBeNull();
+  });
+});

@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { unstable_rethrow } from "next/navigation";
 import { SECURE_COOKIES } from "./secure-cookies";
 import { sign, verify } from "./auth";
 import {
@@ -63,12 +64,30 @@ export async function holdsGuestCookie(): Promise<boolean> {
 }
 
 /**
+ * ONE COOKIE THIS BROWSER SENT, FOR READING ONLY — or undefined when there is
+ * no request to read it from (a script, a test calling an action directly:
+ * `cookies` then throws "called outside a request scope"). An unreadable cookie
+ * is NO guest and no chosen view: nothing is granted by it, and the account
+ * path never comes through here. Next's own control-flow errors (dynamic
+ * rendering, redirects) are rethrown, never swallowed.
+ */
+async function readCookie(name: string): Promise<string | undefined> {
+  let jar: Awaited<ReturnType<typeof cookies>>;
+  try {
+    jar = await cookies();
+  } catch (e) {
+    unstable_rethrow(e);
+    return undefined;
+  }
+  return jar.get(name)?.value;
+}
+
+/**
  * The live guest pass this browser holds, or null. Once per request (`cache`):
  * the layout and the page ask it, and both must get one answer.
  */
 export const getGuestSession = cache(async (): Promise<GuestSession | null> => {
-  const jar = await cookies();
-  const held = readGuestCookieValue(verify(jar.get(GUEST_COOKIE)?.value));
+  const held = readGuestCookieValue(verify(await readCookie(GUEST_COOKIE)));
   if (!held) return null;
   if (guestCookieRefusal(held, new Date())) return null;
   return livePass(held.passId, held.version);
@@ -76,8 +95,7 @@ export const getGuestSession = cache(async (): Promise<GuestSession | null> => {
 
 /** Which way a browser holding both a sign-in and a link chose to look (S4). Null: not chosen. */
 export async function playerViewChosen(): Promise<"guest" | "account" | null> {
-  const jar = await cookies();
-  const v = jar.get(PLAYER_VIEW_COOKIE)?.value;
+  const v = await readCookie(PLAYER_VIEW_COOKIE);
   return v === "guest" || v === "account" ? v : null;
 }
 
