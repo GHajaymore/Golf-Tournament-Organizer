@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { AsyncLocalStorage } from "node:async_hooks";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
@@ -10,7 +9,7 @@ import { PrismaClient } from "@prisma/client";
  * really act at once. Looped, because a race is not deterministic.
  */
 
-const als = vi.hoisted(() => new (require("node:async_hooks").AsyncLocalStorage)() as AsyncLocalStorage<Map<string, string>>);
+const als = await vi.hoisted(async () => new (await import("node:async_hooks")).AsyncLocalStorage<Map<string, string>>());
 vi.mock("next/headers", () => ({
   cookies: async () => {
     const jar = als.getStore()!;
