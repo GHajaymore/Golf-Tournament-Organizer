@@ -47,7 +47,7 @@ describe("every door asks the one rule", () => {
   for (const fn of ["addOrganizationMember", "setOrganizationMemberRole", "removeOrganizationMember"]) {
     it(`${fn} asks it inside a transaction`, () => {
       const own = src.split("export async function ").find((c) => c.startsWith(`${fn}(`)) ?? "";
-      expect(own).toContain("$transaction(");
+      expect(own.includes("$transaction(") || own.includes("serially(")).toBe(true);
       expect(own).toContain("askMembershipRule(");
     });
   }

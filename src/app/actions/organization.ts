@@ -73,9 +73,6 @@ async function currentOrganization() {
 const ORG_ROLES = ["owner", "admin", "member", "guest"] as const;
 const cleanOrgRole = (r: string) => (ORG_ROLES.includes(r as (typeof ORG_ROLES)[number]) ? r : "member");
 
-/** True once the organization has an owner other than this member — the same
- *  guard the per-event access screen uses, applied one level up. Losing the
- *  last owner would strand the tenant and its billing. */
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 /**
@@ -117,14 +114,6 @@ async function serially<T>(run: (tx: Tx) => Promise<T>): Promise<T | { ok: false
     if ((e as { code?: string } | null)?.code === "P2034") return { ok: false, reason: CHANGED_AT_ONCE };
     throw e;
   }
-}
-
-async function hasOtherOwner(organizationId: string, memberId: string): Promise<boolean> {
-  return (
-    (await prisma.organizationMember.count({
-      where: { organizationId, role: "owner", id: { not: memberId } },
-    })) > 0
-  );
 }
 
 /**
