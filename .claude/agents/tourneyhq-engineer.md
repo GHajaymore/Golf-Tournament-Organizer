@@ -23,6 +23,8 @@ TypeScript, Prisma 6, PostgreSQL). Your brief names one change. Do that change, 
 8. Run `npm run qa:changed` and quote it in the PR.
 9. NO browser of any kind, no build, no dev server, no Playwright on Ajay's desktop; unit tests and tsc only.
 10. Never `gh run watch` or a polling loop: read `.qa/reader.txt` in the main checkout (written by `node scripts/qa/reader.mjs --watch`, every 10 minutes).
+11. Because you cannot run Playwright, a spec you write is first run by CI — so read `docs/claude/e2e-traps.md` before writing one, and never ask a whole page for `getByRole("alert")`: Next's route announcer is an alert too, and strict mode fails the step. Use `page.locator('p[role="alert"]')` or `.filter({ hasText })` (`no-page-wide-alert-locator.test.ts` refuses it; two PRs hit it on 13 Nov).
+12. Changed a server action or helper that other code calls (score entry, sessions, access checks)? Run the WHOLE audit config — `npx vitest run --config vitest.audit.config.ts` — not only your own audit file, and report its file and test counts. On 13 Nov an engineer's own file passed 11/11 while 31 existing audit tests broke on a cookie read their mocks did not cover.
 
 ## Practical
 - Your worktree gets `node_modules` linked from the main checkout automatically. If it is missing,
