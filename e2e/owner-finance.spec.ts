@@ -13,6 +13,7 @@ import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
  *   the owner adds a cost              -> in the table of costs, and in the CSV (status 200 read before the body)
  *   a cost typed as "abc"              -> refused beside the button, nothing stored
  *   the owner types a rate             -> listed; a cost in pounds is then shown in dollars with the pounds beside it
+ *   the owner voids a wrong rate       -> kept in the database with its reason, not offered for voiding again
  *   the owner voids a cost             -> gone from the table, kept in the database with its reason
  *
  * The rows are this spec's own (vendor "zz-finance-…") and are removed whatever happens. Nothing here
@@ -119,6 +120,18 @@ test("the owner types a cost and a rate, reads them back in the table and the CS
     expect(body.split("\r\n")[0]).toContain("month,line,category,vendor,currency");
     expect(body).toContain(`${MARK}-host`);
     expect(body).toContain("39.00");
+  });
+
+  await test.step("voiding a wrong rate keeps the row with its reason, and the table offers no second void", async () => {
+    await finance();
+    await page.getByRole("button", { name: "Void GBP rate of 2020-01-01" }).first().click();
+    await page.getByLabel("Why GBP rate of 2020-01-01 is voided").fill("wrong figure");
+    await page.getByRole("button", { name: "Void it" }).click();
+    await expect.poll(() => prisma.fxRate.count({ where: { reason: { startsWith: MARK }, voidedAt: { not: null } } })).toBe(1);
+    const voided = await prisma.fxRate.findFirst({ where: { reason: { startsWith: MARK } } });
+    expect(voided?.voidReason).toContain("wrong figure");
+    await finance();
+    await expect(page.getByRole("button", { name: "Void GBP rate of 2020-01-01" }), "a voided rate is offered for voiding again").toHaveCount(0);
   });
 
   await test.step("voiding a cost takes it out of the table and keeps the row with its reason", async () => {
