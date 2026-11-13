@@ -1,8 +1,8 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ScoreImport } from "./ScoreImport";
-import { ClearScores } from "./ClearScores";
+import dynamic from "next/dynamic";
+import { PanelLoading, orNeedsSignal } from "./LazyPanel";
 import { DistanceUnitProvider } from "./DistanceUnitProvider";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
@@ -17,6 +17,17 @@ import type { VenueCourse } from "./VenuePrompt";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { screenName } from "@/lib/nav";
 import { Icon } from "./Icon";
+
+// Behind a press, and each writes to the server: not part of the first load of a
+// screen used on the course. See LazyPanel.tsx.
+const ScoreImport = dynamic(() => orNeedsSignal(() => import("./ScoreImport").then((m) => m.ScoreImport)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
+const ClearScores = dynamic(() => orNeedsSignal(() => import("./ClearScores").then((m) => m.ClearScores)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
 
 export interface EntryRound {
   stageId: string;
