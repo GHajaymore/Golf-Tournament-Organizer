@@ -54,6 +54,8 @@ export const NOT_A_DOOR: Record<string, string> = {
   // business
   setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business", saveOffers: "business",
   createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business", refreshDemoClub: "business", loadCourseCatalogue: "business",
+  // The owner's books (B44): the platform's own records, no club's tournament in them.
+  addCostEntry: "business", voidCostEntry: "business", saveFxRate: "business", voidFxRate: "business",
   // new
   createEvent: "new", createEventFromAnswers: "new", cloneEvent: "new", createMatch: "new",
   // own data
