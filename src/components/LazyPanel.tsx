@@ -16,7 +16,7 @@ import type { ComponentType } from "react";
  * untouched. Every panel loaded this way writes to the server, so with no
  * signal there is nothing it could have done anyway.
  */
-export function PanelNeedsSignal() {
+function PanelNeedsSignal() {
   return (
     <p className="text-muted" role="status" style={{ margin: 0 }}>
       This panel needs a signal to open. Try again when you are back online.
