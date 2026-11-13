@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import {
-  addMonths, convertRow, costCsv, decimalText, grossMargin, isDay, isMonth, microsFromText, microsText, monthOfInstant,
+  addMonths, convertRow, costCsvRows, decimalText, grossMargin, isDay, isMonth, microsFromText, microsText, monthOfInstant,
   monthReport, monthRange, monthsBetween, originalText, rateOn, sliceFor, spreadEvenly, sumMinor, toUsdMinor, totalsByCurrency,
   usdText, COST_CSV_HEADER, type CostRow, type Rate,
 } from "../finance";
 import { readCostBoxes, readRateBoxes } from "../finance-input";
 import { minorUnitsFrom } from "../money-format";
-import { csvCell } from "../csv-export";
+import { csvCell, toCsv } from "../csv-export";
+
+const costCsv = (months: Parameters<typeof costCsvRows>[0]) => toCsv(costCsvRows(months)) + "\r\n";
 
 /**
  * THE OWNER'S BOOKS: THE ARITHMETIC (B44).

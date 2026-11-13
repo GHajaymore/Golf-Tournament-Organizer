@@ -1,4 +1,3 @@
-import { toCsv } from "./csv-export";
 import { minorUnitDigits } from "./money-format";
 
 /**
@@ -468,11 +467,6 @@ export function costCsvRows(months: readonly MonthReport[]): string[][] {
     }
   }
   return rows;
-}
-
-/** The rows as the file the owner downloads: one escaper for every cell, CRLF line ends, a closing line end. */
-export function costCsv(months: readonly MonthReport[]): string {
-  return toCsv(costCsvRows(months)) + "\r\n";
 }
 
 /** The UTC calendar month an instant falls in. The caller supplies the instant: this file never reads a clock. */
