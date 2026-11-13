@@ -6,7 +6,8 @@ import { createSession, destroySession, setPreviewRole, setActiveEvent, getSessi
 import { emailConfig, sendNewSignInEmail, sendPasswordResetEmail } from "@/lib/email";
 import { isClubStaff, isKnownDevice, rememberDevice } from "@/lib/services/known-device";
 import { formatClock, formatDayAt } from "@/lib/domain/locale";
-import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit, clientGuessGate } from "@/lib/rate-limit";
+import { clientAddress } from "@/lib/client-address";
 import { signUpLooksAutomated, AUTOMATED_SIGNUP } from "@/lib/services/bot-check";
 import { passwordRefusal } from "@/lib/services/password-breach";
 import { safeNextPath } from "@/lib/domain/safe-next";
@@ -32,8 +33,19 @@ import {
 } from "@/lib/services/email-code";
 // The app's one shape of an address — see `typed-limits.ts`.
 import { EMAIL_RE } from "@/lib/domain/typed-limits";
+import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
 
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * One password hash spent on nothing, so an address with no password (or one
+ * that is refused before its password is hashed) costs what one that goes on
+ * costs. A fixed well-formed hash that nothing can match.
+ */
+const SPARE_HASH = `${"00".repeat(16)}:${"00".repeat(64)}`;
+function spendAHash(password: string): void {
+  verifyPasswordHash(password, SPARE_HASH);
+}
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -84,17 +96,34 @@ function hasProvedPassword(user: { password: string; emailVerifiedAt: Date | nul
 }
 
 /**
+ * What it costs to send a code, asked of EVERY path that would send one, and of
+ * the paths that would not (a claim for an address nobody invited), so a refusal
+ * reads the same whether or not a code was due: the address's three in fifteen
+ * minutes, and the client's sixty (so one connection cannot make many addresses
+ * receive mail). Null when allowed.
+ */
+async function codeBudgetRefusal(email: string): Promise<string | null> {
+  const byClient = await clientGuessGate("code-send-client", await clientAddress());
+  if (!byClient.decision.allowed) return byClient.decision.message;
+  const limit = await checkRateLimit("email-code-send", email);
+  return limit.allowed ? null : limit.message;
+}
+
+/** About what a real send costs (one insert and one call to the mail provider). */
+const DECOY_SEND_MS = 300;
+
+/**
  * Send a code to prove this address, counted against the address first.
  * `needsCode` turns the panel into "Enter your code".
  */
 async function askForCode(input: {
   userId: string;
   email: string;
-  purpose: "signup" | "claim" | "device";
+  purpose: "signup" | "claim" | "device" | "asked";
   pending: PendingProof | null;
 }): Promise<{ ok: false; error?: string; needsCode?: boolean }> {
-  const limit = await checkRateLimit("email-code-send", input.email);
-  if (!limit.allowed) return { ok: false, error: limit.message };
+  const refused = await codeBudgetRefusal(input.email);
+  if (refused) return { ok: false, error: refused };
   const sent = await sendEmailCode(input);
   if (!sent.ok) return { ok: false, error: sent.error };
   return { ok: false, needsCode: true };
@@ -118,36 +147,73 @@ export async function signInWithPassword(
   if (!(await maySignInNow(clean))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
   if (!password) return { ok: false, error: "Enter your password." };
 
-  // Counted before the lookup, and keyed on the email rather than the caller,
-  // so the refusal reads the same for an address that has an account and one
-  // that never did.
+  /**
+   * TWO LIMITS, AND NEITHER LOCKS THE REAL PERSON OUT (2026-11-13).
+   *
+   * 1. Per CLIENT (`signin-client`, 20 failed sign-ins in 15 minutes, counted
+   *    up front and given back when the password is right): one script spraying
+   *    a common password across every address is stopped on its 21st failure,
+   *    which the per-address limit below could never see. It is the same
+   *    function the round code uses (`clientGuessGate`), so the address is
+   *    keyed by fingerprint, an IPv6 address by its /64, and the count is atomic.
+   * 2. Per ADDRESS (`signin`, 5 in 15 minutes, counted before the lookup and
+   *    keyed on the email, so the refusal reads the same for an address that has
+   *    an account and one that never did). Over it, a refusal is no longer the
+   *    whole answer: the RIGHT password from a browser this person has signed in
+   *    on before still gets in, because that browser's secret cookie is something
+   *    a stranger hammering the address does not hold. So a stranger can slow a
+   *    sign-in from a NEW browser by up to fifteen minutes, but cannot lock the
+   *    owner out of their own phone. A guess from a browser that is not known
+   *    gets no free tries while locked: the password is not even compared.
+   */
+  const guess = await clientGuessGate("signin-client", await clientAddress());
+  if (!guess.decision.allowed) return { ok: false, error: guess.decision.message };
   const limit = await checkRateLimit("signin", clean);
-  if (!limit.allowed) return { ok: false, error: limit.message };
 
   const user = await prisma.user.findUnique({ where: { email: clean } });
 
-  // Provisioned but never claimed — route to password setup, not an error.
-  // Club staff count as provisioned too; they used to be told their password
-  // was wrong when the truth was that they had never set one.
-  if ((!user || !user.password) && (await hasAccess(clean))) {
-    return { ok: false, needsClaim: true };
+  if (!limit.allowed) {
+    const knownBrowserWithTheRightPassword =
+      !!user?.password &&
+      !!user.emailVerifiedAt &&
+      (await isKnownDevice(user.id)) &&
+      verifyPasswordHash(password, user.password);
+    if (!knownBrowserWithTheRightPassword) return { ok: false, error: limit.message };
   }
 
   /**
-   * Signed up, and gone before the code came. Their password is still waiting
-   * on that code's row, not on the account; the right one earns a NEW code to
-   * the inbox — the password is still only applied when that is typed back.
+   * NO ADDRESS IS TOLD APART FROM ANOTHER (2026-11-13, M2). An address nobody
+   * has set a password for — invited to a club or a tournament, or never seen
+   * at all — gets the same answer as a wrong password, and the same cost: one
+   * password hash is spent either way. It used to say "needsClaim" for an
+   * invited address and "wrong password" for the other, which was a list of who
+   * belongs to which club, to anybody who tried a list of addresses. The way in
+   * for somebody invited is the panel's "never set a password?" link, which
+   * goes to `claimPassword`; whether the address is on a roster is said only
+   * to its inbox, when the code goes out.
    */
-  if (user && !user.password) {
-    const waiting = await latestSignupPending(user.id);
-    if (waiting?.passwordHash && verifyPasswordHash(password, waiting.passwordHash)) {
+  if (!user || !user.password) {
+    const waiting = user ? await latestSignupPending(user.id) : null;
+    const hadAHashToCheck = !!(user && waiting?.passwordHash);
+    if (user && waiting?.passwordHash && verifyPasswordHash(password, waiting.passwordHash)) {
+      /**
+       * Signed up, and gone before the code came. Their password is still waiting
+       * on that code's row, not on the account; the right one earns a NEW code to
+       * the inbox — the password is still only applied when that is typed back.
+       */
+      await guess.succeeded();
       return askForCode({ userId: user.id, email: clean, purpose: "signup", pending: waiting });
     }
-  }
-
-  if (!user || !user.password || !verifyPasswordHash(password, user.password)) {
+    // One hash on every path: a half-finished sign-up has already spent its one above.
+    if (!hadAHashToCheck) spendAHash(password);
     return { ok: false, error: "Wrong email or password." };
   }
+
+  if (!verifyPasswordHash(password, user.password)) {
+    return { ok: false, error: "Wrong email or password." };
+  }
+  // A right password is not a spray: its attempt on this connection is given back.
+  await guess.succeeded();
 
   // The right password on an address nobody has proved: prove it first.
   if (!user.emailVerifiedAt) {
@@ -161,6 +227,8 @@ export async function signInWithPassword(
    * else is signed in, and told by email that a new browser was used.
    */
   const known = await isKnownDevice(user.id);
+  // Club staff AND the platform owners (`OWNER_EMAILS`): the owner's password
+  // alone used to open launch, plans, prices and discount codes on any browser.
   if (!known && (await isClubStaff(user.id, clean))) {
     const asked = await askForCode({ userId: user.id, email: clean, purpose: "device", pending: null });
     return asked.needsCode ? { ...asked, codePurpose: "device" } : asked;
@@ -213,19 +281,26 @@ export async function claimPassword(
   const weak = await passwordRefusal(password, { email: clean });
   if (weak) return { ok: false, error: weak };
 
-  // Club staff have no Account row until they are added to a specific event,
-  // so checking only that table made claiming impossible for exactly the people
-  // an organizer had just invited.
-  if (!(await hasAccess(clean))) {
-    return { ok: false, error: "No tournament access found for this email." };
-  }
-
+  /**
+   * THE SAME ANSWER FOR EVERY ADDRESS (2026-11-13, M2). "No tournament access
+   * found" and "this email already has a password" told anybody who tried an
+   * address whether it was on a roster and whether it had an account. Now an
+   * address with no seat anywhere, and one that already holds a proved
+   * password, are answered exactly as one that can claim: "check your inbox".
+   * The code goes out only to an address that can use it; the person who
+   * cannot is told what to do by the panel's own words, not by this answer.
+   * Club staff have no Account row until they are added to a specific event,
+   * so `hasAccess` asks the seats as well as the Accounts.
+   */
   const existing = await prisma.user.findUnique({ where: { email: clean } });
-  if (hasProvedPassword(existing)) {
-    return {
-      ok: false,
-      error: "This email already has a password. Log in instead, or use Forgot password if you don't have it.",
-    };
+  if (!(await hasAccess(clean)) || hasProvedPassword(existing)) {
+    // The hash the other path spends on the password chosen here, spent anyway;
+    // the same send budget counted, and about the time a send takes (no mail goes).
+    spendAHash(password);
+    const refused = await codeBudgetRefusal(clean);
+    if (refused) return { ok: false, error: refused };
+    await new Promise((resolve) => setTimeout(resolve, DECOY_SEND_MS));
+    return { ok: false, needsCode: true };
   }
 
   /**
@@ -273,6 +348,9 @@ export async function verifyEmailCode(
 
   const checked = await checkEmailCode(clean, code);
   if (!checked.ok) return { ok: false, error: checked.error };
+  // A code made for an ENTRY on a tournament's link is spent on that entry
+  // (`confirmEntryCode`), never on a sign-in.
+  if (checked.purpose === "entry") return { ok: false, error: EMAIL_CODE_WORDS.refusal.wrong };
   await proveAddress(checked);
 
   /**
@@ -324,7 +402,7 @@ export async function resendEmailCode(email: string): Promise<{ ok: boolean; err
   const last = user ? await latestCodeHere(user.id) : null;
   // A proved address is sent a new code only for a new device; the password
   // that earned the first one was checked then, and this browser holds its row.
-  if (!user || !last || (user.emailVerifiedAt && last.purpose !== "device")) return { ok: true };
+  if (!user || !last || (user.emailVerifiedAt && last.purpose !== "device" && last.purpose !== "asked")) return { ok: true };
   const sent = await sendEmailCode({ userId: user.id, email: clean, purpose: last.purpose, pending: last.pending });
   return sent.ok ? { ok: true } : { ok: false, error: sent.error };
 }
@@ -499,30 +577,28 @@ export async function signUp(
 
   const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
-  // Already has a password: this is a person who forgot they had signed up.
-  // (A sign-up nobody finished proving is not one — it may be a stranger's.)
-  if (hasProvedPassword(existing)) {
-    return { ok: false, error: "An account already exists for this email — log in instead." };
-  }
-
   /**
-   * Invited, but never set a password. Route to the claim screen instead of
-   * quietly attaching one here.
-   *
-   * The upsert below would succeed and say nothing, so someone who had been
-   * added to a club as staff would "sign up", land in an organization full of
-   * other people's tournaments, and have no idea whether they had created an
-   * account or joined one. That happened, and the reasonable conclusion from
-   * the outside was that a SECOND account had been created — the opposite of
-   * what actually occurred.
-   *
-   * The claim screen already exists, already says "<email> has been invited to
-   * a tournament", and is where an unclaimed sign-in already goes. This makes
-   * sign-up agree with sign-in rather than quietly doing something else.
+   * ONE ANSWER FOR EVERY ADDRESS (2026-11-13, M2). "An account already exists"
+   * and "this address was invited" told anybody who typed an address what it
+   * was. Now all three — new, already signed up, invited — are answered "check
+   * your inbox for a code", and what the code does is decided by who owns the
+   * inbox:
+   *  - a person who already has an account (a proved password; this is somebody
+   *    who forgot they had signed up) is sent a "confirm it's you" code, and
+   *    typing it signs them in; no second account is made, no password changes;
+   *  - an invited address is sent a claim code, and typing it sets the password
+   *    chosen here;
+   *  - a new address is sent a sign-up code.
+   * (A sign-up nobody finished proving is not an account — it may be a stranger's.)
    */
-  if (existing && (await hasAccess(cleanEmail))) {
-    return { ok: false, needsClaim: true };
+  if (existing && hasProvedPassword(existing)) {
+    spendAHash(password);
+    // Nobody has proved anything but the address being typed: said so in the email ("asked").
+    return askForCode({ userId: existing.id, email: cleanEmail, purpose: "asked", pending: null });
   }
+  // An invited address: the same call below, but its code is a CLAIM's (it sets
+  // the password and nothing else; no club is made for somebody already in one).
+  const purpose = existing && (await hasAccess(cleanEmail)) ? "claim" : "signup";
 
   /**
    * THE ADDRESS IS PROVED BEFORE ANYTHING IS ITS (2026-10-21). The account row
@@ -551,7 +627,7 @@ export async function signUp(
   return askForCode({
     userId: user.id,
     email: cleanEmail,
-    purpose: "signup",
+    purpose,
     pending: { passwordHash: hashPassword(password), name: cleanName, kind, discountCode },
   });
 }

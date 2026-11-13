@@ -73,3 +73,33 @@ Ajay, 2026-10-21: "go with your recommendations". Three rules, each held at one 
   typed back, a reset finished, or a first sign-in remembers the browser. A spec that signs a
   STAFF member in through the password form in a fresh context gets the code step: pass it with
   `verifyByCode`, or sign in with `signedInNow` instead.
+
+## Security sweep, mediums (2026-11-13)
+
+- **The platform owner is staff for the device rule** (`isClubStaff` is true for an `OWNER_EMAILS`
+  address): a password alone on a browser not seen before earns a `device` code. Sign a fixture in with
+  `signedInNow`, as for staff.
+- **One answer per address.** Signing in answers an address that is nobody, invited, or has no password
+  exactly as a wrong password ("Wrong email or password."), spending one hash either way; an invited person
+  uses the panel's "Invited, and never set a password?" link to `claimPassword`. Claim and sign-up answer
+  `needsCode` for every address; only an address that can use a code is mailed one (an account that already
+  exists is sent a `device` code, a roster address a `claim` code). A spec that expects "invited" on the
+  code step must now expect "If … was invited … we've emailed it a 6-digit code".
+- **Two sign-in limits.** `signin`: 5 per address in 15 minutes, counted before the lookup; over it the
+  RIGHT password from a browser this person already signed in on still gets in (the cookie is not something a
+  stranger holds), every other browser is refused and its password is not compared. `signin-client`: 20 FAILED
+  sign-ins per client in 15 minutes through `clientGuessGate` (fingerprinted, IPv6 /64, atomic); a right
+  password gives its attempt back, so a clubhouse's wifi is never refused for members who sign in correctly.
+- **An entry on the public link proves its address first.** `registerForEvent` for anybody not signed in as
+  that address sends a `purpose: "entry"` code and enters nobody; `confirmEntryCode` takes the code back
+  (same browser, single use) and then places the entry. No Account, place, or confirmation email before that,
+  and "already registered" is said only after the code. A spec enters through the link with
+  `verifyByCode(page, email)` after pressing Register. A guest the organizer adds by hand needs no email.
+- **Codes sent per connection: 60 in 15 minutes (`code-send-client`), and a PROVED code gives its send
+  back** (`giveBackClientAttempt`, called once in `checkEmailCode`). Only the inbox's owner can type a code,
+  so a clubhouse wifi where a whole society enters on one morning is never refused, while a client making
+  codes go to addresses it cannot read keeps every send counted. Found by round G623-1: scenario a's field,
+  entered from one machine, was refused at its 61st entrant. A walk that enters more than sixty people
+  without typing their codes back will still be refused — that is the limit working.
+- **Content-Security-Policy**: four nonce-free directives enforced, the origin lists Report-Only
+  (`next.config.mjs`, `csp.test.ts`); the nonce for `script-src`/`style-src` is the follow-up.

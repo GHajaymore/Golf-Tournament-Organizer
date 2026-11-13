@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PLANS } from "../../src/lib/plans";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
 import { expectLaunched, pressComplete } from "../end-early";
+import { verifyByCode } from "../verify-by-code";
 
 /**
  * SCENARIO — tournament A: a community golf society on Birdie ($49),
@@ -194,6 +195,8 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
         const go = p.getByRole("button", { name: /^(Register|Join the waitlist)$/ });
         const label = ((await go.textContent()) ?? "").trim();
         await go.click();
+        // The address is proved before it is entered (2026-11-13): type the emailed code back.
+        await verifyByCode(p, memberEmail(i));
         // The outcome, or a refusal — whichever the screen says, up to 15s.
         await p
           .getByText(/You're in!|You’re in!|on the waitlist|already|couldn't|could not|went wrong|try again/i)

@@ -38,10 +38,10 @@ export const EMAIL_CODE_DAILY_TRIES = 20;
  * is right. A sign-up: the account's password, name and first club. A claim:
  * the first password on an address a club invited.
  */
-export type EmailCodePurpose = "signup" | "claim" | "device";
+export type EmailCodePurpose = "signup" | "claim" | "device" | "entry" | "asked";
 
 export function isEmailCodePurpose(value: unknown): value is EmailCodePurpose {
-  return value === "signup" || value === "claim" || value === "device";
+  return value === "signup" || value === "claim" || value === "device" || value === "entry" || value === "asked";
 }
 
 /**
@@ -112,11 +112,16 @@ export const EMAIL_CODE_WORDS = {
   line: (masked: string) => `We sent a 6-digit code to ${masked}. It works for 15 minutes.`,
   claimHeading: "Confirm it's you",
   claimLine: (masked: string) =>
-    `${masked} has been invited to a tournament. We've emailed a 6-digit code to that address. Enter it to set your password.`,
+    `We've sent a 6-digit code to ${masked}. Enter it to set your password. It works for 15 minutes.`,
   // A club's staff signing in on a browser not seen before (2026-10-21).
   deviceHeading: "Confirm it's you",
   deviceLine: (masked: string) =>
     `You're signing in on a new device. We sent a 6-digit code to ${masked}. It works for 15 minutes.`,
+  // Entering a tournament on its public link (2026-11-13): the entry is made
+  // only when the address it names is proved, so nobody can enter somebody else.
+  entryHeading: "Confirm your entry",
+  entryLine: (masked: string) =>
+    `We sent a 6-digit code to ${masked}. Enter it to finish your entry. It works for 15 minutes.`,
   box: "6-digit code",
   placeholder: "123456",
   confirm: "Confirm email",
@@ -139,6 +144,13 @@ export const EMAIL_CODE_WORDS = {
     preheader: "Enter it within 15 minutes to confirm your email.",
     intro: "Here's the code to confirm your email address on TourneyHQ:",
     claimIntro: "A club invited this address to a tournament on TourneyHQ. Here's the code to confirm it's yours:",
+    entrySubject: "Confirm your entry: your TourneyHQ code",
+    entryIntro: (eventName: string) => `This address was used to enter ${eventName} on TourneyHQ. Here's the code to confirm it was you:`,
+    // Somebody typed this address into the sign-up form and no password was checked.
+    askedSubject: "Your TourneyHQ sign-in code",
+    askedIntro: "Someone asked to sign in to TourneyHQ with this address from a new browser. Here's the code to confirm it was you:",
+    askedIgnore: "If it wasn't you, you can ignore this — nothing changes without the code.",
+    entryIgnore: "If this wasn't you, ignore this email. Nobody is entered without this code.",
     deviceSubject: "Your TourneyHQ sign-in code",
     deviceIntro: "Somebody is signing in to your TourneyHQ account on a new device. Here's the code to confirm it's you:",
     deviceIgnore: "If this wasn't you, don't share this code, and reset your password from the sign-in screen: whoever tried knows it.",
