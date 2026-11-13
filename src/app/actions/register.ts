@@ -4,7 +4,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import type { Event } from "@prisma/client";
 import { getSession } from "@/lib/auth";
-import { checkEmailCode, forgetUnprovedStrangers, proveAddress, sendEmailCode } from "@/lib/services/email-code";
+import { checkEmailCode, proveAddress, sendEmailCode } from "@/lib/services/email-code";
 import { EMAIL_CODE_WORDS, maskedAddress } from "@/lib/domain/email-code";
 import { EMAIL_RE } from "@/lib/domain/typed-limits";
 import { checkRateLimit, clientGuessGate } from "@/lib/rate-limit";
@@ -171,7 +171,6 @@ async function holdEntryForProof(cleanToken: string, form: RegistrationForm, per
   if (!byClient.decision.allowed) return { ok: false, error: byClient.decision.message };
   const limit = await checkRateLimit("entry-code-send", person.email);
   if (!limit.allowed) return { ok: false, error: limit.message };
-  await forgetUnprovedStrangers();
   const user = await prisma.user.upsert({
     where: { email: person.email },
     update: {},

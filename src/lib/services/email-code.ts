@@ -231,29 +231,3 @@ export async function proveAddress(checked: { userId: string; purpose: EmailCode
   });
   await prisma.emailCode.updateMany({ where: { userId: checked.userId, usedAt: null }, data: { usedAt: now } });
 }
-
-/**
- * An unconfirmed entry on a public link leaves a User row for an address nobody
- * proved (a code needs a row to hang on). Swept, now and then, as the rate-limit
- * counters are: a User with no password, no proof, no seat at any club, made
- * over two days ago and with no code still live. Whoever really owns the address
- * is made a fresh row on their next sign-up, claim or entry. Housekeeping: a
- * failed sweep refuses nobody anything.
- */
-export async function forgetUnprovedStrangers(): Promise<void> {
-  if (Math.random() >= 0.05) return;
-  const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-  try {
-    await prisma.user.deleteMany({
-      where: {
-        password: "",
-        emailVerifiedAt: null,
-        createdAt: { lt: cutoff },
-        memberships: { none: {} },
-        emailCodes: { none: { expiresAt: { gt: cutoff } } },
-      },
-    });
-  } catch (err) {
-    console.error("[email-code] sweep of unproved addresses failed:", err);
-  }
-}

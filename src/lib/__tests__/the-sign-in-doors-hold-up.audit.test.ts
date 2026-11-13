@@ -407,23 +407,4 @@ describe("review fixes (2026-11-13)", () => {
     expect(await checksFor("half", "Another-Pass-66-golf")).toBe(1);
     expect(await checksFor("proved", "Another-Pass-66-golf")).toBe(1);
   });
-
-  it("6. an entry nobody confirmed leaves no User behind once it is stale; seats and recent rows are kept", async () => {
-    const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-    await prisma.user.create({ data: { email: at("stray-old"), name: "", createdAt: old } });
-    await prisma.user.create({ data: { email: at("stray-new"), name: "" } });
-    const seated = await prisma.user.create({ data: { email: at("seated-old"), name: "", createdAt: old } });
-    await prisma.organizationMember.create({ data: { organizationId: orgId, userId: seated.id, role: "admin" } });
-    const random = vi.spyOn(Math, "random").mockReturnValue(0);
-    try {
-      newBrowser();
-      await registerForEvent(token, form("sweeper"));
-    } finally {
-      random.mockRestore();
-    }
-    expect(await prisma.user.count({ where: { email: at("stray-old") } })).toBe(0);
-    expect(await prisma.user.count({ where: { email: at("stray-new") } })).toBe(1);
-    expect(await prisma.user.count({ where: { email: at("seated-old") } })).toBe(1);
-    expect(await prisma.user.count({ where: { email: at("sweeper") } })).toBe(1);
-  });
 });
