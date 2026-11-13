@@ -20,11 +20,11 @@ import { Icon } from "./Icon";
 
 // Behind a press, and each writes to the server: not part of the first load of a
 // screen used on the course. See LazyPanel.tsx.
-const ScoreImport = dynamic(() => orNeedsSignal(import("./ScoreImport").then((m) => m.ScoreImport)), {
+const ScoreImport = dynamic(() => orNeedsSignal(() => import("./ScoreImport").then((m) => m.ScoreImport)), {
   ssr: false,
   loading: () => <PanelLoading />,
 });
-const ClearScores = dynamic(() => orNeedsSignal(import("./ClearScores").then((m) => m.ClearScores)), {
+const ClearScores = dynamic(() => orNeedsSignal(() => import("./ClearScores").then((m) => m.ClearScores)), {
   ssr: false,
   loading: () => <PanelLoading />,
 });

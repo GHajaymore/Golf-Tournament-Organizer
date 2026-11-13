@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readSource } from "./source";
+import { orNeedsSignal } from "../../components/LazyPanel";
 
 /**
  * The first load of score entry (/entry) and the rounds screen (/stages).
@@ -22,12 +23,19 @@ import { readSource } from "./source";
 const LAZY: Array<{ client: string; panels: string[] }> = [
   { client: "src/components/EntryModes.tsx", panels: ["ScoreImport", "ClearScores"] },
   { client: "src/components/TeamScoreImport.tsx", panels: ["ScoreImport"] },
-  { client: "src/components/StagesClient.tsx", panels: ["RoundHandicaps", "MatchTiebreakControl"] },
+  { client: "src/components/StagesClient.tsx", panels: ["MatchTiebreakControl"] },
 ];
 
 /** The static value imports of `panel` in `src`, and whether it is made with next/dynamic. */
 function howPanelIsLoaded(src: string, panel: string): { statically: boolean; dynamically: boolean } {
-  const statically = new RegExp(String.raw`import\s*\{[^}]*\b${panel}\b[^}]*\}\s*from\s*["']\./${panel}["']`).test(src);
+  // Every import statement is read for what it brings in and from where; it
+  // counts if its specifier ends in the panel's file name, whatever the spelling
+  // (./X, @/components/X, ../components/X).
+  const statements = [...src.matchAll(/import\s+([^;]*?)\s+from\s*["']([^"']+)["']/g)];
+  const statically = statements.some(([, names, spec]) => {
+    const file = spec.split("/").pop();
+    return file === panel && !/^type\s/.test(names) && new RegExp(String.raw`\b${panel}\b`).test(names);
+  });
   const dynamically = new RegExp(String.raw`const\s+${panel}\s*=\s*dynamic\(`).test(src);
   return { statically, dynamically };
 }
@@ -44,14 +52,25 @@ describe("score entry and the rounds screen load their rare panels when opened",
     }
   }
 
-  it("a failed chunk load shows a notice rather than throwing into the screen", () => {
-    const src = readSource("src/components/LazyPanel.tsx");
-    expect(src).toMatch(/\.catch\(\(\) => PanelNeedsSignal/);
+  it("a failed chunk load is retried, then shows a notice rather than throwing", async () => {
+    const never = vi.fn(() => Promise.reject(new Error("chunk gone")));
+    const shown = await orNeedsSignal(never as never, 2);
+    expect(never).toHaveBeenCalledTimes(2);
+    expect(typeof shown).toBe("function");
+    let tries = 0;
+    const Real = () => null;
+    const flaky = async () => {
+      if (tries++ === 0) throw new Error("blip");
+      return Real;
+    };
+    expect(await orNeedsSignal(flaky as never, 3)).toBe(Real);
   });
 
   it("the sweep can see the fault: a static import is reported", () => {
     const bad = `import { ScoreImport } from "./ScoreImport";\nexport const x = 1;`;
     expect(howPanelIsLoaded(bad, "ScoreImport")).toEqual({ statically: true, dynamically: false });
+    const aliased = `import { ScoreImport } from "@/components/ScoreImport";`;
+    expect(howPanelIsLoaded(aliased, "ScoreImport").statically).toBe(true);
     const good = `const ScoreImport = dynamic(() => import("./ScoreImport"), { ssr: false });`;
     expect(howPanelIsLoaded(good, "ScoreImport")).toEqual({ statically: false, dynamically: true });
   });

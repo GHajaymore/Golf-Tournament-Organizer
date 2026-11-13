@@ -66,6 +66,7 @@ import {
 import { PointsControl, TableTiebreakControl, pointsInWords } from "./ScoringClient";
 import { matchTieInWords, tableTieInWords } from "@/lib/domain/tie-words";
 import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
+import { RoundHandicaps } from "./RoundHandicaps";
 import dynamic from "next/dynamic";
 import { PanelLoading, orNeedsSignal } from "./LazyPanel";
 import { RoundAllowance, type RoundAllowanceInfo } from "./RoundAllowance";
@@ -220,14 +221,11 @@ export interface QualValues {
 
 
 /** Rotating per-round accent so a page of several round cards reads as distinct at a glance. */
-// Both sit behind a press (Customize, and a tie rule's own row) and write to the
-// server, so neither is part of the screen's first load. See LazyPanel.tsx.
-const RoundHandicaps = dynamic(() => orNeedsSignal(import("./RoundHandicaps").then((m) => m.RoundHandicaps)), {
-  ssr: false,
-  loading: () => <PanelLoading />,
-});
+// Behind a press (a tie rule's own row) and writes to the server, so not part of
+// the screen's first load. RoundHandicaps stays eager: it is mounted with the
+// round and shows facts the organizer reads. See LazyPanel.tsx.
 const MatchTiebreakControl = dynamic(
-  () => orNeedsSignal(import("./MatchTiebreakControl").then((m) => m.MatchTiebreakControl)),
+  () => orNeedsSignal(() => import("./MatchTiebreakControl").then((m) => m.MatchTiebreakControl)),
   { ssr: false, loading: () => <PanelLoading /> },
 );
 

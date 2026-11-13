@@ -19,14 +19,27 @@ import type { ComponentType } from "react";
 function PanelNeedsSignal() {
   return (
     <p className="text-muted" role="status" style={{ margin: 0 }}>
-      This panel needs a signal to open. Try again when you are back online.
+      This part needs a connection. Reload the page when you have signal.
     </p>
   );
 }
 
-/** Wrap a dynamic import so a failed load shows the notice rather than throwing. */
-export function orNeedsSignal<C extends ComponentType<never>>(load: Promise<C>): Promise<C> {
-  return load.catch(() => PanelNeedsSignal as unknown as C);
+/**
+ * Wrap a dynamic import. `next/dynamic` sits on React.lazy, which remembers a
+ * failed load until the page is reloaded, so the import is called again here
+ * (a fresh call each time, never one rejected promise reused) before giving up.
+ * Giving up shows the notice, which says to reload: a tab left open across a
+ * deploy has lost its chunk and only a reload finds the new one.
+ */
+export async function orNeedsSignal<C extends ComponentType<never>>(load: () => Promise<C>, attempts = 3): Promise<C> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await load();
+    } catch {
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  return PanelNeedsSignal as unknown as C;
 }
 
 export function PanelLoading() {

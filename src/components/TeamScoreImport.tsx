@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 import type { FieldPlayer } from "@/lib/domain/score-import";
 
 // Behind a press: not part of the screen first load. See LazyPanel.tsx.
-const ScoreImport = dynamic(() => orNeedsSignal(import("./ScoreImport").then((m) => m.ScoreImport)), {
+const ScoreImport = dynamic(() => orNeedsSignal(() => import("./ScoreImport").then((m) => m.ScoreImport)), {
   ssr: false,
   loading: () => <PanelLoading />,
 });
