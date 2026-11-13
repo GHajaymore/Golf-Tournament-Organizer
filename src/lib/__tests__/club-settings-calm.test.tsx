@@ -145,7 +145,7 @@ const CARDS: [string, () => string][] = [
   ["season", () => render(<SeasonPicker startsOn="" endsOn="" />)],
   ["money", () => render(<MoneySetup mode="organization" orgMode="" orgKind="club" clubName="zz-Club" canEdit />)],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ["staff & access", () => render(<OrganizationAccess report={report as any} canEdit asks={asks as any} seats={2} />)],
+  ["staff & access", () => render(<OrganizationAccess report={report as any} canEdit actorRole="owner" asks={asks as any} seats={2} />)],
 ];
 
 describe("nothing on Club settings runs long before you tap", () => {

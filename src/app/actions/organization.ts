@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { mayChangeMembership, type MembershipVerdict } from "@/lib/domain/membership-rule";
 import { prisma } from "@/lib/db";
 import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
@@ -72,15 +73,47 @@ async function currentOrganization() {
 const ORG_ROLES = ["owner", "admin", "member", "guest"] as const;
 const cleanOrgRole = (r: string) => (ORG_ROLES.includes(r as (typeof ORG_ROLES)[number]) ? r : "member");
 
-/** True once the organization has an owner other than this member — the same
- *  guard the per-event access screen uses, applied one level up. Losing the
- *  last owner would strand the tenant and its billing. */
-async function hasOtherOwner(organizationId: string, memberId: string): Promise<boolean> {
-  return (
-    (await prisma.organizationMember.count({
-      where: { organizationId, role: "owner", id: { not: memberId } },
-    })) > 0
-  );
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * THE MEMBERSHIP RULE, ASKED INSIDE THE TRANSACTION THAT WRITES
+ * (`domain/membership-rule.ts`). The caller's own role and the Commissioner
+ * count are read through `tx`, so two Commissioners demoting each other at
+ * once cannot leave a club with none (the transaction is serializable).
+ */
+async function askMembershipRule(
+  tx: Tx,
+  organizationId: string,
+  actorEmail: string | null,
+  targetCurrentRole: string | null,
+  targetNewRole: string | null,
+): Promise<MembershipVerdict> {
+  const actor = actorEmail
+    ? await tx.organizationMember.findFirst({ where: { organizationId, user: { email: actorEmail } }, select: { role: true } })
+    : null;
+  const commissionerCount = await tx.organizationMember.count({ where: { organizationId, role: "owner" } });
+  const verdict = mayChangeMembership({
+    // No membership at all is the ownerless hatch (a club with nobody): the
+    // caller got here as an event Admin, so they hold Admin level.
+    actorRole: actor?.role ?? (commissionerCount === 0 ? "admin" : null),
+    targetCurrentRole,
+    targetNewRole,
+    commissionerCount,
+  });
+  return verdict;
+}
+
+const SERIALIZABLE = { isolationLevel: "Serializable" as const };
+
+/** Two people changing a club's staff at the same instant: a clean refusal, not a thrown error. */
+const CHANGED_AT_ONCE = "Someone else changed the club's people at the same moment — try again.";
+async function serially<T>(run: (tx: Tx) => Promise<T>): Promise<T | { ok: false; reason: string }> {
+  try {
+    return await prisma.$transaction(run, SERIALIZABLE);
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code === "P2034") return { ok: false, reason: CHANGED_AT_ONCE };
+    throw e;
+  }
 }
 
 /**
@@ -94,6 +127,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage staff." };
+  const adderEarly = await getSession();
 
   /**
    * ONLY A SEAT-CONSUMING ROLE IS CHECKED AGAINST THE SEAT LIMIT.
@@ -131,6 +165,8 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * is being made, or has no name on it yet — somebody entered by email alone
    * — and never to replace one.
    */
+  const early = await prisma.$transaction((tx) => askMembershipRule(tx, org.organizationId, adderEarly?.email ?? null, null, role));
+  if (!early.ok && role === "owner") return { ok: false, error: early.reason };
   const typedName = String(name ?? "").trim();
   const known = await prisma.user.findUnique({ where: { email: cleanEmail }, select: { id: true, name: true } });
   const user = known
@@ -150,7 +186,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    */
   const existingMembership = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
-    select: { id: true },
+    select: { id: true, role: true },
   });
 
   /**
@@ -168,16 +204,22 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * when somebody adds themselves, which is nobody else learning anything.
    */
   const adder = await getSession();
-  await prisma.organizationMember.upsert({
-    where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
-    update: { role: role },
-    create: {
-      organizationId: org.organizationId,
-      userId: user.id,
-      role: role,
-      invitedUnseenAt: adder?.userId === user.id ? null : new Date(),
-    },
+  const verdict = await serially(async (tx) => {
+    const v = await askMembershipRule(tx, org.organizationId, adder?.email ?? null, existingMembership?.role ?? null, role);
+    if (!v.ok) return v;
+    await tx.organizationMember.upsert({
+      where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
+      update: { role: role },
+      create: {
+        organizationId: org.organizationId,
+        userId: user.id,
+        role: role,
+        invitedUnseenAt: adder?.userId === user.id ? null : new Date(),
+      },
+    });
+    return v;
   });
+  if (!verdict.ok) return { ok: false, error: verdict.reason };
 
   if (!existingMembership) {
     /**
@@ -225,9 +267,6 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
   // Sanitised, not trusted: this is a public endpoint and an unknown string
   // would otherwise be stored as a role nothing in the app understands.
   const next = cleanOrgRole(role);
-  if (member.role === "owner" && next !== "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
-    return { ok: false, error: "This is the only Commissioner — make someone else a Commissioner first." };
-  }
   // Member or Guest to admin or owner takes a seat — the promotion that went
   // round the limit (see `seatRefusalFor`).
   const seatRoles = ["owner", "admin"];
@@ -236,7 +275,17 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
     if (refusal) return { ok: false, error: refusal };
   }
 
-  await prisma.organizationMember.update({ where: { id: memberId }, data: { role: next } });
+  const actor = await getSession();
+  const verdict = await serially(async (tx) => {
+    // The target's role is re-read here: the one read above is outside the write.
+    const fresh = await tx.organizationMember.findFirst({ where: { id: memberId, organizationId: org.organizationId }, select: { role: true } });
+    if (!fresh) return { ok: false as const, reason: "Staff member not found." };
+    const v = await askMembershipRule(tx, org.organizationId, actor?.email ?? null, fresh.role, next);
+    if (!v.ok) return v;
+    await tx.organizationMember.update({ where: { id: memberId }, data: { role: next } });
+    return v;
+  });
+  if (!verdict.ok) return { ok: false, error: verdict.reason };
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -251,11 +300,16 @@ export async function removeOrganizationMember(memberId: string): Promise<OrgRes
   });
   if (!member) return { ok: false, error: "Staff member not found." };
 
-  if (member.role === "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
-    return { ok: false, error: "This is the only Commissioner — make someone else a Commissioner before removing them." };
-  }
-
-  await prisma.organizationMember.delete({ where: { id: memberId } });
+  const actor = await getSession();
+  const verdict = await serially(async (tx) => {
+    const fresh = await tx.organizationMember.findFirst({ where: { id: memberId, organizationId: org.organizationId }, select: { role: true } });
+    if (!fresh) return { ok: false as const, reason: "Staff member not found." };
+    const v = await askMembershipRule(tx, org.organizationId, actor?.email ?? null, fresh.role, null);
+    if (!v.ok) return v;
+    await tx.organizationMember.delete({ where: { id: memberId } });
+    return v;
+  });
+  if (!verdict.ok) return { ok: false, error: verdict.reason };
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -833,11 +887,24 @@ export async function leaveOrganization(organizationId: unknown): Promise<OrgRes
   });
   if (!mine) return { ok: false, error: "You are not on that club's staff." };
 
-  if (mine.role === "owner" && !(await hasOtherOwner(organizationId, mine.id))) {
-    return { ok: false, error: "You are this club's only Commissioner — make somebody else a Commissioner first." };
+  // The same rule as removing anybody, asked inside the transaction that deletes.
+  const left = await serially(async (tx) => {
+    // Somebody who is not a Commissioner may always leave; only the LAST Commissioner is kept.
+    const v: MembershipVerdict = mine.role === "owner"
+      ? await askMembershipRule(tx, organizationId, session.email, mine.role, null)
+      : { ok: true };
+    if (!v.ok) return v;
+    await tx.organizationMember.delete({ where: { id: mine.id } });
+    return v;
+  });
+  if (!left.ok) {
+    return {
+      ok: false,
+      error: mine.role === "owner" && left.reason.startsWith("This is the only")
+        ? "You are this club's only Commissioner — make somebody else a Commissioner first."
+        : left.reason,
+    };
   }
-
-  await prisma.organizationMember.delete({ where: { id: mine.id } });
   revalidatePath("/", "layout");
   return { ok: true };
 }

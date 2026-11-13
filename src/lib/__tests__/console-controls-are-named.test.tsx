@@ -167,7 +167,7 @@ describe("console form controls are named", () => {
     const html = render(
       <OrgProfileProvider kind="club">
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <OrganizationAccess report={report as any} canEdit asks={[]} seats={1} />
+        <OrganizationAccess report={report as any} canEdit actorRole="owner" asks={[]} seats={1} />
       </OrgProfileProvider>,
     );
     expect(html).toContain("Add staff");

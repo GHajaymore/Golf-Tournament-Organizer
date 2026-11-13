@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { mayChangeMembership } from "@/lib/domain/membership-rule";
 
 /**
  * The clubs this person is the ONLY owner of — the ones their leaving would
@@ -30,13 +31,34 @@ export async function soleOwnedClubs(userId: string): Promise<string[]> {
  * one that matters most: left behind, anybody who later registered the same
  * address would inherit it.
  */
-export async function deleteAccountAndAccess(userId: string, email: string): Promise<void> {
+export async function deleteAccountAndAccess(userId: string, email: string): Promise<string[]> {
   const byEmail = { email: { equals: email, mode: "insensitive" as const } };
-  await prisma.$transaction([
-    prisma.account.deleteMany({ where: byEmail }),
-    prisma.pushSubscription.deleteMany({ where: byEmail }),
-    prisma.threadRead.deleteMany({ where: byEmail }),
-    prisma.threadParticipant.deleteMany({ where: byEmail }),
-    prisma.user.delete({ where: { id: userId } }),
-  ]);
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        // The membership rule, asked INSIDE this transaction: a club must keep a Commissioner.
+        const blocked: string[] = [];
+        const owned = await tx.organizationMember.findMany({
+          where: { userId, role: "owner" },
+          select: { organizationId: true, organization: { select: { name: true } } },
+        });
+        for (const o of owned) {
+          const commissionerCount = await tx.organizationMember.count({ where: { organizationId: o.organizationId, role: "owner" } });
+          const v = mayChangeMembership({ actorRole: "owner", targetCurrentRole: "owner", targetNewRole: null, commissionerCount });
+          if (!v.ok) blocked.push(o.organization.name || "your club");
+        }
+        if (blocked.length) return blocked;
+        await tx.account.deleteMany({ where: byEmail });
+        await tx.pushSubscription.deleteMany({ where: byEmail });
+        await tx.threadRead.deleteMany({ where: byEmail });
+        await tx.threadParticipant.deleteMany({ where: byEmail });
+        await tx.user.delete({ where: { id: userId } });
+        return [];
+      },
+      { isolationLevel: "Serializable" },
+    );
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code === "P2034") return ["a club whose people were changing at that moment — try again"];
+    throw e;
+  }
 }
