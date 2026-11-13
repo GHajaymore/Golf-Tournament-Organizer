@@ -11,6 +11,7 @@ import { RATE_LIMITS, throttleMessage, type RateLimitKind } from "@/lib/domain/r
  */
 const ABOUT: Record<RateLimitKind, RegExp> = {
   signin: /sign-in/i,
+  "signin-client": /sign-ins/i,
   "claim-password": /attempts/i,
   "password-reset": /reset/i,
   "email-code-send": /sent three codes/i,

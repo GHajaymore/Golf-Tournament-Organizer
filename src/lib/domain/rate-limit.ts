@@ -53,6 +53,7 @@ import { EMAIL_CODE_WORDS } from "./email-code";
 /** The throttled entry points. One budget per kind, per identifier. */
 export type RateLimitKind =
   | "signin"
+  | "signin-client"
   | "claim-password"
   | "password-reset"
   | "email-code-send"
@@ -79,6 +80,14 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
   /** Password guessing. Five is well above what a person who knows their own
    *  password ever needs, and far below what guessing one requires. */
   signin: { limit: 5, windowMs: 15 * MINUTE },
+  /** The SECOND sign-in limit (2026-11-13): one CLIENT trying passwords against
+   *  MANY addresses (password spraying), which the per-address limit cannot see.
+   *  Counts only FAILED sign-ins; a correct password gives its attempt back, so a
+   *  clubhouse's one wifi address full of members signing in costs nothing.
+   *  Twenty failures in fifteen minutes is four people each mistyping five times;
+   *  for a script it is eighty guesses an hour from one IPv6 /64 instead of
+   *  unlimited. See `clientGuessGate`. */
+  "signin-client": { limit: 20, windowMs: 15 * MINUTE },
   /** Setting a first password on a pre-provisioned email. Same shape of risk
    *  as signin — it is reachable without a session and it names an account. */
   "claim-password": { limit: 5, windowMs: 15 * MINUTE },
@@ -349,6 +358,8 @@ export function retryAfterText(seconds: number): string {
 export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number): string {
   const wait = retryAfterText(retryAfterSeconds);
   switch (kind) {
+    case "signin-client":
+      return `Too many failed sign-ins from this connection. Try again in ${wait}.`;
     case "signin":
       return `Too many sign-in attempts. Try again in ${wait}.`;
     case "claim-password":

@@ -70,7 +70,7 @@ const WRITES = [".create(", ".createMany(", ".update(", ".updateMany(", ".upsert
 const WHO: Record<string, string> = {
   // anyone
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
-  signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", getVapidPublicKey: "anyone",
+  signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", confirmEntryCode: "anyone", getVapidPublicKey: "anyone",
   redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
   // The same two as plain forms, for a press made before the page's script arrived: they call them.
   redeemRoundCodeForm: "anyone", claimPlayerSlotForm: "anyone",

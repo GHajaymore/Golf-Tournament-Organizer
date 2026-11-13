@@ -121,6 +121,9 @@ test("a member enters from the link, signs in, and scores their own card", async
       await member.getByLabel("Handicap index").fill("12");
       await member.getByLabel(/^Mobile/).fill("5550500");
       await member.getByRole("button", { name: "Register" }).click();
+      // The address is proved before anybody is entered under it (2026-11-13): the
+      // code is typed back, and only then does the receipt say "You're in!".
+      await verifyByCode(member, MEMBER_EMAIL);
       await expect(member.getByRole("heading", { name: "You're in!" })).toBeVisible({ timeout: 20_000 });
     });
 

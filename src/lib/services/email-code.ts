@@ -48,6 +48,10 @@ export interface PendingProof {
   name?: string;
   kind?: string;
   discountCode?: string;
+  /** An entry on a tournament's public link, held until the address is proved:
+   *  the link's token and the entrant as the server cleaned them. Nothing in it
+   *  is anybody's entry yet. */
+  entry?: { token: string; person: Record<string, unknown> };
 }
 
 /** This browser's code value, hashed — made (and set) when asked to. */
@@ -72,7 +76,13 @@ function readPending(value: Prisma.JsonValue | null): PendingProof {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const v = value as Record<string, unknown>;
   const text = (k: string) => (typeof v[k] === "string" ? (v[k] as string) : undefined);
-  return { passwordHash: text("passwordHash"), name: text("name"), kind: text("kind"), discountCode: text("discountCode") };
+  const held = v.entry;
+  const entry =
+    held && typeof held === "object" && !Array.isArray(held) && typeof (held as { token?: unknown }).token === "string" &&
+    (held as { person?: unknown }).person && typeof (held as { person?: unknown }).person === "object"
+      ? { token: (held as { token: string }).token, person: (held as { person: Record<string, unknown> }).person }
+      : undefined;
+  return { passwordHash: text("passwordHash"), name: text("name"), kind: text("kind"), discountCode: text("discountCode"), entry };
 }
 
 /**

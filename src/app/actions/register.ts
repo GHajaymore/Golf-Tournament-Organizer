@@ -2,6 +2,11 @@
 import { byAddress } from "@/lib/domain/my-entry";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
+import type { Event } from "@prisma/client";
+import { getSession } from "@/lib/auth";
+import { checkEmailCode, proveAddress, sendEmailCode } from "@/lib/services/email-code";
+import { EMAIL_CODE_WORDS, maskedAddress } from "@/lib/domain/email-code";
+import { EMAIL_RE } from "@/lib/domain/typed-limits";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entryLimitKey } from "@/lib/domain/rate-limit";
 import { upsertMember, memberGender } from "@/lib/services/roster";
@@ -46,8 +51,14 @@ export interface RegisterResult {
   /** confirmed | waitlisted | pending — drives the on-screen confirmation. */
   status?: IntakeStatus;
   /** True when this email was already in the field: an idempotent no-op, not a
-   *  failure — so the page can say "you're already registered" warmly. */
+   *  failure — so the page can say "you're already registered" warmly. Said only
+   *  to somebody who has PROVED the address (see `registerForEvent`). */
   already?: boolean;
+  /** A code has been emailed to the address; the entry is made when it is typed
+   *  back (`confirmEntryCode`). The answer is the same for an address that is
+   *  new and one already entered. `sentTo` is the address as the panel shows it. */
+  needsCode?: boolean;
+  sentTo?: string;
   error?: string;
 }
 
@@ -81,13 +92,12 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // (unique where <> '') that Prisma's schema can't model as @unique, so it
   // isn't a where-unique input. The empty-token guard above is what makes this
   // safe — an empty token would otherwise match an arbitrary un-opened event.
-  const event = await prisma.event.findFirst({ where: { registrationToken: cleanToken } });
+  const event = await openEventFor(cleanToken);
   // Same neutral message whether the token is unknown or registration is off —
-  // no existence oracle.
-  if (!event || !event.registrationOpen) return { ok: false, error: NOT_OPEN };
-  // A tournament in a lapsed club's read-only archive takes nobody new — and a
-  // stranger is told only what a closed link tells them (2026-10-21).
-  if (await archiveRefusalFor(event.id, "player")) return { ok: false, error: NOT_OPEN };
+  // no existence oracle. A tournament in a lapsed club's read-only archive takes
+  // nobody new either, and a stranger is told only what a closed link tells them
+  // (2026-10-21).
+  if (!event) return { ok: false, error: NOT_OPEN };
 
   // Whether a phone number is required is this tournament's own setting, so it
   // cannot be checked with the rest — those run before any lookup on purpose,
@@ -98,15 +108,115 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // form being incomplete, not anything about whether the event exists, so
   // telling them what to fix leaks nothing.
   // The organizer decides per tournament, on every plan — see phoneRequiredFor.
-  if (phoneRequiredFor(event.requirePhone) && !looksLikePhone(person.phone)) {
-    return {
-      ok: false,
-      error: person.phone
-        ? "That doesn't look like a phone number."
-        : "Enter a mobile number — this tournament needs one to reach you on the day.",
-    };
-  }
+  const noPhone = phoneRefusal(event, person);
+  if (noPhone) return { ok: false, error: noPhone };
 
+  /**
+   * THE ADDRESS IS PROVED BEFORE ANYBODY IS ENTERED UNDER IT (2026-11-13,
+   * security sweep M5). This door has no session, so whoever held a widely
+   * shared link could enter other people — or invented addresses — into a real
+   * field: filling places, mailing strangers a confirmation they never asked
+   * for, and making an Account (a way in to the event) for each. Now:
+   *
+   *  - Signed in AS the address being entered: that is the proof, and the entry
+   *    is made as it always was (a member sent here from their Events screen).
+   *  - Anybody else: nothing is entered. A six-digit code is emailed to the
+   *    address (`purpose: "entry"`, bound to this browser like every code), and
+   *    the entry is made when it is typed back (`confirmEntryCode`). No Account
+   *    is made, no place is taken, no confirmation is mailed until then.
+   *
+   * AND THE ANSWER IS THE SAME WHETHER THE ADDRESS IS ENTERED ALREADY OR NOT
+   * (M2). "You're already registered" used to be said to anybody holding the
+   * link, which listed who had entered a tournament. It is now said only after
+   * the code, to the person whose inbox it went to. A guest the organizer adds
+   * by hand needs no email at all and does not come this way.
+   */
+  const session = await getSession();
+  const signedInAsThem = !!session?.email && session.email.trim().toLowerCase() === person.email;
+  if (!signedInAsThem) return holdEntryForProof(cleanToken, form, person);
+  return placeEntry(event, person);
+}
+
+type Person = Extract<ReturnType<typeof cleanRegistration>, { ok: true }>["value"];
+
+/** This tournament's own phone rule, worded for the form; null when satisfied. */
+function phoneRefusal(event: Pick<Event, "requirePhone">, person: Person): string | null {
+  if (phoneRequiredFor(event.requirePhone) && !looksLikePhone(person.phone)) {
+    return person.phone
+      ? "That doesn't look like a phone number."
+      : "Enter a mobile number — this tournament needs one to reach you on the day.";
+  }
+  return null;
+}
+
+/** The link's event when it is still open to a stranger; null otherwise (the one neutral answer). */
+async function openEventFor(cleanToken: string): Promise<Event | null> {
+  const event = await prisma.event.findFirst({ where: { registrationToken: cleanToken } });
+  if (!event || !event.registrationOpen) return null;
+  if (await archiveRefusalFor(event.id, "player")) return null;
+  return event;
+}
+
+/**
+ * Email the address a code and keep what was typed WITH the code, not with the
+ * tournament: the form waits on the code's row (as a sign-up's password does)
+ * and is made an entry only when the code comes back. Counted against the
+ * address first, like every code this app sends.
+ */
+async function holdEntryForProof(cleanToken: string, form: RegistrationForm, person: Person): Promise<RegisterResult> {
+  const limit = await checkRateLimit("email-code-send", person.email);
+  if (!limit.allowed) return { ok: false, error: limit.message };
+  const user = await prisma.user.upsert({
+    where: { email: person.email },
+    update: {},
+    create: { email: person.email, name: "" },
+    select: { id: true },
+  });
+  const clip = (v: unknown) => (typeof v === "string" ? v.slice(0, 200) : "");
+  const sent = await sendEmailCode({
+    userId: user.id,
+    email: person.email,
+    purpose: "entry",
+    pending: {
+      entry: {
+        token: cleanToken,
+        person: { name: clip(form.name), email: person.email, handicap: clip(form.handicap), handicapType: clip(form.handicapType), phone: clip(form.phone) },
+      },
+    },
+  });
+  if (!sent.ok) return { ok: false, error: sent.error };
+  return { ok: true, needsCode: true, sentTo: maskedAddress(person.email) };
+}
+
+/**
+ * The code typed back: the address is proved and the entry held with it is made,
+ * exactly as an entry by a signed-in member is. Nobody is signed in by it.
+ */
+export async function confirmEntryCode(token: string, email: string, code: string): Promise<RegisterResult> {
+  const cleanToken = (token ?? "").trim();
+  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  if (!cleanToken || !cleanEmail || !EMAIL_RE.test(cleanEmail)) return { ok: false, error: NOT_OPEN };
+
+  const checked = await checkEmailCode(cleanEmail, code);
+  if (!checked.ok) return { ok: false, error: checked.error };
+  const held = checked.pending.entry;
+  // A code made for something else, or for another tournament's link, is not this entry's.
+  if (checked.purpose !== "entry" || !held || held.token !== cleanToken) {
+    return { ok: false, error: EMAIL_CODE_WORDS.refusal.wrong };
+  }
+  const event = await openEventFor(cleanToken);
+  if (!event) return { ok: false, error: NOT_OPEN };
+  const cleaned = cleanRegistration(held.person as unknown as RegistrationForm);
+  if (!cleaned.ok || cleaned.value.email !== cleanEmail) return { ok: false, error: NOT_OPEN };
+  const noPhone = phoneRefusal(event, cleaned.value);
+  if (noPhone) return { ok: false, error: noPhone };
+
+  await proveAddress({ userId: checked.userId, purpose: "entry", pending: {} });
+  return placeEntry(event, cleaned.value);
+}
+
+/** Everything from "is this address already in the field" to the written entry. */
+async function placeEntry(event: Event, person: Person): Promise<RegisterResult> {
   // De-duplicate before deciding placement. Someone tapping "Register" twice, or
   // coming back to a link they already used, must not become two rows in the
   // field. Matched on email — the identity key the whole app uses.

@@ -97,7 +97,9 @@ describe("every server action is guarded", () => {
     // they are asserted separately below — token-shape check, a rate limit on
     // both the token and the email before any lookup, and a server-side
     // re-check of the capacity/deadline/open state.
-    "register.ts": ["registerForEvent"],
+    // confirmEntryCode (2026-11-13) is the second half of the same door: the code
+    // emailed to the address, typed back. Its guard is the code itself.
+    "register.ts": ["registerForEvent", "confirmEntryCode"],
     // push.ts: the VAPID PUBLIC key is meant to be shipped to any browser — it
     // is what a client builds a subscription against, and web push does not
     // work without handing it out. It reads one env var and touches no
@@ -1161,6 +1163,9 @@ describe("naming a venue can only reach this club's own courses", () => {
 describe("open (self-service) registration defends its own endpoint", () => {
   const src = stripComments(read("register.ts"));
   const body = actions("register.ts").find((a) => a.name === "registerForEvent")!.body;
+  // Where an entry is placed and written: reached from `registerForEvent` for a
+  // signed-in entrant and from `confirmEntryCode` once the address is proved.
+  const place = src.slice(src.indexOf("async function placeEntry("));
 
   it("rate limits on BOTH the token and the email, before any lookup", () => {
     // The token cap slows a script hammering one link; the email cap stops one
@@ -1186,31 +1191,31 @@ describe("open (self-service) registration defends its own endpoint", () => {
   it("re-checks capacity, the deadline and the open switch on the server", () => {
     // The browser's "spots left" is a hint, never the authority: capacity and
     // placement are decided here from a fresh confirmed count via the pure rule.
-    expect(body).toMatch(/registrationOpen/);
-    expect(body).toMatch(/player\.count\(\{\s*where: \{ eventId: event\.id, status: "confirmed" \}/);
-    expect(body).toMatch(/decideIntake\(/);
+    expect(place).toMatch(/registrationOpen/);
+    expect(place).toMatch(/player\.count\(\{\s*where: \{ eventId: event\.id, status: "confirmed" \}/);
+    expect(place).toMatch(/decideIntake\(/);
   });
 
   it("gives the same neutral refusal for a bogus token and a closed link", () => {
     // No existence oracle — the action-side of the /live rule. Every "not live"
     // path returns the one NOT_OPEN message rather than saying which it was.
     expect(src).toMatch(/const NOT_OPEN =/);
-    expect(body).toMatch(/!event \|\| !event\.registrationOpen/);
+    expect(src).toMatch(/!event \|\| !event\.registrationOpen/);
   });
 
   it("writes through the roster and grants sign-in, like the organizer add", () => {
-    expect(body).toMatch(/upsertMember\(/);
-    expect(body).toMatch(/syncPlayerAccount\(/);
+    expect(place).toMatch(/upsertMember\(/);
+    expect(place).toMatch(/syncPlayerAccount\(/);
   });
 
   it("de-duplicates by email so one person can't become two entries", () => {
-    expect(body).toMatch(/already: true/);
+    expect(place).toMatch(/already: true/);
   });
 
   it("never lets a failed confirmation email undo a real entry", () => {
     // The email is best-effort and comes last, after the row is written.
-    const sendAt = body.indexOf("sendRegistrationEmail");
-    const createAt = body.indexOf("player.create");
+    const sendAt = place.indexOf("sendRegistrationEmail");
+    const createAt = place.indexOf("player.create");
     expect(createAt).toBeGreaterThan(-1);
     expect(sendAt).toBeGreaterThan(createAt);
   });

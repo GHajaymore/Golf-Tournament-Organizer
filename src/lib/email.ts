@@ -332,7 +332,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
 export async function sendEmailCodeEmail(
   to: string,
   code: string,
-  purpose: "signup" | "claim" | "device",
+  purpose: "signup" | "claim" | "device" | "entry",
 ): Promise<{ ok: boolean; error?: string }> {
   const words = EMAIL_CODE_WORDS.email;
   if (!resend) {
@@ -343,9 +343,11 @@ export async function sendEmailCodeEmail(
     console.warn(`[email] RESEND_API_KEY not set — the ${purpose} code for ${maskEmail(to)} is ${code}`);
     return { ok: true };
   }
-  const subject = purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : words.subject;
-  const intro = purpose === "claim" ? words.claimIntro : purpose === "device" ? words.deviceIntro : words.intro;
-  const ignore = purpose === "device" ? words.deviceIgnore : words.ignore;
+  const subject =
+    purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : purpose === "entry" ? words.entrySubject : words.subject;
+  const intro =
+    purpose === "claim" ? words.claimIntro : purpose === "device" ? words.deviceIntro : purpose === "entry" ? words.entryIntro : words.intro;
+  const ignore = purpose === "device" ? words.deviceIgnore : purpose === "entry" ? words.entryIgnore : words.ignore;
   // Every word here is the app's own and the code is six digits it made, so
   // it all goes in raw; nothing anybody typed reaches this body.
   const body =

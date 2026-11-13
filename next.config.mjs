@@ -4,6 +4,24 @@ import { withBotId } from "botid/next/config";
 const require = createRequire(import.meta.url);
 const replayBackport = require("./scripts/react-hydration-replay-backport.cjs");
 
+// The Content-Security-Policy, in two headers — see the note above `headers()`.
+const ENFORCED_CSP = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
+const REPORT_ONLY_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https:",
+  "media-src 'self' blob:",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -119,10 +137,23 @@ const nextConfig = {
    * (`EventSetupClient`) — and grants each of them to this origin only, while
    * switching OFF the high-risk ones nothing here touches. `browsing-topics=()`
    * opts the site out of the Topics API, which is a privacy choice as much as a
-   * security one. There is deliberately no Content-Security-Policy yet: adding
-   * one safely means giving the inline theme `<style>` blocks a nonce, which is
-   * its own change — until then `font-hosts.test.ts`, not a CSP, is what keeps
-   * an external font host out (see `layout.tsx`, which used to claim otherwise).
+   * security one.
+   *
+   * THE CONTENT-SECURITY-POLICY (2026-11-13) IS IN TWO PARTS, and `csp.test.ts`
+   * holds both:
+   *  - ENFORCED, because it needs no nonce and nothing in the app does what it
+   *    forbids: `frame-ancestors 'none'` (no page is framed, by anybody),
+   *    `object-src 'none'`, `base-uri 'self'` (an injected `<base>` cannot
+   *    re-point every relative link) and `form-action 'self'` (an injected form
+   *    cannot post to another origin).
+   *  - REPORT-ONLY, the origin lists (`script-src`, `style-src`, `img-src`,
+   *    `connect-src` …). They have to say `'unsafe-inline'`, because Next writes
+   *    inline hydration scripts, the theme `<style>` blocks and two before-load
+   *    scripts that a nonce set per request (in middleware, on every page) would
+   *    have to cover. That is its own change; until it lands, a policy that
+   *    enforced `'unsafe-inline'` would be decoration and one that did not would
+   *    break every page. Reported first so the console shows what a real session
+   *    would have lost. `font-hosts.test.ts` still keeps an external font host out.
    */
   /**
    * THE ADDRESSES PEOPLE TYPE TO SIGN IN. Sign-in lives on the front page
@@ -153,6 +184,8 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: ENFORCED_CSP },
+          { key: "Content-Security-Policy-Report-Only", value: REPORT_ONLY_CSP },
           {
             key: "Permissions-Policy",
             value: "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), browsing-topics=()",

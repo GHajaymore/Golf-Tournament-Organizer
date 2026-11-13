@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { SECURE_COOKIES } from "@/lib/secure-cookies";
 import { hashBrowserValue, newBrowserValue } from "@/lib/domain/email-code-hash";
 import { deviceLabel } from "@/lib/domain/device-words";
+import { isOwner } from "@/lib/owner";
 
 /**
  * THE BROWSERS A PERSON HAS SIGNED IN ON (2026-10-21; Ajay: "go with your
@@ -74,12 +75,19 @@ export async function rememberDevice(userId: string): Promise<string> {
 }
 
 /**
+ * Who is asked for a code on a browser not seen before: the PLATFORM OWNERS
+ * (`OWNER_EMAILS`, 2026-11-13) and club staff. The owner's password alone used
+ * to open launch, every club's plan, prices and discount codes on any browser,
+ * and an owner may hold no club seat at all, so the staff test below never
+ * named them. Owners are the most valuable account, not the least asked.
+ *
  * Club staff: a seat at a club (every `OrganizationMember` is staff — players
  * are never members, see the schema), or an admin or assistant on any
  * tournament. Asked by address as well as by user, because an event seat is
  * keyed on the address.
  */
 export async function isClubStaff(userId: string, email: string): Promise<boolean> {
+  if (isOwner(email)) return true;
   const seat = await prisma.organizationMember.findFirst({ where: { userId }, select: { id: true } });
   if (seat) return true;
   const event = await prisma.account.findFirst({
