@@ -27,8 +27,8 @@ const LAZY: Array<{ client: string; panels: string[] }> = [
 
 /** The static value imports of `panel` in `src`, and whether it is made with next/dynamic. */
 function howPanelIsLoaded(src: string, panel: string): { statically: boolean; dynamically: boolean } {
-  const statically = new RegExp(`import\s*\{[^}]*\b${panel}\b[^}]*\}\s*from\s*["']\./${panel}["']`).test(src);
-  const dynamically = new RegExp(`const\s+${panel}\s*=\s*dynamic\(`).test(src);
+  const statically = new RegExp(String.raw`import\s*\{[^}]*\b${panel}\b[^}]*\}\s*from\s*["']\./${panel}["']`).test(src);
+  const dynamically = new RegExp(String.raw`const\s+${panel}\s*=\s*dynamic\(`).test(src);
   return { statically, dynamically };
 }
 
