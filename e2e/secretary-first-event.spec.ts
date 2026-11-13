@@ -182,6 +182,8 @@ test("a new club secretary has a tournament with a working entry link in under t
       const mobile = member.getByLabel(/^Mobile/);
       if (await mobile.count()) await mobile.fill("5550142");
       await member.getByRole("button", { name: "Register" }).click();
+      // Proved first (2026-11-13), as the entrant would: the emailed code, typed back.
+      await verifyByCode(member, `${mark}-entrant@example.invalid`);
       await expect(member.getByRole("heading", { name: "You're in!" })).toBeVisible({ timeout: 20_000 });
     });
 

@@ -53,9 +53,12 @@ import { EMAIL_CODE_WORDS } from "./email-code";
 /** The throttled entry points. One budget per kind, per identifier. */
 export type RateLimitKind =
   | "signin"
+  | "signin-client"
   | "claim-password"
   | "password-reset"
   | "email-code-send"
+  | "entry-code-send"
+  | "code-send-client"
   | "round-code"
   | "round-code-client"
   | "discount-check"
@@ -79,6 +82,14 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
   /** Password guessing. Five is well above what a person who knows their own
    *  password ever needs, and far below what guessing one requires. */
   signin: { limit: 5, windowMs: 15 * MINUTE },
+  /** The SECOND sign-in limit (2026-11-13): one CLIENT trying passwords against
+   *  MANY addresses (password spraying), which the per-address limit cannot see.
+   *  Counts only FAILED sign-ins; a correct password gives its attempt back, so a
+   *  clubhouse's one wifi address full of members signing in costs nothing.
+   *  Twenty failures in fifteen minutes is four people each mistyping five times;
+   *  for a script it is eighty guesses an hour from one IPv6 /64 instead of
+   *  unlimited. See `clientGuessGate`. */
+  "signin-client": { limit: 20, windowMs: 15 * MINUTE },
   /** Setting a first password on a pre-provisioned email. Same shape of risk
    *  as signin — it is reachable without a session and it names an account. */
   "claim-password": { limit: 5, windowMs: 15 * MINUTE },
@@ -91,6 +102,19 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  fifteen minutes: a person who asked twice and then once more. Each code
    *  takes five tries, so this also caps guessing at fifteen in the window. */
   "email-code-send": { limit: 3, windowMs: 15 * MINUTE },
+  /** The code mailed to prove an address before an entry on a public link
+   *  (2026-11-13), keyed on the address. Roomier than `email-code-send` on
+   *  purpose: a society member entering a whole calendar of tournaments in one
+   *  evening (the case `register-email` was made per tournament for) takes a
+   *  code for each. Twenty an hour still caps how many mails one stranger's
+   *  address can be made to receive. */
+  "entry-code-send": { limit: 20, windowMs: 60 * MINUTE },
+  /** Codes SENT by one client, to anybody (2026-11-13): sign-up, claim and entry
+   *  codes can be caused by a stranger for any address, and an address's own
+   *  limits cap one address, not one client making many. Sixty in fifteen minutes
+   *  matches `round-code-client` (a clubhouse wifi on an entry morning); counted
+   *  on every send, never given back. See `clientGuessGate`. */
+  "code-send-client": { limit: 60, windowMs: 15 * MINUTE },
   /** Round codes are typed off a printed card by people standing on a tee in
    *  the rain, so the allowance is deliberately roomier than a password's —
    *  ten wrong entries is a group that needs to ask, not an attack. It still
@@ -349,12 +373,18 @@ export function retryAfterText(seconds: number): string {
 export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number): string {
   const wait = retryAfterText(retryAfterSeconds);
   switch (kind) {
+    case "signin-client":
+      return `Too many failed sign-ins from this connection. Try again in ${wait}.`;
     case "signin":
       return `Too many sign-in attempts. Try again in ${wait}.`;
     case "claim-password":
       return `Too many attempts. Try again in ${wait}.`;
     case "password-reset":
       return `Too many reset requests. Try again in ${wait}.`;
+    case "entry-code-send":
+      return `We've sent several codes to that address. Try again in ${wait}.`;
+    case "code-send-client":
+      return `We've sent several codes from this connection. Try again in ${wait}.`;
     case "email-code-send":
       return EMAIL_CODE_WORDS.tooManySends(wait);
     case "round-code":

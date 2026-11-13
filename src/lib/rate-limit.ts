@@ -210,6 +210,26 @@ export function clientKeyFor(kind: RateLimitKind, clientAddress: string, now: nu
   return bucketKeyFor(kind, fingerprint(`client:${clientAddress.trim().toLowerCase()}`), now);
 }
 
+/**
+ * Give one counted attempt back to this client, from a LATER request than the
+ * one that counted it (2026-11-13). A code SENT costs the connection one of
+ * `code-send-client`; the code coming back proved gives it back, because only
+ * the inbox's owner can type it. So a clubhouse wifi where sixty members enter
+ * on one morning, each proving their own address, is never told "several codes
+ * from this connection", while a client making codes go to addresses it cannot
+ * read keeps every send counted. Given back to the current window (a send just
+ * before a window's end may be returned to the next one: never below zero).
+ */
+export async function giveBackClientAttempt(kind: RateLimitKind, clientAddress: string | null): Promise<void> {
+  if (!clientAddress) return;
+  const key = clientKeyFor(kind, clientAddress, Date.now());
+  try {
+    await prisma.$executeRaw`UPDATE "RateLimitHit" SET "count" = GREATEST("count" - 1, 0) WHERE "key" = ${key}`;
+  } catch (err) {
+    console.error("[rate-limit] could not give back a client attempt:", err);
+  }
+}
+
 export async function clientGuessGate(
   kind: RateLimitKind,
   clientAddress: string | null,

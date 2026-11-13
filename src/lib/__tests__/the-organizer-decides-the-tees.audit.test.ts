@@ -33,9 +33,10 @@ import { randomBytes } from "node:crypto";
 type Session = { email: string; name: string; id?: string; userId?: string; accountId?: string; eventId: string; role: string; viewRole?: string };
 const session: { current: Session | null } = { current: null };
 vi.mock("@/lib/auth", () => ({ getSession: async () => session.current, setActiveEvent: async () => {} }));
+vi.mock("next/headers", async () => (await import("./link-browser")).linkBrowser());
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { registerForEvent } = await import("@/app/actions/register");
+const { enterOnTheLink: registerForEvent } = await import("./enter-on-the-link");
 const { enterThisTournament } = await import("@/app/actions/enter");
 const { addMembersToEvent } = await import("@/app/actions/roster");
 const { setPlayerTee, setFlightTee } = await import("@/app/actions/courses");

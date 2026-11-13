@@ -45,7 +45,7 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";
-import { registerForEvent } from "@/app/actions/register";
+import { enterOnTheLink as registerForEvent } from "./enter-on-the-link";
 import { setOwnAttendance } from "@/app/actions/attendance";
 import { adoptClubTimeZone, saveOrganizationTimeZone } from "@/app/actions/organization";
 import { openRegistrationView } from "@/lib/services/registration";

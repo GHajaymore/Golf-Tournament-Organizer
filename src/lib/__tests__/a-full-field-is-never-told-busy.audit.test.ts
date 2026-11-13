@@ -3,13 +3,14 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 
+vi.mock("next/headers", async () => (await import("./link-browser")).linkBrowser());
 vi.mock("next/cache", () => ({
   revalidatePath: () => {},
   revalidateTag: () => {},
   unstable_cache: (fn: unknown) => fn,
 }));
 
-import { registerForEvent } from "@/app/actions/register";
+import { enterOnTheLink as registerForEvent } from "./enter-on-the-link";
 import { entryLinkBudgetFor } from "@/lib/services/registration";
 import { RATE_LIMITS, entryLinkBudget } from "@/lib/domain/rate-limit";
 import { fieldCapFor } from "@/lib/services/limits";

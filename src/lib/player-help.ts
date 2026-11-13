@@ -370,6 +370,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     href: "/me",
     steps: [
       "Setting up your account? We email a 6-digit code first.",
+      "Entering from a link? We email a code first.",
+      "You are entered when you type it back.",
       "Type it on the same screen. It works for 15 minutes.",
       "Nothing came? Check your spam folder, or press Send a new code.",
       "It proves the address is yours. Nobody else can use it.",
