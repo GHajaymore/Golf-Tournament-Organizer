@@ -85,6 +85,11 @@ test("a stranger who claims an invited Admin's address gets no way in", async ({
   await page.getByPlaceholder("you@email.com").fill(victim);
   await page.getByPlaceholder("Your password").fill("i-am-Not-who-i-say-77");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
+  // An invited address is refused exactly as a wrong password is (2026-11-13, M2):
+  // nobody learns who is on a roster by trying addresses. The way to a first
+  // password is offered to everybody who is refused.
+  await expect(page.getByText(/Wrong email or password/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Invited, and never set a password?" }).click();
   await expect(page.getByText("Set your password")).toBeVisible({ timeout: 20_000 });
   await page.getByPlaceholder("Choose a password").fill("i-am-Not-who-i-say-77");
   await page.getByRole("button", { name: "Set password & continue" }).click();
@@ -110,11 +115,13 @@ test("a stranger who claims an invited Admin's address gets no way in", async ({
     await page.goto(path);
     expect(new URL(page.url()).pathname, `${path} let a stranger in`).toBe("/");
   }
-  // And the password they chose signs nobody in: it is the claim step again.
+  // And the password they chose signs nobody in: the same refusal, and the claim step again.
   await panel(page, "Log in");
   await page.getByPlaceholder("you@email.com").fill(victim);
   await page.getByPlaceholder("Your password").fill("i-am-Not-who-i-say-77");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(page.getByText(/Wrong email or password/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Invited, and never set a password?" }).click();
   await expect(page.getByText("Set your password")).toBeVisible({ timeout: 20_000 });
   expect(await signedIn(page)).toBe(false);
   expect((await prisma.user.findUnique({ where: { email: victim } }))?.password).toBe("");

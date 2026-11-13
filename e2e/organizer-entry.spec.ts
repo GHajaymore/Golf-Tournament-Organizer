@@ -137,6 +137,10 @@ test("a member enters from the link, signs in, and scores their own card", async
       await member.getByPlaceholder("you@email.com").locator("visible=true").first().fill(MEMBER_EMAIL);
       await member.getByPlaceholder("Your password").locator("visible=true").first().fill(MEMBER_PASSWORD);
       await member.locator('button[type="submit"]', { hasText: "Log in" }).locator("visible=true").first().click();
+      // An address with no password yet is refused like a wrong password
+      // (2026-11-13); the refusal offers the way to a first password.
+      await expect(member.getByText(/Wrong email or password/).locator("visible=true").first()).toBeVisible({ timeout: 20_000 });
+      await member.getByRole("button", { name: "Invited, and never set a password?" }).locator("visible=true").first().click();
       await expect(member.getByText("Set your password")).toBeVisible({ timeout: 20_000 });
       await member.getByPlaceholder("Choose a password").fill(MEMBER_PASSWORD);
       await member.getByRole("button", { name: "Set password & continue" }).click();

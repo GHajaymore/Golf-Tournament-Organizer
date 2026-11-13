@@ -223,9 +223,16 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByPlaceholder("Choose a password").fill(PASSWORD);
   // In the visitor's golf since the country words (2026-10-24): "golf group" in the US, "society" in Britain.
   await page.getByText(/^A league or (golf group|society)$/).click();
+  const before = await prisma.user.findUnique({ where: { email }, select: { password: true } });
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(refusal(page)).toContainText("log in instead", ANSWER);
+  // ONE ANSWER FOR EVERY ADDRESS (2026-11-13, M2): an address that already has an
+  // account is answered exactly as a new one is — a code to its inbox — so the
+  // form no longer tells a stranger who has signed up. No second account, and the
+  // password typed here changes nothing.
+  await expect(page.getByRole("heading", { name: "Enter your code" })).toBeVisible(ANSWER);
+  await expect(refusal(page)).toHaveCount(0);
   expect(await prisma.user.count({ where: { email } })).toBe(1);
+  expect((await prisma.user.findUnique({ where: { email }, select: { password: true } }))?.password).toBe(before?.password);
 
   // ── the right password, and a `next` that points off the site ──────────
   await page.goto("/?next=https%3A%2F%2Fexample.invalid%2Fphish");
