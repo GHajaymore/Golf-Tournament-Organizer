@@ -41,6 +41,11 @@
  * attacker trying one guess against each of a million *different* codes is not
  * slowed down by this at all. That is a different attack from the one that
  * actually threatens a round code, and it wants a different control.
+ *
+ * THAT CONTROL (2026-11-12) is `round-code-client`: a SECOND limit, additional to
+ * the per-code one and never instead of it, on the client address, counting only
+ * FAILED lookups, so a shared wifi address is never blocked by players who got it
+ * right, and a spoofed header can only dodge the second limit, never the first.
  */
 
 import { EMAIL_CODE_WORDS } from "./email-code";
@@ -52,6 +57,7 @@ export type RateLimitKind =
   | "password-reset"
   | "email-code-send"
   | "round-code"
+  | "round-code-client"
   | "discount-check"
   | "register-token"
   | "register-email"
@@ -90,6 +96,15 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  ten wrong entries is a group that needs to ask, not an attack. It still
    *  turns "a thousand guesses a second" into "forty an hour". */
   "round-code": { limit: 10, windowMs: 15 * MINUTE },
+  /** The SECOND round-code limit (2026-11-12): one CLIENT trying MANY codes, which
+   *  the per-code limit cannot see (it caps guesses per code, so an enumerator
+   *  spends one guess on each of a million codes and is never slowed). Counts
+   *  only FAILED lookups, never successes, so forty players on a club's one wifi
+   *  address all entering the one real code count nothing. Sixty failures in
+   *  fifteen minutes (Tournament Director, 12 Nov: a clubhouse's one wifi address
+   *  must survive an event morning of mistypes), still only 240 an hour for a
+   *  script against an 8-character code instead of a thousand a second. See `clientGuessGate`. */
+  "round-code-client": { limit: 60, windowMs: 15 * MINUTE },
   /** Discount codes, tried at sign-up or on a club's plan panel. A code is
    *  eight characters from 31, so this is not about guessing one — it is about
    *  a script trying to, and ten typos in fifteen minutes is a person who
@@ -343,6 +358,7 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     case "email-code-send":
       return EMAIL_CODE_WORDS.tooManySends(wait);
     case "round-code":
+    case "round-code-client":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
     case "discount-check":
       return `Too many discount code attempts. Wait ${wait}, and check the code against the email it came in.`;
@@ -423,4 +439,38 @@ export function entryLinkBudget(link: EntryLink): number {
   const places = Number.isFinite(link.fieldLimit) && link.fieldLimit > 0 ? link.fieldLimit : LARGEST_DAY_FIELD;
   const entrants = Math.ceil(places * (1 + WAITING_SHARE));
   return Math.max(floor, RETRY_FACTOR * entrants);
+}
+
+/**
+ * The client address out of a request's headers, or null when there is none.
+ *
+ * On Vercel `x-vercel-forwarded-for` is set by the platform and cannot be
+ * written by the caller; `x-forwarded-for` is the fallback (first entry), then
+ * `x-real-ip`. Off Vercel the first two can be forged, which is why this is only
+ * ever the key of a SECOND limit. Null means "no per-client limit": a shared
+ * bucket for every address-less caller would block innocents.
+ */
+export function clientAddressFrom(get: (name: string) => string | null | undefined): string | null {
+  for (const name of ["x-vercel-forwarded-for", "x-forwarded-for", "x-real-ip"]) {
+    const first = (get(name) ?? "").split(",")[0].trim();
+    if (first) return networkOf(first);
+  }
+  return null;
+}
+
+/**
+ * The unit a client is counted as: an IPv4 address whole, an IPv6 address as its
+ * /64 (one household or one phone is handed a whole /64, so the full address is
+ * a key an enumerator rotates at will). IPv4-mapped IPv6 counts as the IPv4.
+ */
+export function networkOf(address: string): string {
+  const a = address.toLowerCase();
+  const mapped = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return mapped[1];
+  if (!a.includes(":")) return a;
+  const [head, tail] = a.split("::");
+  const front = head ? head.split(":") : [];
+  const back = tail === undefined ? [] : tail ? tail.split(":") : [];
+  const groups = tail === undefined ? front : [...front, ...Array(Math.max(0, 8 - front.length - back.length)).fill("0"), ...back];
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }

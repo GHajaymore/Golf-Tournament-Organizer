@@ -74,3 +74,17 @@ describe("scrubReport", () => {
     expect(event.request.url).toContain(TOKEN);
   });
 });
+
+describe("scrubText and the URL fragment", () => {
+  it("leaves no round code from a printed sign's address", () => {
+    for (const u of ["/play#ABCD-EFGH", "https://tourneyhq.example/play#ABCD-EFGH.t3", "at https://x.example/play#ABCD-EFGH)"]) {
+      expect(scrubText(u)).not.toMatch(/ABCD|EFGH/);
+    }
+    expect(scrubText("/play#ABCD-EFGH")).toBe("/play#[redacted]");
+  });
+  it("leaves ordinary URLs and prose unchanged", () => {
+    for (const u of ["/play", "/me/help?x=1", "https://x.example/a/b?y=2", "see issue #5 and hole #7"]) {
+      expect(scrubText(u)).toBe(u);
+    }
+  });
+});

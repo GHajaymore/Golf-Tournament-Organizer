@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
+import { fingerprint } from "@/lib/auth";
 import {
   RATE_LIMITS,
   bucketKeyFor,
@@ -187,3 +188,57 @@ async function prune(now: number): Promise<void> {
 }
 
 export type { RateLimitDecision, RateLimitKind };
+
+/**
+ * THE PER-CLIENT GUESS LIMIT (2026-11-12): one client trying MANY secrets.
+ *
+ * The per-code limits above cap guesses against each code, so one client trying
+ * a million different codes is never slowed. This is the second, additional
+ * limit: keyed on the client (`clientKeyFor`: the app's HMAC of the address,
+ * never a bare address or an unkeyed hash), never cleared by a success.
+ *
+ * COUNTED UP FRONT, ATOMICALLY: one upsert adds the attempt and returns the
+ * total, so a burst of parallel guesses cannot all read "under the limit". A
+ * success then GIVES THE ATTEMPT BACK (`succeeded()`), so only failed lookups
+ * stay counted: forty players on one wifi entering the real code cost nothing.
+ * Call it before the lookup, `succeeded()` on a found code. The guest player
+ * link (J39/J40) uses the same function. No address (no header, no request) or
+ * an unreadable counter: no per-client limit, the per-code one still stands,
+ * because one shared bucket would block innocents.
+ */
+export function clientKeyFor(kind: RateLimitKind, clientAddress: string, now: number): string {
+  return bucketKeyFor(kind, fingerprint(`client:${clientAddress.trim().toLowerCase()}`), now);
+}
+
+export async function clientGuessGate(
+  kind: RateLimitKind,
+  clientAddress: string | null,
+): Promise<{ decision: RateLimitDecision; succeeded: () => Promise<void> }> {
+  const none = { decision: { allowed: true, retryAfterSeconds: 0, message: "" }, succeeded: async () => {} };
+  if (!clientAddress) return none;
+  const now = Date.now();
+  const key = clientKeyFor(kind, clientAddress, now);
+  const expiresAt = new Date(windowFor(RATE_LIMITS[kind], now).endsAt).toISOString();
+  try {
+    const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+      INSERT INTO "RateLimitHit" ("key", "count", "expiresAt")
+      VALUES (${key}, 1, ${expiresAt}::timestamp)
+      ON CONFLICT ("key") DO UPDATE SET "count" = "RateLimitHit"."count" + 1
+      RETURNING "count"
+    `;
+    const decision = decideRateLimit(kind, rows[0]?.count ?? 1, now);
+    return {
+      decision,
+      succeeded: async () => {
+        try {
+          await prisma.$executeRaw`UPDATE "RateLimitHit" SET "count" = GREATEST("count" - 1, 0) WHERE "key" = ${key}`;
+        } catch (err) {
+          console.error("[rate-limit] could not give back a client attempt:", err);
+        }
+      },
+    };
+  } catch (err) {
+    console.error("[rate-limit] could not count a client attempt:", err);
+    return none;
+  }
+}
