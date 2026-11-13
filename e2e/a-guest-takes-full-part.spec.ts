@@ -242,7 +242,8 @@ test.describe("a guest takes full part by a player link", () => {
     try {
       const c = await phoneC.newPage();
       await typeCode(c, code2);
-      await expect(c.getByRole("alert")).toContainText("This link no longer works.");
+      // Not getByRole("alert"): Next's route announcer is an alert too.
+      await expect(c.locator('p[role="alert"]')).toContainText("This link no longer works.");
       expect(c.url()).not.toMatch(/\/me$/);
     } finally {
       await phoneC.close();
