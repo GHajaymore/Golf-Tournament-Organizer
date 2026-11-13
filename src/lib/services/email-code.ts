@@ -99,6 +99,8 @@ export async function sendEmailCode(input: {
   email: string;
   purpose: EmailCodePurpose;
   pending: PendingProof | null;
+  /** For an entry code's email: the tournament it is for. */
+  eventName?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const browser = await browserHash(true);
   if (!browser) return { ok: false, error: EMAIL_CODE_WORDS.couldNotSend };
@@ -115,7 +117,7 @@ export async function sendEmailCode(input: {
     },
     select: { id: true },
   });
-  const sent = await sendEmailCodeEmail(input.email, code, input.purpose);
+  const sent = await sendEmailCodeEmail(input.email, code, input.purpose, input.eventName);
   if (!sent.ok) {
     await prisma.emailCode.deleteMany({ where: { id: row.id } });
     return { ok: false, error: EMAIL_CODE_WORDS.couldNotSend };
@@ -185,8 +187,13 @@ export async function checkEmailCode(email: string, typed: unknown): Promise<Che
   // Every try on this address in the last day, from every browser — see
   // EMAIL_CODE_DAILY_TRIES. Read before this try is counted, so the twenty-first
   // is refused without being compared.
+  // EACH KIND OF CODE HAS ITS OWN DAY'S TRIES (2026-11-13). Entry codes and "asked"
+  // codes can be caused by anybody who types an address into a public form, so
+  // wrong tries on them must not spend the tries of the sign-in, new-device or
+  // claim code of the person who owns the address (a locked-out owner or secretary).
+  const kind = row.purpose === "entry" || row.purpose === "asked" ? { purpose: row.purpose } : { purpose: { notIn: ["entry", "asked"] } };
   const today = await prisma.emailCode.aggregate({
-    where: { userId: user.id, createdAt: { gt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+    where: { userId: user.id, ...kind, createdAt: { gt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
     _sum: { attempts: true },
   });
   if ((today._sum.attempts ?? 0) >= EMAIL_CODE_DAILY_TRIES) return { ok: false, error: refusal.today };
@@ -223,4 +230,30 @@ export async function proveAddress(checked: { userId: string; purpose: EmailCode
     },
   });
   await prisma.emailCode.updateMany({ where: { userId: checked.userId, usedAt: null }, data: { usedAt: now } });
+}
+
+/**
+ * An unconfirmed entry on a public link leaves a User row for an address nobody
+ * proved (a code needs a row to hang on). Swept, now and then, as the rate-limit
+ * counters are: a User with no password, no proof, no seat at any club, made
+ * over two days ago and with no code still live. Whoever really owns the address
+ * is made a fresh row on their next sign-up, claim or entry. Housekeeping: a
+ * failed sweep refuses nobody anything.
+ */
+export async function forgetUnprovedStrangers(): Promise<void> {
+  if (Math.random() >= 0.05) return;
+  const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  try {
+    await prisma.user.deleteMany({
+      where: {
+        password: "",
+        emailVerifiedAt: null,
+        createdAt: { lt: cutoff },
+        memberships: { none: {} },
+        emailCodes: { none: { expiresAt: { gt: cutoff } } },
+      },
+    });
+  } catch (err) {
+    console.error("[email-code] sweep of unproved addresses failed:", err);
+  }
 }

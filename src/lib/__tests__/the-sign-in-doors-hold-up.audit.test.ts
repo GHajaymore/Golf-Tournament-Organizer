@@ -17,7 +17,8 @@ import { PrismaClient } from "@prisma/client";
 
 const browsers = vi.hoisted(() => ({ current: new Map<string, string>(), ip: "" }));
 const went = vi.hoisted(() => ({ to: "" }));
-const mail = vi.hoisted(() => ({ codes: [] as Array<{ to: string; code: string; purpose: string }> }));
+const mail = vi.hoisted(() => ({ codes: [] as Array<{ to: string; code: string; purpose: string; eventName?: string }> }));
+const hashes = vi.hoisted(() => ({ checks: 0 }));
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
 vi.mock("next/headers", () => ({
@@ -37,8 +38,8 @@ vi.mock("@/lib/email", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/email")>();
   return {
     ...real,
-    sendEmailCodeEmail: async (to: string, code: string, purpose: string) => {
-      mail.codes.push({ to, code, purpose });
+    sendEmailCodeEmail: async (to: string, code: string, purpose: string, eventName?: string) => {
+      mail.codes.push({ to, code, purpose, eventName });
       return { ok: true };
     },
     sendNewSignInEmail: async () => ({ ok: true }),
@@ -46,7 +47,20 @@ vi.mock("@/lib/email", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/auth", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/auth")>();
+  return {
+    ...real,
+    verifyPasswordHash: (password: string, stored: string) => {
+      hashes.checks += 1;
+      return real.verifyPasswordHash(password, stored);
+    },
+  };
+});
+
 import { hashPassword } from "@/lib/auth";
+import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
+import { readSource } from "./source";
 import { claimPassword, signInWithPassword, signUp, verifyEmailCode } from "@/app/actions/auth";
 import { confirmEntryCode, registerForEvent } from "@/app/actions/register";
 import { RATE_LIMITS } from "@/lib/domain/rate-limit";
@@ -191,7 +205,8 @@ describe("M2: the same answer for an address that is nobody, invited, or proved"
     // Whoever already has an account is NOT given a second club, and no password of theirs changes.
     const user = await prisma.user.findUniqueOrThrow({ where: { email: at("proved") } });
     expect(await prisma.organizationMember.count({ where: { userId: user.id } })).toBe(0);
-    expect(codesTo(at("proved")).map((m) => m.purpose)).toEqual(["device"]);
+    // Said as what it is: somebody asked from a new browser, no password was checked.
+    expect(codesTo(at("proved")).map((m) => m.purpose)).toEqual(["asked"]);
   });
 });
 
@@ -303,5 +318,112 @@ describe("M5: the public entry link enters nobody until the address is proved", 
     const done = await registerForEvent(token, form("proved"));
     expect(done).toMatchObject({ ok: true, status: "confirmed" });
     expect(done.needsCode).toBeUndefined();
+  });
+});
+
+describe("review fixes (2026-11-13)", () => {
+  const form = (who: string) => ({ name: `Zz ${who}`, email: at(who), handicap: "12", handicapType: "18", phone: "15551234567" });
+
+  it("1. a claim counts the code budget on BOTH paths: nobody and invited are refused alike, and the non-invited one takes about as long as a send", async () => {
+    await prisma.account.create({ data: { eventId, email: at("invited3"), name: "Zz invited3", role: "player" } });
+    newBrowser();
+    const times: number[] = [];
+    const answers: Array<{ ok: boolean; error?: string; needsCode?: boolean }> = [];
+    for (const who of ["nobody3", "invited3"]) {
+      for (let i = 0; i < 4; i++) {
+        const t = Date.now();
+        answers.push(await claimPassword(at(who), "Chosen-Pass-77-golf"));
+        if (who === "nobody3") times.push(Date.now() - t);
+      }
+    }
+    // Three go through, the fourth is told to wait, with the same words, on either address.
+    expect(answers.slice(0, 3).every((a) => a.needsCode)).toBe(true);
+    expect(answers[3].error).toMatch(/sent three codes/i);
+    expect(answers.slice(4, 7).every((a) => a.needsCode)).toBe(true);
+    expect(answers[7].error).toMatch(/sent three codes/i);
+    expect(Math.min(...times.slice(0, 3)), "a claim that mails nothing returned faster than one that does").toBeGreaterThanOrEqual(280);
+  });
+
+  it("2. the emails say what happened: 'asked' carries no 'whoever tried knows it'; an entry code names the tournament", async () => {
+    expect(EMAIL_CODE_WORDS.email.askedIgnore).not.toMatch(/knows it|reset your password/i);
+    expect(EMAIL_CODE_WORDS.email.askedIntro).toMatch(/Someone asked to sign in/);
+    const src = readSource("src", "lib", "email.ts");
+    expect(src).toMatch(/purpose === "asked" \? words\.askedIgnore/);
+    expect(EMAIL_CODE_WORDS.email.entryIntro("Zz Open")).toBe("This address was used to enter Zz Open on TourneyHQ. Here's the code to confirm it was you:");
+    newBrowser();
+    await registerForEvent(token, form("fresh-entry"));
+    expect(codesTo(at("fresh-entry")).at(-1)).toMatchObject({ purpose: "entry", eventName: `${MARK} Open` });
+  });
+
+  it("3. wrong tries on entry and sign-up codes cannot spend the day's tries of a staff member's new-browser code", async () => {
+    const staff = await prisma.user.create({ data: { email: at("staff"), name: "Zz staff", password: hashPassword(PASSWORD), emailVerifiedAt: new Date() } });
+    await prisma.organizationMember.create({ data: { organizationId: orgId, userId: staff.id, role: "admin" } });
+    // The staff member asks for their code on their own browser.
+    const mine = newBrowser();
+    expect(await signInWithPassword(at("staff"), PASSWORD)).toMatchObject({ needsCode: true, codePurpose: "device" });
+    const deviceCode = codesTo(at("staff")).at(-1)!.code;
+    const keep = new Map(mine);
+    // An attacker's browser: more than twenty wrong tries on entry codes, and on a sign-up code.
+    newBrowser();
+    for (let round = 0; round < 5; round++) {
+      await registerForEvent(token, form("staff"));
+      const real = codesTo(at("staff")).at(-1)!.code;
+      const wrong = real.slice(0, 5) + String((Number(real[5]) + 1) % 10);
+      for (let t = 0; t < 5; t++) await confirmEntryCode(token, at("staff"), wrong);
+    }
+    await signUp("Zz Staff", at("staff"), "Chosen-Pass-77-golf", "club");
+    const asked = codesTo(at("staff")).at(-1)!.code;
+    expect(codesTo(at("staff")).at(-1)!.purpose).toBe("asked");
+    for (let t = 0; t < 5; t++) await verifyEmailCode(at("staff"), asked.slice(0, 5) + String((Number(asked[5]) + 1) % 10));
+    // The staff member types the code they were sent: it is not refused for "too many tries today".
+    browsers.current = keep;
+    browsers.ip = "";
+    went.to = "";
+    const done = await verifyEmailCode(at("staff"), deviceCode);
+    expect(done?.error).toBeUndefined();
+    expect(went.to).toBe("/choose");
+  });
+
+  it("3b. one connection cannot make more than sixty codes go out, to anybody", async () => {
+    newBrowser("192.0.2.77");
+    const { limit } = RATE_LIMITS["code-send-client"];
+    let last: { ok: boolean; error?: string; needsCode?: boolean } = { ok: false };
+    for (let i = 0; i <= limit; i++) last = await signUp("Zz Burst", at(`burst-${i}`), "Chosen-Pass-77-golf", "club");
+    expect(last.error).toMatch(/several codes from this connection/);
+    newBrowser("192.0.2.78");
+    expect((await signUp("Zz Burst", at("burst-0"), "Chosen-Pass-77-golf", "club")).needsCode).toBe(true);
+  });
+
+  it("4. every sign-in answer for an address that cannot sign in costs one password check, a half-finished sign-up included", async () => {
+    newBrowser();
+    await signUp("Zz Half", at("half"), "Half-Done-Pass-55-golf", "club"); // a sign-up nobody finished
+    const checksFor = async (who: string, password: string) => {
+      hashes.checks = 0;
+      await signInWithPassword(at(who), password);
+      return hashes.checks;
+    };
+    expect(await checksFor("nobody", "Another-Pass-66-golf")).toBe(1);
+    expect(await checksFor("invited", "Another-Pass-66-golf")).toBe(1);
+    expect(await checksFor("half", "Another-Pass-66-golf")).toBe(1);
+    expect(await checksFor("proved", "Another-Pass-66-golf")).toBe(1);
+  });
+
+  it("6. an entry nobody confirmed leaves no User behind once it is stale; seats and recent rows are kept", async () => {
+    const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    await prisma.user.create({ data: { email: at("stray-old"), name: "", createdAt: old } });
+    await prisma.user.create({ data: { email: at("stray-new"), name: "" } });
+    const seated = await prisma.user.create({ data: { email: at("seated-old"), name: "", createdAt: old } });
+    await prisma.organizationMember.create({ data: { organizationId: orgId, userId: seated.id, role: "admin" } });
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      newBrowser();
+      await registerForEvent(token, form("sweeper"));
+    } finally {
+      random.mockRestore();
+    }
+    expect(await prisma.user.count({ where: { email: at("stray-old") } })).toBe(0);
+    expect(await prisma.user.count({ where: { email: at("stray-new") } })).toBe(1);
+    expect(await prisma.user.count({ where: { email: at("seated-old") } })).toBe(1);
+    expect(await prisma.user.count({ where: { email: at("sweeper") } })).toBe(1);
   });
 });

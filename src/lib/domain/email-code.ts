@@ -38,10 +38,10 @@ export const EMAIL_CODE_DAILY_TRIES = 20;
  * is right. A sign-up: the account's password, name and first club. A claim:
  * the first password on an address a club invited.
  */
-export type EmailCodePurpose = "signup" | "claim" | "device" | "entry";
+export type EmailCodePurpose = "signup" | "claim" | "device" | "entry" | "asked";
 
 export function isEmailCodePurpose(value: unknown): value is EmailCodePurpose {
-  return value === "signup" || value === "claim" || value === "device" || value === "entry";
+  return value === "signup" || value === "claim" || value === "device" || value === "entry" || value === "asked";
 }
 
 /**
@@ -112,7 +112,7 @@ export const EMAIL_CODE_WORDS = {
   line: (masked: string) => `We sent a 6-digit code to ${masked}. It works for 15 minutes.`,
   claimHeading: "Confirm it's you",
   claimLine: (masked: string) =>
-    `If ${masked} was invited to a club or a tournament, we've emailed it a 6-digit code. Enter it to set your password.`,
+    `We've sent a 6-digit code to ${masked}. Enter it to set your password. It works for 15 minutes.`,
   // A club's staff signing in on a browser not seen before (2026-10-21).
   deviceHeading: "Confirm it's you",
   deviceLine: (masked: string) =>
@@ -145,7 +145,11 @@ export const EMAIL_CODE_WORDS = {
     intro: "Here's the code to confirm your email address on TourneyHQ:",
     claimIntro: "A club invited this address to a tournament on TourneyHQ. Here's the code to confirm it's yours:",
     entrySubject: "Confirm your entry: your TourneyHQ code",
-    entryIntro: "Somebody used this address to enter a tournament on TourneyHQ. Here's the code to confirm it was you:",
+    entryIntro: (eventName: string) => `This address was used to enter ${eventName} on TourneyHQ. Here's the code to confirm it was you:`,
+    // Somebody typed this address into the sign-up form and no password was checked.
+    askedSubject: "Your TourneyHQ sign-in code",
+    askedIntro: "Someone asked to sign in to TourneyHQ with this address from a new browser. Here's the code to confirm it was you:",
+    askedIgnore: "If it wasn't you, you can ignore this — nothing changes without the code.",
     entryIgnore: "If this wasn't you, ignore this email. Nobody is entered without this code.",
     deviceSubject: "Your TourneyHQ sign-in code",
     deviceIntro: "Somebody is signing in to your TourneyHQ account on a new device. Here's the code to confirm it's you:",

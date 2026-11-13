@@ -332,7 +332,9 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
 export async function sendEmailCodeEmail(
   to: string,
   code: string,
-  purpose: "signup" | "claim" | "device" | "entry",
+  purpose: "signup" | "claim" | "device" | "entry" | "asked",
+  /** The tournament an entry code is for; typed by an organizer, so escaped below. */
+  eventName?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const words = EMAIL_CODE_WORDS.email;
   if (!resend) {
@@ -344,10 +346,19 @@ export async function sendEmailCodeEmail(
     return { ok: true };
   }
   const subject =
-    purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : purpose === "entry" ? words.entrySubject : words.subject;
+    purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : purpose === "entry" ? words.entrySubject : purpose === "asked" ? words.askedSubject : words.subject;
   const intro =
-    purpose === "claim" ? words.claimIntro : purpose === "device" ? words.deviceIntro : purpose === "entry" ? words.entryIntro : words.intro;
-  const ignore = purpose === "device" ? words.deviceIgnore : purpose === "entry" ? words.entryIgnore : words.ignore;
+    purpose === "claim"
+      ? words.claimIntro
+      : purpose === "device"
+        ? words.deviceIntro
+        : purpose === "entry"
+          ? escapeHtml(words.entryIntro(eventName || "a tournament"))
+          : purpose === "asked"
+            ? words.askedIntro
+            : words.intro;
+  const ignore =
+    purpose === "device" ? words.deviceIgnore : purpose === "entry" ? words.entryIgnore : purpose === "asked" ? words.askedIgnore : words.ignore;
   // Every word here is the app's own and the code is six digits it made, so
   // it all goes in raw; nothing anybody typed reaches this body.
   const body =

@@ -491,7 +491,7 @@ export function LoginPanel({
           sub={
             <>
               Choose a password for <b>{email}</b>. If this address was invited to a club or a tournament,
-              we&rsquo;ll email it a code to finish setting up. Not invited? Check the spelling, or sign up.
+              we&rsquo;ll email it a code to finish setting up. Not invited? Check the spelling{signupClosed ? "." : ", or sign up."}
             </>
           }
         />

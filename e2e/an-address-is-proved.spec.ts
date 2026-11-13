@@ -91,7 +91,7 @@ test("a stranger who claims an invited Admin's address gets no way in", async ({
 
   // Asked for the code that only the invited person's inbox holds.
   await expect(page.getByRole("heading", { name: "Confirm it's you" })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/If z\*\*\*@example\.invalid was invited to a club or a tournament, we've emailed it a 6-digit code\./)).toBeVisible();
+  await expect(page.getByText(/We've sent a 6-digit code to z\*\*\*@example\.invalid\./)).toBeVisible();
   expect(await signedIn(page), "the claim signed the stranger in before any code").toBe(false);
   const row = await prisma.user.findUnique({ where: { email: victim } });
   expect(row?.password, "the stranger's password took effect").toBe("");

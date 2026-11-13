@@ -4,10 +4,11 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import type { Event } from "@prisma/client";
 import { getSession } from "@/lib/auth";
-import { checkEmailCode, proveAddress, sendEmailCode } from "@/lib/services/email-code";
+import { checkEmailCode, forgetUnprovedStrangers, proveAddress, sendEmailCode } from "@/lib/services/email-code";
 import { EMAIL_CODE_WORDS, maskedAddress } from "@/lib/domain/email-code";
 import { EMAIL_RE } from "@/lib/domain/typed-limits";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, clientGuessGate } from "@/lib/rate-limit";
+import { clientAddress } from "@/lib/client-address";
 import { entryLimitKey } from "@/lib/domain/rate-limit";
 import { upsertMember, memberGender } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
@@ -133,7 +134,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
    */
   const session = await getSession();
   const signedInAsThem = !!session?.email && session.email.trim().toLowerCase() === person.email;
-  if (!signedInAsThem) return holdEntryForProof(cleanToken, form, person);
+  if (!signedInAsThem) return holdEntryForProof(cleanToken, form, person, event.name);
   return placeEntry(event, person);
 }
 
@@ -163,9 +164,14 @@ async function openEventFor(cleanToken: string): Promise<Event | null> {
  * and is made an entry only when the code comes back. Counted against the
  * address first, like every code this app sends.
  */
-async function holdEntryForProof(cleanToken: string, form: RegistrationForm, person: Person): Promise<RegisterResult> {
+async function holdEntryForProof(cleanToken: string, form: RegistrationForm, person: Person, eventName: string): Promise<RegisterResult> {
+  // The connection's sends, then the address's own entry budget (a separate one:
+  // sign-in and device codes of the person who owns the address are not touched).
+  const byClient = await clientGuessGate("code-send-client", await clientAddress());
+  if (!byClient.decision.allowed) return { ok: false, error: byClient.decision.message };
   const limit = await checkRateLimit("entry-code-send", person.email);
   if (!limit.allowed) return { ok: false, error: limit.message };
+  await forgetUnprovedStrangers();
   const user = await prisma.user.upsert({
     where: { email: person.email },
     update: {},
@@ -177,6 +183,7 @@ async function holdEntryForProof(cleanToken: string, form: RegistrationForm, per
     userId: user.id,
     email: person.email,
     purpose: "entry",
+    eventName,
     pending: {
       entry: {
         token: cleanToken,

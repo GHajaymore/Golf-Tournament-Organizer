@@ -31,12 +31,8 @@ describe("the content-security-policy", () => {
     expect(csp).not.toMatch(/script-src|style-src|default-src/);
   });
 
-  it("reports the origin lists, and says 'unsafe-inline' honestly where Next needs it", async () => {
-    const report = (await headersOf())["Content-Security-Policy-Report-Only"];
-    expect(report, "no report-only policy").toBeTruthy();
-    expect(report).toContain("default-src 'self'");
-    expect(report).toContain("script-src 'self' 'unsafe-inline'");
-    expect(report).toContain("frame-ancestors 'none'");
+  it("sends no Report-Only policy yet: with no report-to it only fills the console crawl", async () => {
+    expect((await headersOf())["Content-Security-Policy-Report-Only"]).toBeUndefined();
   });
 
   it("keeps the older framing header beside it", async () => {

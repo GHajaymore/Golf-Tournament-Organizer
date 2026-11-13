@@ -96,17 +96,34 @@ function hasProvedPassword(user: { password: string; emailVerifiedAt: Date | nul
 }
 
 /**
+ * What it costs to send a code, asked of EVERY path that would send one, and of
+ * the paths that would not (a claim for an address nobody invited), so a refusal
+ * reads the same whether or not a code was due: the address's three in fifteen
+ * minutes, and the client's sixty (so one connection cannot make many addresses
+ * receive mail). Null when allowed.
+ */
+async function codeBudgetRefusal(email: string): Promise<string | null> {
+  const byClient = await clientGuessGate("code-send-client", await clientAddress());
+  if (!byClient.decision.allowed) return byClient.decision.message;
+  const limit = await checkRateLimit("email-code-send", email);
+  return limit.allowed ? null : limit.message;
+}
+
+/** About what a real send costs (one insert and one call to the mail provider). */
+const DECOY_SEND_MS = 300;
+
+/**
  * Send a code to prove this address, counted against the address first.
  * `needsCode` turns the panel into "Enter your code".
  */
 async function askForCode(input: {
   userId: string;
   email: string;
-  purpose: "signup" | "claim" | "device";
+  purpose: "signup" | "claim" | "device" | "asked";
   pending: PendingProof | null;
 }): Promise<{ ok: false; error?: string; needsCode?: boolean }> {
-  const limit = await checkRateLimit("email-code-send", input.email);
-  if (!limit.allowed) return { ok: false, error: limit.message };
+  const refused = await codeBudgetRefusal(input.email);
+  if (refused) return { ok: false, error: refused };
   const sent = await sendEmailCode(input);
   if (!sent.ok) return { ok: false, error: sent.error };
   return { ok: false, needsCode: true };
@@ -177,6 +194,7 @@ export async function signInWithPassword(
    */
   if (!user || !user.password) {
     const waiting = user ? await latestSignupPending(user.id) : null;
+    const hadAHashToCheck = !!(user && waiting?.passwordHash);
     if (user && waiting?.passwordHash && verifyPasswordHash(password, waiting.passwordHash)) {
       /**
        * Signed up, and gone before the code came. Their password is still waiting
@@ -186,7 +204,8 @@ export async function signInWithPassword(
       await guess.succeeded();
       return askForCode({ userId: user.id, email: clean, purpose: "signup", pending: waiting });
     }
-    spendAHash(password);
+    // One hash on every path: a half-finished sign-up has already spent its one above.
+    if (!hadAHashToCheck) spendAHash(password);
     return { ok: false, error: "Wrong email or password." };
   }
 
@@ -275,8 +294,12 @@ export async function claimPassword(
    */
   const existing = await prisma.user.findUnique({ where: { email: clean } });
   if (!(await hasAccess(clean)) || hasProvedPassword(existing)) {
-    // The hash the other path spends on the password chosen here, spent anyway.
+    // The hash the other path spends on the password chosen here, spent anyway;
+    // the same send budget counted, and about the time a send takes (no mail goes).
     spendAHash(password);
+    const refused = await codeBudgetRefusal(clean);
+    if (refused) return { ok: false, error: refused };
+    await new Promise((resolve) => setTimeout(resolve, DECOY_SEND_MS));
     return { ok: false, needsCode: true };
   }
 
@@ -379,7 +402,7 @@ export async function resendEmailCode(email: string): Promise<{ ok: boolean; err
   const last = user ? await latestCodeHere(user.id) : null;
   // A proved address is sent a new code only for a new device; the password
   // that earned the first one was checked then, and this browser holds its row.
-  if (!user || !last || (user.emailVerifiedAt && last.purpose !== "device")) return { ok: true };
+  if (!user || !last || (user.emailVerifiedAt && last.purpose !== "device" && last.purpose !== "asked")) return { ok: true };
   const sent = await sendEmailCode({ userId: user.id, email: clean, purpose: last.purpose, pending: last.pending });
   return sent.ok ? { ok: true } : { ok: false, error: sent.error };
 }
@@ -570,7 +593,8 @@ export async function signUp(
    */
   if (existing && hasProvedPassword(existing)) {
     spendAHash(password);
-    return askForCode({ userId: existing.id, email: cleanEmail, purpose: "device", pending: null });
+    // Nobody has proved anything but the address being typed: said so in the email ("asked").
+    return askForCode({ userId: existing.id, email: cleanEmail, purpose: "asked", pending: null });
   }
   // An invited address: the same call below, but its code is a CLAIM's (it sets
   // the password and nothing else; no club is made for somebody already in one).

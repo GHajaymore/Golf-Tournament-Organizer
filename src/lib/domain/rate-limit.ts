@@ -58,6 +58,7 @@ export type RateLimitKind =
   | "password-reset"
   | "email-code-send"
   | "entry-code-send"
+  | "code-send-client"
   | "round-code"
   | "round-code-client"
   | "discount-check"
@@ -108,6 +109,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  code for each. Twenty an hour still caps how many mails one stranger's
    *  address can be made to receive. */
   "entry-code-send": { limit: 20, windowMs: 60 * MINUTE },
+  /** Codes SENT by one client, to anybody (2026-11-13): sign-up, claim and entry
+   *  codes can be caused by a stranger for any address, and an address's own
+   *  limits cap one address, not one client making many. Sixty in fifteen minutes
+   *  matches `round-code-client` (a clubhouse wifi on an entry morning); counted
+   *  on every send, never given back. See `clientGuessGate`. */
+  "code-send-client": { limit: 60, windowMs: 15 * MINUTE },
   /** Round codes are typed off a printed card by people standing on a tee in
    *  the rain, so the allowance is deliberately roomier than a password's —
    *  ten wrong entries is a group that needs to ask, not an attack. It still
@@ -375,7 +382,9 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     case "password-reset":
       return `Too many reset requests. Try again in ${wait}.`;
     case "entry-code-send":
-      return `We've sent a lot of entry codes to that address. You can ask for another in ${wait}.`;
+      return `We've sent several codes to that address. Try again in ${wait}.`;
+    case "code-send-client":
+      return `We've sent several codes from this connection. Try again in ${wait}.`;
     case "email-code-send":
       return EMAIL_CODE_WORDS.tooManySends(wait);
     case "round-code":
