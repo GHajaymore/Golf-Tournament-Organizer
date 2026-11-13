@@ -82,7 +82,8 @@ test("the owner types a cost and a rate, reads them back in the table and the CS
     await page.getByLabel("Vendor").fill(`${MARK}-host`);
     await page.getByLabel("Amount").fill("abc");
     await page.getByRole("button", { name: "Add cost" }).click();
-    await expect(page.getByRole("alert")).toContainText("figure");
+    // Not getByRole("alert"): Next's route announcer is an alert too.
+    await expect(page.locator('p[role="alert"]')).toContainText("figure");
     expect(await prisma.costEntry.count({ where: { vendor: { startsWith: MARK } } })).toBe(0);
   });
 
