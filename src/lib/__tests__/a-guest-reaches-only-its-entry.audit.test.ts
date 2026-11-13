@@ -300,6 +300,27 @@ describe("a guest's player link reaches its own entry and nothing else", () => {
     expect((await saveScorecard(A1.stageId, guest, CARD)).ok).toBe(true);
   });
 
+  it("D-1: a member of the link's OWN club is shown what a save will act as — the account, never the guest", async () => {
+    const { organizationId } = await prisma.event.findUniqueOrThrow({ where: { id: A1.eventId }, select: { organizationId: true } });
+    const member = await prisma.user.create({
+      data: { email: `${MARK}-amember@example.invalid`, name: "Alder Pennick", password: "x:unusable", emailVerifiedAt: new Date() },
+    });
+    await prisma.organizationMember.create({ data: { organizationId: organizationId!, userId: member.id, role: "member" } });
+    expect(await createSession(member.id)).toBe(true);
+    await holdLink(guest);
+    const { getSession } = await import("@/lib/auth");
+    const shown = await playerViewSwitch();
+    expect(shown.viewer?.guest, "the screen showed the guest, but every save acts as the account").toBeNull();
+    expect(shown.viewer?.email).toBe(`${MARK}-amember@example.invalid`);
+    expect(shown.other, "the link is not offered where nothing pressed through it would act as the guest").toBeNull();
+    expect(await guestActorFor(A1.eventId, await getSession())).toBeNull();
+    expect(await refusedWith(saveScorecard(A1.stageId, guest, CARD)), "the write side agrees: not the guest").not.toBe("");
+    // Choosing the guest view changes neither side for an account that reaches the event.
+    await choosePlayerViewCookie("guest");
+    expect((await playerViewSwitch()).viewer?.guest).toBeNull();
+    expect(await guestActorFor(A1.eventId, await getSession())).toBeNull();
+  });
+
   it("SF-4: a link in an event with no day at all ends 180 club days after its code was made", async () => {
     const pass = await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guest } });
     const undated = await prisma.stage.findMany({ where: { eventId: A1.eventId }, select: { playedOn: true } });
