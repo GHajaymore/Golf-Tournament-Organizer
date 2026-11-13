@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import {
-  addMonths, costCsv, monthReport, monthRange, monthsBetween,
+  addMonths, costCsvRows, monthReport, monthRange, monthsBetween,
   type CostCadence, type CostRow, type MonthReport, type Month, type Rate,
 } from "@/lib/domain/finance";
 import { readCostBoxes, readRateBoxes, type CostBoxes, type RateBoxes } from "@/lib/domain/finance-input";
@@ -67,11 +67,11 @@ export async function financeView(currentMonth: Month): Promise<FinanceView> {
 }
 
 /** The CSV of every month from the first cost to the current month (never more than ten years). */
-export async function financeCsv(currentMonth: Month): Promise<string> {
+export async function financeCsvRows(currentMonth: Month): Promise<string[][]> {
   const [costs, rates] = await Promise.all([liveCosts(), allRates()]);
   const earliest = costs.reduce<Month>((a, c) => (c.month < a ? c.month : a), currentMonth);
   const from = monthsBetween(earliest, currentMonth) > MAX_EXPORT_MONTHS ? addMonths(currentMonth, -MAX_EXPORT_MONTHS) : earliest;
-  return costCsv(monthRange(from, currentMonth).map((m) => monthReport(costs, rates, m)));
+  return costCsvRows(monthRange(from, currentMonth).map((m) => monthReport(costs, rates, m)));
 }
 
 export type FinanceResult = { ok: true } | { ok: false; error: string };

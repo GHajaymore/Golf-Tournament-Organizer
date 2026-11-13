@@ -23,7 +23,7 @@ export interface Projection {
   tiers: { name: string; clubs: number; price: string; mrr: string }[];
 }
 
-const small = { fontSize: 12, color: "var(--color-text-muted)" } as const;
+const small = { fontSize: 13, color: "var(--color-text-muted)" } as const;
 const num = { textAlign: "right", fontVariantNumeric: "tabular-nums" } as const;
 
 function Usd({ usd, byCurrency }: { usd: number; byCurrency: Record<string, number> }) {
@@ -103,8 +103,8 @@ export function OwnerFinance({ view, projection }: { view: FinanceView; projecti
                     <td style={{ whiteSpace: "nowrap", fontWeight: 500 }}>{m.month}</td>
                     <td className="text-muted" style={{ textAlign: "right" }}>no billing yet</td>
                     <td style={num}><Usd usd={m.usdMinor} byCurrency={m.byCurrency} /></td>
-                    <td className="text-muted" style={{ textAlign: "right" }} title={margin.state === "none" ? "No revenue record to work a margin from" : undefined}>—</td>
-                    <td style={{ fontSize: 12 }} className={m.incomplete ? undefined : "text-muted"}>{stateWords(m, m.month === view.currentMonth)}</td>
+                    <td className="text-muted" style={{ textAlign: "right" }}>{margin.marginMinor === null ? "—" : usdText(margin.marginMinor)}</td>
+                    <td style={{ fontSize: 13 }} className={m.incomplete ? undefined : "text-muted"}>{stateWords(m, m.month === view.currentMonth)}</td>
                   </tr>
                 );
               })}
@@ -140,7 +140,7 @@ export function OwnerFinance({ view, projection }: { view: FinanceView; projecti
                     <td>{c.vendor || <span className="text-muted">—</span>}</td>
                     <td style={num}>{originalText(c.amountMinor, c.currency)}</td>
                     <td className="text-muted">{c.cadence === "yearly" ? "yearly" : c.cadence}</td>
-                    <td className="text-muted" style={{ fontSize: 12 }}>typed by owner</td>
+                    <td className="text-muted" style={{ fontSize: 13 }}>typed by owner</td>
                     <td><VoidCostButton id={c.id} label={`${costCategoryLabel(c.category)} ${c.month}`} /></td>
                   </tr>
                 ))}
@@ -184,7 +184,7 @@ export function OwnerFinance({ view, projection }: { view: FinanceView; projecti
       </div>
 
       {/* THE PROJECTION: its own box, never revenue, never totalled with it. */}
-      <div className="card elev-sm" style={{ marginBottom: 16 }} aria-label="Projection, not revenue">
+      <section className="card elev-sm" style={{ marginBottom: 16 }} aria-label="Projection, not revenue">
         <span className="card-title" style={{ fontSize: 15 }}>Projection — not revenue</span>
         <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "6px 0 0" }}>
           What the clubs on paid plans would pay at today&rsquo;s list prices. It is a forecast from the price list, not money received, and it is
@@ -211,9 +211,9 @@ export function OwnerFinance({ view, projection }: { view: FinanceView; projecti
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <p className="text-muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
+      <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
         Figures are a record of what was paid, converted to US dollars at the stored dated rate. They are not accounting, tax or financial advice.
       </p>
     </section>

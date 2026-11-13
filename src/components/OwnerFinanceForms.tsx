@@ -105,14 +105,14 @@ export function VoidCostButton({ id, label }: { id: string; label: string }) {
     });
   };
   if (!open) {
-    return <button type="button" className="btn btn-secondary" aria-label={`Void ${label}`} onClick={() => setOpen(true)} style={{ fontSize: 12 }}>Void</button>;
+    return <button type="button" className="btn btn-secondary" aria-label={`Void ${label}`} onClick={() => setOpen(true)} style={{ fontSize: 13 }}>Void</button>;
   }
   return (
     <span style={{ display: "inline-flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
       <input className="input" aria-label={`Why ${label} is voided`} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why?" maxLength={200} style={{ width: 140 }} />
-      <button type="button" className="btn btn-secondary" onClick={confirm} disabled={pending} style={{ fontSize: 12 }}>Void it</button>
-      <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)} style={{ fontSize: 12 }}>Keep</button>
-      {error && <span role="alert" style={{ fontSize: 12, color: "var(--color-danger)" }}>{error}</span>}
+      <button type="button" className="btn btn-secondary" onClick={confirm} disabled={pending} style={{ fontSize: 13 }}>Void it</button>
+      <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)} style={{ fontSize: 13 }}>Keep</button>
+      {error && <span role="alert" style={{ fontSize: 13, color: "var(--color-danger)" }}>{error}</span>}
     </span>
   );
 }

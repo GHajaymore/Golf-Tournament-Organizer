@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import {
-  addMonths, convertRow, costCsv, csvText, decimalText, grossMargin, isDay, isMonth, microsFromText, microsText, monthOfInstant,
+  addMonths, convertRow, costCsv, decimalText, grossMargin, isDay, isMonth, microsFromText, microsText, monthOfInstant,
   monthReport, monthRange, monthsBetween, originalText, rateOn, sliceFor, spreadEvenly, sumMinor, toUsdMinor, totalsByCurrency,
   usdText, COST_CSV_HEADER, type CostRow, type Rate,
 } from "../finance";
 import { readCostBoxes, readRateBoxes } from "../finance-input";
 import { minorUnitsFrom } from "../money-format";
+import { csvCell } from "../csv-export";
 
 /**
  * THE OWNER'S BOOKS: THE ARITHMETIC (B44).
@@ -267,11 +268,10 @@ describe("typed figures and how they are written", () => {
 });
 
 describe("the CSV", () => {
-  it("a cell a spreadsheet would read as a formula is made text", () => {
-    expect(csvText("=HYPERLINK(\"x\")")).toBe("\"'=HYPERLINK(\"\"x\"\")\"");
-    for (const lead of ["=", "+", "-", "@"]) expect(csvText(`${lead}1+1`).startsWith("'")).toBe(true);
-    expect(csvText("plain")).toBe("plain");
-    expect(csvText("a,b")).toBe("\"a,b\"");
+  it("a cell a spreadsheet would read as a formula is made text, by the app's one escaper; a negative figure stays a figure", () => {
+    expect(csvCell("=HYPERLINK(\"x\")")).toBe("\"'=HYPERLINK(\"\"x\"\")\"");
+    for (const lead of ["=", "+", "-", "@"]) expect(csvCell(`${lead}A1+1`).startsWith("'")).toBe(true);
+    expect(csvCell(decimalText(-1250, "USD"))).toBe("-12.50");
   });
   it("one row per month and cost, numbers written as figures, a missing rate said and not hidden, no club or id", () => {
     const rates = [rate("GBP", "2026-09-15", 1_250_000)];

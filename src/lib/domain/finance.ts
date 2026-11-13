@@ -1,3 +1,4 @@
+import { toCsv } from "./csv-export";
 import { minorUnitDigits } from "./money-format";
 
 /**
@@ -437,17 +438,6 @@ export function originalText(amountMinor: number, currency: string): string {
 // The CSV
 // ---------------------------------------------------------------------------------------------
 
-/**
- * One cell of free text, safe to open in a spreadsheet. A cell that begins with = + - @ (or a tab or
- * return) is read by a spreadsheet as a formula, and a vendor or a note is typed by a person: it is
- * prefixed with an apostrophe so it is read as text. Quoted when it holds a comma, a quote or a line break.
- */
-export function csvText(value: string): string {
-  let v = String(value ?? "");
-  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
-  return /[",\n\r]/.test(v) ? `"${v.split('"').join('""')}"` : v;
-}
-
 export const COST_CSV_HEADER = [
   "month", "line", "category", "vendor", "currency", "original_amount", "rate_usd_per_unit", "rate_date", "rate_source", "usd_amount", "source", "entered_by",
 ] as const;
@@ -455,37 +445,42 @@ export const COST_CSV_HEADER = [
 /**
  * The rows behind the cost table, one per month and cost: no club, no player, no id that names one.
  * Numbers are written by `decimalText` (never typed text, so never a formula); the free text goes through
- * `csvText`. A line with no rate leaves its dollar columns empty and says so in `rate_source`.
+ * `csvCell` (`domain/csv-export.ts`, the one escaper). A line with no rate leaves its dollar columns empty and says so in `rate_source`.
  */
-export function costCsv(months: readonly MonthReport[]): string {
-  const rows: string[] = [COST_CSV_HEADER.join(",")];
+export function costCsvRows(months: readonly MonthReport[]): string[][] {
+  const rows: string[][] = [[...COST_CSV_HEADER]];
   for (const report of months) {
     for (const l of report.lines) {
       rows.push([
         report.month,
         "cost",
-        csvText(costCategoryLabel(l.category)),
-        csvText(l.vendor),
+        costCategoryLabel(l.category),
+        l.vendor,
         l.currency,
         decimalText(l.amountMinor, l.currency),
         l.usd ? microsText(l.usd.rate.usdMicrosPerUnit) : "",
         l.usd ? l.usd.rate.rateDate : "",
         l.usd ? l.usd.rate.source : "no rate",
         l.usd ? decimalText(l.usd.usdMinor, "USD") : "",
-        csvText(l.source),
-        csvText(l.enteredByEmail),
-      ].join(","));
+        l.source,
+        l.enteredByEmail,
+      ]);
     }
   }
-  return `${rows.join("\r\n")}\r\n`;
+  return rows;
+}
+
+/** The rows as the file the owner downloads: one escaper for every cell, CRLF line ends, a closing line end. */
+export function costCsv(months: readonly MonthReport[]): string {
+  return toCsv(costCsvRows(months)) + "\r\n";
 }
 
 /** The UTC calendar month an instant falls in. The caller supplies the instant: this file never reads a clock. */
 export function monthOfInstant(at: Date): Month {
-  return at.toISOString().slice(0, 7);
+  return `${String(at.getUTCFullYear()).padStart(4, "0")}-${String(at.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 /** The UTC day an instant falls in, "YYYY-MM-DD". */
 export function dayOfInstant(at: Date): string {
-  return at.toISOString().slice(0, 10);
+  return `${monthOfInstant(at)}-${String(at.getUTCDate()).padStart(2, "0")}`;
 }
