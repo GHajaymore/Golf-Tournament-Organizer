@@ -66,7 +66,6 @@ import {
 import { PointsControl, TableTiebreakControl, pointsInWords } from "./ScoringClient";
 import { matchTieInWords, tableTieInWords } from "@/lib/domain/tie-words";
 import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
-import { RoundHandicaps } from "./RoundHandicaps";
 import dynamic from "next/dynamic";
 import { PanelLoading, orNeedsSignal } from "./LazyPanel";
 import { RoundAllowance, type RoundAllowanceInfo } from "./RoundAllowance";
@@ -92,7 +91,7 @@ import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
-import { CutTiePanel, type CutTieOnCard } from "./CutReadyCard";
+import type { CutTieOnCard } from "./CutReadyCard";
 import { SidePanel } from "./SidePanel";
 import { CourseCard, NeedsYou, PanelSection, RecipeTiles, RoundChip, TeeTicks, factsLine } from "./RoundsTimeline";
 import { effectLine, type RoundFacts } from "@/lib/rounds-timeline";
@@ -228,6 +227,18 @@ const MatchTiebreakControl = dynamic(
   () => orNeedsSignal(() => import("./MatchTiebreakControl").then((m) => m.MatchTiebreakControl)),
   { ssr: false, loading: () => <PanelLoading /> },
 );
+
+// Folded under "Customize this round" (the per-player handicap list) and shown only
+// when a round-robin cut is tied (the tie panel): neither is part of the screen's
+// first load. See LazyPanel.tsx.
+const RoundHandicaps = dynamic(() => orNeedsSignal(() => import("./RoundHandicaps").then((m) => m.RoundHandicaps)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
+const CutTiePanel = dynamic(() => orNeedsSignal(() => import("./CutReadyCard").then((m) => m.CutTiePanel)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
 
 const ROUND_PALETTE =["var(--color-accent)", "var(--color-accent-2)", "var(--color-accent-400)", "var(--color-accent-2-400)"];
 /** The round NUMBER in the same rotation, in the text steps, so it reads 7:1. */
