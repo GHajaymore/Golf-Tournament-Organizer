@@ -51,6 +51,8 @@ export function scrubText(text: string): string {
   for (const param of TOKEN_PARAMS) {
     out = out.replace(new RegExp(`([?&]${param}=)[^&#\\s"')]*`, "g"), `$1${REDACTED}`);
   }
+  // A URL fragment (2026-11-12): the printed round sign opens `/play#ABCD-EFGH`, and a beacon can fire before the page strips it. A `#` glued to a word or path is a fragment; "issue #5" (space before) is prose.
+  out = out.replace(/([^\s#]#)[^\s"')]*/g, `$1${REDACTED}`);
   return out.replace(EMAIL, REDACTED);
 }
 

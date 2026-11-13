@@ -15,6 +15,7 @@ const ABOUT: Record<RateLimitKind, RegExp> = {
   "password-reset": /reset/i,
   "email-code-send": /sent three codes/i,
   "round-code": /code/i,
+  "round-code-client": /code/i,
   "discount-check": /discount code/i,
   "register-token": /entry form/i,
   "register-email": /registration/i,

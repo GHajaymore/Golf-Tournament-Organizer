@@ -14,7 +14,8 @@ import { attestMatch, matchSidesOf, endCheckRule } from "@/lib/services/attestat
 import { effectiveScoreStatus } from "@/lib/services/tournament";
 import { isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { assertSignsCards } from "@/lib/services/scorecard-write";
-import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit, clientGuessGate } from "@/lib/rate-limit";
+import { clientAddress } from "@/lib/client-address";
 // The machine's play refusal (`refusals.play`, state machine PR 4).
 import { playRefusedBecause } from "@/lib/services/tournament-status";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
@@ -90,6 +91,9 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
 
   // Keyed on the code rather than on a caller identity, which we don't have
   // here — this caps how fast any one code can be guessed at.
+  // The second limit: one client trying many codes (failed lookups only, never cleared).
+  const guess = await clientGuessGate("round-code-client", await clientAddress());
+  if (!guess.decision.allowed) return { ok: false, error: guess.decision.message };
   const limit = await checkRateLimit("round-code", code);
   if (!limit.allowed) return { ok: false, error: limit.message };
 
@@ -117,6 +121,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     select: { id: true, type: true, format: true, holes: true, nine: true },
   });
 
+  await guess.succeeded();
   await clearRateLimit("round-code", code);
   return {
     ok: true,
@@ -295,6 +300,9 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   // attacker simply guesses codes through this action instead and the limit on
   // the other one counts for nothing. Sharing the key means attempts against a
   // code are capped however they arrive.
+  // The second limit: one client trying many codes (failed lookups only, never cleared).
+  const guess = await clientGuessGate("round-code-client", await clientAddress());
+  if (!guess.decision.allowed) return { ok: false, error: guess.decision.message };
   const limit = await checkRateLimit("round-code", code);
   if (!limit.allowed) return { ok: false, error: limit.message };
 
@@ -317,6 +325,7 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
 
   // A genuine claim resets the budget, so a fourball fumbling the code on the
   // first tee doesn't lock the group out of the round they're about to play.
+  await guess.succeeded();
   await clearRateLimit("round-code", code);
   // The stored code, not the typed one, so the session is bound to the row a
   // reissue will overwrite.

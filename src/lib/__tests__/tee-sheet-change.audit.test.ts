@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /**
@@ -205,19 +205,41 @@ describe("a round with scores keeps its started groups, and nothing else", () =>
   });
 
   it("a group that has teed off with NO card in survives a re-draw attempt: refused, nothing written", async () => {
-    // Today, and Group 1 at 12:01 AM: it has teed off by the club's clock whatever the hour; no scorecard exists.
-    const times = ["12:01 AM", "11:50 PM", "11:59 PM"];
-    await prisma.stage.update({
-      where: { id: stageId },
-      data: { playedOn: clubToday(ZONE), teeSheet: JSON.stringify({ ...draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "gus"], ["hal", "ivy"]], times), savedAt: SAVED }) },
-    });
+    // YESTERDAY at the club: every group has teed off by the club's clock at ANY hour (a day gone is a day gone — never a
+    // tee time against the minute the test happens to run); no scorecard exists, so only the clock can hold them.
+    const times = ["8:00 AM", "8:10 AM", "8:20 AM"];
+    const stored = { ...draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "gus"], ["hal", "ivy"]], times), savedAt: SAVED };
+    await prisma.stage.update({ where: { id: stageId }, data: { playedOn: clubDayFrom(-1), teeSheet: JSON.stringify(stored) } });
     const before = await row();
     const res = await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "eve"], ["dan", "fay", "gus"], ["hal", "ivy"]], times), false);
-    expect(res).toEqual({ ok: false, error: "Group 1 teed off at 12:01 AM. Its players, time and hole stay as they are. Change the groups that have not started." });
+    expect(res).toEqual({ ok: false, error: "Group 1 teed off at 8:00 AM. Its players, time and hole stay as they are. Change the groups that have not started." });
     expect(await row()).toEqual(before);
-    // The groups that have not started may be drawn again, the started one kept.
-    const kept = await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "hal"], ["gus", "ivy"]], times), false);
-    expect(kept.ok).toBe(true);
+    // CONTROL: the same sheet saved again moves nobody who has started, and is made.
+    expect((await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "gus"], ["hal", "ivy"]], times), false)).ok).toBe(true);
+  });
+
+  describe("at a fixed instant: one group already off, the others not yet", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("a re-draw may change the groups that have not started and may not touch the one that has", async () => {
+      // 12:00 UTC on a fixed day, the club on UTC: Group 1 went out at 8:00 AM; Groups 2 and 3 are at 1:00 and 2:00 PM — the same
+      // answer at any real hour, because the clock the rule reads is the one set here (Date only: the database's timers run).
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-11-14T12:00:00Z"));
+      await asAssistant(); // signed in AT the fixed instant, so the session is fresh whatever the real date
+      const times = ["8:00 AM", "1:00 PM", "2:00 PM"];
+      const stored = { ...draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "gus"], ["hal", "ivy"]], times), savedAt: SAVED };
+      await prisma.stage.update({ where: { id: stageId }, data: { playedOn: "2026-11-14", teeSheetPublished: false, teeSheet: JSON.stringify(stored) } });
+      // The groups that have not started are drawn again, the one that has is as it was: made.
+      const ok = await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "hal"], ["gus", "ivy"]], times), false);
+      expect(ok).toEqual({ ok: true });
+      expect(JSON.parse((await row()).teeSheet).groups.map((g: { playerIds: string[] }) => g.playerIds)).toEqual([[ids.ann, ids.bob, ids.cat, ids.dan], [ids.eve, ids.fay, ids.hal], [ids.gus, ids.ivy]]);
+      // The group that has started cannot be touched, with the unstarted ones as they were.
+      const before = await row();
+      const no = await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "eve"], ["dan", "fay", "hal"], ["gus", "ivy"]], times), false);
+      expect(no).toEqual({ ok: false, error: "Group 1 teed off at 8:00 AM. Its players, time and hole stay as they are. Change the groups that have not started." });
+      expect(await row()).toEqual(before);
+    });
   });
 
   it("a later round's sheet is its own, and open while this one has scores", async () => {
