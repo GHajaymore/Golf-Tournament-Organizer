@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
@@ -26,6 +27,9 @@ import { launchSwitch } from "@/lib/services/signins-switch";
 import { ownerClockInWords } from "@/lib/services/owner-clock";
 import { earlyListStatus } from "@/lib/services/early-list";
 import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
+import { monthOfInstant } from "@/lib/domain/finance";
+import { financeView } from "@/lib/services/owner-finance";
+import { OwnerFinance } from "@/components/OwnerFinance";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { deliveryWords } from "@/lib/domain/email-delivery";
@@ -239,7 +243,12 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
       {/* Headline numbers */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "16px 0" }}>
         {stat("Organizations", m.totalOrgs.toLocaleString(DEFAULT_LOCALE), `${m.paidOrgs} paid · ${m.freeOrgs} free`)}
-        {stat("Est. MRR", usd(m.estMrrMonthly), `${usd(m.estArr)} ARR at today's prices`)}
+        {/* The projection lives in the Finance tab, in its own box (Ajay, 2026-11-12): here, only a way to it. */}
+        <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
+          <span className="card-kicker">Revenue</span>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 26 }}>no billing yet</div>
+          <Link href="/owner?tab=finance" className="text-muted" style={{ fontSize: 12 }}>See projection in Finance</Link>
+        </div>
         {stat("Tournaments", m.totalEvents.toLocaleString(DEFAULT_LOCALE), `${m.liveEvents} live now`)}
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
@@ -272,8 +281,8 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
         <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "0 0 12px" }}>
           Prices, limits, passes and the seasonal plan. Each card says what its change reaches and saves on its own button.
           {" "}<strong>A change reaches every price shown and every new checkout at once. A club already paying keeps the price it
-          signed up at</strong>: nothing here edits a running subscription. The Est. MRR on the Overview is worked from today&rsquo;s
-          prices, not from what each club pays.
+          signed up at</strong>: nothing here edits a running subscription. The projection in Finance is worked from today&rsquo;s
+          prices, not from what each club pays, and is not revenue.
         </p>
       </section>
       {/* Prices by region (USD for Rest of world, local currencies beside it) and the months billed for a year. */}
@@ -315,6 +324,18 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
       <OwnerDiscounts codes={discounts} />
       </>)}
 
+      {tab === "finance" && (<>
+      {/* The owner's books (B44): a record, read-only to everybody but the owners this page is already closed to. */}
+      <OwnerFinance
+        view={await financeView(monthOfInstant(new Date()))}
+        projection={{
+          estMrr: usd(m.estMrrMonthly),
+          estArr: usd(m.estArr),
+          tiers: m.tierMix.map((t) => ({ name: t.name, clubs: t.count, price: t.monthly === 0 ? "—" : usd(t.monthly), mrr: t.mrr === 0 ? "—" : usd(t.mrr) })),
+        }}
+      />
+      </>)}
+
       {tab === "overview" && (<>
       {/* Tier mix */}
       <div className="card elev-sm" style={{ marginBottom: 16 }}>
@@ -325,8 +346,6 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
               <tr>
                 <th>Plan</th>
                 <th style={{ textAlign: "right" }}>Clubs</th>
-                <th style={{ textAlign: "right" }}>Price / mo</th>
-                <th style={{ textAlign: "right" }}>MRR</th>
               </tr>
             </thead>
             <tbody>
@@ -334,13 +353,11 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
                 <tr key={t.plan}>
                   <td style={{ fontWeight: 500 }}>{t.name}</td>
                   <td style={{ textAlign: "right" }}>{t.count.toLocaleString(DEFAULT_LOCALE)}</td>
-                  <td style={{ textAlign: "right" }}>{t.monthly === 0 ? "—" : usd(t.monthly)}</td>
-                  <td style={{ textAlign: "right" }}>{t.mrr === 0 ? "—" : usd(t.mrr)}</td>
                 </tr>
               ))}
               {m.tierMix.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="text-muted" style={{ fontSize: 13, padding: 16 }}>
+                  <td colSpan={2} className="text-muted" style={{ fontSize: 13, padding: 16 }}>
                     No subscriptions yet.
                   </td>
                 </tr>

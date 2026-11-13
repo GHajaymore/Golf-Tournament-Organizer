@@ -3890,3 +3890,88 @@ model EarlyListSend {
 
   @@index([sentAt])
 }
+
+/// OWNER P&L (B44, 2026-11-13): THE PLATFORM'S OWN BOOKS. A record of what TourneyHQ earned and spent,
+/// read by the owners on OWNER_EMAILS only. None of these carries a player, a club's name or a member.
+/// Money is stored in the MINOR units of the currency it was charged or paid in (never a float, never
+/// converted at write time); it becomes dollars at read time, at a dated rate that is itself stored.
+
+/// A cost the owner typed (hosting, database, messaging, AI, domains, app stores, tools). Edited by writing
+/// a NEW row that `supersedesId` the old one, so the trail of who changed what stays; deleted by voiding with
+/// a reason, never by removing the row (records are kept).
+model CostEntry {
+  id             String    @id @default(cuid())
+  /// The first month the cost covers, "YYYY-MM" (a calendar month in UTC).
+  month          String
+  category       String
+  vendor         String    @default("")
+  currency       String
+  /// What was paid, in the currency's minor units. For "yearly" it is the whole year's amount.
+  amountMinor    Int
+  /// once | monthly | yearly
+  cadence        String    @default("once")
+  /// The last month a recurring cost covers, "YYYY-MM", or null while it goes on.
+  endsMonth      String?
+  /// typed | vercel | derived (only "typed" exists until the automatic reads ship)
+  source         String    @default("typed")
+  note           String    @default("")
+  enteredByEmail String
+  voidedAt       DateTime?
+  voidReason     String    @default("")
+  supersedesId   String?
+  createdAt      DateTime  @default(now())
+
+  @@index([month])
+  @@index([supersedesId])
+}
+
+/// One day's rate to US dollars: how many millionths of a US dollar one WHOLE unit of `currency` buys
+/// (1 GBP at 1.27 USD is 1270000). `override` is the owner's own typed rate and needs a reason.
+model FxRate {
+  id               String   @id @default(cuid())
+  currency         String
+  /// "YYYY-MM-DD"
+  rateDate         String
+  usdMicrosPerUnit Int
+  /// ecb | override
+  source           String   @default("override")
+  reason           String   @default("")
+  enteredByEmail   String   @default("")
+  createdAt        DateTime @default(now())
+
+  @@unique([currency, rateDate, source])
+  @@index([currency, rateDate])
+}
+
+/// What was actually charged, written by the billing integration once it exists (there is none yet, so the
+/// table is empty and the Finance tab says "no billing yet"). The contract is fixed now so billing writes
+/// into a ready place. `providerRef` is unique, so a webhook delivered twice is one row.
+model BillingRecord {
+  id                 String   @id @default(cuid())
+  /// Null for a manual invoice (Albatross, by agreement).
+  organizationId     String?
+  /// subscription_invoice | pass | manual_invoice | refund | adjustment
+  kind               String
+  plan               String   @default("")
+  providerRef        String   @unique
+  currency           String
+  /// Charged, net of discount and tax, in minor units. Negative for a refund.
+  amountMinor        Int
+  listMinor          Int      @default(0)
+  discountMinor      Int      @default(0)
+  taxMinor           Int      @default(0)
+  feeMinor           Int      @default(0)
+  feeCurrency        String   @default("")
+  /// What was really received in US dollars, when the provider says so.
+  usdSettledMinor    Int?
+  servicePeriodStart String   @default("")
+  servicePeriodEnd   String   @default("")
+  paidAt             DateTime
+  refundOf           String?
+  region             String   @default("")
+  discountCode       String?
+  createdAt          DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([paidAt])
+}

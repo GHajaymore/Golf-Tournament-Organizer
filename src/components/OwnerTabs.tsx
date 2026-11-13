@@ -14,10 +14,11 @@ import Link from "next/link";
  */
 
 export const OWNER_TABS = [
-  { key: "overview", label: "Overview", about: "The numbers: clubs, tournaments, players, projected revenue." },
+  { key: "overview", label: "Overview", about: "The numbers: clubs, tournaments, players." },
   { key: "plans", label: "Plans & pricing", about: "Prices by region, limits, passes, the seasonal plan, a club's plan, discount codes." },
   { key: "accounts", label: "Accounts & launch", about: "The go-live switch, and who registered interest." },
   { key: "content", label: "Content", about: "The demo club and the course catalogue." },
+  { key: "finance", label: "Finance", about: "A record of what TourneyHQ earned and spent: costs you type, rates, the projection kept apart." },
 ] as const;
 
 export type OwnerTabKey = (typeof OWNER_TABS)[number]["key"];
