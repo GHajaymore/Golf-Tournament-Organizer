@@ -32,7 +32,9 @@ import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, sc
 import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
-import { myPlayerIds } from "@/lib/services/me";
+import { myPlayerIds, myPlayerIdsFor } from "@/lib/services/me";
+import { guestActorFor } from "@/lib/player-viewer";
+import type { GuestIdentity } from "@/lib/domain/player-link";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
 import { groupLeftShort, parseTeeSheet, shortGroupLine } from "@/lib/domain/tee-sheet";
 import { resultsLine } from "@/lib/domain/field-change";
@@ -46,12 +48,12 @@ import { publishedFoursomes, mayWriteCard } from "@/lib/domain/group-entry";
  * changes nothing. Resolved through `myPlayerIds`, the same reader the card
  * screen and the score-write guard use, so "which player am I" has one answer.
  */
-async function authorPlayerId(eventId: string, session: Session | null): Promise<string> {
+async function authorPlayerId(eventId: string, session: ScoreActor | null): Promise<string> {
   if (!session || session.role !== "player") return "";
   // A Set, not an array — and normally of one. A person entered twice in the
   // same tournament is the rare case, and either id identifies the author well
   // enough for the only question asked of it: "was this you?".
-  const [first] = await myPlayerIds(eventId, session.email);
+  const [first] = await myPlayerIdsFor(session, eventId);
   return first ?? "";
 }
 import {
@@ -60,6 +62,9 @@ import {
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
+
+/** Who writes a score: an account session, or a guest's player link wearing its shape (J39/J40). */
+type ScoreActor = Session & { guest?: GuestIdentity | null };
 import { clubNameClash, golfTermsForEvent, organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { orgProfile } from "@/lib/domain/org-profile";
@@ -280,8 +285,8 @@ async function requireStaffEvent(): Promise<string> {
  * entry screen in the sidebar stops nobody from calling the action directly.
  */
 async function requireScoreEntry(
-  scoped?: Session,
-): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
+  scoped?: ScoreActor,
+): Promise<{ eventId: string; session: ScoreActor; settings: TournamentSettings }> {
   const session = scoped ?? (await getSession());
   if (!session) throw new Error("Not authenticated");
   const event = await prisma.event.findUnique({ where: { id: session.eventId } });
@@ -342,13 +347,24 @@ async function requireScoreEntry(
  */
 async function requireScoreEntryForStage(
   stageId: unknown,
-): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
+): Promise<{ eventId: string; session: ScoreActor; settings: TournamentSettings }> {
   const session = await getSession();
-  if (!session) throw new Error("Not authenticated");
   const stage =
     typeof stageId === "string" && stageId
       ? await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } })
       : null;
+  /**
+   * A GUEST'S PLAYER LINK, FOR ITS OWN EVENT'S ROUND ONLY (J39/J40; the review's
+   * S4). The round names its tournament; when that is the pass's event, the
+   * link speaks for its one entry, even beside a sign-in (unless the account is
+   * staff there). It is a player, so every guard below treats it as one, and
+   * "which card is mine" is the pass's entry only while confirmed (S5,
+   * `myPlayerIdsFor`). A round in any other event never sees the link.
+   * The four card actions that come through here are GUEST_ACTIONS.
+   */
+  const guest = stage ? await guestActorFor(stage.eventId, session) : null;
+  if (guest) return requireScoreEntry(guest);
+  if (!session) throw new Error("Not authenticated");
   if (!stage || stage.eventId === session.eventId) return requireScoreEntry(session);
   const access = await effectiveAccess(session.email, stage.eventId);
   if (!access) return requireScoreEntry(session);
@@ -376,7 +392,7 @@ async function requireScoreEntryForStage(
  * offered it and this function authorised the write, both agreeing about a row
  * the scoring engines ignore.
  */
-const ownPlayerIds = myPlayerIds;
+const ownPlayerIds = myPlayerIdsFor;
 
 /*
  * A player may write scores for their own match and nobody else's — and on a
@@ -386,9 +402,9 @@ const ownPlayerIds = myPlayerIds;
  */
 
 /** Same rule for a stroke card: your own, or you are staff. */
-async function assertOwnCard(session: Session, eventId: string, playerId: string): Promise<void> {
+async function assertOwnCard(session: ScoreActor, eventId: string, playerId: string): Promise<void> {
   if (session.role !== "player") return;
-  const own = await ownPlayerIds(eventId, session.email);
+  const own = await ownPlayerIds(session, eventId);
   if (!own.has(playerId)) throw new Error("You can only enter your own scorecard.");
 }
 
@@ -405,7 +421,7 @@ async function assertOwnCard(session: Session, eventId: string, playerId: string
  * round's (or another club's) grouping to reach a card.
  */
 async function assertMayKeepCard(
-  session: Session,
+  session: ScoreActor,
   eventId: string,
   stageId: string,
   playerId: string,
@@ -425,7 +441,7 @@ async function assertMayKeepCard(
   // A round the organizer keeps from paper cards takes nothing from a player.
   const refused = await playerRoundRefusal(eventId, stageId);
   if (refused) throw new Error(refused);
-  const own = await ownPlayerIds(eventId, session.email);
+  const own = await ownPlayerIds(session, eventId);
   /**
    * ONE SCORER PER GROUP (2026-11-04). On a round kept by one scorer per group,
    * only the group's scorer writes its cards — their own included — so a
@@ -520,10 +536,12 @@ async function assertEventTeam(eventId: string, teamId: string): Promise<void> {
  * call sites each remembering to pass an id, and a change nobody has to
  * remember is the only kind that survives.
  */
-async function refresh() {
+async function refresh(eventId?: string) {
   revalidatePath("/", "layout");
-  const session = await getSession();
-  if (session?.eventId) boardChanged(session.eventId);
+  // The tournament the write was in, when the caller knows it: a card is saved in
+  // its round's tournament, and a guest's player link has no session to ask.
+  const id = eventId || (await getSession())?.eventId;
+  if (id) boardChanged(id);
 }
 
 /* ── Registration ─────────────────────────────────────────────────────── */
@@ -3751,7 +3769,7 @@ export async function saveScorecard(
   }
   // The cache belongs to the caller: this action serves the console, and the
   // play surface revalidates something else entirely.
-  if (result.ok) await refresh();
+  if (result.ok) await refresh(eventId);
   return result;
 }
 
@@ -7539,8 +7557,9 @@ export async function certifyScorecard(stageId: string, playerId: string) {
    * The guards above are what did not move. Who may sign is this action's
    * question and the play surface asks a different one.
    */
-  await certifyCard({ eventId, stageId, playerId, by: session.email });
-  await refresh();
+  // A guest has no address: their name signs, as a round code's holder does.
+  await certifyCard({ eventId, stageId, playerId, by: session.email || session.name });
+  await refresh(eventId);
   return { ok: true };
 }
 
@@ -7578,8 +7597,8 @@ export async function disputeScorecard(stageId: string, playerId: string) {
   // format where one person enters three other people's rounds.
   // The player by id — `recentChanges` turns it back into their name — and the
   // round by its words, since any other id reads as a departed player.
-  await logAudit(eventId, "card.dispute", `${playerId}'s ${await roundWordsFor(eventId, stageId)} card disputed`);
-  await refresh();
+  await logAudit(eventId, "card.dispute", `${playerId}'s ${await roundWordsFor(eventId, stageId)} card disputed`, { actor: session.name });
+  await refresh(eventId);
   return { ok: true };
 }
 

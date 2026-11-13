@@ -1,0 +1,101 @@
+import { describe, it, expect } from "vitest";
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { readSource } from "./source";
+import { GUEST_ACTIONS } from "@/lib/domain/player-link";
+
+/**
+ * A GUEST'S PLAYER LINK ACTS ONLY THROUGH ITS CLOSED LIST (J39/J40 PR 1;
+ * design §2.8, the review's S4 and S5).
+ *
+ * `GUEST_ACTIONS` names every server action a link may perform. This holds the
+ * source to it: an action that reaches the guest session — directly
+ * (`getGuestSession`), through the round-scoped gate that admits a guest
+ * (`requireScoreEntryForStage`), or through `guestActorFor` — must be on the
+ * list; the guest machinery is called from nowhere else; and the guest's own
+ * entry is taken from the viewer, never from an argument.
+ *
+ * Every OTHER action still calls `getSession()`, which never answers for a
+ * link, and so refuses a guest: that is what keeps the list closed.
+ */
+
+const ACTIONS_DIR = join("src", "app", "actions");
+const GUEST_DOORS = ["getGuestSession(", "requireScoreEntryForStage(", "guestActorFor("];
+/** Actions that reach a guest door but are not a GUEST action: the open door itself. */
+const NOT_GUEST_WRITES = new Set(["openPlayerLink"]);
+
+function actionsIn(src: string): { name: string; body: string }[] {
+  return src
+    .split("export async function ")
+    .slice(1)
+    .map((piece) => ({ name: piece.slice(0, piece.indexOf("(")), body: piece }));
+}
+
+const ACTIONS = readdirSync(ACTIONS_DIR)
+  .filter((f) => f.endsWith(".ts"))
+  .flatMap((f) => actionsIn(readSource("src", "app", "actions", f)).map((a) => ({ ...a, file: f })));
+
+function reachesAGuestDoor(body: string): boolean {
+  return GUEST_DOORS.some((d) => body.includes(d));
+}
+
+function sources(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (name === "__tests__" || name === "node_modules") continue;
+    if (statSync(p).isDirectory()) sources(p, out);
+    else if (/\.(ts|tsx)$/.test(name)) out.push(p.split("\\").join("/"));
+  }
+  return out;
+}
+
+describe("a guest acts only through GUEST_ACTIONS", () => {
+  it("every action that reaches the guest session is on the list", () => {
+    const off = ACTIONS.filter((a) => reachesAGuestDoor(a.body) && !NOT_GUEST_WRITES.has(a.name) && !(GUEST_ACTIONS as readonly string[]).includes(a.name)).map((a) => `${a.file}: ${a.name}`);
+    expect(off, "put it on GUEST_ACTIONS (domain/player-link.ts) with the design's say-so, or keep the guest out of it").toEqual([]);
+  });
+
+  it("every action on the list exists and does reach it", () => {
+    for (const name of GUEST_ACTIONS) {
+      const found = ACTIONS.find((a) => a.name === name);
+      expect(found, `${name} is on GUEST_ACTIONS but is no action`).toBeTruthy();
+      expect(reachesAGuestDoor(found!.body), `${name} is on GUEST_ACTIONS but never reaches the guest session`).toBe(true);
+    }
+  });
+
+  it("the guest machinery is called from nowhere else", () => {
+    const allowed: Record<string, string[]> = {
+      // guest-auth.ts DEFINES it (`getGuestSession = cache(`), so is not a caller.
+      "getGuestSession(": ["src/lib/player-viewer.ts", "src/app/actions/player-link.ts"],
+      "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts"],
+      "guestViewer(": ["src/lib/player-viewer.ts"],
+    };
+    const files = sources("src");
+    for (const [call, where] of Object.entries(allowed)) {
+      const callers = files.filter((f) => readSource(f).includes(call));
+      expect(callers.sort(), call).toEqual([...where].sort());
+    }
+  });
+
+  it("the round-scoped gate admits a guest only for the ROUND's own event", () => {
+    const tournament = readSource("src", "app", "actions", "tournament.ts");
+    expect(tournament).toMatch(/const guest = stage \? await guestActorFor\(stage\.eventId, session\) : null;\s*if \(guest\) return requireScoreEntry\(guest\);/);
+  });
+
+  it("the guest's entry comes from the viewer, never from an argument (S4, S5)", () => {
+    const me = readSource("src", "lib", "services", "me.ts");
+    const body = me.slice(me.indexOf("export async function myPlayerIdsFor("), me.indexOf("export async function myPlayerIdsFor(") + 900);
+    expect(body).toContain("who.guest.eventId !== eventId");
+    expect(body).toContain("where: { id: who.guest.playerId, eventId }");
+    expect(body).toContain("mayPlayThroughLink(row.status)");
+    expect(body, "a guest must never be asked by address").not.toContain("byAddress");
+    const viewer = readSource("src", "lib", "player-viewer.ts");
+    expect(viewer).toMatch(/email: "",/);
+  });
+
+  it("CONTROL: an action that reaches the guest session off the list is seen", () => {
+    const [fake] = actionsIn("export async function withdrawForGuest(id: string) {\n  const g = await getGuestSession();\n}\n");
+    expect(reachesAGuestDoor(fake.body)).toBe(true);
+    expect((GUEST_ACTIONS as readonly string[]).includes(fake.name)).toBe(false);
+  });
+});

@@ -31,6 +31,8 @@ export const FIELD_ACTIONS = [
   "put-back", "placed",
   // One player's place on the tee sheet handed to another: a no-show, a cancellation (B43).
   "replaced",
+  // A guest's player link (J39/J40): opened on a new phone, handed over, replaced, turned off.
+  "player-link.opened", "player-link.handed", "player-link.new", "player-link.off",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];

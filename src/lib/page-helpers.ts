@@ -8,6 +8,8 @@ import { signInUrlFor } from "./domain/safe-next";
 import { loadEventState, type EventState } from "./services/tournament";
 import { prisma } from "./db";
 import { screenAppliesToMatch } from "./nav";
+import { getPlayerViewer, type PlayerViewer } from "./player-viewer";
+import { holdsGuestCookie } from "./guest-auth";
 import { isMatch } from "./tournament-shape";
 
 /**
@@ -41,6 +43,29 @@ export async function requireSession(): Promise<Session> {
    */
   if (!session) redirect(await signInUrl());
   return session;
+}
+
+/**
+ * THE PLAYER APP'S DOOR (J39/J40): an account, or a guest's player link
+ * (`player-viewer.ts`). A browser holding a link that no longer opens is sent
+ * to /p, which says so ("This link no longer works"), not to a sign-in page
+ * the guest has no account for.
+ */
+export async function requirePlayerViewer(): Promise<PlayerViewer> {
+  const viewer = await getPlayerViewer();
+  if (viewer) return viewer;
+  if (await holdsGuestCookie()) redirect("/p?ended=1");
+  redirect(await signInUrl());
+}
+
+/**
+ * The club-wide player screens (events, calendar, season) are an ACCOUNT's:
+ * a guest's link is one event, so a guest is sent to its Today.
+ */
+export async function requireAccountViewer(): Promise<Session> {
+  const viewer = await requirePlayerViewer();
+  if (viewer.guest) redirect("/me");
+  return viewer;
 }
 
 /**

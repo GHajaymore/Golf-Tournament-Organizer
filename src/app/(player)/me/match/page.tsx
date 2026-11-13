@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayerViewer } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
 import { meFor } from "@/lib/services/me";
+import { golfTermsForEvent } from "@/lib/services/organization";
 import { prisma } from "@/lib/db";
 import { sideNamesOf } from "@/lib/services/side-names";
 import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
@@ -40,10 +41,10 @@ export const metadata = screenMetadata("/me/match");
  * finds nothing; and the save asks again regardless (`assertOwnMatch`).
  */
 export default async function MyMatchPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
-  const session = await requireSession();
+  const session = await requirePlayerViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const me = await meFor(state, session.email);
+  const me = await meFor(state, session);
   const settings = settingsOf(state.event);
 
   const sides = me.playerId
@@ -136,6 +137,24 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
           Your match appears on the board as they go in.
         </p>
         <WayForward links={[{ href: "/me/board", label: "See the board", icon: "ranking" }]} />
+      </div>
+    );
+  }
+  /**
+   * A GUEST'S MATCH IS KEPT FROM THE ROUND CODE (J39/J40 PR 1). Match presses
+   * are not on the link's closed list yet (`GUEST_ACTIONS`); the code the
+   * organizer gives the field opens the same match at /play, as it always has.
+   */
+  if (session.guest) {
+    const terms = await golfTermsForEvent(session.eventId);
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My match</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          Enter your match&rsquo;s score at tourneyhq.club/play with the round code from your {terms.organizer}.
+          It appears on the board as it goes in.
+        </p>
+        <WayForward links={[{ href: "/play", label: "Enter the round code", icon: "arrow-right" }, { href: "/me/board", label: "See the board", icon: "ranking" }]} />
       </div>
     );
   }

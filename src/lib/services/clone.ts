@@ -344,6 +344,9 @@ export const CLONE_IGNORED_RELATIONS = [
   // teams themselves are not carried — so a copy starts without them, and the
   // organizer adds this year's team net total point on the Team cup screen.
   "cupPoints",
+  // A guest's player link (J39/J40) opens one entry in one event. The entries are not
+  // carried, so neither is any link: a guest in this year's event is given a new one.
+  "playerPasses",
 ];
 
 /**
