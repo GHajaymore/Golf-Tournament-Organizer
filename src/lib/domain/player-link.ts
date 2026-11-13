@@ -96,9 +96,23 @@ export function addDays(day: string, days: number): string {
   return `${at.getUTCFullYear()}-${two(at.getUTCMonth() + 1)}-${two(at.getUTCDate())}`;
 }
 
-/** The last club day a pass opens on, or "" when the event has no day yet (then only the cookie's cap ends it). */
-export function passLastDay(lastDay: string): string {
-  return lastDay ? addDays(lastDay, PASS_DAYS_AFTER_LAST_ROUND) : "";
+/**
+ * A link in an event with NO day at all — no dates, no dated round — lives this
+ * many club days from the day its code was made (or last replaced), never for
+ * ever (security review SF-4): the cookie's 180-day cap does not bound a CODE,
+ * which mints a fresh cookie. The same span as the cookie, so a guest of an
+ * undated season is not cut off sooner than one of a dated one would be by it.
+ */
+export const UNDATED_PASS_DAYS = 180;
+
+/**
+ * The last club day a pass opens on: 90 days after the event's last day of
+ * golf; or, with no day known, `UNDATED_PASS_DAYS` after the club day its code
+ * was made. "" only when neither is known.
+ */
+export function passLastDay(lastDay: string, madeDay = ""): string {
+  if (lastDay) return addDays(lastDay, PASS_DAYS_AFTER_LAST_ROUND);
+  return madeDay ? addDays(madeDay, UNDATED_PASS_DAYS) : "";
 }
 
 export type PassRefusal = "revoked" | "rotated" | "left" | "member" | "expired";
@@ -124,13 +138,15 @@ export function passRefusal(input: {
   /** The entry's standing: a pass is a guest's only (D12; S14: made a member, the pass ends). */
   isGuest: boolean;
   lastDay: string;
+  /** The club day this pass's current code was made (or last replaced): the undated bound (SF-4). */
+  madeDay: string;
   today: string;
 }): PassRefusal | null {
   if (input.revokedAt) return "revoked";
   if (input.heldVersion !== null && input.heldVersion !== input.version) return "rotated";
   if (!LIVE_STATUSES.has(input.entryStatus)) return "left";
   if (!input.isGuest) return "member";
-  const last = passLastDay(input.lastDay);
+  const last = passLastDay(input.lastDay, input.madeDay);
   if (last && input.today > last) return "expired";
   return null;
 }

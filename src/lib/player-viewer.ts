@@ -85,5 +85,12 @@ export async function guestActorFor(eventId: string, account: Session | null): P
   const guest = await getGuestSession();
   if (!guest || guest.eventId !== eventId) return null;
   if (account && (await staffOf(account, eventId))) return null;
+  /**
+   * AND NOT WHEN THE PERSON CHOSE THEIR OWN ACCOUNT (security review SF-1): the
+   * screen then shows them as themselves, so the server must act as them too —
+   * never the guest whose link this phone also holds. The read side
+   * (`playerViewSwitch`) and this write side ask the same choice.
+   */
+  if (account && (await playerViewChosen()) === "account") return null;
   return guestViewer(guest);
 }

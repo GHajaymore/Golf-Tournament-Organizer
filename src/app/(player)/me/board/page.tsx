@@ -6,7 +6,7 @@ import Link from "next/link";
 import { isMatch } from "@/lib/tournament-shape";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requirePlayerViewer } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, standingRows, settingsOf, cutLineNote, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
@@ -66,7 +66,7 @@ export default async function PlayBoardPage({
 }: {
   searchParams: Promise<{ round?: string }>;
 }) {
-  const session = await requirePlayerViewer();
+  const session = await requirePlayingViewer();
   const loaded = await loadEventState(session.eventId);
   if (!loaded) redirect("/");
   /**

@@ -120,15 +120,22 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
   version-checked, re-verified against the row on every request (`getGuestSession`).
 - **Guessing (S2):** `player-link-client`, 20 FAILED opens per client in 15 minutes through `clientGuessGate`
   (never keyed on the code, never cleared; a real open gives back one); one shared bucket where no client
-  address can be read; past 200 failed opens an hour platform-wide every open is slowed to one a minute
-  per client and an error is logged.
+  address can be read; past 200 failed opens an hour platform-wide (counted only for requests the client's
+  own limit let through) every client is held to three failed opens in 15 minutes and one error is logged
+  per window. Twenty stays the per-client figure (Security Lead review N-1: 60 bits carries it; the cost of a
+  tighter one falls on a clubhouse wifi or a carrier's shared address).
 - **Stored hashed:** `PlayerPass.lookup` (HMAC under `derivedKey("player-link-lookup")`) and `sealed`
   (AES-256-GCM, bound to `passId:version`), so the organizer can show the same link again (re-sending is
   not rotating). Rotating `AUTH_SECRET` ends every link as well as every session: organizers re-share.
+- **Expiry:** 90 club days after the event's last day of golf; an event with no day at all, 180 club days
+  after the code was made or last replaced (review SF-4). Staff can Turn off a link even in a lapsed club's
+  archive (SF-5); showing or making one there is refused.
 - **Per event (S4):** `playerViewSwitch` — beside a sign-in, the link answers for its own event (unless
-  the account is staff there) and the other is offered on a line above, never merged. **Writes are a
+  the account is staff there) and the other is offered on a line above, never merged; the WRITES follow the
+  same choice (`guestActorFor` asks `playerViewChosen`, SF-1). **Writes are a
   confirmed entrant's (S5):** `myPlayerIdsFor` gives a guest its pass's entry only while `confirmed`;
-  a pending or waitlisted guest's link opens the waiting card only.
+  a pending or waitlisted guest's link opens the waiting card only — refused by each event page itself
+  (`requirePlayingViewer`), not only by the layout (SF-3).
 - **Closed list:** `GUEST_ACTIONS` (`domain/player-link.ts`) — the four stroke-card actions, forget this
   phone, choose view. Every other action still calls `getSession()` and refuses a guest.
 - **Analytics and reports (S3):** `/p` renders no analytics and `pageViewFor` drops a view of it;

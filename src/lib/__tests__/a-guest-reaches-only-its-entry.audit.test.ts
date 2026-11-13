@@ -51,7 +51,8 @@ import { ensurePass, rotatePass, revokePass, passForCode, livePass, lookupOf } f
 import { setGuestCookie, getGuestSession, choosePlayerViewCookie } from "@/lib/guest-auth";
 import { playerViewSwitch, guestViewer, guestActorFor, myPlayerIdsFor } from "@/lib/player-viewer";
 import { saveScorecard, certifyScorecard, disputeScorecard } from "@/app/actions/tournament";
-import { openPlayerLink, showPlayerLink } from "@/app/actions/player-link";
+import { openPlayerLink, showPlayerLink, turnOffPlayerLink } from "@/app/actions/player-link";
+import { clientKeyFor } from "@/lib/rate-limit";
 import { createHash } from "node:crypto";
 
 const prisma = new PrismaClient();
@@ -288,6 +289,46 @@ describe("a guest's player link reaches its own entry and nothing else", () => {
     expect(chosen.other).toEqual({ kind: "guest", name: "Robin Vale" });
     expect([...(await myPlayerIdsFor(chosen.viewer!, A1.eventId))], "the account never borrows the link's entry").toEqual([]);
     expect([...(await myPlayerIdsFor(chosen.viewer!, B1.eventId))]).toEqual([b1Member]);
+    // SF-1: having chosen the account, the server acts as the account too — never as the guest.
+    const { getSession } = await import("@/lib/auth");
+    expect(await guestActorFor(A1.eventId, await getSession()), "the write side ignored the chosen view").toBeNull();
+    expect(await refusedWith(saveScorecard(A1.stageId, guest, CARD)), "saved the guest's card as the account's choice").not.toBe("");
+    expect(await refusedWith(certifyScorecard(A1.stageId, guest))).not.toBe("");
+    expect((await saveScorecard(B1.stageId, b1Member, CARD)).ok, "the account still writes its own").toBe(true);
+    // And back to the link: the link writes its own entry again.
+    await choosePlayerViewCookie("guest");
+    expect((await saveScorecard(A1.stageId, guest, CARD)).ok).toBe(true);
+  });
+
+  it("SF-4: a link in an event with no day at all ends 180 club days after its code was made", async () => {
+    const pass = await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guest } });
+    const undated = await prisma.stage.findMany({ where: { eventId: A1.eventId }, select: { playedOn: true } });
+    expect(undated.every((s) => !s.playedOn), "the fixture's round is undated").toBe(true);
+    const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 3600 * 1000);
+    try {
+      await prisma.playerPass.update({ where: { id: pass.id }, data: { createdAt: daysAgo(100), rotatedAt: daysAgo(100) } });
+      expect(await livePass(pass.id, pass.version), "100 days: still open").not.toBeNull();
+      await prisma.playerPass.update({ where: { id: pass.id }, data: { createdAt: daysAgo(200), rotatedAt: daysAgo(200) } });
+      expect(await livePass(pass.id, pass.version), "200 days in an undated event: never for ever").toBeNull();
+      expect(await passForCode(code)).toBeNull();
+    } finally {
+      await prisma.playerPass.update({ where: { id: pass.id }, data: { createdAt: new Date(), rotatedAt: new Date() } });
+    }
+  });
+
+  it("SF-5: staff can turn a link off in a lapsed club's archive, and cannot show one there", async () => {
+    expect(await createSession(staffUserId)).toBe(true);
+    await prisma.event.update({ where: { id: A1.eventId }, data: { archivedAt: new Date() } });
+    try {
+      expect(await refusedWith(showPlayerLink(guest, "shown")), "an archived event shows no link").not.toBe("");
+      expect(await turnOffPlayerLink(guest)).toEqual({ ok: true });
+      expect((await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guest } })).revokedAt).not.toBeNull();
+      expect(await passForCode(code)).toBeNull();
+    } finally {
+      await prisma.event.update({ where: { id: A1.eventId }, data: { archivedAt: null } });
+      const fresh = await rotatePass(A1.eventId, guest, "Corin Abernethy");
+      if (fresh.ok) code = fresh.code;
+    }
   });
 
   it("staff of the link's own event keep their own powers there", async () => {
@@ -321,6 +362,13 @@ describe("a guest's player link reaches its own entry and nothing else", () => {
     // Refused before the lookup: even the real code is refused now, by the same words.
     const real = await openPlayerLink(code);
     expect(!real.ok && real.error).toMatch(/Too many link attempts/);
+    // SF-2: a client its own limit has refused feeds the platform alarm nothing more.
+    const alarmCount = async () =>
+      (await prisma.rateLimitHit.findUnique({ where: { key: clientKeyFor("player-link-alarm", "player-link-platform", Date.now()) } }))?.count ?? 0;
+    const alarmBefore = await alarmCount();
+    for (let i = 0; i < 5; i += 1) expect((await wrong()).ok).toBe(false);
+    // At most equal: an hour turning over mid-test starts the counter again at nothing.
+    expect(await alarmCount(), "refused requests still counted toward the platform alarm").toBeLessThanOrEqual(alarmBefore);
     // Another client is not blocked by this one.
     head.set("x-forwarded-for", `10.${r()}.${r()}.${r()}`);
     expect(await openPlayerLink(code)).toEqual({ ok: true });

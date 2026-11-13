@@ -144,9 +144,10 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  reported AND every open is slowed to `player-link-slow`'s pace per client: distributed
    *  guessing from many addresses is the attack a per-client budget cannot see. */
   "player-link-alarm": { limit: 200, windowMs: 60 * MINUTE },
-  /** While the alarm stands: one failed open a minute per client. A guest with the right link
-   *  still opens it (a success gives its attempt back). */
-  "player-link-slow": { limit: 1, windowMs: MINUTE },
+  /** While the alarm stands: three failed opens per client in fifteen minutes — twelve an hour
+   *  against the usual eighty (security review SF-2: one a minute was sixty, barely slower). A
+   *  guest with the right link still opens it (a success gives its attempt back). */
+  "player-link-slow": { limit: 3, windowMs: 15 * MINUTE },
   /** Discount codes, tried at sign-up or on a club's plan panel. A code is
    *  eight characters from 31, so this is not about guessing one — it is about
    *  a script trying to, and ten typos in fifteen minutes is a person who

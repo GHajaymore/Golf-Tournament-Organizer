@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requirePlayerViewer } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
 import { meFor } from "@/lib/services/me";
@@ -41,7 +41,7 @@ export const metadata = screenMetadata("/me/match");
  * finds nothing; and the save asks again regardless (`assertOwnMatch`).
  */
 export default async function MyMatchPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
-  const session = await requirePlayerViewer();
+  const session = await requirePlayingViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const me = await meFor(state, session);

@@ -33,7 +33,7 @@ import { sessionValue } from "@/lib/domain/session-token";
  */
 
 const CODE = "K7QM2XRA9DTP";
-const live = { revokedAt: null, version: 1, heldVersion: 1, entryStatus: "confirmed", isGuest: true, lastDay: "2026-12-02", today: "2026-12-02" };
+const live = { revokedAt: null, version: 1, heldVersion: 1, entryStatus: "confirmed", isGuest: true, lastDay: "2026-12-02", madeDay: "2026-11-20", today: "2026-12-02" };
 
 describe("the code", () => {
   it("is twelve Crockford symbols: 60 bits, no I, L, O or U", () => {
@@ -116,12 +116,20 @@ describe("when a pass is live (design §2.6)", () => {
     expect(passRefusal({ ...live, today: clubToday("Pacific/Auckland", instant) }), "the club's day ended it").toBe("expired");
     expect(passRefusal({ ...live, today: clubToday("UTC", instant) }), "a UTC club is still on the 90th day").toBeNull();
   });
-  it("finds the last day of golf from the rounds and the event's own days; none, no day-expiry", () => {
+  it("finds the last day of golf from the rounds and the event's own days", () => {
     expect(lastPlayDay({ startOn: "2026-12-01", endOn: "2026-12-02" }, [{ playedOn: "2026-12-05" }, { playedOn: "" }])).toBe("2026-12-05");
     expect(lastPlayDay({ startOn: "", endOn: "" }, [])).toBe("");
-    expect(passRefusal({ ...live, lastDay: "", today: "2099-01-01" })).toBeNull();
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
     expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
+  });
+  it("SF-4: an event with no day at all still ends its links, 180 club days after the code was made", () => {
+    const undated = { ...live, lastDay: "", madeDay: "2026-11-20" };
+    expect(passLastDay("", "2026-11-20")).toBe("2027-05-19");
+    expect(passRefusal({ ...undated, today: "2027-05-19" }), "the 180th day still opens").toBeNull();
+    expect(passRefusal({ ...undated, today: "2027-05-20" })).toBe("expired");
+    expect(passRefusal({ ...undated, today: "2099-01-01" }), "never for ever").toBe("expired");
+    // A dated event keeps the 90-days-after-golf rule, whatever day the code was made.
+    expect(passRefusal({ ...live, madeDay: "2020-01-01", today: "2027-03-02" })).toBeNull();
   });
   it("S5: only a CONFIRMED entrant plays through a link", () => {
     expect(mayPlayThroughLink("confirmed")).toBe(true);

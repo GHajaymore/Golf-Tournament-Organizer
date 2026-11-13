@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requirePlayerViewer } from "@/lib/page-helpers";
+import { requirePlayerViewer, guestIsWaiting } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { cardStanding } from "@/lib/domain/card-approval";
@@ -97,6 +97,9 @@ function initialsOf(name: string): string {
 
 export default async function PlayTodayPage() {
   const session = await requirePlayerViewer();
+  // A waiting guest: the layout draws the waiting card, and this page renders
+  // nothing of its own, so no request for it carries the event's board (SF-3).
+  if (guestIsWaiting(session)) return null;
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const me = await meFor(state, session);

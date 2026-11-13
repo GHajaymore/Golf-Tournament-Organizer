@@ -99,3 +99,32 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
     expect((GUEST_ACTIONS as readonly string[]).includes(fake.name)).toBe(false);
   });
 });
+
+/**
+ * SF-3 (security review): a pending or waitlisted guest sees Today's waiting
+ * card ONLY — refused by each page of the event itself, not only by the layout
+ * (a layout that does not draw its page does not stop the page's payload).
+ */
+describe("SF-3: a waiting guest is refused by the page, not only the layout", () => {
+  const PAGES = ["board", "card", "match", "rules"];
+  it("the event's own player screens ask requirePlayingViewer, never the bare viewer", () => {
+    for (const p of PAGES) {
+      const src = readSource("src", "app", "(player)", "me", p, "page.tsx");
+      expect(src, p).toContain("await requirePlayingViewer()");
+      expect(src, p).not.toContain("await requirePlayerViewer()");
+    }
+  });
+  it("Today renders nothing of its own for a waiting guest, and the layout asks the same rule", () => {
+    const today = readSource("src", "app", "(player)", "me", "page.tsx");
+    expect(today).toMatch(/const session = await requirePlayerViewer\(\);\s*if \(guestIsWaiting\(session\)\) return null;/);
+    expect(readSource("src", "app", "(player)", "layout.tsx")).toContain("const guestWaiting = guestIsWaiting(session);");
+  });
+  it("the rule is the writes' own: a guest not confirmed is waiting", () => {
+    const helpers = readSource("src", "lib", "page-helpers.ts");
+    expect(helpers).toMatch(/return !!viewer\.guest && !mayPlayThroughLink\(viewer\.guest\.status\);/);
+    expect(helpers).toMatch(/if \(guestIsWaiting\(viewer\)\) redirect\("\/me"\);/);
+  });
+  it("CONTROL: a page on the bare viewer is seen", () => {
+    expect("const session = await requirePlayerViewer();").not.toContain("await requirePlayingViewer()");
+  });
+});

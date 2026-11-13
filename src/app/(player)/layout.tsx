@@ -4,9 +4,9 @@ import { Suspense } from "react";
 import { DeniedNotice } from "@/components/DeniedNotice";
 import { ArchiveBanner } from "@/components/ArchiveBanner";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
-import { requirePlayerViewer } from "@/lib/page-helpers";
+import { requirePlayerViewer, guestIsWaiting } from "@/lib/page-helpers";
 import { playerViewSwitch } from "@/lib/player-viewer";
-import { mayPlayThroughLink, PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
 import { GuestForget, PlayerViewSwitchLine } from "@/components/GuestLinkControls";
 import { prisma } from "@/lib/db";
 import { hasLeftTheField } from "@/lib/domain/left-the-field";
@@ -123,7 +123,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
   // A guest whose entry is not confirmed: Today's waiting card only (S5).
-  const guestWaiting = !!guest && !mayPlayThroughLink(guest.status);
+  const guestWaiting = guestIsWaiting(session);
   const archived = session.eventId ? await archiveRefusalFor(session.eventId, "player") : null;
 
   /**

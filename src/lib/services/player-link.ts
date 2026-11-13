@@ -6,7 +6,8 @@ import { derivedKey } from "@/lib/auth";
 import { generateLinkCode } from "@/lib/codes";
 import { isGuest } from "@/lib/domain/entry-standing";
 import { lastPlayDay, passRefusal, type PassRefusal, type PassStatus } from "@/lib/domain/player-link";
-import { dayAtClubForEvent, todayForEvent } from "@/lib/services/club-clock";
+import { dayAtClubForEvent, zoneOfEvent } from "@/lib/services/club-clock";
+import { clubToday } from "@/lib/domain/club-clock";
 
 /**
  * A GUEST'S PLAYER LINK, STORED (J39/J40 PR 1; design §2.3). The one place a
@@ -79,14 +80,14 @@ const ENTRY = { id: true, eventId: true, name: true, status: true, standing: tru
  * day (`todayForEvent`) and the event's last day of golf.
  */
 async function refusalFor(
-  pass: { revokedAt: Date | null; version: number; eventId: string },
+  pass: { revokedAt: Date | null; version: number; eventId: string; createdAt: Date; rotatedAt: Date | null },
   entry: { status: string; standing: string },
   heldVersion: number | null,
 ): Promise<PassRefusal | null> {
-  const [event, stages, today] = await Promise.all([
+  const [event, stages, zone] = await Promise.all([
     prisma.event.findUnique({ where: { id: pass.eventId }, select: { startOn: true, endOn: true } }),
     prisma.stage.findMany({ where: { eventId: pass.eventId }, select: { playedOn: true } }),
-    todayForEvent(pass.eventId),
+    zoneOfEvent(pass.eventId),
   ]);
   if (!event) return "left";
   return passRefusal({
@@ -96,7 +97,9 @@ async function refusalFor(
     entryStatus: entry.status,
     isGuest: isGuest(entry),
     lastDay: lastPlayDay(event, stages),
-    today,
+    // The CLUB day the current code was made: the bound for an event with no day (SF-4).
+    madeDay: clubToday(zone, pass.rotatedAt ?? pass.createdAt),
+    today: clubToday(zone),
   });
 }
 
@@ -219,7 +222,7 @@ export interface LivePass {
 export async function passForCode(code: string): Promise<LivePass | null> {
   const pass = await prisma.playerPass.findUnique({
     where: { lookup: lookupOf(code) },
-    select: { id: true, version: true, revokedAt: true, eventId: true, player: { select: ENTRY } },
+    select: { id: true, version: true, revokedAt: true, eventId: true, createdAt: true, rotatedAt: true, player: { select: ENTRY } },
   });
   if (!pass || pass.player.eventId !== pass.eventId) return null;
   if (await refusalFor(pass, pass.player, null)) return null;
@@ -234,7 +237,7 @@ export async function passForCode(code: string): Promise<LivePass | null> {
 export async function livePass(passId: string, heldVersion: number): Promise<LivePass | null> {
   const pass = await prisma.playerPass.findUnique({
     where: { id: passId },
-    select: { id: true, version: true, revokedAt: true, eventId: true, player: { select: ENTRY } },
+    select: { id: true, version: true, revokedAt: true, eventId: true, createdAt: true, rotatedAt: true, player: { select: ENTRY } },
   });
   if (!pass || pass.player.eventId !== pass.eventId) return null;
   if (await refusalFor(pass, pass.player, heldVersion)) return null;

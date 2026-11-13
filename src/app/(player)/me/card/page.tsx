@@ -5,7 +5,7 @@ import { isManualFormat, needsTeams, boardKind } from "@/lib/formats";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundIsStroke } from "@/lib/stage-types";
-import { requirePlayerViewer } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
@@ -47,7 +47,7 @@ export const metadata = screenMetadata("/me/card");
  * screen stops nobody from calling the action.
  */
 export default async function PlayCardPage() {
-  const session = await requirePlayerViewer();
+  const session = await requirePlayingViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { assertEventWritable } from "@/lib/services/club-archive";
 import { clientGuessGate } from "@/lib/rate-limit";
+import { RATE_LIMITS, windowFor } from "@/lib/domain/rate-limit";
 import { clientAddress } from "@/lib/client-address";
 import { PLAYER_LINK_WORDS, normaliseLinkCode, passStatusWords, readHandOver, suggestsNewLink } from "@/lib/domain/player-link";
 import { ensurePass, passForCode, passStatusFor, recordOpen, revokePass, rotatePass } from "@/lib/services/player-link";
@@ -33,37 +34,54 @@ const PLATFORM = "player-link-platform";
 type Opened = { ok: true } | { ok: false; error: string };
 
 /* The organizer panel's gate and argument check, above every action so no action's text carries them. */
-async function requireStaffSession() {
+async function requireStaffSession(opts: { evenArchived?: boolean } = {}) {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "admin" && session.role !== "assistant") throw new Error("Organizer access required");
-  await assertEventWritable(session.eventId);
+  // Turning a link OFF is allowed in a lapsed club's archive (security review SF-5): a leaked link
+  // must be stoppable there too. Showing or making one is not.
+  if (!opts.evenArchived) await assertEventWritable(session.eventId);
   return session;
 }
+
+/** The alarm's window last reported by this instance: one error line a window, not one a request (SF-2). */
+let alarmReportedIn = -1;
 
 const asId = (v: unknown): string => (typeof v === "string" && v.length > 0 && v.length <= 64 ? v : "");
 
 
 /**
  * A tap on "Open my card", or a typed code. In order: the shape (free), the
- * platform alarm, the per-client limit (S2: keyed on the client, NEVER on the
- * code; a success gives its one attempt back and nothing is ever cleared), the
- * lookup by keyed hash, the live-pass rule, then the browser, the cookie and
- * the audit line. Unknown and dead codes get one answer.
+ * per-client limit (S2: keyed on the client, NEVER on the code; a success gives
+ * its one attempt back and nothing is ever cleared), then the platform alarm —
+ * counted only for a request the client's own limit let through (SF-2: a client
+ * already refused cannot hold the alarm on), and while it stands each client is
+ * held to `player-link-slow` — then the lookup by keyed hash, the live-pass
+ * rule, the browser, the cookie and the audit line. Unknown and dead codes get
+ * one answer.
  */
 export async function openPlayerLink(code: unknown): Promise<Opened> {
   const normal = normaliseLinkCode(code);
   if (!normal) return { ok: false, error: PLAYER_LINK_WORDS.notACode };
   const client = (await clientAddress()) ?? NO_ADDRESS;
 
+  const guess = await clientGuessGate("player-link-client", client);
+  if (!guess.decision.allowed) return { ok: false, error: guess.decision.message };
+
   const alarm = await clientGuessGate("player-link-alarm", PLATFORM);
   const slow = alarm.decision.allowed ? null : await clientGuessGate("player-link-slow", client);
   if (!alarm.decision.allowed) {
-    console.error("[player-link] platform alarm: failed player-link opens are above the hourly threshold; opens are slowed");
-    if (slow && !slow.decision.allowed) return { ok: false, error: slow.decision.message };
+    const window = windowFor(RATE_LIMITS["player-link-alarm"], Date.now()).bucket;
+    if (window !== alarmReportedIn) {
+      alarmReportedIn = window;
+      console.error("[player-link] platform alarm: failed player-link opens are above the hourly threshold; opens are slowed");
+    }
+    if (slow && !slow.decision.allowed) {
+      // Refused by the slow limit: it neither counts toward the alarm nor spends the client's budget twice.
+      await alarm.succeeded();
+      return { ok: false, error: slow.decision.message };
+    }
   }
-  const guess = await clientGuessGate("player-link-client", client);
-  if (!guess.decision.allowed) return { ok: false, error: guess.decision.message };
 
   const pass = await passForCode(normal);
   if (!pass) return { ok: false, error: PLAYER_LINK_WORDS.dead };
@@ -151,7 +169,7 @@ export async function newPlayerLink(playerId: unknown): Promise<ShowLinkResult> 
 
 /** TURN OFF LINK: it stops opening everywhere; the round code still scores the day. */
 export async function turnOffPlayerLink(playerId: unknown): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireStaffSession();
+  const session = await requireStaffSession({ evenArchived: true });
   const id = asId(playerId);
   const done = await revokePass(session.eventId, id, session.name);
   if (!done) return { ok: false, error: "There is no link turned on for this player." };

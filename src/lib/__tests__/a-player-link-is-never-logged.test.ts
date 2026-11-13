@@ -134,3 +134,30 @@ describe("S1: /p opens nothing on load", () => {
     expect(bad).toContain("openPlayerLink");
   });
 });
+
+/**
+ * SF-2 (security review): the platform alarm is fed only by requests the
+ * client's OWN limit let through, so one client already refused cannot hold the
+ * alarm on for everybody; a request the slow limit refuses gives its alarm
+ * count back; and the alarm is reported once a window, not once a request.
+ */
+describe("SF-2: one client cannot hold the platform alarm on", () => {
+  const action = readSource("src/app/actions/player-link.ts");
+  const body = action.slice(action.indexOf("export async function openPlayerLink("), action.indexOf("export async function forgetThisPhone("));
+  it("the client's own limit refuses BEFORE the alarm is counted", () => {
+    const clientGate = body.indexOf('clientGuessGate("player-link-client", client)');
+    const refused = body.indexOf("if (!guess.decision.allowed) return");
+    const alarm = body.indexOf('clientGuessGate("player-link-alarm", PLATFORM)');
+    expect(clientGate).toBeGreaterThan(0);
+    expect(refused).toBeGreaterThan(clientGate);
+    expect(alarm, "the alarm is counted before the client's refusal").toBeGreaterThan(refused);
+  });
+  it("a slow-limit refusal gives its alarm count back, and the alarm is logged once a window", () => {
+    expect(body).toMatch(/if \(slow && !slow\.decision\.allowed\) \{\s*(\/\/[^\n]*\n\s*)?await alarm\.succeeded\(\);\s*return/);
+    expect(body).toMatch(/if \(window !== alarmReportedIn\) \{\s*alarmReportedIn = window;\s*console\.error\(/);
+  });
+  it("CONTROL: the order check sees an alarm counted first", () => {
+    const bad = 'clientGuessGate("player-link-alarm", PLATFORM); clientGuessGate("player-link-client", client); if (!guess.decision.allowed) return';
+    expect(bad.indexOf('clientGuessGate("player-link-alarm", PLATFORM)')).toBeLessThan(bad.indexOf("if (!guess.decision.allowed) return"));
+  });
+});

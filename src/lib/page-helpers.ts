@@ -10,6 +10,7 @@ import { prisma } from "./db";
 import { screenAppliesToMatch } from "./nav";
 import { getPlayerViewer, type PlayerViewer } from "./player-viewer";
 import { holdsGuestCookie } from "./guest-auth";
+import { mayPlayThroughLink } from "./domain/player-link";
 import { isMatch } from "./tournament-shape";
 
 /**
@@ -56,6 +57,25 @@ export async function requirePlayerViewer(): Promise<PlayerViewer> {
   if (viewer) return viewer;
   if (await holdsGuestCookie()) redirect("/p?ended=1");
   redirect(await signInUrl());
+}
+
+/**
+ * A PLAYER SCREEN OF THE EVENT ITSELF (board, card, match, rules): a guest
+ * whose entry is pending or waitlisted is sent to Today's waiting card
+ * (security review SF-3). The layout draws the waiting card in place of the
+ * page, but a layout does not stop its page segment being rendered — a soft
+ * navigation or a hand-made RSC request would still carry the page's payload —
+ * so the page itself refuses. The same rule as the writes (`mayPlayThroughLink`).
+ */
+export async function requirePlayingViewer(): Promise<PlayerViewer> {
+  const viewer = await requirePlayerViewer();
+  if (guestIsWaiting(viewer)) redirect("/me");
+  return viewer;
+}
+
+/** A guest viewer whose entry is not (yet) in the field: Today's waiting card, nothing else (S5, SF-3). */
+export function guestIsWaiting(viewer: PlayerViewer): boolean {
+  return !!viewer.guest && !mayPlayThroughLink(viewer.guest.status);
 }
 
 /**
