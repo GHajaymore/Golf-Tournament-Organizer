@@ -108,6 +108,17 @@ async function askMembershipRule(
 
 const SERIALIZABLE = { isolationLevel: "Serializable" as const };
 
+/** Two people changing a club's staff at the same instant: a clean refusal, not a thrown error. */
+const CHANGED_AT_ONCE = "Someone else changed the club's people at the same moment — try again.";
+async function serially<T>(run: (tx: Tx) => Promise<T>): Promise<T | { ok: false; reason: string }> {
+  try {
+    return await prisma.$transaction(run, SERIALIZABLE);
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code === "P2034") return { ok: false, reason: CHANGED_AT_ONCE };
+    throw e;
+  }
+}
+
 async function hasOtherOwner(organizationId: string, memberId: string): Promise<boolean> {
   return (
     (await prisma.organizationMember.count({
@@ -204,7 +215,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * when somebody adds themselves, which is nobody else learning anything.
    */
   const adder = await getSession();
-  const verdict = await prisma.$transaction(async (tx) => {
+  const verdict = await serially(async (tx) => {
     const v = await askMembershipRule(tx, org.organizationId, adder?.email ?? null, existingMembership?.role ?? null, role);
     if (!v.ok) return v;
     await tx.organizationMember.upsert({
@@ -218,7 +229,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
       },
     });
     return v;
-  }, SERIALIZABLE);
+  });
   if (!verdict.ok) return { ok: false, error: verdict.reason };
 
   if (!existingMembership) {
@@ -276,7 +287,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
   }
 
   const actor = await getSession();
-  const verdict = await prisma.$transaction(async (tx) => {
+  const verdict = await serially(async (tx) => {
     // The target's role is re-read here: the one read above is outside the write.
     const fresh = await tx.organizationMember.findFirst({ where: { id: memberId, organizationId: org.organizationId }, select: { role: true } });
     if (!fresh) return { ok: false as const, reason: "Staff member not found." };
@@ -284,7 +295,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
     if (!v.ok) return v;
     await tx.organizationMember.update({ where: { id: memberId }, data: { role: next } });
     return v;
-  }, SERIALIZABLE);
+  });
   if (!verdict.ok) return { ok: false, error: verdict.reason };
   revalidatePath("/", "layout");
   return { ok: true };
@@ -301,14 +312,14 @@ export async function removeOrganizationMember(memberId: string): Promise<OrgRes
   if (!member) return { ok: false, error: "Staff member not found." };
 
   const actor = await getSession();
-  const verdict = await prisma.$transaction(async (tx) => {
+  const verdict = await serially(async (tx) => {
     const fresh = await tx.organizationMember.findFirst({ where: { id: memberId, organizationId: org.organizationId }, select: { role: true } });
     if (!fresh) return { ok: false as const, reason: "Staff member not found." };
     const v = await askMembershipRule(tx, org.organizationId, actor?.email ?? null, fresh.role, null);
     if (!v.ok) return v;
     await tx.organizationMember.delete({ where: { id: memberId } });
     return v;
-  }, SERIALIZABLE);
+  });
   if (!verdict.ok) return { ok: false, error: verdict.reason };
   revalidatePath("/", "layout");
   return { ok: true };
@@ -887,11 +898,21 @@ export async function leaveOrganization(organizationId: unknown): Promise<OrgRes
   });
   if (!mine) return { ok: false, error: "You are not on that club's staff." };
 
-  if (mine.role === "owner" && !(await hasOtherOwner(organizationId, mine.id))) {
-    return { ok: false, error: "You are this club's only Commissioner — make somebody else a Commissioner first." };
+  // The same rule as removing anybody, asked inside the transaction that deletes.
+  const left = await serially(async (tx) => {
+    const v = await askMembershipRule(tx, organizationId, session.email, mine.role, null);
+    if (!v.ok) return v;
+    await tx.organizationMember.delete({ where: { id: mine.id } });
+    return v;
+  });
+  if (!left.ok) {
+    return {
+      ok: false,
+      error: mine.role === "owner" && left.reason.startsWith("This is the only")
+        ? "You are this club's only Commissioner — make somebody else a Commissioner first."
+        : left.reason,
+    };
   }
-
-  await prisma.organizationMember.delete({ where: { id: mine.id } });
   revalidatePath("/", "layout");
   return { ok: true };
 }

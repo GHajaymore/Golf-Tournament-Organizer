@@ -34,7 +34,9 @@ import {
   addOrganizationMember,
   removeOrganizationMember,
   setOrganizationMemberRole,
+  leaveOrganization,
 } from "@/app/actions/organization";
+import { deleteMyAccount } from "@/app/actions/account";
 import { deleteClub } from "@/app/actions/club-deletion";
 
 const prisma = new PrismaClient();
@@ -142,6 +144,22 @@ describe("a Commissioner still can, and the last one stays", () => {
     expect((await removeOrganizationMember(memberIds.boss)).ok).toBe(false);
     expect((await setOrganizationMemberRole(memberIds.boss, "admin")).ok).toBe(false);
     expect(await roleOf("boss")).toBe("owner");
+  });
+
+  it("the last Commissioner cannot leave, nor delete their account, while it would leave none", async () => {
+    await signIn("boss");
+    expect((await leaveOrganization(clubId)).ok).toBe(false);
+    expect((await deleteMyAccount(at("boss"))).ok).toBe(false);
+    expect(await roleOf("boss")).toBe("owner");
+    expect(await prisma.user.count({ where: { id: userIds.boss } })).toBe(1);
+  });
+
+  it("a Commissioner may leave while another remains", async () => {
+    await signIn("boss");
+    await prisma.organizationMember.update({ where: { id: memberIds.plain }, data: { role: "owner" } });
+    expect((await leaveOrganization(clubId)).ok).toBe(true);
+    await prisma.organizationMember.create({ data: { id: memberIds.boss, organizationId: clubId, userId: userIds.boss, role: "owner" } });
+    await prisma.organizationMember.update({ where: { id: memberIds.plain }, data: { role: "member" } });
   });
 
   it("can delete the club", async () => {
