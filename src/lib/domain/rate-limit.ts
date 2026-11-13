@@ -57,6 +57,7 @@ export type RateLimitKind =
   | "claim-password"
   | "password-reset"
   | "email-code-send"
+  | "entry-code-send"
   | "round-code"
   | "round-code-client"
   | "discount-check"
@@ -100,6 +101,13 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  fifteen minutes: a person who asked twice and then once more. Each code
    *  takes five tries, so this also caps guessing at fifteen in the window. */
   "email-code-send": { limit: 3, windowMs: 15 * MINUTE },
+  /** The code mailed to prove an address before an entry on a public link
+   *  (2026-11-13), keyed on the address. Roomier than `email-code-send` on
+   *  purpose: a society member entering a whole calendar of tournaments in one
+   *  evening (the case `register-email` was made per tournament for) takes a
+   *  code for each. Twenty an hour still caps how many mails one stranger's
+   *  address can be made to receive. */
+  "entry-code-send": { limit: 20, windowMs: 60 * MINUTE },
   /** Round codes are typed off a printed card by people standing on a tee in
    *  the rain, so the allowance is deliberately roomier than a password's —
    *  ten wrong entries is a group that needs to ask, not an attack. It still
@@ -366,6 +374,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many attempts. Try again in ${wait}.`;
     case "password-reset":
       return `Too many reset requests. Try again in ${wait}.`;
+    case "entry-code-send":
+      return `We've sent a lot of entry codes to that address. You can ask for another in ${wait}.`;
     case "email-code-send":
       return EMAIL_CODE_WORDS.tooManySends(wait);
     case "round-code":

@@ -164,7 +164,7 @@ async function openEventFor(cleanToken: string): Promise<Event | null> {
  * address first, like every code this app sends.
  */
 async function holdEntryForProof(cleanToken: string, form: RegistrationForm, person: Person): Promise<RegisterResult> {
-  const limit = await checkRateLimit("email-code-send", person.email);
+  const limit = await checkRateLimit("entry-code-send", person.email);
   if (!limit.allowed) return { ok: false, error: limit.message };
   const user = await prisma.user.upsert({
     where: { email: person.email },

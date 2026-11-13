@@ -117,6 +117,16 @@ describe("the public entry link, pressed twice at once", () => {
         phone: "15551234567",
         preferredTee: "White",
       };
+      // Signed in AS the address: that is the proof the link asks for, and the
+      // only way two presses can arrive together (a code is single-use).
+      jar.clear();
+      const entrant = await prisma.user.upsert({
+        where: { email: form.email },
+        update: { emailVerifiedAt: new Date() },
+        create: { email: form.email, name: form.name, password: "x", emailVerifiedAt: new Date() },
+        select: { id: true },
+      });
+      expect(await createSession(entrant.id)).toBeTruthy();
       const [a, b] = await Promise.all([registerForEvent(ev.token, form), registerForEvent(ev.token, form)]);
       expect(a.ok, a.error).toBe(true);
       expect(b.ok, b.error).toBe(true);

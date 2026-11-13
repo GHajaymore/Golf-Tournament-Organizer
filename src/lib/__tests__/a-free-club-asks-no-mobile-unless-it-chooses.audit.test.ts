@@ -46,7 +46,7 @@ vi.mock("next/cache", () => ({
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addSignup, importCsvSignups } from "@/app/actions/tournament";
-import { registerForEvent } from "@/app/actions/register";
+import { enterOnTheLink as registerForEvent } from "./enter-on-the-link";
 import { PLANS } from "@/lib/plans";
 
 const prisma = new PrismaClient();
