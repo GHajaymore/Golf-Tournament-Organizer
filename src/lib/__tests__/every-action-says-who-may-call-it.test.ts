@@ -122,7 +122,7 @@ const WHO: Record<string, string> = {
   createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business", sendEarlyListCodes: "the business", refreshDemoClub: "the business",
   loadCourseCatalogue: "the business",
   // The owner's books (B44, 2026-11-13): each asks isOwner itself, first, and answers "Not found." to anybody else.
-  addCostEntry: "the business", voidCostEntry: "the business", saveFxRate: "the business",
+  addCostEntry: "the business", voidCostEntry: "the business", saveFxRate: "the business", voidFxRate: "the business",
 };
 
 /** What must appear in the body of an action of each kind. Not proof the check is right — proof it is there. */

@@ -3,7 +3,7 @@ import fc from "fast-check";
 import {
   addMonths, convertRow, costCsvRows, decimalText, grossMargin, isDay, isMonth, microsFromText, microsText, monthOfInstant,
   monthReport, monthRange, monthsBetween, originalText, rateOn, sliceFor, spreadEvenly, sumMinor, toUsdMinor, totalsByCurrency,
-  usdText, COST_CSV_HEADER, type CostRow, type Rate,
+  usdText, daysBetween, rateAge, COST_CSV_HEADER, MAX_COST_MINOR, MAX_RATE_MICROS, type CostRow, type Rate,
 } from "../finance";
 import { readCostBoxes, readRateBoxes } from "../finance-input";
 import { minorUnitsFrom } from "../money-format";
@@ -288,6 +288,48 @@ describe("the CSV", () => {
     expect(lines[1]).toBe("2026-10,cost,Database,'=cmd|' /c calc'!A1,GBP,10.00,1.250000,2026-09-15,override,12.50,typed,owner@example.invalid");
     expect(lines[2]).toBe("2026-10,cost,Tools,zz-vendor,EUR,7.00,,,no rate,,typed,owner@example.invalid");
     expect(csv).not.toContain("secret-id");
+  });
+});
+
+describe("how old the rate behind a figure is", () => {
+  it("counts whole days, across a month and a leap day", () => {
+    expect(daysBetween("2026-10-03", "2026-11-01")).toBe(29);
+    expect(daysBetween("2028-02-28", "2028-03-01")).toBe(2);
+    expect(daysBetween("2026-11-01", "2026-10-03")).toBe(-29);
+  });
+  it("31 days is not over a month; 32 is; dollars have no rate to age", () => {
+    const r = (rateDate: string) => ({ currency: "GBP", rateDate, usdMicrosPerUnit: 1_270_000, source: "override" });
+    expect(rateAge(r("2026-10-01"), "2026-11-01")).toEqual({ ageDays: 31, stale: false });
+    expect(rateAge(r("2026-09-30"), "2026-11-01")).toEqual({ ageDays: 32, stale: true });
+    expect(rateAge(r("2026-11-01"), "2026-11-01").stale).toBe(false);
+    expect(rateAge({ currency: "USD", rateDate: "2026-11-01", usdMicrosPerUnit: 1_000_000, source: "usd" }, "2030-01-01").stale).toBe(false);
+  });
+});
+
+describe("a typed figure never exceeds the 32-bit column it is stored in", () => {
+  const INT4 = 2_147_483_647;
+  it("the ceilings sit under the column's", () => {
+    expect(MAX_COST_MINOR).toBeLessThanOrEqual(INT4);
+    expect(MAX_RATE_MICROS).toBeLessThanOrEqual(INT4);
+  });
+  it("a figure over the ceiling is refused in words; the ceiling itself is taken", () => {
+    const cost = { month: "2026-11", category: "tools", vendor: "", currency: "USD", cadence: "once", endsMonth: "", note: "" };
+    expect(readCostBoxes({ ...cost, amount: "20000000" })).toMatchObject({ ok: true, value: { amountMinor: 2_000_000_000 } });
+    for (const amount of ["20000000.01", "21474837", "99999999999"]) expect(readCostBoxes({ ...cost, amount })).toEqual({ ok: false, error: "That amount is too large to record." });
+    const rate = { currency: "GBP", day: "2026-11-01", reason: "x" };
+    expect(readRateBoxes({ ...rate, rate: "2000" })).toMatchObject({ ok: true, value: { usdMicrosPerUnit: 2_000_000_000 } });
+    for (const r of ["2000.000001", "999999"]) expect(readRateBoxes({ ...rate, rate: r })).toEqual({ ok: false, error: "That rate is too large to record." });
+  });
+  it("property: any typed amount or rate that is accepted fits the column", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 999_999_999_999 }), (n) => {
+        const r = readCostBoxes({ month: "2026-11", category: "tools", vendor: "", currency: "USD", amount: String(n), cadence: "once", endsMonth: "", note: "" });
+        if (r.ok) expect(r.value.amountMinor).toBeLessThanOrEqual(INT4);
+        const q = readRateBoxes({ currency: "GBP", day: "2026-11-01", rate: String(n), reason: "x" });
+        if (q.ok) expect(q.value.usdMicrosPerUnit).toBeLessThanOrEqual(INT4);
+      }),
+      { numRuns: 300 },
+    );
   });
 });
 

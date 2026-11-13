@@ -1,6 +1,6 @@
 import { isCurrencyCode, minorUnitsFrom, moneyBoxRefusal } from "./money-format";
 import {
-  COST_CADENCES, MAX_COST_MINOR, isCostCategory, isDay, isMonth, microsFromText, monthsBetween,
+  COST_CADENCES, MAX_COST_MINOR, MAX_RATE_MICROS, isCostCategory, isDay, isMonth, microsFromText, monthsBetween,
   type CostCadence, type CostCategory,
 } from "./finance";
 
@@ -91,6 +91,7 @@ export function readRateBoxes(raw: RateBoxes): Read<RateToSave> {
   const rateDate = text(raw?.day, 10);
   if (!isDay(rateDate)) return { ok: false, error: "Give the day the rate is for, as year-month-day." };
   const micros = microsFromText(String(raw?.rate ?? ""));
+  if (micros !== null && micros > MAX_RATE_MICROS) return { ok: false, error: "That rate is too large to record." };
   if (micros === null) return { ok: false, error: "Type the rate as dollars per one unit, like 1.27 (up to six decimals, above zero)." };
   const reason = text(raw?.reason, 200);
   if (!reason) return { ok: false, error: "Say where the rate comes from — a typed rate needs a reason." };

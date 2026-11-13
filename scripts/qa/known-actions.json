@@ -412,6 +412,7 @@
   "app/actions/owner.ts:saveOffers": "e2e/owner-console.spec.ts",
   "app/actions/owner-finance.ts:addCostEntry": "e2e/owner-finance.spec.ts",
   "app/actions/owner-finance.ts:voidCostEntry": "e2e/owner-finance.spec.ts",
-  "app/actions/owner-finance.ts:saveFxRate": "e2e/owner-finance.spec.ts"
+  "app/actions/owner-finance.ts:saveFxRate": "e2e/owner-finance.spec.ts",
+  "app/actions/owner-finance.ts:voidFxRate": "e2e/owner-finance.spec.ts"
  }
 }

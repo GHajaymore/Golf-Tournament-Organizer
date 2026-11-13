@@ -381,18 +381,45 @@ export function grossMargin(revenueUsdMinor: number | null, costUsdMinor: number
 // Typed figures and how they are written
 // ---------------------------------------------------------------------------------------------
 
-/** The most one typed cost may be, in minor units: far beyond any real bill, well inside what is held exactly. */
-export const MAX_COST_MINOR = 100_000_000_00;
+/**
+ * The columns are 32-bit integers (A042: amountMinor, usdMicrosPerUnit), whose ceiling is 2,147,483,647. What may be
+ * typed is held below it, so a too-large figure is REFUSED in words rather than failing the insert as a 500.
+ * 2,000,000,000 minor units is 20 million dollars in one cost; the same number as millionths is 2,000 dollars per unit.
+ */
+export const MAX_COST_MINOR = 2_000_000_000;
+export const MAX_RATE_MICROS = 2_000_000_000;
 
 /**
  * A typed rate such as "1.27" or "0.0067" as millionths. Dot decimal, up to six places, nothing else:
- * a rate is not a figure to guess at. Null when it is not one, or is zero.
+ * a rate is not a figure to guess at. Null when it is not one, or is zero. NOT bounded here: the caller holds it to
+ * MAX_RATE_MICROS, so "too large" can be said apart from "not a rate".
  */
 export function microsFromText(text: string): number | null {
   const m = /^(\d{1,6})(?:\.(\d{1,6}))?$/.exec(String(text ?? "").trim());
   if (!m) return null;
   const micros = Number(m[1]) * 1_000_000 + Number((m[2] ?? "").padEnd(6, "0"));
   return micros > 0 && Number.isSafeInteger(micros) ? micros : null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// How old is the rate behind a figure?
+// ---------------------------------------------------------------------------------------------
+
+/** A rate dated more than this many days before the day it converts is called out beside the figure. */
+export const RATE_STALE_DAYS = 31;
+
+/** Whole days from one "YYYY-MM-DD" to another (negative when the second is earlier). UTC midnights, so exact. */
+export function daysBetween(from: string, to: string): number {
+  if (!isDay(from) || !isDay(to)) throw new Error("a day must be YYYY-MM-DD");
+  const at = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
+  return (at(to) - at(from)) / 86_400_000;
+}
+
+/** How old a rate is on the day it converts, and whether that is over a month. US dollars have no rate to age. */
+export function rateAge(rate: Rate, day: string): { ageDays: number; stale: boolean } {
+  if (rate.source === "usd") return { ageDays: 0, stale: false };
+  const ageDays = daysBetween(rate.rateDate, day);
+  return { ageDays, stale: ageDays > RATE_STALE_DAYS };
 }
 
 /** Millionths written back as a decimal with six places: 1270000 is "1.270000". */

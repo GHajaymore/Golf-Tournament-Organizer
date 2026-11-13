@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { rateAge } from "@/lib/domain/finance";
 
 /**
  * ONLY THE OWNERS MAY READ OR WRITE THE BOOKS (B44), against real rows.
@@ -34,7 +35,7 @@ const as = (email: string, role = "admin"): Session => ({ eventId: "e", email, n
 vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { addCostEntry, voidCostEntry, saveFxRate } = await import("@/app/actions/owner-finance");
+const { addCostEntry, voidCostEntry, saveFxRate, voidFxRate } = await import("@/app/actions/owner-finance");
 const { GET } = await import("@/app/owner/finance-export/route");
 const { financeView } = await import("@/lib/services/owner-finance");
 const { default: OwnerConsolePage } = await import("@/app/owner/page");
@@ -77,6 +78,7 @@ describe("who may touch the books", () => {
       expect(await addCostEntry(COST)).toEqual({ ok: false, error: "Not found." });
       expect(await saveFxRate(RATE)).toEqual({ ok: false, error: "Not found." });
       expect(await voidCostEntry("any-id", "because")).toEqual({ ok: false, error: "Not found." });
+      expect(await voidFxRate("any-id", "because")).toEqual({ ok: false, error: "Not found." });
       expect(await costs()).toBe(0);
       expect(await rates()).toBe(0);
     });
@@ -130,11 +132,53 @@ describe("what the owner writes", () => {
     expect(body).toContain("GBP,39.00,1.270000,2026-11-01,override,49.53");
   });
 
-  it("a rate for one currency and day typed twice is one row, the second replacing the first", async () => {
+  it("RATES ARE ADD-ONLY: a rate typed again for a day voids the earlier row and keeps it", async () => {
     session = as(OWNER);
     expect(await saveFxRate({ ...RATE, rate: "1.30" })).toEqual({ ok: true });
-    expect(await rates()).toBe(1);
-    expect((await prisma.fxRate.findFirstOrThrow({ where: { reason: { startsWith: MARK } } })).usdMicrosPerUnit).toBe(1_300_000);
+    const rows = await prisma.fxRate.findMany({ where: { reason: { startsWith: MARK } }, orderBy: { createdAt: "asc" } });
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ usdMicrosPerUnit: 1_270_000 });
+    expect(rows[0].voidedAt).not.toBeNull();
+    expect(rows[1]).toMatchObject({ usdMicrosPerUnit: 1_300_000, voidedAt: null });
+    // The old figure is on the record and the report reads the one in use: 3900 x 1.30 = 5070.
+    const november = (await financeView("2026-11")).months.find((m) => m.month === "2026-11")!;
+    expect(november.lines.find((l) => l.currency === "GBP")?.usd?.usdMinor).toBe(5070);
+    const rate = rows[1];
+    expect((await voidFxRate(rate.id, "")).ok).toBe(false);
+    expect(await voidFxRate(rate.id, "wrong rate")).toEqual({ ok: true });
+    expect((await voidFxRate(rate.id, "again")).ok).toBe(false);
+    expect(await saveFxRate(RATE)).toEqual({ ok: true });
+  });
+
+  it("a month's dollars do not change after a later rate is typed", async () => {
+    session = as(OWNER);
+    const before = (await financeView("2026-11")).months.find((m) => m.month === "2026-11")!.usdMinor;
+    for (const day of ["2026-11-02", "2026-12-01", "2027-03-15"]) expect(await saveFxRate({ ...RATE, day, rate: "9.99" })).toEqual({ ok: true });
+    const after = (await financeView("2026-11")).months.find((m) => m.month === "2026-11")!;
+    expect(after.usdMinor).toBe(before);
+    expect(after.lines.find((l) => l.currency === "GBP")?.usd?.rate.rateDate).toBe("2026-11-01");
+  });
+
+  it("each converted cost is shown in dollars beside what was paid, and a rate over a month old is flagged", async () => {
+    session = as(OWNER);
+    const row = await prisma.costEntry.findFirstOrThrow({ where: { vendor: COST.vendor } });
+    const view = await financeView("2026-11");
+    expect(view.costUsd[row.id]?.usdMinor).toBe(4953);
+    expect(view.costUsd[row.id]?.rate.rateDate).toBe("2026-11-01");
+    // A rate dated 2026-09-30 converting 2026-11-01 is 32 days old: over a month.
+    expect(rateAge({ currency: "GBP", rateDate: "2026-09-30", usdMicrosPerUnit: 1_270_000, source: "override" }, "2026-11-01")).toEqual({ ageDays: 32, stale: true });
+  });
+
+  it("a figure too large for its column is refused in words, not a 500, and stores nothing", async () => {
+    session = as(OWNER);
+    const before = await costs();
+    for (const amount of ["30000000", "99999999999", "20000000.01"]) {
+      expect(await addCostEntry({ ...COST, vendor: `${MARK}-big`, amount })).toEqual({ ok: false, error: "That amount is too large to record." });
+    }
+    expect(await costs()).toBe(before);
+    expect(await saveFxRate({ ...RATE, rate: "5000" })).toEqual({ ok: false, error: "That rate is too large to record." });
+    expect((await addCostEntry({ ...COST, vendor: `${MARK}-max`, amount: "20000000" })).ok).toBe(true);
+    expect((await prisma.costEntry.findFirstOrThrow({ where: { vendor: `${MARK}-max` } })).amountMinor).toBe(2_000_000_000);
   });
 
   it("a box that is not a figure is refused in words and stores nothing", async () => {
@@ -172,6 +216,10 @@ describe("billing, which has no writer yet", () => {
     const before = (await financeView("2026-11")).compedClubs;
     const org = await prisma.organization.create({ data: { name: `${MARK} Heathfield Golf Club`, kind: "club" } });
     await prisma.subscription.create({ data: { organizationId: org.id, plan: "club" } });
+    expect((await financeView("2026-11")).compedClubs).toBe(before + 1);
+    // A canceled or unpaid paid plan is not a comped one.
+    const lapsed = await prisma.organization.create({ data: { name: `${MARK} Lapsed Golf Club`, kind: "club" } });
+    await prisma.subscription.create({ data: { organizationId: lapsed.id, plan: "club", status: "canceled" } });
     expect((await financeView("2026-11")).compedClubs).toBe(before + 1);
     await prisma.billingRecord.create({
       data: { kind: "subscription_invoice", providerRef: `${MARK}-inv-2`, organizationId: org.id, currency: "USD", amountMinor: 17500, paidAt: new Date("2026-11-01T00:00:00Z") },

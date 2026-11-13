@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addCostEntry, saveFxRate, voidCostEntry } from "@/app/actions/owner-finance";
+import { addCostEntry, saveFxRate, voidCostEntry, voidFxRate } from "@/app/actions/owner-finance";
 
 /**
  * THE FINANCE TAB'S TYPED SIDE (B44): add a cost, void a cost, type a rate. Each box is read by the
@@ -90,7 +90,7 @@ export function AddCostForm({ month, categories, currencies }: { month: string; 
   );
 }
 
-export function VoidCostButton({ id, label }: { id: string; label: string }) {
+export function VoidCostButton({ id, label, kind = "cost" }: { id: string; label: string; kind?: "cost" | "rate" }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
@@ -99,7 +99,7 @@ export function VoidCostButton({ id, label }: { id: string; label: string }) {
   const confirm = () => {
     setError("");
     start(async () => {
-      const res = await voidCostEntry(id, reason);
+      const res = kind === "rate" ? await voidFxRate(id, reason) : await voidCostEntry(id, reason);
       if (res.ok) router.refresh();
       else setError(res.error);
     });

@@ -2,7 +2,7 @@
 import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
-import { addCost, saveRate, voidCost, type FinanceResult } from "@/lib/services/owner-finance";
+import { addCost, saveRate, voidCost, voidRate, type FinanceResult } from "@/lib/services/owner-finance";
 import type { CostBoxes, RateBoxes } from "@/lib/domain/finance-input";
 
 /**
@@ -33,7 +33,15 @@ export async function voidCostEntry(id: string, reason: string): Promise<Finance
 export async function saveFxRate(boxes: RateBoxes): Promise<FinanceResult> {
   const session = await getSession();
   if (!session || !isOwner(session.email)) return NOT_FOUND;
-  const done = await saveRate(boxes, session.email);
+  const done = await saveRate(boxes, session.email, new Date());
+  if (done.ok) revalidatePath("/owner");
+  return done;
+}
+
+export async function voidFxRate(id: string, reason: string): Promise<FinanceResult> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return NOT_FOUND;
+  const done = await voidRate(id, reason, session.email, new Date());
   if (done.ok) revalidatePath("/owner");
   return done;
 }

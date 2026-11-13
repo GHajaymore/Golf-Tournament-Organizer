@@ -3925,7 +3925,7 @@ model CostEntry {
   @@index([supersedesId])
 }
 
-/// One day's rate to US dollars: how many millionths of a US dollar one WHOLE unit of `currency` buys
+/// One day's rate to US dollars (ADD-ONLY: a new row each time; see voidedAt): how many millionths of a US dollar one WHOLE unit of `currency` buys
 /// (1 GBP at 1.27 USD is 1270000). `override` is the owner's own typed rate and needs a reason.
 model FxRate {
   id               String   @id @default(cuid())
@@ -3938,8 +3938,10 @@ model FxRate {
   reason           String   @default("")
   enteredByEmail   String   @default("")
   createdAt        DateTime @default(now())
+  /// A wrong or replaced rate is voided, never edited or removed: the row stays, and no report reads it.
+  voidedAt         DateTime?
+  voidReason       String   @default("")
 
-  @@unique([currency, rateDate, source])
   @@index([currency, rateDate])
 }
 

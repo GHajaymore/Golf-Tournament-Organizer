@@ -1,8 +1,9 @@
 import { CURRENCIES } from "@/lib/domain/money-format";
 import {
-  COST_CATEGORIES, costCategoryLabel, firstDayOf, grossMargin, microsText, originalText, sumMinor, usdText,
-  type MonthReport,
+  COST_CATEGORIES, costCategoryLabel, firstDayOf, grossMargin, microsText, originalText, rateAge, sumMinor, usdText,
+  type MonthReport, type Rate,
 } from "@/lib/domain/finance";
+import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import type { FinanceView } from "@/lib/services/owner-finance";
 import { AddCostForm, RateForm, VoidCostButton } from "./OwnerFinanceForms";
 
@@ -26,13 +27,24 @@ export interface Projection {
 const small = { fontSize: 13, color: "var(--color-text-muted)" } as const;
 const num = { textAlign: "right", fontVariantNumeric: "tabular-nums" } as const;
 
-function Usd({ usd, byCurrency }: { usd: number; byCurrency: Record<string, number> }) {
-  const others = Object.entries(byCurrency).filter(([code]) => code !== "USD");
+/** Which day's rate a converted figure used, and a warning when that rate is over a month older than the day it converts. */
+function rateNote(rate: Rate, day: string): string {
+  const { stale } = rateAge(rate, day);
+  const said = `rate of ${formatDay(rate.rateDate, DEFAULT_LOCALE)}`;
+  return stale ? `${said} — over a month old` : said;
+}
+
+function Usd({ report }: { report: MonthReport }) {
+  const day = firstDayOf(report.month);
+  const others = report.lines.filter((l) => l.currency !== "USD");
   return (
     <>
-      {usdText(usd)}
-      {others.map(([code, minor]) => (
-        <span key={code} style={{ ...small, display: "block" }}>{originalText(minor, code)}</span>
+      {usdText(report.usdMinor)}
+      {others.map((l) => (
+        <span key={l.costId} style={{ ...small, display: "block" }}>
+          {originalText(l.amountMinor, l.currency)}
+          {l.usd ? ` · ${rateNote(l.usd.rate, day)}` : ` · no rate for ${formatDay(day, DEFAULT_LOCALE)}`}
+        </span>
       ))}
     </>
   );
@@ -102,7 +114,7 @@ export function OwnerFinance({ view, projection }: { view: FinanceView; projecti
                   <tr key={m.month}>
                     <td style={{ whiteSpace: "nowrap", fontWeight: 500 }}>{m.month}</td>
                     <td className="text-muted" style={{ textAlign: "right" }}>no billing yet</td>
-                    <td style={num}><Usd usd={m.usdMinor} byCurrency={m.byCurrency} /></td>
+                    <td style={num}><Usd report={m} /></td>
                     <td className="text-muted" style={{ textAlign: "right" }}>{margin.marginMinor === null ? "—" : usdText(margin.marginMinor)}</td>
                     <td style={{ fontSize: 13 }} className={m.incomplete ? undefined : "text-muted"}>{stateWords(m, m.month === view.currentMonth)}</td>
                   </tr>
@@ -138,7 +150,15 @@ export function OwnerFinance({ view, projection }: { view: FinanceView; projecti
                     <td style={{ whiteSpace: "nowrap" }}>{c.month}{c.endsMonth ? ` to ${c.endsMonth}` : ""}</td>
                     <td>{costCategoryLabel(c.category)}{c.note ? <span style={{ ...small, display: "block" }}>{c.note}</span> : null}</td>
                     <td>{c.vendor || <span className="text-muted">—</span>}</td>
-                    <td style={num}>{originalText(c.amountMinor, c.currency)}</td>
+                    <td style={num}>
+                      {view.costUsd[c.id] ? usdText(view.costUsd[c.id]!.usdMinor) : <span className="text-muted">no rate</span>}
+                      {c.currency !== "USD" && (
+                        <span style={{ ...small, display: "block" }}>
+                          {originalText(c.amountMinor, c.currency)}
+                          {view.costUsd[c.id] ? ` · ${rateNote(view.costUsd[c.id]!.rate, firstDayOf(c.month))}` : ` · no rate for ${formatDay(firstDayOf(c.month), DEFAULT_LOCALE)}`}
+                        </span>
+                      )}
+                    </td>
                     <td className="text-muted">{c.cadence === "yearly" ? "yearly" : c.cadence}</td>
                     <td className="text-muted" style={{ fontSize: 13 }}>typed by owner</td>
                     <td><VoidCostButton id={c.id} label={`${costCategoryLabel(c.category)} ${c.month}`} /></td>
@@ -157,23 +177,27 @@ export function OwnerFinance({ view, projection }: { view: FinanceView; projecti
         <span className="card-title" style={{ fontSize: 15 }}>Rates to US dollars</span>
         <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "6px 0 0" }}>
           A cost paid in another currency is shown in dollars at the rate dated on or before the first day of its month, and the figure keeps
-          that rate. A month with no rate is shown incomplete, never skipped. You type the rate and say where it comes from.
+          that rate, with the day it is dated beside it. A rate dated over a month before the month it converts is called out. A month with no
+          rate is shown incomplete, never skipped. Rates are only ever added: a rate you type again for a day voids the earlier one and keeps it,
+          and a wrong one is voided with a reason, so a month already reported does not change.
         </p>
-        {view.rates.length === 0 ? (
+        {view.rateHistory.length === 0 ? (
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>No rates typed yet. US dollars need none.</p>
         ) : (
           <div className="table-scroll" style={{ marginTop: 8 }}>
             <table className="table">
               <thead>
-                <tr><th>Currency</th><th>From day</th><th style={{ textAlign: "right" }}>US dollars per 1</th><th>Source</th></tr>
+                <tr><th>Currency</th><th>From day</th><th style={{ textAlign: "right" }}>US dollars per 1</th><th>Source</th><th>Status</th><th /></tr>
               </thead>
               <tbody>
-                {view.rates.map((r) => (
-                  <tr key={`${r.currency}-${r.rateDate}-${r.source}`}>
+                {view.rateHistory.map((r) => (
+                  <tr key={r.id} className={r.voided ? "text-muted" : undefined}>
                     <td>{r.currency}</td>
                     <td>{r.rateDate}</td>
                     <td style={num}>{microsText(r.usdMicrosPerUnit)}</td>
                     <td className="text-muted">{r.source === "override" ? "typed by owner" : r.source}</td>
+                    <td style={{ fontSize: 13 }}>{r.voided ? `voided: ${r.voidReason}` : "in use"}</td>
+                    <td>{r.voided ? null : <VoidCostButton id={r.id} kind="rate" label={`${r.currency} rate of ${r.rateDate}`} />}</td>
                   </tr>
                 ))}
               </tbody>
