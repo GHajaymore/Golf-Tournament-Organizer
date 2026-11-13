@@ -394,6 +394,34 @@ describe("review fixes (2026-11-13)", () => {
     expect((await signUp("Zz Burst", at("burst-0"), "Chosen-Pass-77-golf", "club")).needsCode).toBe(true);
   });
 
+  it("3c. a code that comes back proved gives its send back: more than sixty members entering on one clubhouse wifi all get in", async () => {
+    // Found by round G623-1 (scenario a): a society's field entering from one
+    // connection was told "several codes from this connection" at its 61st entrant.
+    const wifiToken = randomBytes(6).toString("hex");
+    await prisma.event.create({
+      data: {
+        organizationId: orgId, name: `${MARK} Wifi Morning`, status: "registration", shape: "single", format: "stroke",
+        formationRule: "balanced", dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 200,
+        registrationOpen: true, registrationApproval: "auto", registrationToken: wifiToken, shareToken: `${MARK}-wifi`,
+      },
+    });
+    const { limit } = RATE_LIMITS["code-send-client"];
+    for (let i = 0; i <= limit + 4; i++) {
+      newBrowser("192.0.2.79"); // each member's own phone, the clubhouse's one address
+      const who = `wifi-${i}`;
+      const sent = await registerForEvent(wifiToken, { name: `Zz ${who}`, email: at(who), handicap: "12", handicapType: "18", phone: "15551234567" });
+      expect(sent.error, `member ${i + 1} was refused a code`).toBeUndefined();
+      expect(sent.needsCode).toBe(true);
+      const done = await confirmEntryCode(wifiToken, at(who), codesTo(at(who)).at(-1)!.code);
+      expect(done.ok, `member ${i + 1} was not entered`).toBe(true);
+    }
+    // CONTROL: the same connection's sends still count when nobody proves them.
+    newBrowser("192.0.2.80");
+    let last: { ok: boolean; error?: string } = { ok: false };
+    for (let i = 0; i <= limit; i++) last = await registerForEvent(wifiToken, { name: "Zz Spray", email: at(`spray-${i}`), handicap: "12", handicapType: "18", phone: "15551234567" });
+    expect(last.error).toMatch(/several codes from this connection/);
+  }, 180_000);
+
   it("4. every sign-in answer for an address that cannot sign in costs one password check, a half-finished sign-up included", async () => {
     newBrowser();
     await signUp("Zz Half", at("half"), "Half-Done-Pass-55-golf", "club"); // a sign-up nobody finished

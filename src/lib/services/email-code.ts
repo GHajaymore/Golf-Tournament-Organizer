@@ -4,6 +4,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { SECURE_COOKIES } from "@/lib/secure-cookies";
 import { sendEmailCodeEmail } from "@/lib/email";
+import { giveBackClientAttempt } from "@/lib/rate-limit";
+import { clientAddress } from "@/lib/client-address";
 import {
   EMAIL_CODE_DAILY_TRIES,
   EMAIL_CODE_MAX_TRIES,
@@ -210,6 +212,8 @@ export async function checkEmailCode(email: string, typed: unknown): Promise<Che
 
   const spent = await prisma.emailCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
   if (spent.count === 0 || !isEmailCodePurpose(row.purpose)) return { ok: false, error: refusal.expired };
+  // Proved by the inbox's owner: the send it cost this connection is given back.
+  await giveBackClientAttempt("code-send-client", await clientAddress());
   return { ok: true, userId: user.id, purpose: row.purpose, pending: readPending(row.pending) };
 }
 

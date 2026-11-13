@@ -95,5 +95,11 @@ Ajay, 2026-10-21: "go with your recommendations". Three rules, each held at one 
   (same browser, single use) and then places the entry. No Account, place, or confirmation email before that,
   and "already registered" is said only after the code. A spec enters through the link with
   `verifyByCode(page, email)` after pressing Register. A guest the organizer adds by hand needs no email.
+- **Codes sent per connection: 60 in 15 minutes (`code-send-client`), and a PROVED code gives its send
+  back** (`giveBackClientAttempt`, called once in `checkEmailCode`). Only the inbox's owner can type a code,
+  so a clubhouse wifi where a whole society enters on one morning is never refused, while a client making
+  codes go to addresses it cannot read keeps every send counted. Found by round G623-1: scenario a's field,
+  entered from one machine, was refused at its 61st entrant. A walk that enters more than sixty people
+  without typing their codes back will still be refused — that is the limit working.
 - **Content-Security-Policy**: four nonce-free directives enforced, the origin lists Report-Only
   (`next.config.mjs`, `csp.test.ts`); the nonce for `script-src`/`style-src` is the follow-up.
