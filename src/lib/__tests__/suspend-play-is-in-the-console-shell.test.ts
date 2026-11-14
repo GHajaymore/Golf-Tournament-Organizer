@@ -209,6 +209,18 @@ describe("one mount: the console's shell", () => {
   });
 });
 
+describe("the spec's measurements cannot pass on nothing (Security re-review)", () => {
+  it("every box it measures is asserted to exist first, and no comparison hides behind an if", () => {
+    const spec = readSource("e2e/play-suspended.spec.ts");
+    // The shape that skipped: `if (a && b) expect(…)` on boxes, or `if (await x.count())`.
+    const skips = spec.match(/if \([^)]*(?:Box|box|\.count\(\)|tabs|bar)[^)]*\)\s*(?:\{|expect)/g) ?? [];
+    expect(skips, "a measurement is skipped when its subject is missing, and reads as a pass").toEqual([]);
+    expect(spec).toMatch(/expect\(at, `CONTROL: \$\{what\} is not on the screen/);
+    expect(spec.match(/await boxOf\(/g)?.length, "every measured element goes through the existence control").toBeGreaterThanOrEqual(6);
+    expect(spec.match(/toBeGreaterThan\(0\)/g)?.length, "a sticky check on a page that never scrolled proves nothing").toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe("who the alarm will miss, on the confirm (F-2)", () => {
   it("names them, in the player's word for the switch", () => {
     expect(alertsOffWords(["Wren Calloway"])).toBe(

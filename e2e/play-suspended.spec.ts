@@ -196,20 +196,29 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     await expect(banner, "CONTROL: the tee sheet says play is suspended before anybody suspended it").toHaveCount(0);
 
     // ── scrolled down the sheet, the button is still in view, and not under the top bar ─
+    // Every measurement below first proves its subject is there: a missing bar, strip or button
+    // must fail here, never skip the comparison and read as a pass.
+    const boxOf = async (what: string, at: ReturnType<typeof page.locator>) => {
+      await expect(at, `CONTROL: ${what} is not on the screen, so nothing below would be measured`).toBeVisible({ timeout: 20_000 });
+      const box = await at.boundingBox();
+      expect(box, `CONTROL: ${what} has no box to measure`).not.toBeNull();
+      return box!;
+    };
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const scrolled = await page.evaluate(() => window.scrollY);
+    expect(scrolled, "CONTROL: the tee sheet did not scroll, so a sticky check here proves nothing").toBeGreaterThan(0);
     await expect(suspendButton, `scrolled ${scrolled}px down the tee sheet, Suspend play is out of view`).toBeInViewport();
-    const bar = await page.locator(".m-topbar").boundingBox();
-    const button = await suspendButton.boundingBox();
-    if (bar && button) expect(button.y, "Suspend play is under the phone's top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+    const bar = await boxOf("the phone's top bar", page.locator(".m-topbar"));
+    const button = await boxOf("Suspend play", suspendButton);
+    expect(button.y, "Suspend play is under the phone's top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 
     // ── two presses; the open confirm, scrolled down, is in view and above the tab bar ─
     await press("Suspend play");
     const now = page.getByRole("button", { name: "Suspend play now" });
     await expect(now, "the confirm's button is out of view on a small phone").toBeInViewport();
-    const tabs = await page.locator(".m-tabbar").boundingBox();
-    const nowBox = await now.boundingBox();
-    if (tabs && nowBox) expect(nowBox.y + nowBox.height, "Suspend play now sits behind the phone's tab bar").toBeLessThanOrEqual(tabs.y + 1);
+    const tabs = await boxOf("the phone's tab bar", page.locator(".m-tabbar"));
+    const nowBox = await boxOf("Suspend play now", now);
+    expect(nowBox.y + nowBox.height, "Suspend play now sits behind the phone's tab bar").toBeLessThanOrEqual(tabs.y + 1);
     await page.getByLabel("Reason (optional)").fill(REASON);
     await press("Suspend play now");
     await expect(banner, "the tee sheet does not say play is suspended").toBeVisible({ timeout: 20_000 });
@@ -232,14 +241,14 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     await page.goto(`/event?bust=${Date.now()}`);
     await expect(banner).toBeVisible({ timeout: 20_000 });
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    expect(await page.evaluate(() => window.scrollY), "CONTROL: Tournament details did not scroll, so its strip never had to stick").toBeGreaterThan(0);
     // The strip's own heading, so no larger card around it is measured instead.
     const strip = page.locator(".card-kicker", { hasText: "On this page" }).first();
-    if (await strip.count()) {
-      await expect(strip).toBeInViewport();
-      const band = await page.locator(".console-play-status").boundingBox();
-      const stripBox = await strip.boundingBox();
-      if (band && stripBox) expect(stripBox.y, "the settings' On this page strip is under the Suspend play banner").toBeGreaterThanOrEqual(band.y + band.height - 1);
-    }
+    await expect(strip, "CONTROL: Tournament details has no On this page strip to stack").toHaveCount(1);
+    await expect(strip, "scrolled down, the On this page strip is out of view").toBeInViewport();
+    const band = await boxOf("the Suspend play banner", page.locator(".console-play-status"));
+    const stripBox = await boxOf("the On this page strip", strip);
+    expect(stripBox.y, "the settings' On this page strip is under the Suspend play banner").toBeGreaterThanOrEqual(band.y + band.height - 1);
 
     // ── a player is never offered it ────────────────────────────────────────
     const me = await member.newPage();
