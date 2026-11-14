@@ -58,6 +58,8 @@ const ROUND_ACTIONS = [
   // A term of a round changed after play — allowance, split, basis, tees — with what was
   // worked out again; and a drawn round's format changed (J12, state machine PR 7b).
   "round.recomputed", "round.format",
+  // A player with no handicap index given strokes after a round's first card, with the reason (lane N).
+  "strokes-corrected",
   // A published tee sheet changed (or taken back): by count, never by name (J12, state machine PR 7c).
   "tee-sheet.changed",
 ];

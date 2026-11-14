@@ -3373,9 +3373,10 @@ export function StagesClient({
       {/* STEP 2: the next step, always visible, above the rounds it opens (the brief's rule 3). */}
       {timeline && courseDay && <NeedsYou guide={courseDay} onOpen={(id) => setOpenRound(id)} />}
       {/* Players with no handicap index in a round scored net, and the box that gives them strokes:
-          above every round, unfolded, only while somebody needs them (lane N). Staff only — the page
-          passes nothing to anybody the actions would refuse. */}
-      {strokesBand.length > 0 && <NeedsStrokesBand rounds={strokesBand} />}
+          above every round, unfolded (lane N). Always mounted, so it outlives the last Give's refresh
+          and says the last confirmation; it draws nothing with nobody to ask and nothing given. Staff
+          only — the page passes nothing to anybody the actions would refuse. */}
+      <NeedsStrokesBand rounds={strokesBand} />
       {playing.length >= 3 && (
         <EveryRound rounds={playing} resultIds={roundsWithResults} onDone={setEveryNote} />
       )}

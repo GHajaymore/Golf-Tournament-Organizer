@@ -1,7 +1,7 @@
 import type { ReviewQueue } from "./review-queue";
 import type { TournamentStatus, WayOut } from "./tournament-status";
 import { addDays, shortDate } from "./round-dates";
-import { GIVE_STROKES, NEEDS_STROKES_ANCHOR, strokesJobSaid } from "./committee-figure";
+import { CORRECT_STROKES, GIVE_STROKES, NEEDS_STROKES_ANCHOR, scratchJobSaid, strokesJobSaid } from "./committee-figure";
 
 /**
  * THE ORGANIZER'S TO-DO LIST ON THE DAY — Ajay, 2026-10-05.
@@ -162,6 +162,11 @@ export interface TournamentJobFacts {
    * of `playersNeedingFigure`, which asks `needsCommitteeFigure`. Absent or null is nobody.
    */
   strokes?: { roundId: string; round: string; day: string; count: number } | null;
+  /**
+   * THE FIRST OPEN NET ROUND WHERE A PLAYER WITH NO INDEX WAS FROZEN AT THE SCRATCH FIGURE with nothing given
+   * (`scoredAsScratch`): a staff correction, not a Give. Absent or null is nobody.
+   */
+  scratch?: { roundId: string; round: string; count: number } | null;
 }
 
 /**
@@ -351,6 +356,20 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
         action: GIVE_STROKES,
         due: dated && s.day > today ? s.day : today,
         roundId: s.roundId,
+        hash: NEEDS_STROKES_ANCHOR,
+      });
+    }
+    // Frozen at the scratch figure by a card with nothing given: named until corrected, today.
+    const x = t.scratch;
+    if (x && x.count > 0) {
+      jobs.push({
+        ...base,
+        key: "strokes",
+        text: scratchJobSaid(x.count, x.round),
+        href: "/stages",
+        action: CORRECT_STROKES,
+        due: today,
+        roundId: x.roundId,
         hash: NEEDS_STROKES_ANCHOR,
       });
     }

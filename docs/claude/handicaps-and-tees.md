@@ -104,7 +104,7 @@ last read the Rules; the header of that file says when.
 (`handicapSource: "none"`) is stored with a handicap of 0, and until lane N's PR B the pricing chain reads
 that 0 (`resolveRoundHandicap`'s `member ?? 0`) and scores the player as scratch in every net, Stableford
 and match round. Nothing said so: the launch dialog, What's next, the doors and the round's own list were
-silent, and Replace on the tee sheet printed "no index (gross only)" over a player being scored off 0.
+silent, and Replace on the tee sheet printed "no index (gross only)" over a player being scored as scratch.
 
 - A Course Handicap is worked from a Handicap Index (Rules of Handicapping 6.1); with none, the strokes are
   the Committee's to give in a handicap competition (Rules of Golf 3.3b(4), as worded since 2023). What the
@@ -116,11 +116,20 @@ silent, and Replace on the tee sheet printed "no index (gross only)" over a play
   `no-index-is-asked-in-one-place.test.ts` refuses it.
 - **PR A (caught and given)** tells everybody and gives the figure: a band above the rounds on Rounds &
   formats (staff only; Enter gives and moves on), the launch warning, What's next, the rail's to-do, the
-  notes on Entries and Teams & pairs. Its words say what is true while the chain still scores off 0:
-  "scored as scratch, off 0".
+  notes on Entries and Teams & pairs. Its words say what is true while the chain still reads the stored
+  index 0: "scored as a scratch golfer (handicap index 0)". **Not "off 0"**: the chain converts that 0
+  through the tees like any index, so on rated tees whose Course Rating is not par the player plays off
+  Course Rating minus par (73.4 on a par 71 is 2.4, so 2) — `no-index-in-a-net-round.audit.test.ts` holds it.
+- **After the round's first card**, the freeze (until PR B) writes that scratch figure into history for a
+  player nobody gave strokes, and `needsCommitteeFigure` stops asking (frozen counts). So
+  `scoredAsScratch`, beside it, keeps naming them on the band and on What's next, and the way on is the
+  staff correction (`correctRoundStrokes`, `actions/committee-figure.ts`): whole strokes 0 to 54 and a
+  required reason, that player's `override` and `frozen` in one statement, an audit line with old, new, who
+  and why; refused once results are released. The launch row, the rail and the doors' notes speak only of
+  players still to be given strokes before play.
 - **PR B (the sink)** stops the chain pricing a player with no figure, and flips `SINK_LIVE` in the same
   commit, which turns every sentence to "their cards wait". Until it lands, an organizer who ignores every
-  notice can still score a player off nought, and the list keeps naming them.
+  notice can still score a player as a scratch golfer; the band and What's next keep naming them.
 
 ## Tees of a higher par, and who chooses the tees
 

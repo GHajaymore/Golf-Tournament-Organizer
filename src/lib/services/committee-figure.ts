@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { SINK_LIVE, needsCommitteeFigure, needsFigureSaid, needsStrokesFact } from "../domain/committee-figure";
+import { SINK_LIVE, needsCommitteeFigure, needsFigureSaid, needsStrokesFact, scoredAsScratch } from "../domain/committee-figure";
 import { roundLabel } from "../domain/round-label";
 import { isPlayingRound } from "../stage-types";
 
@@ -25,8 +25,10 @@ export interface NeedsStrokesRound {
   label: string;
   /** The round's day, `yyyy-mm-dd`, or "" when it has none yet. */
   day: string;
-  /** In roster order (`seed`), as the round's own handicap list. */
+  /** Who needs strokes (`needsCommitteeFigure`), in roster order (`seed`), as the round's own handicap list. */
   players: { id: string; name: string }[];
+  /** Who was frozen at the scratch figure with nothing given (`scoredAsScratch`): a correction, not a Give. */
+  scratch: { id: string; name: string }[];
 }
 
 export async function needsStrokesFor(eventIds: readonly string[]): Promise<Map<string, NeedsStrokesRound[]>> {
@@ -64,13 +66,18 @@ export async function needsStrokesFor(eventIds: readonly string[]): Promise<Map<
     const all = stages.filter((s) => s.eventId === id);
     const rounds: NeedsStrokesRound[] = [];
     for (const s of open.filter((r) => r.eventId === id)) {
-      const need = maybe.filter((p) => p.eventId === id && needsCommitteeFigure(s, p, rowOf.get(`${s.id}:${p.id}`) ?? null));
-      if (need.length === 0) continue;
+      const mine = maybe.filter((p) => p.eventId === id);
+      const need = mine.filter((p) => needsCommitteeFigure(s, p, rowOf.get(`${s.id}:${p.id}`) ?? null));
+      // Frozen at the scratch figure by the round's first card with nothing given: still named (review of
+      // #1144), with the staff correction as the way on, so no list goes quiet over them.
+      const scratch = mine.filter((p) => scoredAsScratch(s, p, rowOf.get(`${s.id}:${p.id}`) ?? null));
+      if (need.length === 0 && scratch.length === 0) continue;
       rounds.push({
         stageId: s.id,
         label: roundLabel(all, s.id) || "A round",
         day: s.playedOn,
         players: need.map((p) => ({ id: p.id, name: p.name })),
+        scratch: scratch.map((p) => ({ id: p.id, name: p.name })),
       });
     }
     if (rounds.length > 0) out.set(id, rounds);

@@ -9,6 +9,11 @@ import {
   needsFigureTodo,
   needsStrokesFact,
   strokesJobSaid,
+  scoredAsScratch,
+  mayCorrectStrokes,
+  scratchJobSaid,
+  scratchPlayedSaid,
+  correctionAuditLine,
 } from "../committee-figure";
 import { jobHref, whatsNext, type TournamentJobFacts } from "../needs-you-now";
 import { playingHandicapPartsInRound } from "../../round-allowance";
@@ -52,14 +57,14 @@ describe("needsCommitteeFigure — the truth table", () => {
 });
 
 describe("the words say what the app does — PR A's set until the sink is live", () => {
-  it("SINK_LIVE is false in PR A: a player with no figure is still scored off 0, so the words say so", () => {
+  it("SINK_LIVE is false in PR A: a player with no figure is still scored from a stored index 0, so the words say so", () => {
     expect(SINK_LIVE).toBe(false);
   });
 
   it("to staff: 'you', the true consequence, and a link", () => {
     const said = needsFigureSaid({ count: 3, rounds: ["Round 1"], canGive: true, sinkLive: false });
     expect(said).toEqual({
-      text: "3 players have no handicap index and Round 1 is scored net. Until you give them strokes they are scored as scratch, off 0.",
+      text: "3 players have no handicap index and Round 1 is scored net. Until you give them strokes they are scored as a scratch golfer (handicap index 0).",
       link: true,
     });
   });
@@ -67,7 +72,7 @@ describe("the words say what the app does — PR A's set until the sink is live"
   it("to anybody else: names the organizer and carries no link", () => {
     const said = needsFigureSaid({ count: 1, rounds: ["Round 1", "Round 2"], canGive: false, sinkLive: false });
     expect(said.link).toBe(false);
-    expect(said.text).toBe("1 player has no handicap index and Round 1 and Round 2 are scored net. Until the organizer gives them strokes they are scored as scratch, off 0.");
+    expect(said.text).toBe("1 player has no handicap index and Round 1 and Round 2 are scored net. Until the organizer gives them strokes they are scored as a scratch golfer (handicap index 0).");
     expect(said.text).not.toMatch(/committee/i);
   });
 
@@ -83,7 +88,8 @@ describe("the words say what the app does — PR A's set until the sink is live"
       needsFigureSaid({ count: 2, rounds: ["Round 1"], canGive: true, sinkLive: false }).text,
       needsFigureTodo(2, ["Round 1"], false),
     ]) {
-      expect(s).toContain("scratch, off 0");
+      expect(s).toContain("scored as a scratch golfer (handicap index 0)");
+      expect(s, "off 0 is false on rated tees whose Course Rating is not par").not.toContain("off 0");
       expect(s).not.toMatch(/wait|no net score|score nothing/);
     }
   });
@@ -168,5 +174,45 @@ describe("the list as one fact, and the What's next line", () => {
   it("no line when nobody needs strokes", () => {
     expect(whatsNext({ tournaments: [{ ...base, strokes: null }], today: "2026-11-14", locale: "en-GB" })).toEqual([]);
     expect(whatsNext({ tournaments: [{ ...base, strokes: { roundId: "r1", round: "Round 1", day: "", count: 0 } }], today: "2026-11-14", locale: "en-GB" })).toEqual([]);
+  });
+
+  it("a player frozen at the scratch figure is a line too, today, with the correction", () => {
+    const jobs = whatsNext({ tournaments: [{ ...base, scratch: { roundId: "r1", round: "Round 1", count: 1 } }], today: "2026-11-14", locale: "en-GB" });
+    expect(jobs.map((j) => [j.key, j.text, j.action, j.due, jobHref(j)])).toEqual([
+      ["strokes", "1 player with no handicap index is scored as a scratch golfer (handicap index 0) in Round 1", "Correct the strokes", "2026-11-14", "/stages?round=r1#needs-strokes"],
+    ]);
+  });
+});
+
+describe("frozen at the scratch figure by the first card: still named, and correctable by staff", () => {
+  const none = { handicapSource: "none" };
+  it("scoredAsScratch: net, no index, nothing given, something frozen — and nothing else", () => {
+    expect(scoredAsScratch({ scoringBasis: "net" }, none, { override: null, frozen: 0 })).toBe(true);
+    expect(scoredAsScratch({ scoringBasis: "net" }, none, { override: null, frozen: 2 })).toBe(true);
+    expect(scoredAsScratch({ scoringBasis: "net" }, none, { override: 14, frozen: 14 }), "a given figure, frozen, is the committee's").toBe(false);
+    expect(scoredAsScratch({ scoringBasis: "net" }, none, null), "nothing frozen: still a Give").toBe(false);
+    expect(scoredAsScratch({ scoringBasis: "gross" }, none, { override: null, frozen: 0 })).toBe(false);
+    expect(scoredAsScratch({ scoringBasis: "net" }, { handicapSource: "manual" }, { override: null, frozen: 0 })).toBe(false);
+  });
+
+  it("the two never both answer yes: a player is either to be given strokes or to be corrected", () => {
+    for (const row of [null, { override: null, frozen: null }, { override: null, frozen: 0 }, { override: 3, frozen: null }, { override: 3, frozen: 3 }]) {
+      const both = needsCommitteeFigure({ scoringBasis: "net" }, none, row) && scoredAsScratch({ scoringBasis: "net" }, none, row);
+      expect(both, JSON.stringify(row)).toBe(false);
+    }
+  });
+
+  it("mayCorrectStrokes: only a player with no index, only in a round scored net", () => {
+    expect(mayCorrectStrokes({ scoringBasis: "stableford" }, none)).toBe(true);
+    expect(mayCorrectStrokes({ scoringBasis: "gross" }, none)).toBe(false);
+    expect(mayCorrectStrokes({ scoringBasis: "net" }, { handicapSource: "ghin" })).toBe(false);
+  });
+
+  it("the band and the audit line: what happened, the way on, and old, new and why", () => {
+    expect(scratchJobSaid(2, "Round 1")).toBe("2 players with no handicap index are scored as a scratch golfer (handicap index 0) in Round 1");
+    expect(scratchPlayedSaid("Zz Okello", "Round 1")).toContain("Correct the strokes, with a reason.");
+    expect(correctionAuditLine({ name: "Zz Okello", round: "Round 1", from: 2, to: 14, reason: "Card shown at the desk" })).toBe(
+      "Strokes corrected for Zz Okello (no handicap index) in Round 1: 2 to 14, the committee's figure. Reason: Card shown at the desk",
+    );
   });
 });

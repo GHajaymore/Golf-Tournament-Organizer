@@ -20,8 +20,9 @@
  * refuses a second copy.
  *
  * TWO SETS OF WORDS, ONE SWITCH (`SINK_LIVE`, the panel's amendment 12.1). Until the pricing chain stops
- * scoring a player with no figure (PR B), such a player IS scored off 0, and the words say exactly that:
- * "scored as scratch, off 0". PR B flips `SINK_LIVE` in the commit that makes the other set true ("their
+ * scoring a player with no figure (PR B), such a player IS scored from a stored index 0, and the words say
+ * exactly that: "scored as a scratch golfer (handicap index 0)" — not "off 0", which is false on rated tees
+ * whose Course Rating is not par. PR B flips `SINK_LIVE` in the commit that makes the other set true ("their
  * cards wait, with no net score"). Every builder takes `sinkLive` as a REQUIRED argument, so no screen
  * can print one set while the app does the other.
  *
@@ -63,6 +64,30 @@ export function needsCommitteeFigure(
 }
 
 /**
+ * THE SAME PLAYER, AFTER THE ROUND'S FIRST CARD, WITH NOTHING GIVEN. Until PR B the freeze writes every
+ * confirmed player's figure at the first card — for a player with no index, the conversion of a stored
+ * index 0 — so the rule above stops asking at exactly the moment the scratch figure becomes permanent.
+ * This names them, so no list goes quiet over them: a round scored net, no index, no committee figure,
+ * and a frozen one. The way on is a staff correction with a reason (`mayCorrectStrokes`).
+ */
+export function scoredAsScratch(
+  round: { scoringBasis: string },
+  player: { handicapSource: string | null },
+  row: { override: number | null; frozen: number | null } | null,
+): boolean {
+  return isNetBasis(round.scoringBasis) && !hasIndex(player) && row?.override == null && row?.frozen != null;
+}
+
+/**
+ * WHOSE STROKES A STAFF CORRECTION MAY SET ONCE A CARD IS IN (the panel's §12.2): only a player with no
+ * index in a round scored net — the one figure the Rules make the Committee's own arithmetic (Rules of
+ * Golf 3.3b(4)). Everybody else's frozen handicap keeps the existing rule.
+ */
+export function mayCorrectStrokes(round: { scoringBasis: string }, player: { handicapSource: string | null }): boolean {
+  return isNetBasis(round.scoringBasis) && !hasIndex(player);
+}
+
+/**
  * THE LIST AS ONE FACT — how many players, and in which rounds — for the launch warning and the setup
  * rail. Built from `playersNeedingFigure`'s rounds (services/committee-figure.ts) by `needsStrokesFact`.
  * Null when nobody needs strokes, and always for a gross-only tournament.
@@ -91,6 +116,13 @@ export function roundsSaid(labels: readonly string[]): string {
 }
 
 /**
+ * WHAT THE CHAIN DOES WITH A STORED INDEX 0 (review of #1144): it converts it through the tees like any
+ * index, so on rated tees whose Course Rating differs from par the player plays off Course Rating minus
+ * par (73.4 on a par 71 is 2), not off 0. "A scratch golfer (handicap index 0)" is true on every tee.
+ */
+const AS_SCRATCH = "scratch golfer (handicap index 0)";
+
+/**
  * WHAT HAPPENS TO THEM UNTIL STROKES ARE GIVEN — the one clause both sets differ in. `who` is "you"
  * (staff) or "the organizer".
  */
@@ -98,7 +130,7 @@ function untilSaid(sinkLive: boolean, who: "you" | "the organizer"): string {
   const give = who === "you" ? "you give them strokes" : "the organizer gives them strokes";
   return sinkLive
     ? `Their cards wait, with no net score, until ${give}.`
-    : `Until ${give} they are scored as scratch, off 0.`;
+    : `Until ${give} they are scored as a ${AS_SCRATCH}.`;
 }
 
 /**
@@ -144,7 +176,7 @@ export function strokesJobSaid(count: number, round: string, day: string): strin
  */
 export function needsFigureTodo(count: number, rounds: readonly string[], sinkLive: boolean): string {
   const lead = `Give strokes to the ${count === 1 ? "player" : `${count} players`} with no handicap index in ${roundsSaid(rounds)}.`;
-  return sinkLive ? `${lead} Their cards wait until you do.` : `${lead} Until you do they are scored as scratch, off 0.`;
+  return sinkLive ? `${lead} Their cards wait until you do.` : `${lead} Until you do they are scored as a ${AS_SCRATCH}.`;
 }
 
 /** The band's heading: "3 players need strokes for Round 1." */
@@ -209,9 +241,29 @@ export const NOT_SAVED_YET = "Not saved yet";
 export const NOT_SAVED_TRY_AGAIN = "Not saved. Try again.";
 
 /**
- * A ROW WHOSE ROUND ALREADY HAS A CARD IN. True in PR A, where a round's handicaps are fixed at its first
- * card (`setRoundHandicapOverride` refuses): the band says so instead of offering a box the server will
- * refuse. PR B lets the strokes be given late and changes this sentence in the same commit.
+ * A ROW WHOSE ROUND ALREADY HAS A CARD IN (`scoredAsScratch`, or a late entrant the next card will freeze).
+ * Give cannot reach it — `setRoundHandicapOverride` refuses once a card is in — so the band says what
+ * happened and offers the staff correction (`correctRoundStrokes`), with a reason that is kept.
  */
-export const cardsInSaid = (name: string, round: string) =>
-  `A card is in for ${round}, so its handicaps are fixed: ${name} is scored as scratch, off 0, there.`;
+export const scratchPlayedSaid = (name: string, round: string) =>
+  `${name} has no handicap index and is scored as a ${AS_SCRATCH} in ${round}: a card is in, and no strokes were given. Correct the strokes, with a reason. It is kept in the history.`;
+
+/** The correction's button, and its line on What's next. */
+export const CORRECT_STROKES = "Correct the strokes";
+export function scratchJobSaid(count: number, round: string): string {
+  return `${count === 1 ? "1 player with no handicap index is" : `${count} players with no handicap index are`} scored as a ${AS_SCRATCH} in ${round || "a round"}`;
+}
+
+/** The reason box: what it is for, and its refusal. */
+export const CORRECTION_REASON_LABEL = "Why (kept in the history)";
+export const CORRECTION_REASON_MAX = 200;
+export const CORRECTION_NEEDS_REASON = "Say why the strokes are corrected. It is kept in the history.";
+
+/** After a correction: on the band, and the audit line (where "the committee" may stand, §12.1). */
+export function correctedSaid(name: string, strokes: number, round: string): string {
+  return `${name}: ${strokes} ${strokes === 1 ? "stroke" : "strokes"} in ${round}, corrected by you.`;
+}
+export function correctionAuditLine(args: { name: string; round: string; from: number | null; to: number; reason: string }): string {
+  const from = args.from === null ? "nothing frozen" : `${args.from}`;
+  return `Strokes corrected for ${args.name} (no handicap index) in ${args.round}: ${from} to ${args.to}, the committee's figure. Reason: ${args.reason}`;
+}

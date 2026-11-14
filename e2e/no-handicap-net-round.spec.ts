@@ -1,5 +1,5 @@
 import { test, expect } from "./coverage";
-import { prisma, makeClub, dropClub, makeEvent, signIn, addDays, dayIn, type Club } from "./rounds-fixture";
+import { prisma, makeClub, dropClub, makeEvent, signIn, addDays, dayIn, returnCard, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
 
 /**
@@ -7,7 +7,7 @@ import { watchPageErrors } from "./page-errors";
  *
  * Pressed as the secretary who would: two members in the field have no index, in a tournament of two net
  * rounds on one card. Entries says so after the field is in ("2 players have no handicap index … scored as
- * scratch, off 0") with Give strokes; the link lands on the band at the top of Rounds & formats with the
+ * a scratch golfer (handicap index 0)") with Give strokes; the link lands on the band at the top of Rounds & formats with the
  * first box focused; the secretary types a figure and presses Enter, which gives it and moves to the next
  * box, twice, with no pointer. Read back from the database: each figure on each round as the round's own
  * (never on the player, whose roster row still says no index), and the band, the note and the dashboard's
@@ -69,7 +69,7 @@ test.describe("no handicap index in a net round", () => {
       await page.goto(`/registration?bust=${Date.now()}`);
       const note = page.getByRole("note").filter({ hasText: "have no handicap index" });
       await expect(note).toContainText(`${noIndex.length} players have no handicap index and Round 1 and Round 2 are scored net.`);
-      await expect(note).toContainText("Until you give them strokes they are scored as scratch, off 0.");
+      await expect(note).toContainText("Until you give them strokes they are scored as a scratch golfer (handicap index 0).");
 
       // 2. Give strokes → the band, first box focused.
       await note.getByRole("link", { name: "Give strokes" }).click();
@@ -98,6 +98,14 @@ test.describe("no handicap index in a net round", () => {
       }
       await expect(band.getByRole("status")).toContainText("Everyone in Round 1 has a handicap.", { timeout: 20_000 });
 
+      // A figure given by mistake: Change on its line, before the round's first card. 18 was meant to be 16.
+      await band.getByRole("button", { name: `Change ${noIndex[0].name}'s strokes for Round 1` }).click();
+      const again = band.getByLabel("Strokes for Round 1 (whole number, 0 to 54)");
+      await expect(again).toHaveCount(1);
+      await again.fill("16");
+      await again.press("Enter");
+      await expect(band.getByRole("status")).toContainText(`${noIndex[0].name}: 16 strokes, given by you.`, { timeout: 20_000 });
+
       // 4. The dashboard's What's next has no line for it.
       await page.goto(`/dashboard?bust=${Date.now()}`);
       await expect(page.getByText(/need(s)? strokes from you/)).toHaveCount(0);
@@ -111,13 +119,49 @@ test.describe("no handicap index in a net round", () => {
     for (const [i, p] of noIndex.entries()) {
       for (const stageId of rounds) {
         const row = await prisma.roundHandicap.findUnique({ where: { stageId_playerId: { stageId, playerId: p.id } } });
-        expect(row?.override, `${p.name} in ${stageId}`).toBe([18, 14][i]);
+        expect(row?.override, `${p.name} in ${stageId}`).toBe([16, 14][i]);
       }
       const player = await prisma.player.findUniqueOrThrow({ where: { id: p.id } });
       expect([player.handicap, player.handicapSource], "the roster still says no index").toEqual([0, "none"]);
     }
     console.log(`[no-index-net] presses ${presses}, characters typed ${typed}, players ${noIndex.length}`);
     expect(presses, "one link, then one Enter per player").toBe(1 + noIndex.length);
+    expect(errors).toEqual([]);
+  });
+
+  test("a player frozen at the scratch figure by the first card is still named, and corrected with a reason", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(180_000);
+    const errors: string[] = [];
+    // A second tournament: one net round with a card in, frozen as the app freezes at a first card —
+    // every confirmed player, the one with no index at the stored 0 — and nobody gave strokes.
+    const made = await makeEvent(club, "Winter Stableford", { status: "live", stages: [{ scoringBasis: "net", playedOn: dayIn(ZONE) }], players: 3 });
+    const stageId = made.stages[0].id;
+    const nox = made.players[2];
+    await prisma.player.update({ where: { id: nox.id }, data: { handicap: 0, handicapSource: "none" } });
+    await returnCard(made.event.id, stageId, made.players[0].id);
+    await prisma.roundHandicap.createMany({
+      data: made.players.map((p, i) => ({ eventId: made.event.id, stageId, playerId: p.id, frozen: p.id === nox.id ? 0 : Math.round(6 + i * 3.4), frozenAt: new Date() })),
+    });
+
+    const context = await browser.newContext({ ...testInfo.project.use, baseURL, serviceWorkers: "block" });
+    await signIn(context, baseURL!, club, made.event.id);
+    try {
+      const page = await context.newPage();
+      watchPageErrors(page, errors, "secretary");
+      await page.goto(`/stages?bust=${Date.now()}#needs-strokes`);
+      const band = page.locator("#needs-strokes");
+      await expect(band).toContainText(`${nox.name} has no handicap index and is scored as a scratch golfer (handicap index 0) in Round 1`);
+      await band.getByLabel("Strokes for Round 1 (whole number, 0 to 54)").fill("14");
+      await band.getByLabel("Why (kept in the history)").fill("Handicap card shown at the desk");
+      await band.getByRole("button", { name: `Correct the strokes for ${nox.name} in Round 1` }).click();
+      await expect(band.getByRole("status")).toContainText(`${nox.name}: 14 strokes in Round 1, corrected by you.`, { timeout: 20_000 });
+    } finally {
+      await context.close();
+    }
+    const row = await prisma.roundHandicap.findUniqueOrThrow({ where: { stageId_playerId: { stageId, playerId: nox.id } } });
+    expect([row.override, row.frozen, row.frozenExact]).toEqual([14, 14, null]);
+    const line = await prisma.auditLog.findFirst({ where: { eventId: made.event.id, action: "strokes-corrected" } });
+    expect(line?.detail).toContain("Reason: Handicap card shown at the desk");
     expect(errors).toEqual([]);
   });
 });
