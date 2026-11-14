@@ -340,7 +340,7 @@ test gets a text and a PNG attachment (the config also keeps a trace on failure)
 | `native confirm/alert/beforeunload dialog ...` | a dialog stalled the press; it was dismissed |
 | `atCentre=<x> ... (covering it)` or `attached=false` | the target was covered or replaced under the click |
 | `moved=true` | it was animating or re-laying out |
-| `took N ms, test clock S s` and nothing else | the click or the expect was slow, not stuck: read the test clock |
+| `took N ms, started <ISO time>` and nothing else | the click or the expect was slow, not stuck: the ISO times line up with the job log |
 | `pageerror` / `request failed` just before | the app threw, or a request dropped, at the press |
 
 **Quarantine: not yet.** Two occurrences on different branches, and the instrumentation has not yet run in

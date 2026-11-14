@@ -21,6 +21,7 @@ import type { Locator, Page, TestInfo } from "@playwright/test";
  * returns in time costs one timer.
  */
 const watched = new WeakSet<Page>();
+const pending = new WeakMap<Page, number>();
 
 /** Log what no assertion will: a crash, a native dialog, a page error, a closed page. Once per page. */
 export function watchForStalls(page: Page, label: string): void {
@@ -32,8 +33,9 @@ export function watchForStalls(page: Page, label: string): void {
     console.log(`[stalled-click] ${label}: native ${d.type()} dialog "${d.message().slice(0, 120)}" — dismissing it`);
     void d.dismiss().catch(() => undefined);
   });
-  page.on("pageerror", (e) => console.log(`[stalled-click] ${label}: pageerror ${String(e).slice(0, 200)}`));
-  page.on("requestfailed", (r) => console.log(`[stalled-click] ${label}: request failed ${r.method()} ${r.url().slice(0, 120)} ${r.failure()?.errorText ?? ""}`));
+  // Only while a watched step is pending: the rest of the walk's errors are the spec's own to report.
+  page.on("pageerror", (e) => pending.get(page) && console.log(`${new Date().toISOString()} [stalled-click] ${label}: pageerror ${String(e).slice(0, 200)}`));
+  page.on("requestfailed", (r) => pending.get(page) && console.log(`${new Date().toISOString()} [stalled-click] ${label}: request failed ${r.method()} ${r.url().slice(0, 120)} ${r.failure()?.errorText ?? ""}`));
 }
 
 /** Say, in a bounded time, what the page is doing. Never throws, never waits more than a few seconds. */
@@ -98,19 +100,22 @@ export async function clickAndExplain(page: Page, target: Locator, label: string
 /**
  * Any step, watched the same way. The CI log of the failure said the test stood in the 10-second
  * `toHaveValue` AFTER the click (a bounded wait that ran 4 minutes): so either the click took the
- * time, or the expect did not keep its bound. Wrapping both, with the test clock stamped at each end,
+ * time, or the expect did not keep its bound. Wrapping both, with ISO times stamped at each end,
  * tells the two apart.
  */
 export async function whileWatching(page: Page, target: Locator, label: string, testInfo: TestInfo | undefined, step: () => Promise<unknown>, after = 20_000): Promise<void> {
   watchForStalls(page, label);
   const started = Date.now();
-  const clock = () => (testInfo ? `test clock ${Math.round(testInfo.duration / 1000)} s` : "");
+  // testInfo.duration is 0 while a test runs, so stamp wall-clock ISO times (compare with the log's own).
+  const startedAt = new Date(started).toISOString();
+  pending.set(page, (pending.get(page) ?? 0) + 1);
   const timer = setTimeout(() => void lookAt(page, target, label, testInfo, Date.now() - started), after);
   try {
     await step();
   } finally {
     clearTimeout(timer);
+    pending.set(page, Math.max(0, (pending.get(page) ?? 1) - 1));
     const took = Date.now() - started;
-    if (took > 3_000) console.log(`[stalled-click] ${label}: took ${took} ms, ${clock()}`);
+    if (took > 3_000) console.log(`${new Date().toISOString()} [stalled-click] ${label}: took ${took} ms, started ${startedAt}`);
   }
 }
