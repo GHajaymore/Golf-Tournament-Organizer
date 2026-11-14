@@ -2,6 +2,7 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cloneEvent } from "@/app/actions/tournament";
+import { landingAfterCreate } from "@/lib/domain/after-create";
 import { Icon } from "./Icon";
 import { CopyDayFields } from "./CopyDayFields";
 
@@ -103,7 +104,7 @@ export function CopyLastEvent({
                 return;
               }
               // `cloneEvent` opened the copy; the home is now the copy's.
-              router.push("/dashboard");
+              router.push(landingAfterCreate("copied"));
               router.refresh();
             });
           }}
