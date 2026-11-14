@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamEntryMode } from "@/lib/domain/team-entry";
+import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
 import { PlayClient } from "@/components/PlayClient";
@@ -6849,7 +6850,7 @@ describe("registration and field", () => {
       <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -6945,7 +6946,7 @@ describe("registration and field", () => {
       <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -7940,11 +7941,11 @@ describe("the lifecycle button names the phase, not the link", () => {
     );
   };
 
-  it("offers Launch and says Setting up, whichever setting-up status is stored (G1, 2026-10-31)", async () => {
+  it("offers Launch and says Setting up on the one setting-up status (G1, 2026-10-31; A045)", async () => {
     // The ladder's two buttons gated nothing — taking entries is the sign-up
-    // link, readiness is the launch gate — so they are gone, and the three
-    // stored values read as one step.
-    for (const status of ["draft", "registration", "ready"]) {
+    // link, readiness is the launch gate — so they are gone, and since A045
+    // (state machine PR 8) one stored value is left before launch.
+    for (const status of PRE_LAUNCH_STATUSES) {
       const html = await bar(status);
       expect(html, status).toContain("Launch tournament");
       expect(html, status).toContain("Setting up");

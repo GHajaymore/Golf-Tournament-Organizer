@@ -42,6 +42,12 @@ vi.mock("next/headers", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
+// `/play` mounts the suspension siren (a client component asking `useRouter`), and this renders the page
+// outside the app router: the same stand-in `the-scorer-keeps-every-ball.audit.test.ts` uses.
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
+}));
 
 import { claimPlayerSlot, claimPlayerSlotForm, redeemRoundCode, savePlayMatchHoles } from "@/app/actions/play";
 import { getPlaySession } from "@/lib/play-auth";
