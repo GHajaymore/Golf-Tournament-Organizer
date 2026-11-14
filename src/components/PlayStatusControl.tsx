@@ -10,7 +10,12 @@ import { formatClock } from "@/lib/domain/locale";
  * The organizer's half of "play suspended" (Rule 5.7): one button to stop the
  * field, one to start it again. Two taps to suspend — the button, then the
  * confirm with an optional reason — because it buzzes every phone in the
- * field; one to resume, because by then everybody is waiting on it.
+ * field. And two to resume, the button then "Resume play now" (decided by the
+ * PM for the TD, 14 Nov, review of #1149 C3): it used to be one, "because by
+ * then everybody is waiting on it", but that was when it lived on one screen.
+ * On every console screen it is the primary button at the top, and a stray
+ * tap sends the field back out into the lightning: an accidental suspend is
+ * safe, an accidental resume is not.
  *
  * Drawn on every console screen by the shell (`ConsolePlayStatus`), never by
  * a page. `alertsOff` is the names of the players the alarm will not reach
@@ -29,9 +34,23 @@ export function PlayStatusControl({
   alertsOff?: readonly string[];
 }) {
   const [open, setOpen] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [why, setWhy] = useState("");
   const { pending, error, run } = useAction();
-  const close = () => setOpen(false);
+  const close = () => {
+    setOpen(false);
+    setResuming(false);
+  };
+  /**
+   * A confirm is about the suspension it was opened on. When the server's
+   * state moves under it (another staff member resumed, or resumed and
+   * suspended again — `PlayStatusFrame` brings that in), it closes, so a
+   * Resume confirmed for an old storm can never lift a new one.
+   */
+  useEffect(() => {
+    setOpen(false);
+    setResuming(false);
+  }, [suspended, since]);
   /**
    * The time on the ORGANIZER'S clock, so only in the browser. Formatted on
    * the server it would be the server's zone (UTC in production) and then a
@@ -57,9 +76,26 @@ export function PlayStatusControl({
             {note ? `${note}. ` : ""}Every player has been told to stop, on their phone and on the public board.
           </p>
         </div>
-        <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run(resumePlay, close)}>
-          {pending ? "Resuming…" : "Resume play"}
-        </button>
+        {resuming ? (
+          <div style={{ flexBasis: "100%", display: "grid", gap: 8 }}>
+            <strong>Resume play for the whole field?</strong>
+            <p style={{ margin: 0, fontSize: 13 }}>
+              Players will be told to play on, from where they stopped, on their phones and on the public board.
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run(resumePlay, close)}>
+                {pending ? "Resuming…" : "Resume play now"}
+              </button>
+              <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => setResuming(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-primary" onClick={() => setResuming(true)}>
+            Resume play
+          </button>
+        )}
         {error && <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)", flexBasis: "100%" }}>{error}</p>}
       </section>
     );

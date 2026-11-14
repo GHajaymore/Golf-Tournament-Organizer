@@ -17,6 +17,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 const { suspendPlay, resumePlay } = await import("@/app/actions/play-status");
 const { tournamentStatusNow } = await import("@/lib/services/tournament-status");
 const { consoleOffersPlayStop } = await import("@/lib/domain/play-status");
+const { isMatch } = await import("@/lib/tournament-shape");
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SUSPEND";
@@ -114,18 +115,23 @@ describe("the committee stops and restarts the field", () => {
  * suspended there, when the way back is offered whatever the step.
  */
 describe("the console offers Suspend play on the machine's step, from real rows", () => {
-  async function seedWithRound(status: string) {
+  async function seedWithRound(status: string, shape?: string) {
     const id = await seed();
-    await prisma.event.update({ where: { id }, data: { status } });
+    await prisma.event.update({ where: { id }, data: shape ? { status, shape } : { status } });
     await prisma.stage.create({ data: { eventId: id, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "gross" } });
     return id;
   }
   /** What the shell would draw for this viewer: its step, its row, its rule. */
   async function offered(id: string, viewRole: string) {
     const step = (await tournamentStatusNow(id))?.status.step ?? null;
-    const r = await row(id);
-    return { step, offered: consoleOffersPlayStop(viewRole, step, !!r?.playSuspendedAt) };
+    const r = await prisma.event.findUniqueOrThrow({ where: { id }, select: { playSuspendedAt: true, shape: true } });
+    return { step, offered: consoleOffersPlayStop({ viewRole, step, suspended: !!r.playSuspendedAt, casualRound: isMatch(r.shape) }) };
   }
+
+  it("a casual round: created live and never closed, and never offered it — the creator is no committee (#1149 C1)", async () => {
+    const id = await seedWithRound("live", "match");
+    expect(await offered(id, "admin"), "Suspend play over a game between friends").toEqual({ step: "live", offered: false });
+  });
 
   it("a draft: not offered", async () => {
     const id = await seedWithRound("draft");

@@ -230,9 +230,10 @@ describe("the tournament switcher", () => {
     const over = tournamentStatus(launched(facts({ rounds: closed(true) }))).step;
     expect(live).toBe("live");
     expect(over).toBe("play-over");
-    expect(consoleOffersPlayStop("admin", live, false)).toBe(true);
-    expect(consoleOffersPlayStop("admin", over, false), "offered to suspend play that is over").toBe(false);
-    expect(consoleOffersPlayStop("admin", over, true), "suspended, with no way back on the screen").toBe(true);
+    const offered = (step: string, suspended: boolean) => consoleOffersPlayStop({ viewRole: "admin", step, suspended, casualRound: false });
+    expect(offered(live, false)).toBe(true);
+    expect(offered(over, false), "offered to suspend play that is over").toBe(false);
+    expect(offered(over, true), "suspended, with no way back on the screen").toBe(true);
     expect(playOverOf([{ type: "Stroke Play Round", closedAt: new Date() }])).toBe(true);
   });
 });

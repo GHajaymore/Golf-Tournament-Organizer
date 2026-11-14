@@ -3,6 +3,7 @@ import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { readSource } from "./source";
 import { alertsOffWords, consoleOffersPlayStop } from "@/lib/domain/play-status";
+import { PLAY_STATUS_REFRESH_MS } from "@/components/PlayStatusFrame";
 
 /**
  * SUSPEND PLAY IS ON EVERY CONSOLE SCREEN, DRAWN ONCE (simplicity cut 2,
@@ -45,24 +46,38 @@ function mountsOf(component: string): string[] {
   return [...sourcesUnder("src/app"), ...sourcesUnder("src/components")].filter((f) => tag.test(readSource(f)));
 }
 
+const offered = (viewRole: string, step: string | null, suspended: boolean, casualRound = false) =>
+  consoleOffersPlayStop({ viewRole, step, suspended, casualRound });
+
 describe("the rule: when the console offers to stop play", () => {
   it("staff while the tournament is being played", () => {
-    expect(consoleOffersPlayStop("admin", "live", false)).toBe(true);
-    expect(consoleOffersPlayStop("assistant", "live", false), "an assistant runs the day as much as the organizer").toBe(true);
+    expect(offered("admin", "live", false)).toBe(true);
+    expect(offered("assistant", "live", false), "an assistant runs the day as much as the organizer").toBe(true);
   });
 
   it("never before launch, and never once play is over (T69) — unless play is suspended", () => {
     for (const step of ["setting-up", "play-over", "completed", null]) {
-      expect(consoleOffersPlayStop("admin", step, false), `offered on ${step}`).toBe(false);
-      expect(consoleOffersPlayStop("admin", step, true), `suspended on ${step} with no way back`).toBe(true);
+      expect(offered("admin", step, false), `offered on ${step}`).toBe(false);
+      expect(offered("admin", step, true), `suspended on ${step} with no way back`).toBe(true);
     }
   });
 
   it("never to a player, nor to staff looking as a player — even while play is suspended", () => {
     for (const viewRole of ["player", "", "guest"]) {
-      expect(consoleOffersPlayStop(viewRole, "live", false), viewRole).toBe(false);
-      expect(consoleOffersPlayStop(viewRole, "live", true), viewRole).toBe(false);
+      expect(offered(viewRole, "live", false), viewRole).toBe(false);
+      expect(offered(viewRole, "live", true), viewRole).toBe(false);
     }
+  });
+
+  it("never on a casual round: created live and never closed, it would carry Suspend play for its whole life (#1149 C1)", () => {
+    expect(offered("admin", "live", false, true), "Suspend play over a game between friends").toBe(false);
+    expect(offered("admin", "live", true, true)).toBe(false);
+    // CONTROL: the same viewer on the same step of a tournament is offered it.
+    expect(offered("admin", "live", false, false)).toBe(true);
+  });
+
+  it("the shell asks it with the event's shape — the casual round is the rule's, not the caller's", () => {
+    expect(readSource("src/components/ConsolePlayStatus.tsx")).toMatch(/casualRound:\s*isMatch\(event\.shape\)/);
   });
 });
 
@@ -89,8 +104,35 @@ describe("one mount: the console's shell", () => {
     expect(shell, "the chip and the control read different steps").toMatch(/step: told\.status\.step/);
   });
 
-  it("never on paper: a printed tee sheet or card carries no Suspend play and no banner", () => {
-    expect(readSource("src/components/ConsolePlayStatus.tsx")).toMatch(/<div className="no-print">\s*<PlayStatusControl/);
+  it("framed: never on paper, kept in view (sticky under the phone's top bar), kept the server's", () => {
+    expect(readSource("src/components/ConsolePlayStatus.tsx")).toMatch(/<PlayStatusFrame>\s*<PlayStatusControl/);
+    const frame = readSource("src/components/PlayStatusFrame.tsx");
+    expect(frame).toMatch(/className="no-print console-play-status"/);
+    expect(frame, "the frame does not sit under the phone's top bar").toMatch(/querySelector<HTMLElement>\("\.m-topbar"\)/);
+    const css = readSource("src/app/globals.css");
+    const rule = css.slice(css.indexOf(".console-play-status {"), css.indexOf("}", css.indexOf(".console-play-status {")));
+    expect(rule).toMatch(/position: sticky/);
+    expect(rule).toMatch(/top: var\(--play-status-top, 0px\)/);
+    expect(rule, "content shows through the sticky row").toMatch(/background: var\(--color-bg\)/);
+  });
+
+  it("a layout is not drawn again between screens, so the frame asks the server again: on a timer and when the screen comes back (#1149 C2)", () => {
+    const frame = readSource("src/components/PlayStatusFrame.tsx");
+    expect(frame).toMatch(/setInterval\(ask, PLAY_STATUS_REFRESH_MS\)/);
+    expect(frame).toMatch(/addEventListener\("visibilitychange", ask\)/);
+    expect(frame).toMatch(/router\.refresh\(\)/);
+    expect(PLAY_STATUS_REFRESH_MS, "slower than the player side's siren").toBeLessThanOrEqual(20_000);
+  });
+
+  it("Resume confirms, and says the field will be told to play on (#1149 C3)", () => {
+    const control = readSource("src/components/PlayStatusControl.tsx");
+    // The banner's own button opens the confirm; only "Resume play now" calls the action.
+    expect(control).toMatch(/onClick=\{\(\) => setResuming\(true\)\}>\s*Resume play\s*</);
+    expect(control).toMatch(/run\(resumePlay, close\)\}>\s*\{pending \? "Resuming…" : "Resume play now"\}/);
+    expect(control.match(/run\(resumePlay/g), "a second press path resumes without the confirm").toHaveLength(1);
+    expect(control).toMatch(/Players will be told to play on/);
+    // A confirm opened on one suspension closes when the server's state moves under it.
+    expect(control).toMatch(/useEffect\(\(\) => \{\s*setOpen\(false\);\s*setResuming\(false\);\s*\}, \[suspended, since\]\)/);
   });
 
   it("the shell's mount is outside the screen, so every console screen carries it", () => {
@@ -105,10 +147,16 @@ describe("one mount: the console's shell", () => {
     expect(control).toMatch(/suspendPlay\(why\)/);
     expect(control).toMatch(/resumePlay/);
     // Application code only: tests stamp the row directly to set the scene, and that is not a door.
+    // The SHAPE is banned, not one spelling: any `data: { … playSuspendedAt: … }` (create, update,
+    // updateMany, upsert), whatever value it writes, and any raw SQL that sets the column.
+    const writes = (src: string) => /data:\s*\{[^}]*\bplaySuspendedAt\s*:/.test(src) || /"playSuspendedAt"\s*=/.test(src);
     const writers = [...sourcesUnder("src/app"), ...sourcesUnder("src/lib")]
       .filter((f) => !f.includes("/__tests__/"))
-      .filter((f) => /playSuspendedAt:\s*(event\.playSuspendedAt\s*\?\?\s*)?new Date\(\)/.test(readSource(f)));
-    expect(writers, "a second place stamps a suspension").toEqual(["src/app/actions/play-status.ts"]);
+      .filter((f) => writes(readSource(f)));
+    // The control: the action file is found, so an empty answer would be a blind sweep, not a pass.
+    expect(writers, "a second place writes a suspension").toEqual(["src/app/actions/play-status.ts"]);
+    expect(writes("prisma.event.update({ where, data: { note: x, playSuspendedAt: now } })"), "CONTROL: another spelling").toBe(true);
+    expect(writes("select: { playSuspendedAt: true }"), "CONTROL: a read is not a write").toBe(false);
   });
 });
 

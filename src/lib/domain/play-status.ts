@@ -69,10 +69,22 @@ export function playScreenOf(raw: unknown): PlayScreen {
  *     launch, and not once play is over (T69: there is no play left to stop).
  *   - and ALWAYS while play is suspended, whatever the step, so the way back
  *     is never hidden.
+ *   - never on a CASUAL ROUND (`isMatch`). A casual round is created live and
+ *     never closes, so the step alone would draw Suspend play over its one
+ *     screen for as long as it exists; there is no committee to stop a game
+ *     between friends (Rule 5.7 is a Committee power), and the dashboard that
+ *     drew it before redirected a casual round to `/entry`. Required, so a new
+ *     caller cannot forget it (review of #1149, C1).
  */
-export function consoleOffersPlayStop(viewRole: string, step: string | null | undefined, suspended: boolean): boolean {
-  if (viewRole !== "admin" && viewRole !== "assistant") return false;
-  return step === "live" || suspended;
+export function consoleOffersPlayStop(at: {
+  viewRole: string;
+  step: string | null | undefined;
+  suspended: boolean;
+  casualRound: boolean;
+}): boolean {
+  if (at.casualRound) return false;
+  if (at.viewRole !== "admin" && at.viewRole !== "assistant") return false;
+  return at.step === "live" || at.suspended;
 }
 
 /**
