@@ -31,6 +31,26 @@ export function playStatusOf(e: { playSuspendedAt: Date | null; playSuspendedNot
 }
 
 /**
+ * WHICH KIND OF SCREEN IS ASKING (2026-11-14, safety sweep G-1).
+ *
+ *   "player"  the player app (`/me…`): a signed-in member's own tournament
+ *   "play"    the round-code surface (`/play`, `/play/board`): the round the
+ *             phone's code opened, with no account at all
+ *
+ * A screen names its KIND, never an event: who the person is and which round
+ * they are in is read from their own cookie by `playStatusForScreen`
+ * (`services/play-status-screen.ts`), the one place that decides it, so the
+ * banner a screen draws and the siren poll on it cannot disagree. Anything
+ * else a client sends is read as "player", which is what a cached page from
+ * before this change asked for.
+ */
+export type PlayScreen = "player" | "play";
+
+export function playScreenOf(raw: unknown): PlayScreen {
+  return raw === "play" ? "play" : "player";
+}
+
+/**
  * What a player is told while play is suspended. The instruction is Rule
  * 5.7a's, in plain words: stop now, no more shots until play resumes.
  */
