@@ -57,6 +57,13 @@ const PINNED: [label: string, file: string][] = [
   ["Make guest", "src/components/RegistrationClient.tsx"],
   ["Make member", "src/components/RegistrationClient.tsx"],
   ["Choose another file", "src/components/RegistrationClient.tsx"],
+  // A guest's player link panel (J39/J40): its words are the link's one module, drawn by PlayerLinkPanel.
+  ["Player link", "src/lib/domain/player-link.ts"],
+  ["Show QR", "src/lib/domain/player-link.ts"],
+  ["Read it out", "src/lib/domain/player-link.ts"],
+  ["Copy link", "src/lib/domain/player-link.ts"],
+  ["New link", "src/lib/domain/player-link.ts"],
+  ["Turn off link", "src/lib/domain/player-link.ts"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

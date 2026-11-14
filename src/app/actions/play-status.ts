@@ -71,6 +71,16 @@ async function tellTheField(
  * and it is decided in one place (`playStatusForScreen`), from the caller's
  * own cookie. `screen` arrives from the client and can only choose which of
  * the caller's own two cookies is read; it never names an event.
+ *
+ * THE PLAYER APP IS ASKED OF THE PLAYER VIEWER, NEVER OF `getSession()`
+ * (J39/J40 PR 2, G1; Rule 5.7, a safety notice). The layout draws the banner
+ * from the viewer's event, so the poll must ask the same one: a guest's link
+ * has no session at all, and asking `getSession()` read "not suspended" every
+ * 20 seconds, so a guest whose screen was open when play stopped heard
+ * nothing; a member viewing through a link for another club's outing was asked
+ * about their own club's event. `playStatusForScreen` resolves "player"
+ * through `getPlayerViewer`, so banner and siren cannot disagree. On
+ * GUEST_ACTIONS.
  */
 export async function currentPlayStatus(screen?: unknown): Promise<{ suspended: boolean; note: string }> {
   const { suspended, note } = await playStatusForScreen(playScreenOf(screen));

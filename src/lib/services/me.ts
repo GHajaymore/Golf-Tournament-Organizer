@@ -1,4 +1,5 @@
 import { byAddress } from "@/lib/domain/my-entry";
+import { mayPlayThroughLink, type GuestIdentity } from "@/lib/domain/player-link";
 import { prisma } from "@/lib/db";
 import { rankedScore, withStrokeBasis } from "@/lib/domain/ranked-score";
 import { snapshotStanding, cardsIn } from "@/lib/domain/lifecycle-state";
@@ -83,6 +84,33 @@ export async function myPlayerIds(eventId: string, email: string): Promise<Set<s
     select: { id: true },
   });
   return new Set(rows.map((r) => r.id));
+}
+
+/**
+ * WHO IS ASKING "WHICH ENTRIES ARE MINE": an account by its proved address,
+ * or a guest's player link (J39/J40), which carries no address at all.
+ */
+export type Who = { email: string; guest?: GuestIdentity | null };
+
+/**
+ * THE ENTRIES THAT ARE THIS VIEWER'S TO PLAY, in this event — the ONE answer
+ * (design §3.3) every player screen and card guard asks. An account:
+ * `myPlayerIds`, by its address, exactly as before. A guest: the pass's own
+ * entry, ONLY in the pass's own event, and ONLY while it is confirmed (S5:
+ * `mayPlayThroughLink`, the same filter the account branch applies), re-read
+ * here and never trusted from the cookie. A guest is never asked by address,
+ * so the `byAddress("")` hazard above cannot reach it.
+ */
+export async function myPlayerIdsFor(who: Who, eventId: string): Promise<Set<string>> {
+  if (who.guest) {
+    if (who.guest.eventId !== eventId) return new Set();
+    const row = await prisma.player.findFirst({
+      where: { id: who.guest.playerId, eventId },
+      select: { id: true, status: true },
+    });
+    return row && mayPlayThroughLink(row.status) ? new Set([row.id]) : new Set();
+  }
+  return myPlayerIds(eventId, who.email);
 }
 
 /**
@@ -366,8 +394,9 @@ export function flightStandings(
  * organizer who does not play, most often. The caller decides what to show;
  * this does not invent a player.
  */
-export async function meFor(state: EventState, email: string): Promise<Me> {
-  const ids = await myPlayerIds(state.event.id, email);
+export async function meFor(state: EventState, who: Who | string): Promise<Me> {
+  // An address on its own is an account (the shape every caller had before J39/J40).
+  const ids = await myPlayerIdsFor(typeof who === "string" ? { email: who } : who, state.event.id);
   const playerId = [...ids][0] ?? null;
   const player = playerId ? state.confirmed.find((p) => p.id === playerId) ?? null : null;
 

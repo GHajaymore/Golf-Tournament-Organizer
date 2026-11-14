@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getPlayerViewer } from "@/lib/player-viewer";
 import { getPlaySession } from "@/lib/play-auth";
 import { playStatusOf, type PlayScreen, type PlayStatus } from "@/lib/domain/play-status";
 
@@ -18,7 +18,10 @@ import { playStatusOf, type PlayScreen, type PlayStatus } from "@/lib/domain/pla
  * ONE function answers it, and both the banner a screen draws and the siren's
  * poll on that screen ask it (`currentPlayStatus`), so they cannot disagree:
  *
- *   "player"  the signed-in member's own tournament (the session's event)
+ *   "player"  the player screen's own tournament: the PLAYER VIEWER's event
+ *             (`getPlayerViewer`), so a guest on a personal link is covered as
+ *             well as a member, and the siren asks the very event the layout's
+ *             banner draws (G1). Never `getSession()`: a guest has none.
  *   "play"    the round the phone's code opened (the play session's event)
  *
  * The event is ALWAYS the caller's own cookie's, never an argument: a
@@ -27,7 +30,7 @@ import { playStatusOf, type PlayScreen, type PlayStatus } from "@/lib/domain/pla
  * that has expired or whose code was reissued, is "not suspended" and no event.
  */
 export async function playStatusForScreen(screen: PlayScreen): Promise<PlayStatus & { eventId: string | null }> {
-  const eventId = screen === "play" ? ((await getPlaySession())?.eventId ?? null) : ((await getSession())?.eventId ?? null);
+  const eventId = screen === "play" ? ((await getPlaySession())?.eventId ?? null) : ((await getPlayerViewer())?.eventId ?? null);
   if (!eventId) return { suspended: false, note: "", eventId: null };
   const event = await prisma.event.findUnique({
     where: { id: eventId },
