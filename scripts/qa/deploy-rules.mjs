@@ -133,12 +133,14 @@ export const ROUNDS_AT_ONCE = 3;
 /**
  * Whether the hourly run should dispatch the Nightly round now. Never two nightlies (one running or
  * queued is enough: the hourly run asks again in an hour), and never a fourth round on the runners.
- * @param {{needed:boolean, nightlyActive:number, roundsActive:number}} f
+ * @param {{needed:boolean, nightlyActive:number, roundsActive:number, nightlyOnSha?:number}} f
+ *        nightlyOnSha: Nightly runs on this very commit, running or finished clean or not (not cancelled)
  *        nightlyActive: Nightly runs queued or in progress; roundsActive: round.yml runs queued or in progress
  */
 export function nudgeNightly(f) {
   if (!f.needed) return { dispatch: false, reason: "no core or function commit is waiting for a nightly" };
   if (f.nightlyActive > 0) return { dispatch: false, reason: `a nightly round is already running or queued (${f.nightlyActive}); it is not started twice` };
+  if (f.nightlyOnSha > 0) return { dispatch: false, reason: `a nightly round has already run (or is running) on this commit (${f.nightlyOnSha}); a NOT CLEAN one is read by a person, not asked for again every hour` };
   if (f.nightlyActive + f.roundsActive >= ROUNDS_AT_ONCE) {
     return { dispatch: false, reason: `${f.roundsActive} round(s) are running or queued, the runners' ${ROUNDS_AT_ONCE}; the next hourly run asks again` };
   }

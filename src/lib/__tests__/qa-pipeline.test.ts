@@ -522,6 +522,9 @@ describe("the nightly is started when a merge waits for it", () => {
     expect(nudgeNightly({ needed: true, nightlyActive: 1, roundsActive: 0 }).dispatch, "a nightly is running or queued").toBe(false);
     expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: ROUNDS_AT_ONCE }).dispatch, "three rounds on the runners").toBe(false);
     expect(nudgeNightly({ needed: false, nightlyActive: 0, roundsActive: 0 }).dispatch).toBe(false);
+    // A nightly that finished NOT CLEAN on this commit is not asked for again every hour.
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: 0, nightlyOnSha: 1 }).dispatch).toBe(false);
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: 0, nightlyOnSha: 0 }).dispatch).toBe(true);
   });
 
   it("is wired: the gate says it, its own workflow holds the one write and dispatches only what the script decides", () => {

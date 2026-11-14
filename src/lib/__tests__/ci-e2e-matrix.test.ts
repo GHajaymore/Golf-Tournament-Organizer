@@ -155,7 +155,7 @@ describe("every viewport CI claims to test is actually tested", () => {
     const door = code.slice(code.indexOf("\n  e2e-webkit-door:"), code.indexOf("\n  verify:"));
     expect(door, "the WebKit front-door job is gone").toContain("E2E_ENGINE: webkit");
     expect(door).toContain('E2E_PLAIN_HTTP: "1"');
-    expect(door).toContain("playwright test --project=phone e2e/front-door.spec.ts");
+    expect(door).toContain("playwright test --project=desktop --project=phone e2e/front-door.spec.ts");
     expect(door).toMatch(/needs:\s*e2e-build\b/);
     // Runs on a red need, and fails on anything but success: a skipped required check reads as passing.
     expect(verify).toMatch(/if:\s*\$\{\{\s*!cancelled\(\)\s*\}\}/);

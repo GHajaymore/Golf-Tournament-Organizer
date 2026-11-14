@@ -674,7 +674,10 @@ jobs:
           E2E_PREBUILT: "1"
           E2E_ENGINE: webkit
           E2E_PLAIN_HTTP: "1"
-        run: npx playwright test --project=phone e2e/front-door.spec.ts
+        # Desktop AND phone: in round G636-1 the WebKit iPhone parts ran this spec green on the broken head
+        # and only [desktop] froze (a091d17c, src/lib/push-client.ts). Reverting that fix turns the desktop
+        # run red; to prove it once, push a throwaway commit to this PR that reverts push-client.ts and read this step.
+        run: npx playwright test --project=desktop --project=phone e2e/front-door.spec.ts
       - name: Keep the trace of a failed run
         if: failure()
         uses: actions/upload-artifact@v4

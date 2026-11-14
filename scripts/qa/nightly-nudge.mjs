@@ -33,7 +33,15 @@ const active = (workflow) => gh("run", "list", "-R", REPO, "--workflow", workflo
 
 let verdict;
 try {
-  verdict = needed ? nudgeNightly({ needed, nightlyActive: active("nightly.yml"), roundsActive: active("round.yml") }) : nudgeNightly({ needed, nightlyActive: 0, roundsActive: 0 });
+  if (needed) {
+    // Any nightly on THIS commit, running or finished (clean or not): a NOT CLEAN one is not asked for again every hour.
+    const onSha = gh("run", "list", "-R", REPO, "--workflow", "nightly.yml", "--limit", "30", "--json", "status,conclusion,headSha").filter(
+      (r) => r.headSha === process.env.GITHUB_SHA && (ACTIVE.has(r.status) || (r.status === "completed" && r.conclusion !== "cancelled")),
+    ).length;
+    verdict = nudgeNightly({ needed, nightlyActive: active("nightly.yml"), roundsActive: active("round.yml"), nightlyOnSha: onSha });
+  } else {
+    verdict = nudgeNightly({ needed, nightlyActive: 0, roundsActive: 0, nightlyOnSha: 0 });
+  }
   if (verdict.dispatch) {
     const r = spawnSync("gh", ["workflow", "run", "nightly.yml", "-R", REPO, "--ref", "main"], { encoding: "utf8" });
     if (r.status !== 0) throw new Error(`gh workflow run nightly.yml: ${(r.stderr || r.stdout || "").trim().slice(0, 300)}`);
