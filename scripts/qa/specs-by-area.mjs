@@ -363,6 +363,8 @@ export const FULL_ONLY = [
   "e2e/match-kept-by.spec.ts",
   "e2e/match-play-rules.spec.ts",
   "e2e/match-results.spec.ts",
+  // A member scores from the cart sign signed out, with or without an email on the list (J39/J40: the guest link must not change it).
+  "e2e/members-still-score-from-the-qr.spec.ts",
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
   "e2e/net-without-tees-says-so.spec.ts",
