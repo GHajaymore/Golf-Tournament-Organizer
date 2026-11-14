@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildBracket, flightKind } from "@/lib/domain/bracket";
-import { laterTieRefusal, scoreEntryTies, tieItFeeds, goesThroughWords, thirdPlaceFrom, type Draws } from "@/lib/domain/knockout-ties";
+import { laterTieHold, scoreEntryTies, tieItFeeds, goesThroughWords, thirdPlaceFrom, thirdPlaceCard, THIRD_PLACE_KEY, type Draws } from "@/lib/domain/knockout-ties";
 import type { Player } from "@/lib/domain/types";
 
-vi.mock("@/app/actions/tournament", () => ({ recordTieResult: vi.fn(), approveBracketReport: vi.fn(), rejectBracketReport: vi.fn() }));
+vi.mock("@/app/actions/tournament", () => ({ recordTieResult: vi.fn(), approveBracketReport: vi.fn(), rejectBracketReport: vi.fn(), keepMyMatchResult: vi.fn(), clearMatch: vi.fn() }));
 vi.mock("@/app/actions/knockout-results", () => ({ undoTieResult: vi.fn() }));
 
 const { KnockoutTies } = await import("@/components/KnockoutTies");
+
+/** The refusal in words, or null. */
+const laterTieRefusal = (...a: Parameters<typeof laterTieHold>) => laterTieHold(...a)?.said ?? null;
 
 /**
  * KNOCKOUT TIES ON SCORE ENTRY (simplicity review, cut 3, 2026-11-14).
@@ -41,18 +44,39 @@ describe("the tie a result goes on to", () => {
 describe("a result may be changed or taken back only while its winner has not played on", () => {
   it("is free while the tie it feeds has no result", () => {
     const view = buildBracket("winners", field("p", 4), { "winners-0-0": "p1" });
-    expect(laterTieRefusal([{ label: "", view }], "winners-0-0", { plate: false })).toBeNull();
+    expect(laterTieHold([{ label: "", view }], "winners-0-0", { plate: false })).toBeNull();
   });
 
-  it("is refused once the tie it feeds has a result, naming that tie and the way out", () => {
+  it("is refused once the tie it feeds has a result, naming that tie, the control that takes it back, and the card to go to", () => {
     // 1 v 4 and 2 v 3; both semi-finals in, and the final.
     const view = buildBracket("winners", field("p", 4), { "winners-0-0": "p1", "winners-0-1": "p2", "winners-1-0": "p2" });
-    const said = laterTieRefusal([{ label: "", view }], "winners-0-0", { plate: false });
-    expect(said).toBe(
-      "Final: P Invented 1 v P Invented 2 already has a result, and it was played by this tie's winner. Undo that result first, then change this one.",
-    );
+    expect(laterTieHold([{ label: "", view }], "winners-0-0", { plate: false })).toEqual({
+      said: "Final: P Invented 1 v P Invented 2 already has a result, and this tie's winner played in it. Take that result back first with Change result on its card (on the Bracket, tap its winner again), then change this one.",
+      heldBy: "winners-1-0",
+      undoes: 1,
+    });
     // The final itself feeds nothing and may be taken back.
-    expect(laterTieRefusal([{ label: "", view }], "winners-1-0", { plate: false })).toBeNull();
+    expect(laterTieHold([{ label: "", view }], "winners-1-0", { plate: false })).toBeNull();
+  });
+
+  it("counts every result resting on it, and leads with the latest, which is the one to take back first", () => {
+    // Eight: quarter-final 1 v 8 won by 1, then 1 wins the semi and the final.
+    const view = buildBracket("winners", field("p", 8), {
+      "winners-0-0": "p1",
+      "winners-0-1": "p4",
+      "winners-0-2": "p3",
+      "winners-0-3": "p2",
+      "winners-1-0": "p1",
+      "winners-1-1": "p2",
+      "winners-2-0": "p1",
+    });
+    const hold = laterTieHold([{ label: "", view }], "winners-0-0", { plate: false })!;
+    expect(hold.undoes).toBe(2);
+    expect(hold.heldBy).toBe("winners-2-0");
+    expect(hold.said).toBe(
+      "2 later results rest on this one: Final: P Invented 1 v P Invented 2; then Semi-finals: P Invented 1 v P Invented 4. Take them back first, in that order, each with Change result on its card (on the Bracket, tap its winner again), then change this one.",
+    );
+    expect(laterTieRefusal([{ label: "", view }], "winners-0-0", { plate: false })).toBe(hold.said);
   });
 
   it("holds in every flight, the third included, and only in its own", () => {
@@ -75,9 +99,11 @@ describe("a result may be changed or taken back only while its winner has not pl
       { label: "Main draw", view: main },
       { label: "Plate", view: plate },
     ];
-    expect(laterTieRefusal(draws, "winners-0-2", { plate: true })).toBe(
-      "Plate is drawn from this round's losers, and it has results. Undo the plate's results first, then change this one.",
-    );
+    expect(laterTieHold(draws, "winners-0-2", { plate: true })).toEqual({
+      said: "Plate is drawn from this round's losers, and 1 of its ties has a result. Take it back first, latest first, with Change result on each, then change this one.",
+      heldBy: "",
+      undoes: 1,
+    });
     // Not a plate (two flights): the second draw has nothing to do with the first's losers.
     expect(laterTieRefusal(draws, "winners-0-2", { plate: false })).toBeNull();
   });
@@ -87,37 +113,66 @@ describe("the play-off for third holds the semi-finals that fed it", () => {
   // 1 v 4 and 2 v 3; 1 and 3 win, so 4 and 2 play off for third.
   const view = buildBracket("winners", field("p", 4), { "winners-0-0": "p1", "winners-0-1": "p3" });
   const draws = [{ label: "", view }];
-  const said =
-    "Play-off for third: P Invented 4 v P Invented 2 already has a result, and it was played by this tie's loser. Clear the play-off's result first, then change this one.";
 
-  it("refuses either semi-final once the play-off has a result, naming it", () => {
-    const thirdPlace = { playerIds: ["p4", "p2"], decided: true };
-    expect(laterTieRefusal(draws, "winners-0-0", { plate: false, thirdPlace })).toBe(said);
-    expect(laterTieRefusal(draws, "winners-0-1", { plate: false, thirdPlace })).toBe(said);
+  it("refuses either semi-final once the play-off has been played, naming it and linking its card", () => {
+    const thirdPlace = { playerIds: ["p4", "p2"], played: true };
+    const hold = {
+      said: "Play-off for third: P Invented 4 v P Invented 2 has been played, between this tie's loser and the other semi-final's. Take its result back first with Change result on the play-off's card, then change this one.",
+      heldBy: THIRD_PLACE_KEY,
+      undoes: 1,
+    };
+    expect(laterTieHold(draws, "winners-0-0", { plate: false, thirdPlace })).toEqual(hold);
+    expect(laterTieHold(draws, "winners-0-1", { plate: false, thirdPlace })).toEqual(hold);
   });
 
-  it("leaves them free while the play-off is made but not decided, or there is none", () => {
-    expect(laterTieRefusal(draws, "winners-0-0", { plate: false, thirdPlace: { playerIds: ["p4", "p2"], decided: false } })).toBeNull();
-    expect(laterTieRefusal(draws, "winners-0-0", { plate: false, thirdPlace: null })).toBeNull();
+  it("counts the play-off with the final when both rest on a semi-final", () => {
+    const withFinal = buildBracket("winners", field("p", 4), { "winners-0-0": "p1", "winners-0-1": "p3", "winners-1-0": "p3" });
+    const hold = laterTieHold([{ label: "", view: withFinal }], "winners-0-0", { plate: false, thirdPlace: { playerIds: ["p4", "p2"], played: true } })!;
+    expect(hold.undoes).toBe(2);
+    expect(hold.heldBy).toBe(THIRD_PLACE_KEY);
+    expect(hold.said).toMatch(/^2 later results rest on this one: Play-off for third: P Invented 4 v P Invented 2; then Final: P Invented 1 v P Invented 3\./);
   });
 
-  it("holds only the main draw's semi-finals, not a quarter-final nor another draw", () => {
+  it("leaves them free while the play-off is made but not played, or there is none", () => {
+    expect(laterTieHold(draws, "winners-0-0", { plate: false, thirdPlace: { playerIds: ["p4", "p2"], played: false } })).toBeNull();
+    expect(laterTieHold(draws, "winners-0-0", { plate: false, thirdPlace: null })).toBeNull();
+  });
+
+  it("holds only what reaches the main draw's semi-finals, never another draw", () => {
     const eight = buildBracket("winners", field("p", 8), { "winners-0-0": "p1", "winners-0-1": "p4", "winners-0-2": "p3", "winners-0-3": "p2" });
-    const thirdPlace = { playerIds: ["p1", "p4"], decided: true };
-    // A quarter-final whose semi has no result is not the play-off's.
-    expect(laterTieRefusal([{ label: "", view: eight }], "winners-0-0", { plate: false, thirdPlace })).toBeNull();
+    const thirdPlace = { playerIds: ["p1", "p4"], played: true };
+    // A quarter-final whose semi has no result reaches no semi-final result.
+    expect(laterTieHold([{ label: "", view: eight }], "winners-0-0", { plate: false, thirdPlace })).toBeNull();
     // The same semi-final shape in a second draw (Flight B) feeds no play-off.
     const second = buildBracket("consolation", field("q", 4), { "consolation-0-0": "q1", "consolation-0-1": "q3" });
-    expect(laterTieRefusal([{ label: "Flight A", view: eight }, { label: "Flight B", view: second }], "consolation-0-0", { plate: false, thirdPlace: { playerIds: ["q4", "q2"], decided: true } })).toBeNull();
+    expect(laterTieHold([{ label: "Flight A", view: eight }, { label: "Flight B", view: second }], "consolation-0-0", { plate: false, thirdPlace: { playerIds: ["q4", "q2"], played: true } })).toBeNull();
   });
 
-  it("reads the play-off off the matches: round 0, decided by a finished card or a concession", () => {
+  it("reads the play-off off the matches: round 0; played once a hole is in or it was conceded, decided once it is over", () => {
     const empty = JSON.stringify(new Array(18).fill(null));
+    const begun = JSON.stringify(["A", ...new Array(17).fill(null)]);
     const won = JSON.stringify([...new Array(10).fill("A"), ...new Array(8).fill(null)]);
     expect(thirdPlaceFrom([{ round: 1, playerAId: "a", playerBId: "b", holes: won }])).toBeNull();
-    expect(thirdPlaceFrom([{ round: 0, playerAId: "a", playerBId: "b", holes: empty }])).toEqual({ playerIds: ["a", "b"], decided: false });
+    expect(thirdPlaceFrom([{ round: 0, playerAId: "a", playerBId: "b", holes: empty }])).toEqual({ playerIds: ["a", "b"], played: false, decided: false });
+    expect(thirdPlaceFrom([{ round: 0, playerAId: "a", playerBId: "b", holes: begun }])).toEqual({ playerIds: ["a", "b"], played: true, decided: false });
     expect(thirdPlaceFrom([{ round: 0, playerAId: "a", playerBId: "b", holes: won }])?.decided).toBe(true);
-    expect(thirdPlaceFrom([{ round: 0, playerAId: "a", playerBId: "b", holes: empty, forfeitedBy: "b" }])?.decided).toBe(true);
+    expect(thirdPlaceFrom([{ round: 0, playerAId: "a", playerBId: "b", holes: empty, forfeitedBy: "b" }])).toEqual({ playerIds: ["a", "b"], played: true, decided: true });
+  });
+
+  it("is drawn as its own card: to play, under way, or decided with who is third", () => {
+    const nameOf = (id: string) => `Name ${id}`;
+    const empty = JSON.stringify(new Array(18).fill(null));
+    const won = JSON.stringify([...new Array(10).fill("B"), ...new Array(8).fill(null)]);
+    expect(thirdPlaceCard([{ id: "m", round: 0, playerAId: "a", playerBId: "b", holes: empty }], nameOf)).toEqual({
+      matchId: "m",
+      a: { id: "a", name: "Name a" },
+      b: { id: "b", name: "Name b" },
+      state: "to-play",
+      winnerId: "",
+    });
+    expect(thirdPlaceCard([{ id: "m", round: 0, playerAId: "a", playerBId: "b", holes: won }], nameOf)?.winnerId).toBe("b");
+    expect(thirdPlaceCard([{ id: "m", round: 0, playerAId: "a", playerBId: "b", holes: empty, forfeitedBy: "b" }], nameOf)?.winnerId).toBe("a");
+    expect(thirdPlaceCard([{ id: "m", round: 1, playerAId: "a", playerBId: "b", holes: empty }], nameOf)).toBeNull();
   });
 });
 
@@ -159,7 +214,7 @@ describe("the ties as Score entry lists them", () => {
   });
 
   it("says who goes through", () => {
-    expect(goesThroughWords({ a: { id: "a", name: "Ann Ash" }, b: { id: "b", name: "Bob Birch" } }, "b")).toBe("Bob Birch goes through.");
+    expect(goesThroughWords({ round: "Final", a: { id: "a", name: "Ann Ash" }, b: { id: "b", name: "Bob Birch" } }, "b")).toBe("Final: Bob Birch goes through.");
   });
 });
 
@@ -192,6 +247,35 @@ describe("the list on the screen", () => {
     const decided = rows.find((r) => r.includes('data-tie="winners-0-0"'))!;
     expect(decided).toContain(">Change result</button>");
     expect(decided).not.toContain(" won</button>");
+  });
+
+  it("reads in sunlight: no muted or 13 px text, and no ghost button anywhere in the list (SUNLIGHT_RATIO)", () => {
+    expect(html).not.toContain("text-muted");
+    expect(html).not.toMatch(/font-size:1[0-4](\.\d+)?px/);
+    expect(html).not.toContain("btn-ghost");
+  });
+
+  it("folds How it ended and the margin away, under the two names", () => {
+    const toPlay = rows.find((r) => r.includes('data-tie="winners-0-1"'))!;
+    const fold = toPlay.slice(toPlay.indexOf("<details>"));
+    expect(toPlay.indexOf("<details>")).toBeGreaterThan(toPlay.indexOf(" won</button>"));
+    expect(fold).toContain('aria-label="How it ended, F0P Invented 2 v F0P Invented 3"');
+    expect(fold).toContain('aria-label="Margin, F0P Invented 2 v F0P Invented 3 (optional)"');
+  });
+
+  it("gives the play-off for third its own card, which a refusal can link to", () => {
+    const withPlayoff = renderToStaticMarkup(
+      <KnockoutTies
+        ties={ties}
+        waiting={waiting}
+        thirdPlace={{ matchId: "m", a: { id: "x", name: "Xan Madeup" }, b: { id: "y", name: "Yara Madeup" }, state: "decided", winnerId: "y" }}
+      />,
+    );
+    const card = withPlayoff.slice(withPlayoff.indexOf(`id="tie-${THIRD_PLACE_KEY}"`));
+    expect(card).toContain("Play-off for third");
+    expect(card).toContain("<strong>Yara Madeup</strong> won: third place.");
+    expect(card).toContain(">Change result</button>");
+    expect(card).not.toContain("Halved</button>");
   });
 
   it("draws no Needs approval chip when nothing is reported", () => {

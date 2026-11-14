@@ -18,7 +18,7 @@ import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { screenName } from "@/lib/nav";
 import { Icon } from "./Icon";
 import { KnockoutTies } from "./KnockoutTies";
-import type { EntryTie } from "@/lib/domain/knockout-ties";
+import type { EntryTie, ThirdPlaceCard } from "@/lib/domain/knockout-ties";
 
 // Behind a press, and each writes to the server: not part of the first load of a
 // screen used on the course. See LazyPanel.tsx.
@@ -51,7 +51,7 @@ export interface EntryRound {
    * The knockout's ties as Score entry lists them, for staff (`scoreEntryTies`;
    * cut 3, 2026-11-14). Absent for a player, who reads the bracket.
    */
-  ties?: { ties: EntryTie[]; waiting: number };
+  ties?: { ties: EntryTie[]; waiting: number; thirdPlace?: ThirdPlaceCard | null };
   /**
    * A team cup session. Its matches are the captains' lineup and nothing reads
    * a stroke card in it, so it is entered match by match and offers no "Whole
@@ -496,14 +496,18 @@ export function EntryModes({
       {bracket ? (
         <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>{round.label} is the knockout</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "62ch" }}>
+          <p
+            className={isStaff && round.ties ? undefined : "text-muted"}
+            // The tie list is read outdoors: full text colour at 15 px (SUNLIGHT_RATIO), not muted 13 px.
+            style={isStaff && round.ties ? { fontSize: 15, margin: 0, lineHeight: 1.5, color: "var(--color-text)" } : { fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "62ch" }}
+          >
             {isStaff && round.ties
               ? "Record each tie below. Winners go through to the next round on their own."
               : isStaff
                 ? "Its matches are recorded on the bracket: click the winner of each match, and add the result (3&2, 1 up) if you like. Winners go through to the next round on their own."
                 : "Its results go on the bracket as each match is decided."}
           </p>
-          {isStaff && round.ties && <KnockoutTies ties={round.ties.ties} waiting={round.ties.waiting} />}
+          {isStaff && round.ties && <KnockoutTies ties={round.ties.ties} waiting={round.ties.waiting} thirdPlace={round.ties.thirdPlace ?? null} />}
           <Link href="/bracket" className={isStaff && round.ties ? "btn btn-ghost" : "btn btn-primary"} style={{ alignSelf: "flex-start", minHeight: 48 }}>
             <Icon name="tree-structure" /> {isStaff && round.ties ? "See the whole draw" : `Open the ${screenName("/bracket")}`}
           </Link>

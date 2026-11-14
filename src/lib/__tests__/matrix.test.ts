@@ -44,7 +44,10 @@ import {
 import type { Role } from "@/lib/roles";
 import { bracketSizeFor, buildBracket, seedOrder, drawBrackets, firstRoundLosers, bracketFinishOrderAll, flightKind } from "@/lib/domain/bracket";
 import { planFlights, proposeShapes } from "@/lib/domain/bracket-flights";
-import { laterTieRefusal, type Draws } from "@/lib/domain/knockout-ties";
+import { laterTieHold, type Draws } from "@/lib/domain/knockout-ties";
+
+/** The refusal in words, or null: what the server says where the press was. */
+const laterTieRefusal = (...a: Parameters<typeof laterTieHold>) => laterTieHold(...a)?.said ?? null;
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { flightCountFor, formGroups } from "@/lib/domain/grouping";
 import { groupByStandings, positionLookup } from "@/lib/domain/draw";
@@ -3850,13 +3853,13 @@ describe("taking a knockout result back, at every field size and in any order", 
  * The play-off is fed by the semi-finals' LOSERS and stored as a match outside
  * the draw, so the rebuild cannot drop it: changing a semi-final after it was
  * played leaves its result standing between the wrong players. With a play-off
- * made from the semi-finals and decided:
+ * made from the semi-finals and played:
  *
  *   allowed  ⇒ after taking the result back or changing it, the semi-finals'
  *              losers are still exactly the play-off's two players;
  *   refused because of the play-off ⇒ they would not be.
  *
- * And with the same play-off NOT decided, nothing is refused because of it.
+ * And with the same play-off NOT played, nothing is refused because of it.
  */
 describe("taking a knockout result back, with a play-off for third, at every field size", () => {
   const rand = (seed: number) => () => {
@@ -3892,10 +3895,10 @@ describe("taking a knockout result back, with a play-off for third, at every fie
         for (const m of view.rounds.flatMap((rd) => rd.matches)) {
           if (!m.winnerId || !m.a.playerId || !m.b.playerId || winners[m.key] !== m.winnerId) continue;
           // Undecided: the play-off holds nothing.
-          const free = laterTieRefusal(draws, m.key, { plate: false, thirdPlace: { playerIds: playoff, decided: false } });
+          const free = laterTieRefusal(draws, m.key, { plate: false, thirdPlace: { playerIds: playoff, played: false } });
           expect(free ?? "", `${m.key}: refused for a play-off with no result (n=${n})`).not.toMatch(/^Play-off for third/);
 
-          const refusal = laterTieRefusal(draws, m.key, { plate: false, thirdPlace: { playerIds: playoff, decided: true } });
+          const refusal = laterTieRefusal(draws, m.key, { plate: false, thirdPlace: { playerIds: playoff, played: true } });
           const other = m.winnerId === m.a.playerId ? m.b.playerId : m.a.playerId;
           const taken = Object.fromEntries(Object.entries(winners).filter(([k]) => k !== m.key));
           const changed = { ...winners, [m.key]: other };

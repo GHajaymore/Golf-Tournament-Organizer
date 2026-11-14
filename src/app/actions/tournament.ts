@@ -4403,12 +4403,12 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
   // A result its winner has played on from is not changed or taken back here:
   // the later result would leave the draw without a word (cut 3, 2026-11-14).
   // The one rule, asked by Undo on Score entry too (`undoTieResult`).
-  const { clearTieResult, resultHeldBecause } = await import("@/lib/services/knockout-result");
-  const later = existing ? resultHeldBecause(state!, key) : null;
-  if (later) return { ok: false, error: later };
+  const { clearTieResult, resultHeldBecause, syncThirdPlace, tieRoundWords } = await import("@/lib/services/knockout-result");
+  const held = existing ? resultHeldBecause(state!, key) : null;
+  if (held) return { ok: false, error: held.said };
 
   // Every press on the draw is on the record: who (the actor), when, and from what to what.
-  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const round = tieRoundWords(state!, key);
   const was = existing ? `${resultLine(round, { ...tie.match, winnerId: existing.winnerId })}${marginWords(existing.result)}` : "";
   if (existing?.winnerId === winnerId) {
     // Toggle off if the same slot is clicked again: the one delete, which
@@ -4416,10 +4416,15 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
     await clearTieResult(eventId, key);
     await logAudit(eventId, "knockout.undo", `${was}: taken back on the draw`);
   } else {
-    await recordBracketWinner(eventId, key, winnerId);
+    // A CHANGED winner does not inherit the margin: "3&2" was the other player's,
+    // and "B beat A 3&2" would be a false result (review of #1143). Recorded
+    // afresh it has none until the committee types one.
+    await recordBracketWinner(eventId, key, winnerId, existing ? "" : undefined);
     const now = resultLine(round, { ...tie.match, winnerId });
     await logAudit(eventId, "knockout.result", existing ? `${now}, changed on the draw (was: ${was})` : `${now}, recorded on the draw (it had no result)`);
   }
+  // A play-off for third not yet played follows the semi-finals it is made from.
+  if (existing) await syncThirdPlace(eventId);
   // Whatever a player reported for this tie, staff have now answered it
   // themselves — a report left behind would ask them the same question again.
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
@@ -4475,10 +4480,21 @@ async function recordBracketWinner(eventId: string, key: string, winnerId: strin
 
 export async function setBracketResult(key: string, result: string) {
   const eventId = await requireStaffEvent();
-  await prisma.bracketWinner.updateMany({
+  const before = await prisma.bracketWinner.findFirst({ where: { eventId, key }, select: { result: true } });
+  const now = cleanMargin(result);
+  const moved = await prisma.bracketWinner.updateMany({
     where: { eventId, key },
-    data: { result: cleanMargin(result) },
+    data: { result: now },
   });
+  // A margin is part of the result, so changing it is on the record too (review of
+  // #1143, F2): who, when, and from what to what. Nothing changed, nothing written.
+  if (moved.count > 0 && before && before.result !== now) {
+    const { tieRoundWords } = await import("@/lib/services/knockout-result");
+    const state = await loadEventState(eventId);
+    const round = (state && tieRoundWords(state, key)) || "A knockout tie";
+    // Worded "was … now …": the sweeps that read source take `from "…"` for an import.
+    await logAudit(eventId, "knockout.margin", `${round}: the result's margin was ${before.result || "none"}, now ${now || "none"}, changed on the draw`);
+  }
   await refresh();
 }
 
@@ -4527,7 +4543,8 @@ export async function recordTieResult(input: {
   await recordBracketWinner(eventId, key, winnerId, result);
   // A player's report of the same tie has been answered.
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
-  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const { drawRoundWords } = await import("@/lib/domain/knockout-ties");
+  const round = drawRoundWords(tie.draw, tie.round);
   const said = `${resultLine(round, { a: m.a, b: m.b, winnerId })}${marginWords(result)}`;
   // Said as what happened, from what to what: the screen that pressed it is not
   // known here (To play on the Bracket, or Score entry's list), and it is only

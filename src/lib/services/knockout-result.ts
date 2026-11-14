@@ -1,31 +1,39 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { parseFlightPlan } from "@/lib/domain/bracket-flights";
-import { bracketDraws } from "@/lib/domain/my-tie";
-import { laterTieRefusal, thirdPlaceFrom } from "@/lib/domain/knockout-ties";
-import type { loadEventState } from "./tournament";
+import { bracketDraws, tieByKey } from "@/lib/domain/my-tie";
+import { drawRoundWords, laterTieHold, thirdPlaceFrom, type TieHold } from "@/lib/domain/knockout-ties";
+import { resolveThirdPlace } from "@/lib/domain/third-place";
+import { logAudit } from "./action-shared";
+import { loadEventState } from "./tournament";
 
 type EventState = NonNullable<Awaited<ReturnType<typeof loadEventState>>>;
 
 /**
  * WHY THIS TIE'S RESULT IS HELD, asked of the tournament as it stands, or null.
- * `laterTieRefusal` given every fact it needs, read ONE way for every door that
+ * `laterTieHold` given every fact it needs, read ONE way for every door that
  * changes or takes back a knockout result: the bracket's tap (`setBracketWinner`)
  * and Undo / Change result (`undoTieResult`). The draw's later ties, a plate drawn
  * from the first round's losers, and the play-off for third (a stored match).
  */
-export function resultHeldBecause(state: EventState, key: string): string | null {
-  return laterTieRefusal(bracketDraws(state.brackets), key, {
+export function resultHeldBecause(state: EventState, key: string): TieHold | null {
+  return laterTieHold(bracketDraws(state.brackets), key, {
     plate: state.event.bracketMode === "plate",
     thirdPlace: thirdPlaceFrom(state.matches),
   });
+}
+
+/** A tie named as every sentence and audit line names it: "Flight 2 · Semi-finals", or "" when it is not in the draw. */
+export function tieRoundWords(state: EventState, key: string): string {
+  const tie = tieByKey(bracketDraws(state.brackets), key);
+  return tie ? drawRoundWords(tie.draw, tie.round) : "";
 }
 
 /**
  * TAKE A KNOCKOUT RESULT BACK — the one delete of a `BracketWinner`, shared by
  * the bracket's tap (`setBracketWinner`, tapping the winner again) and Undo /
  * Change result on Score entry (`undoTieResult`). Not a server action: it
- * trusts its caller to have asked who may, and `laterTieRefusal` whether it may.
+ * trusts its caller to have asked who may, and `resultHeldBecause` whether it may.
  *
  * Answers whether there was a result to take back.
  */
@@ -53,4 +61,39 @@ export async function clearTieResult(eventId: string, key: string): Promise<bool
     }
   }
   return true;
+}
+
+/**
+ * A PLAY-OFF FOR THIRD THAT HAS NOT BEEN PLAYED FOLLOWS THE SEMI-FINALS (review of
+ * #1143, F1). It is made from the two beaten semi-finalists and stored as a match
+ * outside the draw, so a semi-final changed after it was made left it between the
+ * wrong players, and `createThirdPlaceMatch` refuses a second one. Called after
+ * every change to a knockout result:
+ *
+ *   - played (a hole in, or conceded)  untouched: `laterTieHold` refused the change;
+ *   - the semi-finals still have losers  its two sides drawn again from them;
+ *   - a semi-final has no result now      taken down, to be made again on Rounds
+ *                                         when both are played.
+ *
+ * Each move is on the record. Answers what it did, for the caller's sentence.
+ */
+export async function syncThirdPlace(eventId: string): Promise<"none" | "kept" | "redrawn" | "removed"> {
+  const playoff = await prisma.match.findFirst({
+    where: { eventId, round: 0 },
+    select: { id: true, playerAId: true, playerBId: true, holes: true, forfeitedBy: true },
+  });
+  if (!playoff) return "none";
+  if (thirdPlaceFrom([{ round: 0, ...playoff }])?.played) return "kept";
+  const state = await loadEventState(eventId);
+  const pairing = state ? resolveThirdPlace(state.brackets.winners).pairing : null;
+  if (!pairing?.a.playerId || !pairing.b.playerId) {
+    await prisma.match.deleteMany({ where: { id: playoff.id, eventId } });
+    await logAudit(eventId, "third-place", "Took down the play-off for third: a semi-final has no result now. Make it again on Rounds once both are played");
+    return "removed";
+  }
+  const same = [playoff.playerAId, playoff.playerBId].sort().join("|") === [pairing.a.playerId, pairing.b.playerId].sort().join("|");
+  if (same) return "kept";
+  await prisma.match.updateMany({ where: { id: playoff.id, eventId }, data: { playerAId: pairing.a.playerId, playerBId: pairing.b.playerId } });
+  await logAudit(eventId, "third-place", `The play-off for third is now ${pairing.a.name} v ${pairing.b.name}, after a semi-final was changed`);
+  return "redrawn";
 }

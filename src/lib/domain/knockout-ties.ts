@@ -1,6 +1,7 @@
 import { tieNotReady, type BracketMatch, type BracketView } from "./bracket";
 import { marginWords } from "./my-tie";
-import { storedMatchIsOver } from "./match";
+import { storedMatchIsOver, resolveMatch } from "./match";
+import type { HoleResult } from "./types";
 
 /**
  * KNOCKOUT TIES ON SCORE ENTRY, AND WHEN A RESULT MAY STILL BE TAKEN BACK
@@ -36,8 +37,12 @@ export function tieItFeeds(view: BracketView, m: Pick<BracketMatch, "roundIndex"
   return view.rounds[m.roundIndex + 1]?.matches[Math.floor(m.matchIndex / 2)] ?? null;
 }
 
-/** "Semi-finals", or "Plate · Semi-finals" where there is more than one draw. */
-function roundWords(draw: string, round: string): string {
+/**
+ * "Semi-finals", or "Plate · Semi-finals" where there is more than one draw: how a
+ * tie's round is named in every sentence and audit line about it. The one place
+ * the label is put together.
+ */
+export function drawRoundWords(draw: string, round: string): string {
   return draw ? `${draw} · ${round}` : round;
 }
 
@@ -51,80 +56,162 @@ function findTie(draws: Draws, key: string): { index: number; draw: string; view
   return null;
 }
 
+/** The play-off for third as the rule needs it: who is in it, and whether it has been played. */
+export interface ThirdPlaceFact {
+  playerIds: readonly string[];
+  /** Scores are in, or it was conceded: it has HAPPENED, and is held like a result. */
+  played: boolean;
+}
+
+/** The key the play-off for third answers to in the list and in a refusal's link. */
+export const THIRD_PLACE_KEY = "third-place";
+
+/**
+ * WHY A TIE'S RESULT IS HELD: the refusal in words, the result to take back first
+ * (`heldBy`, a tie's key or `THIRD_PLACE_KEY`, so the screen links to its card), and
+ * how many results the correction would take back with it (`undoes`).
+ */
+export interface TieHold {
+  said: string;
+  heldBy: string;
+  undoes: number;
+}
+
 /**
  * WHY THIS TIE'S RESULT CAN NO LONGER BE CHANGED OR TAKEN BACK, or null when it can.
  *
  * Its winner has played on: the tie it feeds has a result of its own. Changing it
  * now would take that later result off the draw without a word (the draw is
- * rebuilt by position, and a stored winner whose opponent changed is dropped),
- * so the refusal names the later tie and the way out: take THAT result back
- * first. A plate is drawn from the main draw's first-round losers, so once any
- * plate tie has a result, the main draw's first round is held the same way.
+ * rebuilt by position, and a stored winner whose opponent changed is dropped), so
+ * the refusal names what rests on it, latest first, and the way out in the words
+ * of the controls that do it: Change result on that tie (or, on the Bracket, its
+ * winner tapped again). A chain is counted: a quarter-final under a played
+ * semi-final AND final undoes two.
+ *
+ * THE PLAY-OFF FOR THIRD is fed by the semi-finals' LOSERS (`third-place.ts`) and
+ * stored as a match outside the draw. Once it has been played (`played`), a main
+ * draw's semi-final, or a tie whose correction would undo one, is held the same way.
+ * Made but not played, it holds nothing: its sides are drawn again from the
+ * semi-finals (`syncThirdPlace`).
+ *
+ * A plate is drawn from the main draw's first-round losers, so once any plate tie
+ * has a result, the main draw's first round is held as a whole.
  *
  * `plate` is whether the second draw is a plate (`Event.bracketMode === "plate"`);
  * the draws are `bracketDraws(state.brackets)`, every flight included.
  */
-export function laterTieRefusal(
+export function laterTieHold(
   draws: Draws,
   key: string,
-  opts: {
-    plate: boolean;
-    /** The play-off for third (`thirdPlaceFrom`), when one has been made; null or absent when not. */
-    thirdPlace?: ThirdPlaceFact | null;
-  },
-): string | null {
+  opts: { plate: boolean; thirdPlace?: ThirdPlaceFact | null },
+): TieHold | null {
   const found = findTie(draws, key);
   if (!found) return null;
-  const next = tieItFeeds(found.view, found.match);
-  if (next?.winnerId && next.a.playerId && next.b.playerId) {
-    const round = found.view.rounds[next.roundIndex]?.label ?? "";
-    return `${roundWords(found.draw, round)}: ${next.a.name} v ${next.b.name} already has a result, and it was played by this tie's winner. Undo that result first, then change this one.`;
-  }
-  /**
-   * THE PLAY-OFF FOR THIRD is fed by the semi-finals' LOSERS (`third-place.ts`), and is
-   * stored as a match outside the draw. Once it has a result, a semi-final of the main
-   * draw whose loser played in it is held the same way: changing it would leave the
-   * play-off's result standing between the wrong players.
-   */
+  const { view } = found;
+  const label = (m: BracketMatch) => `${drawRoundWords(found.draw, view.rounds[m.roundIndex]?.label ?? "")}: ${m.a.name} v ${m.b.name}`;
+
+  // Every later result built on this one, nearest first.
+  const chain: BracketMatch[] = [];
+  for (let cur = tieItFeeds(view, found.match); cur?.winnerId && cur.a.playerId && cur.b.playerId; cur = tieItFeeds(view, cur)) chain.push(cur);
+
+  const semis = view.rounds.length - 2;
   const tp = opts.thirdPlace;
-  const m = found.match;
-  if (tp?.decided && found.index === 0 && m.roundIndex === found.view.rounds.length - 2 && m.a.playerId && m.b.playerId) {
-    if (tp.playerIds.includes(m.a.playerId) || tp.playerIds.includes(m.b.playerId)) {
-      const name = (id: string) => {
-        for (const rd of found.view.rounds) for (const t of rd.matches) for (const s of [t.a, t.b]) if (s.playerId === id) return s.name;
-        return "a player no longer in the draw";
-      };
-      return `Play-off for third: ${name(tp.playerIds[0])} v ${name(tp.playerIds[1])} already has a result, and it was played by this tie's loser. Clear the play-off's result first, then change this one.`;
-    }
+  const touchesSemi = found.index === 0 && semis >= 0 && [found.match, ...chain].some((m) => m.roundIndex === semis);
+  const playoff = tp?.played && touchesSemi ? tp : null;
+
+  if (chain.length > 0 || playoff) {
+    const name = (id: string) => {
+      for (const rd of view.rounds) for (const t of rd.matches) for (const s of [t.a, t.b]) if (s.playerId === id) return s.name;
+      return "a player no longer in the draw";
+    };
+    const playoffWords = playoff ? `Play-off for third: ${name(playoff.playerIds[0])} v ${name(playoff.playerIds[1])}` : "";
+    // Latest first: the one that can be taken back now leads.
+    const resting = [...(playoff ? [playoffWords] : []), ...chain.slice().reverse().map(label)];
+    const heldBy = playoff ? THIRD_PLACE_KEY : chain[chain.length - 1].key;
+    const undoes = resting.length;
+    const how = "with Change result on its card (on the Bracket, tap its winner again)";
+    const said =
+      undoes === 1
+        ? playoff
+          ? `${playoffWords} has been played, between this tie's loser and the other semi-final's. Take its result back first with Change result on the play-off's card, then change this one.`
+          : `${resting[0]} already has a result, and this tie's winner played in it. Take that result back first ${how}, then change this one.`
+        : `${undoes} later results rest on this one: ${resting.join("; then ")}. Take them back first, in that order, each ${how}, then change this one.`;
+    return { said, heldBy, undoes };
   }
+
   if (opts.plate && found.index === 0 && found.match.roundIndex === 0 && draws[1]) {
     const plate = draws[1];
-    const played = plate.view.rounds.some((rd) => rd.matches.some((m) => m.winnerId && m.a.playerId && m.b.playerId));
-    if (played) {
+    const results = plate.view.rounds.reduce((n, rd) => n + rd.matches.filter((m) => m.winnerId && m.a.playerId && m.b.playerId).length, 0);
+    if (results > 0) {
       const name = plate.label || "The plate";
-      return `${name} is drawn from this round's losers, and it has results. Undo the ${name.toLowerCase()}'s results first, then change this one.`;
+      return {
+        said: `${name} is drawn from this round's losers, and ${results === 1 ? "1 of its ties has a result" : `${results} of its ties have results`}. Take ${results === 1 ? "it" : "them"} back first, latest first, with Change result on each, then change this one.`,
+        heldBy: "",
+        undoes: results,
+      };
     }
   }
   return null;
 }
 
-/** The play-off for third as the rule needs it: who is in it, and whether it has a result. */
-export interface ThirdPlaceFact {
-  playerIds: readonly string[];
-  decided: boolean;
-}
-
 /**
  * The event's play-off for third, read off its matches: `round: 0` is the marker
- * `createThirdPlaceMatch` writes and nothing else does. "Has a result" is
- * `storedMatchIsOver` (a forfeit counts; a card being filled in does not).
+ * `createThirdPlaceMatch` writes and nothing else does. PLAYED once a hole has a
+ * result or it was conceded (what has happened, not what is arranged): a card half
+ * filled in is a match under way, and its two players are no longer to be moved.
  */
 export function thirdPlaceFrom(
   matches: readonly { round: number; playerAId: string; playerBId: string; holes: string; forfeitedBy?: string | null }[],
-): ThirdPlaceFact | null {
+): (ThirdPlaceFact & { decided: boolean }) | null {
   const p = matches.find((x) => x.round === 0);
   if (!p) return null;
-  return { playerIds: [p.playerAId, p.playerBId], decided: storedMatchIsOver(p) };
+  let anyHole = false;
+  try {
+    const holes = JSON.parse(p.holes) as unknown[];
+    anyHole = Array.isArray(holes) && holes.some((h) => h !== null);
+  } catch {
+    anyHole = false;
+  }
+  return { playerIds: [p.playerAId, p.playerBId], played: !!p.forfeitedBy || anyHole, decided: storedMatchIsOver(p) };
+}
+
+/**
+ * THE PLAY-OFF FOR THIRD AS A CARD IN THE LIST (persona walk of cut 3): it is
+ * the one tie fed by losers, stored as a match, and a refusal that names it must
+ * point at a control. "to-play" (two name buttons), "under-way" (scores in, not
+ * finished) or "decided" (who won, or halved: the two share third).
+ */
+export interface ThirdPlaceCard {
+  matchId: string;
+  a: TieSide;
+  b: TieSide;
+  state: "to-play" | "under-way" | "decided";
+  /** The winner on a decided play-off; "" when halved or not decided. */
+  winnerId: string;
+}
+
+export function thirdPlaceCard(
+  matches: readonly { id: string; round: number; playerAId: string; playerBId: string; holes: string; forfeitedBy?: string | null }[],
+  nameOf: (id: string) => string,
+): ThirdPlaceCard | null {
+  const p = matches.find((x) => x.round === 0);
+  const fact = p ? thirdPlaceFrom([p]) : null;
+  if (!p || !fact) return null;
+  const a = { id: p.playerAId, name: nameOf(p.playerAId) };
+  const b = { id: p.playerBId, name: nameOf(p.playerBId) };
+  if (!fact.played) return { matchId: p.id, a, b, state: "to-play", winnerId: "" };
+  if (!fact.decided) return { matchId: p.id, a, b, state: "under-way", winnerId: "" };
+  let winnerId = "";
+  if (p.forfeitedBy) winnerId = p.forfeitedBy === p.playerAId ? p.playerBId : p.forfeitedBy === p.playerBId ? p.playerAId : "";
+  else {
+    try {
+      const w = resolveMatch(JSON.parse(p.holes) as HoleResult[]).winner;
+      winnerId = w === "A" ? p.playerAId : w === "B" ? p.playerBId : "";
+    } catch {
+      winnerId = "";
+    }
+  }
+  return { matchId: p.id, a, b, state: "decided", winnerId };
 }
 
 export interface TieSide {
@@ -174,7 +261,7 @@ export function scoreEntryTies(
         }
         const a = { id: m.a.playerId!, name: m.a.name };
         const b = { id: m.b.playerId!, name: m.b.name };
-        const base = { key: m.key, round: roundWords(label, rd.label), a, b };
+        const base = { key: m.key, round: drawRoundWords(label, rd.label), a, b };
         if (m.winnerId) {
           decided.push({ ...base, state: "decided", winnerId: m.winnerId, margin: marginWords(results[m.key]), report: null });
           continue;
@@ -200,8 +287,8 @@ export function scoreEntryTies(
   return { ties: [...reported, ...toPlay, ...decided], waiting };
 }
 
-/** What the bar says after a result is recorded: "Ann Ash goes through." */
-export function goesThroughWords(t: Pick<EntryTie, "a" | "b">, winnerId: string): string {
+/** What the tie says after its result is recorded, naming it: "Final: Ann Ash goes through." */
+export function goesThroughWords(t: Pick<EntryTie, "round" | "a" | "b">, winnerId: string): string {
   const w = winnerId === t.a.id ? t.a : winnerId === t.b.id ? t.b : null;
-  return w ? `${w.name} goes through.` : "";
+  return w ? `${t.round}: ${w.name} goes through.` : "";
 }

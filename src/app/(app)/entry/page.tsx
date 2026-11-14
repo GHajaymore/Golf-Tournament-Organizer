@@ -59,7 +59,7 @@ import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
 import { resolveMatch, matchIsOver } from "@/lib/domain/match";
 import { ConfirmMatchResult, ReopenMatchResult } from "@/components/ConfirmMatchResult";
-import { scoreEntryTies } from "@/lib/domain/knockout-ties";
+import { scoreEntryTies, thirdPlaceCard } from "@/lib/domain/knockout-ties";
 import { bracketDraws } from "@/lib/domain/my-tie";
 
 export const metadata = screenMetadata("/entry");
@@ -852,7 +852,12 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
             }),
             prisma.bracketWinner.findMany({ where: { eventId: session.eventId }, select: { key: true, result: true } }),
           ]);
-          return scoreEntryTies(bracketDraws(state.brackets), reports, Object.fromEntries(results.map((r) => [r.key, r.result])));
+          const nameById = new Map(state.players.map((p) => [p.id, p.name]));
+          return {
+            ...scoreEntryTies(bracketDraws(state.brackets), reports, Object.fromEntries(results.map((r) => [r.key, r.result]))),
+            // The play-off for third, its own card in the list: the refusal that names it links there.
+            thirdPlace: thirdPlaceCard(state.matches, (id) => nameById.get(id) ?? "A player no longer in the field"),
+          };
         })()
       : undefined;
   const rounds: EntryRound[] = await Promise.all(

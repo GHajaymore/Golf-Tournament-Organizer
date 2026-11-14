@@ -6,7 +6,8 @@ import { assertEventWritable, archiveRefusalOf } from "@/lib/services/club-archi
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { loadEventState } from "@/lib/services/tournament";
-import { clearTieResult, resultHeldBecause } from "@/lib/services/knockout-result";
+import { clearTieResult, resultHeldBecause, syncThirdPlace } from "@/lib/services/knockout-result";
+import { drawRoundWords } from "@/lib/domain/knockout-ties";
 import { bracketDraws, tieByKey, marginWords } from "@/lib/domain/my-tie";
 import { resultLine, tieStillHolds } from "@/lib/domain/knockout-play-by";
 
@@ -38,7 +39,7 @@ async function requireStaffEvent(): Promise<string> {
  * Staff only. Every Undo is on the record: who (the audit line's actor), when
  * (its time) and what (the round, both players, the result taken back).
  */
-export async function undoTieResult(input: { key: string; players: string[] }): Promise<{ ok: boolean; error?: string; said?: string }> {
+export async function undoTieResult(input: { key: string; players: string[] }): Promise<{ ok: boolean; error?: string; said?: string; heldBy?: string; undoes?: number }> {
   let eventId: string;
   try {
     eventId = await requireStaffEvent();
@@ -61,14 +62,16 @@ export async function undoTieResult(input: { key: string; players: string[] }): 
     return { ok: false, error: "The draw has changed: that place now holds a different tie. Reload to see the draw as it is." };
   }
   if (!m.winnerId) return { ok: false, error: "That tie has no result to take back." };
-  const later = resultHeldBecause(state, key);
-  if (later) return { ok: false, error: later };
+  const held = resultHeldBecause(state, key);
+  if (held) return { ok: false, error: held.said, heldBy: held.heldBy, undoes: held.undoes };
 
   const stored = (await prisma.bracketWinner.findFirst({ where: { eventId, key }, select: { result: true } }))?.result ?? "";
-  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const round = drawRoundWords(tie.draw, tie.round);
   const was = `${resultLine(round, m)}${marginWords(stored)}`;
   if (!(await clearTieResult(eventId, key))) return { ok: false, error: "That tie has no result to take back." };
   await logAudit(eventId, "knockout.undo", `${was}: taken back on Score entry`);
+  // A play-off for third not yet played follows the semi-finals it is made from.
+  await syncThirdPlace(eventId);
   revalidatePath("/", "layout");
   boardChanged(eventId);
   return { ok: true, said: was };
