@@ -1,6 +1,7 @@
 "use client";
 import { useOrgProfile, leadingNoun } from "@/components/OrgProfileProvider";
-import { CardImport } from "./CardImport";
+import dynamic from "next/dynamic";
+import { PanelLoading, orNeedsSignal } from "./LazyPanel";
 import { screenName } from "@/lib/nav";
 import { Fragment, useState, useTransition } from "react";
 import { TeeEditor, PlaysExplainer } from "./TeeEditor";
@@ -14,7 +15,6 @@ import {
   checkCourseAgainstSource,
   applySourceCard,
 } from "@/app/actions/courses";
-import { CourseSearch } from "./CourseSearch";
 import { CoursePicker } from "@/components/CoursePicker";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
@@ -25,6 +25,17 @@ import { distanceWords, type DistanceUnit } from "@/lib/domain/distance-unit";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+
+// Behind "Look up a course" and "Paste a card": opened by a press, so neither is part of
+// the screen's first load. See LazyPanel.tsx.
+const CardImport = dynamic(() => orNeedsSignal(() => import("./CardImport").then((m) => m.CardImport)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
+const CourseSearch = dynamic(() => orNeedsSignal(() => import("./CourseSearch").then((m) => m.CourseSearch)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
 
 /** The result of asking the directory whether a course has changed. */
 interface SourceCheck {
