@@ -78,7 +78,10 @@ test("a round robin of four sides is drawn as six matches, and is not redrawn ov
     const generate = page.getByRole("button", { name: "Generate matches", exact: true });
     await centre(generate);
     await generate.click();
-    await expect.poll(async () => (await matches()).length, { message: "Generate matches did not make the round robin's six" }).toBe(6);
+    // The six land through a server action and a refresh; a loaded phone shard read three at the
+    // default 5 s (CI 43577082050, phone only, an unrelated branch). Wait for the state itself, under a
+    // bound that is still a failure: a draw that never reaches six is red after 30 s with the count.
+    await expect.poll(async () => (await matches()).length, { message: "Generate matches did not make the round robin's six", timeout: 30_000 }).toBe(6);
 
     // A round robin, by definition: every side meets every other side exactly once…
     const drawn = await matches();
