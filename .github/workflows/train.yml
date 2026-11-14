@@ -1,0 +1,159 @@
+name: Train
+
+# A TRAIN: UP TO THREE CLEAN PULL REQUESTS TESTED IN ONE ROUND, AND MERGED IN ORDER.
+#
+# What the PM did by hand until 2026-11-14 (pick the PRs, build main + each head, push the round,
+# read the verdict, tell each PR, merge in order), built once so it is the same every time. The
+# rules are scripts/qa/train-rules.mjs, unit-tested in src/lib/__tests__/train-builder.test.ts;
+# scripts/qa/train.mjs gathers the facts and does what they decide.
+#
+#   build   Run workflow with action "build" and the PRs in the order they will merge
+#           ("1129 1133"). Refuses, naming why, when a PR is not open or not for main, verify is not
+#           green on its head, its head does not contain main, it carries a blocking label or a review
+#           asking for changes, or it changes a workflow file (this job's token may not push one: a
+#           train like that is built by hand); when another change is in rounds; when another PR's
+#           clean round is waiting to merge; and when two PRs conflict (it names the pair). Otherwise
+#           it pushes round/train-<run number>-1, one commit per PR, and starts round.yml on it.
+#   tell    Comments on each PR: the train, its step commits and their trees. Again when the round
+#           ends (the workflow_run trigger), with the verdict round.yml posted on the tip.
+#   merge   OFF. See THE SWITCH on the job.
+#
+# THE MERGE RULE (the PM's merge.sh TRAIN mode): the first PR's head already IS step 1 (its tree is
+# the step's tree). After it merges, the next PR takes main, and merges on this verdict only when its
+# head's tree equals its own step's tree, so what reaches main is exactly what the round tested.
+# `node scripts/qa/train.mjs merge --train=<n>` says, anywhere, which PR is next or why none is.
+#
+# Nothing here executes a PR's code: the trains are built in a worktree of their own and only git
+# reads them. A workflow_run trigger only works from the default branch, so `tell` after a round
+# waits until this file is on main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "build (main + each PR, pushed and its round started) or merge (OFF until its switch is turned on)"
+        type: choice
+        options: [build, merge]
+        default: build
+      prs:
+        description: "build: up to three PR numbers, in the order they will merge (e.g. 1129 1133)"
+        required: false
+        default: ""
+      train:
+        description: "merge: the train's number (round/train-<n>-1)"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["Round"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the train and start its round
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Two trains asked for at once would both find no round running; the second waits for the first.
+    concurrency:
+      group: train-build
+      cancel-in-progress: false
+    permissions:
+      # To push round/train-<n>-1, and only that (train.mjs pushes no other ref).
+      contents: write
+      # To start round.yml on it (a push made with this token starts no workflow) and read the runs.
+      actions: write
+      checks: read
+      pull-requests: read
+    outputs:
+      branch: ${{ steps.build.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check each PR, build main + each head in order, push, start the round
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRS: ${{ inputs.prs }}
+          TRAIN: ${{ github.run_number }}
+        run: node scripts/qa/train.mjs build --prs="$PRS" --train="$TRAIN" --push
+
+  tell:
+    name: Tell each PR of the train
+    needs: build
+    if: >-
+      always() && (
+        (github.event_name == 'workflow_dispatch' && needs.build.result == 'success') ||
+        (github.event_name == 'workflow_run' && startsWith(github.event.workflow_run.head_branch, 'round/train-'))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # round-verdict, the commit status round.yml's Verdict job posts on the tip.
+      statuses: read
+      # To comment on each member.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Read the train back, and its verdict once there is one
+        id: tell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.build.outputs.branch || github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          node scripts/qa/train.mjs tell --branch="$BRANCH" --sha="$SHA" --run-url="$RUN_URL" --out=train-summary.md
+          cat train-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment on each PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MEMBERS: ${{ steps.tell.outputs.members }}
+        run: |
+          for pr in $MEMBERS; do
+            gh pr comment "$pr" -R "$GITHUB_REPOSITORY" --body-file train-summary.md
+          done
+
+  merge:
+    name: Merge the next PR of a train (switched off)
+    # THE SWITCH. `false &&` keeps this job from ever running. It is turned on by a reviewed pull
+    # request that removes those two words, and not before BOTH of these exist:
+    #   - TRAIN_MERGE_TOKEN, a token of Ajay's (Mon 16 Nov). A merge made with this workflow's own
+    #     token pushes to main without starting ci.yml, so its deploy job would never run;
+    #   - the QA gate in the repository: train.mjs merges a PR only after a line
+    #     "GATE #<pr> <head sha> GO" in a comment by an owner, member or collaborator.
+    # Even when on, it merges ONE PR per run, in order, and only when the train's round is clean and
+    # that PR's head tree is its own step's tree (mergeDecision in scripts/qa/train-rules.mjs).
+    if: false && github.event_name == 'workflow_dispatch' && inputs.action == 'merge'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+      statuses: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Merge the next PR, or say why not
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRAIN_MERGE_TOKEN: ${{ secrets.TRAIN_MERGE_TOKEN }}
+          TRAIN: ${{ inputs.train }}
+        run: node scripts/qa/train.mjs merge --train="$TRAIN" --yes
