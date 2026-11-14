@@ -22,6 +22,8 @@ A round is the browser suite on GitHub's runners, about thirty parts side by sid
 - Use the FULL sha everywhere (`git rev-parse`), never a short one.
 
 ## 3. Push the round
+- Only the main session pushes a round or merges: the guard refuses both from any other session or a
+  subagent (`.claude/agents/STANDARDS.md` j; its id is in the untracked `.claude/main-session`).
 - Next free number: `git ls-remote --heads origin "round/<name>-*"`.
 - `git push origin <full sha>:refs/heads/round/<name>-<N>` — a push of the sha, not of a local branch.
 - Two rounds may run at once. Never push one into a deploy freeze window for a change you mean to
