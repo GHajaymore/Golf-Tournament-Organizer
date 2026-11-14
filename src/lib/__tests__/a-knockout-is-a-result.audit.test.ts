@@ -82,7 +82,7 @@ beforeAll(async () => {
       organizationId: org.id,
       // PRE-LAUNCH on purpose. A launched event returns early from
       // `playRefusedBecause` and the rounds' results are never asked.
-      status: "ready",
+      status: "draft",
       dates: "",
       course: "",
       city: "",

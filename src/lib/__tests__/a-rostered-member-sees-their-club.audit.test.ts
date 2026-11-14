@@ -31,7 +31,7 @@ async function cleanup() {
 
 const event = (organizationId: string, name: string) =>
   prisma.event.create({
-    data: { name: `${TAG} ${name}`, organizationId, status: "registration", format: "stroke", dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${TAG}-${name}` },
+    data: { name: `${TAG} ${name}`, organizationId, status: "draft", format: "stroke", dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${TAG}-${name}` },
     select: { id: true },
   });
 
