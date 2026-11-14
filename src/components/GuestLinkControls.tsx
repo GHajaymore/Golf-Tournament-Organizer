@@ -35,13 +35,9 @@ export function GuestForget() {
         className="btn btn-primary"
         style={{ fontSize: 13, padding: "6px 10px" }}
         disabled={pending}
-        onClick={() =>
-          start(async () => {
-            // This browser's push endpoint, so the guest's notices stop on this phone too (SEC-1).
-            await forgetThisPhone(await thisDevicesPushEndpoint());
-            window.location.assign("/p");
-          })
-        }
+        // This browser's push endpoint, so the guest's notices stop on this phone too (SEC-1). The
+        // action itself redirects to /p; no navigation here, or the two race (QA finding G638-1 #2).
+        onClick={() => start(async () => forgetThisPhone(await thisDevicesPushEndpoint()))}
       >
         Forget
       </button>

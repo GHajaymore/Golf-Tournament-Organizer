@@ -73,6 +73,8 @@ const PHONE_A = `https://push.example.invalid/${MARK}-a`;
 const PHONE_B = `https://push.example.invalid/${MARK}-b`;
 const SHARED = `https://push.example.invalid/${MARK}-shared`;
 const KEYS = { p256dh: "zz-p256dh", auth: "zz-auth" };
+/** Forget ends in `redirect("/p")` (QA finding G638-1 #2): the action's own answer is that redirect. */
+const SENT_TO_P = { digest: expect.stringMatching(/^NEXT_REDIRECT;\w+;\/p;/) };
 
 let eventId = "";
 let guest = "";
@@ -223,7 +225,7 @@ describe("a guest's notices die with their link", () => {
     expect((await savePushSubscription({ endpoint: PHONE_B, keys: KEYS })).ok).toBe(true);
     const version = (await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guest } })).version;
 
-    expect(await forgetThisPhone(SHARED)).toEqual({ ok: true });
+    await expect(forgetThisPhone(SHARED)).rejects.toMatchObject(SENT_TO_P);
     expect(await getGuestSession(), "the link is still held here").toBeNull();
     expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED, pass: { playerId: guest } } }), "a forgotten phone kept the guest's notices").toBe(0);
     // Only this pass, only this endpoint: the other guest's row, the account's, and the guest's other phone stay.
@@ -237,7 +239,7 @@ describe("a guest's notices die with their link", () => {
     expect(endpointsSent(), "the forgotten phone was still reached").toEqual([PHONE_B]);
     // A crafted endpoint is no endpoint: nothing else goes.
     await holdLink(quietGuest);
-    expect(await forgetThisPhone("not-a-url")).toEqual({ ok: true });
+    await expect(forgetThisPhone("not-a-url")).rejects.toMatchObject(SENT_TO_P);
     expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED, pass: { playerId: quietGuest } } })).toBe(1);
   });
 
