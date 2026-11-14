@@ -203,3 +203,11 @@ chosen: `await pressRadio(radio)` from `e2e/press-radio.ts` (label click, then `
 `getByText("X won", { exact: true }).click()` then `expect(radio).toBeChecked()`.
 `src/lib/__tests__/seg-opt-radios-are-pressed-not-checked.test.ts` refuses a `.check(` on any locator that reaches a
 radio (by role, by `input[type="radio"]`, or by the words of a `.seg-opt` label); real checkboxes are untouched.
+
+A "RECEIVED" READ AFTER "TEST TIMEOUT" IS THE TEARDOWN TALKING (2026-11-14). When a failure says
+`Test timeout of …ms exceeded` AND an assertion's expected/received, the assertion may never have run while
+the page was alive: in `organizer-rounds-screen.spec.ts` the Bracket press hung at "performing click action"
+for 247 s, and the next line's `toHaveValue("Match Play")` then read "" from the page being closed. That
+"" sent one fix (#1022) after a select that was never empty. Read the action timings in the trace first
+(`test.trace` holds each call's start and end; the 0-trace's call log says where a press stopped), and
+bound a press that follows a save (`click({ timeout })`) so a stall fails at the press, by name.

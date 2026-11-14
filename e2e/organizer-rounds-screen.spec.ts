@@ -198,13 +198,30 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     expect(forGroups.some((o) => o.startsWith("Stroke Play")), "a round robin is offered Stroke Play").toBe(false);
     await page.getByLabel("How many rounds to add").fill("2");
     await page.getByRole("button", { name: /^Add 2 round robins/ }).click();
-    // THE NEXT PRESS COMES AT ONCE, as a quick organizer's does: Bracket right after Add, not after
-    // looking at the new rounds. CI run 41950657167 read the format as "" for 247s here. Bounded, so a
-    // repeat fails in ten seconds with the value, not after four minutes.
-    await page.getByRole("button", { name: /^Bracket/ }).click();
-    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play", { timeout: 10_000 });
+    /*
+     * THE ADD HAS LANDED BEFORE THE NEXT PRESS — and the press is bounded (2026-11-14).
+     *
+     * Twice this step failed as `toHaveValue("Match Play")` receiving "" (CI run 41950657167, and
+     * PR #1142's run 43589900390), and twice that was the wrong lead. The second run's trace:
+     * the Bracket press reached "performing click action" at 707.7 s and never came back — no
+     * frame, no request, no console line after it — until the 240 s test timeout at 954.1 s;
+     * only then did the format assertion run, against a page being torn down, and read "".
+     * At the press itself the DOM held Round robin chosen, the format on Match Play, Add reset to
+     * one, both new rounds drawn and Round 1 opened. The screen was right; the press never landed.
+     *
+     * Both failures pressed Bracket within half a second of the add's refresh, while the app was
+     * still doing what it does after an add (drawing the new rounds, opening Round 1 and bringing it
+     * into view). So the press waits for the end of that — the rounds drawn, Round 1 opened, the
+     * builder back (Add enabled) — and for nothing else; no sleep. And it is bounded: if a press
+     * ever stalls again, it fails HERE in fifteen seconds with Playwright's own log of the press,
+     * not four minutes later as a value read at teardown.
+     */
     await expect(page.getByRole("button", { name: /^Round 2 · Round Robin/ })).toBeVisible({ timeout: 20_000 });
-    // And after the refresh has landed, the choice is still held and still sendable.
+    await expect(page.getByRole("button", { name: /^Round 1 · Round Robin/ })).toHaveAttribute("aria-expanded", "true", { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /^Add round robin$/ })).toBeEnabled({ timeout: 10_000 });
+    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play");
+    await page.getByRole("button", { name: /^Bracket/ }).click({ timeout: 15_000 });
+    // The kind chosen brings its format, and Add can send it.
     await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play", { timeout: 10_000 });
     await expect(page.getByRole("button", { name: /^Add bracket/ })).toBeEnabled({ timeout: 10_000 });
     await page.getByRole("button", { name: /^Add bracket/ }).click();

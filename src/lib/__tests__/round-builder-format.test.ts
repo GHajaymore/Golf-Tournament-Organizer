@@ -15,6 +15,12 @@ import { readSource } from "./source";
  * screen offers is now ASKED of the type each render (`addFormatFor`), so no
  * order of presses, refreshes or re-renders can leave a chosen kind without
  * one that fits it.
+ *
+ * WHAT THAT RUN WAS, read later from a trace (PR #1142's run 43589900390, the
+ * same step, the same 247 s): the Bracket press itself never came back, and ""
+ * was read at teardown after the test timeout, not from a select left empty.
+ * The invariant below stands on its own; the spec now waits for the add to
+ * land and bounds the press (`organizer-rounds-screen.spec.ts`).
  */
 describe("addFormatFor — the format the builder offers for the kind chosen", () => {
   it("CONTROL: there are kinds, and each one has a natural format that it can be scored in", () => {
