@@ -15,6 +15,10 @@ vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
 const { suspendPlay, resumePlay } = await import("@/app/actions/play-status");
+const { tournamentStatusNow } = await import("@/lib/services/tournament-status");
+const { consoleOffersPlayStop } = await import("@/lib/domain/play-status");
+const { isMatch } = await import("@/lib/tournament-shape");
+const { GET } = await import("@/app/api/console-play-status/route");
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SUSPEND";
@@ -98,5 +102,98 @@ describe("the committee stops and restarts the field", () => {
     as(id, "player");
     await expect(resumePlay()).rejects.toThrow();
     expect((await row(id))!.playSuspendedAt).not.toBeNull();
+  });
+});
+
+/**
+ * THE CONSOLE'S PROBE (`/api/console-play-status`, re-review of #1149): what
+ * an open console asks every 20 seconds instead of re-rendering the shell. A
+ * door, so held against real rows: staff only, the session's own tournament
+ * only, one timestamp.
+ */
+describe("the console's probe answers staff, about their own tournament only", () => {
+  const ask = async () => {
+    const res = await GET();
+    return { status: res.status, body: (await res.json()) as { ok: boolean; since?: string } };
+  };
+
+  it("nobody signed in, or a player: refused, with no answer", async () => {
+    const id = await seed();
+    session = null;
+    expect(await ask()).toEqual({ status: 401, body: { ok: false } });
+    as(id, "player");
+    await prisma.event.update({ where: { id }, data: { playSuspendedAt: new Date() } });
+    expect(await ask(), "a player read the committee's probe").toEqual({ status: 401, body: { ok: false } });
+  });
+
+  it("staff: \"\" while play is on, the stamp while it is suspended — the action's own stamp", async () => {
+    const id = await seed();
+    as(id, "assistant");
+    expect(await ask()).toEqual({ status: 200, body: { ok: true, since: "" } });
+    await suspendPlay("Lightning");
+    const stamped = (await row(id))!.playSuspendedAt!.toISOString();
+    expect(await ask()).toEqual({ status: 200, body: { ok: true, since: stamped } });
+    await resumePlay();
+    expect((await ask()).body.since).toBe("");
+  });
+
+  it("never another tournament's: a storm at the club next door is not this console's", async () => {
+    const mine = await seed();
+    const theirs = await seed();
+    await prisma.event.update({ where: { id: theirs }, data: { playSuspendedAt: new Date(), playSuspendedNote: "Not yours" } });
+    as(mine, "admin");
+    expect((await ask()).body.since).toBe("");
+  });
+});
+
+/**
+ * AND THE CONSOLE OFFERS IT ON THE MACHINE'S REAL STEP (simplicity cut 2, 14 Nov).
+ *
+ * The shell draws Suspend play on every console screen by `consoleOffersPlayStop`,
+ * handed the step the shell's chip shows (`tournamentStatusFor` on the club's day).
+ * Asked here of real rows through the same service, so the rule is held to the
+ * machine and not to a hand-made step: a draft is never offered it, a launched
+ * tournament with a round to play is, a completed one is not — until play is
+ * suspended there, when the way back is offered whatever the step.
+ */
+describe("the console offers Suspend play on the machine's step, from real rows", () => {
+  async function seedWithRound(status: string, shape?: string) {
+    const id = await seed();
+    await prisma.event.update({ where: { id }, data: shape ? { status, shape } : { status } });
+    await prisma.stage.create({ data: { eventId: id, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "gross" } });
+    return id;
+  }
+  /** What the shell would draw for this viewer: its step, its row, its rule. */
+  async function offered(id: string, viewRole: string) {
+    const step = (await tournamentStatusNow(id))?.status.step ?? null;
+    const r = await prisma.event.findUniqueOrThrow({ where: { id }, select: { playSuspendedAt: true, shape: true } });
+    return { step, offered: consoleOffersPlayStop({ viewRole, step, suspended: !!r.playSuspendedAt, casualRound: isMatch(r.shape) }) };
+  }
+
+  it("a casual round: created live and never closed, and never offered it — the creator is no committee (#1149 C1)", async () => {
+    const id = await seedWithRound("live", "match");
+    expect(await offered(id, "admin"), "Suspend play over a game between friends").toEqual({ step: "live", offered: false });
+  });
+
+  it("a draft: not offered", async () => {
+    const id = await seedWithRound("draft");
+    expect(await offered(id, "admin")).toEqual({ step: "setting-up", offered: false });
+  });
+
+  it("launched with a round to play: offered to staff, never to a player", async () => {
+    const id = await seedWithRound("live");
+    expect(await offered(id, "admin")).toEqual({ step: "live", offered: true });
+    expect((await offered(id, "assistant")).offered).toBe(true);
+    expect((await offered(id, "player")).offered).toBe(false);
+  });
+
+  it("completed: not offered, until play is suspended there — then the way back is, and it goes once resumed", async () => {
+    const id = await seedWithRound("completed");
+    expect(await offered(id, "admin")).toEqual({ step: "completed", offered: false });
+    as(id, "assistant");
+    expect((await suspendPlay("Lightning")).ok).toBe(true);
+    expect(await offered(id, "assistant"), "suspended, with no way back on the screen").toEqual({ step: "completed", offered: true });
+    expect((await resumePlay()).ok).toBe(true);
+    expect((await offered(id, "assistant")).offered).toBe(false);
   });
 });

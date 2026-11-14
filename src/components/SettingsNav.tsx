@@ -52,7 +52,8 @@ export function SettingsNav({ sections }: { sections: readonly SettingsSection[]
         // Sticky, because the question "where else can I go" is asked from
         // half way down a page this long, not only from the top.
         position: "sticky",
-        top: 0,
+        // Below the console's sticky band (Suspend play, on a day of play), never under it.
+        top: "var(--console-sticky-top, 0px)",
         zIndex: 2,
         marginBottom: 16,
         gap: 8,

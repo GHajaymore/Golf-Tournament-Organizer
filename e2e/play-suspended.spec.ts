@@ -115,7 +115,14 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
     await expect(banner(board)).toContainText(REASON);
 
     // ── and it is lifted ────────────────────────────────────────────────────
-    await console_.getByRole("button", { name: "Resume play" }).click();
+    // Resume confirms (#1149 C3): an accidental resume sends the field back into the hazard.
+    await console_.getByRole("button", { name: "Resume play", exact: true }).click();
+    await expect(console_.getByText("Players will be told to play on"), "Resume did not ask first").toBeVisible();
+    expect(
+      (await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true } })).playSuspendedAt,
+      "the first press of Resume lifted the suspension without its confirm",
+    ).not.toBeNull();
+    await console_.getByRole("button", { name: "Resume play now" }).click();
     await expect(console_.getByRole("button", { name: "Suspend play" }), "after resuming, the dashboard still shows play suspended").toBeVisible({ timeout: 20_000 });
     const lifted = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true, playSuspendedNote: true } });
     expect(lifted.playSuspendedAt, "the tournament is still marked suspended").toBeNull();
@@ -136,6 +143,214 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
     expect(errors, "a screen threw while play was suspended or resumed").toEqual([]);
   } finally {
     await Promise.all([organizer, member, latecomer, family].map((c) => c.close()));
+  }
+});
+
+/**
+ * FROM WHEREVER THE ORGANIZER IS STANDING, IN TWO PRESSES (simplicity cut 2,
+ * 2026-11-14; Rule 5.7).
+ *
+ * Suspend play was on the dashboard only: from the tee sheet in a storm that
+ * was the menu, Home, Suspend play, Suspend play now — 4 presses — and
+ * resuming took the organizer off the sheet. The console's shell draws it on
+ * every screen now, once. Here the organizer, on a phone, stands on the tee
+ * sheet and stops play with exactly two presses (the button, then the
+ * confirm), the banner and Resume play are on every console screen walked,
+ * the dashboard draws ONE control, not two, and resuming is two presses (it
+ * confirms: #1149 C3) that leave the organizer where they were. Scrolled down
+ * the sheet, the button is still in view (sticky). Each step is read back
+ * from the row.
+ */
+test("the organizer on a phone suspends play from the tee sheet in two presses, sees it on every console screen, and resumes where they stand", async ({ browser, baseURL }, testInfo) => {
+  test.setTimeout(180_000);
+  await playOn();
+  const errors: string[] = [];
+  const organizer = await browser.newContext({
+    ...testInfo.project.use,
+    baseURL,
+    storageState: ORGANIZER,
+    // The small phone the re-review measured: the least room between the top bar and the tab bar.
+    viewport: { width: 360, height: 640 },
+    hasTouch: true,
+    // A save on WebKit that the service worker sends is not the page's (G411-3): the presses here are saves.
+    serviceWorkers: "block",
+  });
+  const member = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: PLAYER, serviceWorkers: "block" });
+  try {
+    const page = await organizer.newPage();
+    watchPageErrors(page, errors, "the organizer's phone");
+    const banner = page.getByRole("alert").filter({ hasText: "Play is suspended" });
+    const suspendButton = page.getByRole("button", { name: "Suspend play", exact: true });
+    let presses = 0;
+    const press = async (name: string) => {
+      await page.getByRole("button", { name, exact: true }).click();
+      presses++;
+    };
+
+    // ── the tee sheet, with play on: the button is there, no banner ─────────
+    await page.goto(`/foursomes?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const sheet = new URL(page.url()).pathname;
+    expect(sheet, "the tee sheet sent the organizer somewhere else").toBe("/foursomes");
+    await expect(suspendButton, "Suspend play is not on the tee sheet").toBeVisible({ timeout: 20_000 });
+    await expect(banner, "CONTROL: the tee sheet says play is suspended before anybody suspended it").toHaveCount(0);
+
+    // ── scrolled down the sheet, the button is still in view, and not under the top bar ─
+    // Every measurement below first proves its subject is there: a missing bar, strip or button
+    // must fail here, never skip the comparison and read as a pass.
+    const boxOf = async (what: string, at: ReturnType<typeof page.locator>) => {
+      await expect(at, `CONTROL: ${what} is not on the screen, so nothing below would be measured`).toBeVisible({ timeout: 20_000 });
+      const box = await at.boundingBox();
+      expect(box, `CONTROL: ${what} has no box to measure`).not.toBeNull();
+      return box!;
+    };
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const scrolled = await page.evaluate(() => window.scrollY);
+    expect(scrolled, "CONTROL: the tee sheet did not scroll, so a sticky check here proves nothing").toBeGreaterThan(0);
+    await expect(suspendButton, `scrolled ${scrolled}px down the tee sheet, Suspend play is out of view`).toBeInViewport();
+    const bar = await boxOf("the phone's top bar", page.locator(".m-topbar"));
+    const button = await boxOf("Suspend play", suspendButton);
+    expect(button.y, "Suspend play is under the phone's top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+
+    // ── two presses; the open confirm, scrolled down, is in view and above the tab bar ─
+    await press("Suspend play");
+    const now = page.getByRole("button", { name: "Suspend play now" });
+    await expect(now, "the confirm's button is out of view on a small phone").toBeInViewport();
+    const tabs = await boxOf("the phone's tab bar", page.locator(".m-tabbar"));
+    const nowBox = await boxOf("Suspend play now", now);
+    expect(nowBox.y + nowBox.height, "Suspend play now sits behind the phone's tab bar").toBeLessThanOrEqual(tabs.y + 1);
+    await page.getByLabel("Reason (optional)").fill(REASON);
+    await press("Suspend play now");
+    await expect(banner, "the tee sheet does not say play is suspended").toBeVisible({ timeout: 20_000 });
+    expect(presses, "suspending play took more than the button and its confirm").toBe(2);
+    expect(new URL(page.url()).pathname, "suspending play took the organizer off the tee sheet").toBe(sheet);
+    const stamped = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true, playSuspendedNote: true } });
+    expect(stamped.playSuspendedAt, "the tournament is not marked suspended").not.toBeNull();
+    expect(stamped.playSuspendedNote).toBe(REASON);
+
+    // ── every console screen carries the banner and the way back, once ──────
+    for (const screen of ["/entry", "/leaderboard", "/dashboard", "/registration"]) {
+      await page.goto(`${screen}?bust=${Date.now()}`);
+      await expect(banner, `${screen} does not say play is suspended`).toBeVisible({ timeout: 20_000 });
+      await expect(banner, `${screen} draws the banner more than once`).toHaveCount(1);
+      await expect(banner).toContainText(REASON);
+      await expect(page.getByRole("button", { name: "Resume play", exact: true }), `${screen} has no way back`).toHaveCount(1);
+    }
+
+    // ── a screen with a sticky header of its own: stacked under the banner, never covered ─
+    await page.goto(`/event?bust=${Date.now()}`);
+    await expect(banner).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    expect(await page.evaluate(() => window.scrollY), "CONTROL: Tournament details did not scroll, so its strip never had to stick").toBeGreaterThan(0);
+    // The strip's own heading, so no larger card around it is measured instead.
+    const strip = page.locator(".card-kicker", { hasText: "On this page" }).first();
+    await expect(strip, "CONTROL: Tournament details has no On this page strip to stack").toHaveCount(1);
+    await expect(strip, "scrolled down, the On this page strip is out of view").toBeInViewport();
+    const band = await boxOf("the Suspend play banner", page.locator(".console-play-status"));
+    const stripBox = await boxOf("the On this page strip", strip);
+    expect(stripBox.y, "the settings' On this page strip is under the Suspend play banner").toBeGreaterThanOrEqual(band.y + band.height - 1);
+
+    // ── a player is never offered it ────────────────────────────────────────
+    const me = await member.newPage();
+    watchPageErrors(me, errors, "a member's phone");
+    await me.goto(`/me?bust=${Date.now()}`);
+    await expect(me.getByRole("alert").filter({ hasText: "Play is suspended" }), "CONTROL: the member is not told").toBeVisible({ timeout: 20_000 });
+    await expect(me.getByRole("button", { name: "Resume play" }), "a player is offered Resume play").toHaveCount(0);
+
+    // ── resumed in two presses (it confirms, #1149 C3), from the tee sheet, staying on it ─
+    await page.goto(`/foursomes?bust=${Date.now()}`);
+    await expect(banner).toBeVisible({ timeout: 20_000 });
+    const before = new URL(page.url()).pathname;
+    presses = 0;
+    await press("Resume play");
+    await expect(page.getByText("Players will be told to play on")).toBeVisible();
+    await press("Resume play now");
+    expect(presses, "resuming took more than the button and its confirm").toBe(2);
+    await expect(suspendButton, "after resuming, the tee sheet still shows play suspended").toBeVisible({ timeout: 20_000 });
+    await expect(banner).toHaveCount(0);
+    expect(new URL(page.url()).pathname, "resuming took the organizer off the tee sheet").toBe(before);
+    const lifted = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true } });
+    expect(lifted.playSuspendedAt, "the tournament is still marked suspended").toBeNull();
+
+    // ── and the dashboard draws one Suspend play, not its own beside the shell's ─
+    await page.goto(`/dashboard?bust=${Date.now()}`);
+    await expect(suspendButton, "the dashboard lost Suspend play").toBeVisible({ timeout: 20_000 });
+    await expect(suspendButton, "the dashboard draws Suspend play twice").toHaveCount(1);
+
+    expect(errors, errors.join("\n")).toEqual([]);
+  } finally {
+    await playOn();
+    await Promise.all([organizer, member].map((c) => c.close()));
+  }
+});
+
+/**
+ * A SECOND STAFF DEVICE IS TOLD, WITHOUT A RELOAD (review of #1149, C2).
+ *
+ * The control lives in the console's LAYOUT, and a layout is not drawn again
+ * when somebody moves between its screens through the menu. So a second staff
+ * member with the console open when the first suspends — the starter on the
+ * tee sheet while the TD presses it in the office — went on seeing "Suspend
+ * play" and no banner on every screen the menu took them to, and after a
+ * resume, a stale banner whose Resume could lift the NEXT storm. Here device
+ * B only ever moves by the sidebar's links (client navigations: a marker on
+ * `window` proves no page was reloaded), and must see each change device A
+ * makes within the frame's 20-second refresh, plus slack.
+ *
+ * On #1149's first head (17cb8a0d, no `PlayStatusFrame`) this fails at the
+ * first wait: B's layout keeps the state it was loaded with.
+ */
+test("a second staff device sees a suspension and a resume after moving by the menu, without a reload", async ({ browser, baseURL }, testInfo) => {
+  test.setTimeout(180_000);
+  await playOn();
+  const errors: string[] = [];
+  const desk = { ...testInfo.project.use, baseURL, storageState: ORGANIZER, viewport: { width: 1280, height: 860 }, serviceWorkers: "block" as const };
+  const a = await browser.newContext(desk);
+  const b = await browser.newContext(desk);
+  try {
+    const office = await a.newPage();
+    const starter = await b.newPage();
+    watchPageErrors(office, errors, "device A");
+    watchPageErrors(starter, errors, "device B");
+    const bannerOn = (p: typeof starter) => p.getByRole("alert").filter({ hasText: "Play is suspended" });
+    const menu = (path: string) => starter.locator(`.app-sidebar a[href^="${path}"]`).first();
+
+    // ── B opens the tee sheet once, with play on, and never reloads after ────
+    await starter.goto(`/foursomes?bust=${Date.now()}`);
+    await expect(starter.getByRole("button", { name: "Suspend play", exact: true })).toBeVisible({ timeout: 20_000 });
+    await starter.evaluate(() => ((window as unknown as { __noReload: number }).__noReload = 1));
+    const stillTheSamePage = () => starter.evaluate(() => (window as unknown as { __noReload?: number }).__noReload === 1);
+
+    // ── A suspends ──────────────────────────────────────────────────────────
+    await office.goto(`/dashboard?bust=${Date.now()}`);
+    await office.getByRole("button", { name: "Suspend play", exact: true }).click();
+    await office.getByLabel("Reason (optional)").fill(REASON);
+    await office.getByRole("button", { name: "Suspend play now" }).click();
+    await expect(bannerOn(office)).toBeVisible({ timeout: 20_000 });
+
+    // ── B moves by the menu, and is told ────────────────────────────────────
+    await menu("/entry").click();
+    await starter.waitForURL(/\/entry/, { timeout: 20_000 });
+    await expect(bannerOn(starter), "device B, moved by the menu, was never told play is suspended").toBeVisible({ timeout: 30_000 });
+    await expect(bannerOn(starter)).toContainText(REASON);
+    expect(await stillTheSamePage(), "B's page was reloaded, so this proves nothing about a client navigation").toBe(true);
+
+    // ── A resumes; B moves by the menu again, and the stale banner goes ─────
+    await office.getByRole("button", { name: "Resume play", exact: true }).click();
+    await office.getByRole("button", { name: "Resume play now" }).click();
+    await expect(bannerOn(office)).toHaveCount(0, { timeout: 20_000 });
+    // Entries, not the leaderboard: the leaderboard has a poller of its own (LiveRefresh), which
+    // would clear the banner without the frame. Entries has none, so this half discriminates too.
+    await menu("/registration").click();
+    await starter.waitForURL(/\/registration/, { timeout: 20_000 });
+    await expect(bannerOn(starter), "device B still shows a banner (and a Resume) after play resumed").toHaveCount(0, { timeout: 30_000 });
+    await expect(starter.getByRole("button", { name: "Suspend play", exact: true })).toBeVisible();
+    expect(await stillTheSamePage(), "B's page was reloaded").toBe(true);
+
+    expect(errors, errors.join("\n")).toEqual([]);
+  } finally {
+    await playOn();
+    await Promise.all([a, b].map((c) => c.close()));
   }
 });
 
