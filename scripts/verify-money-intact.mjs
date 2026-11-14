@@ -14,7 +14,7 @@
 // event is identified by a masked id, never by its members.
 //
 //   node scripts/verify-money-intact.mjs
-//   node scripts/verify-money-intact.mjs --event "2026 CDG"
+//   node scripts/verify-money-intact.mjs --event "2026 Example Cup"
 //
 // Exit code is 1 if any invariant fails, so it can gate a deploy check.
 
