@@ -3,6 +3,7 @@
  "projects": {
   "phone": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.8,
+   "e2e/a-guest-takes-full-part.spec.ts": 45,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 1.1,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1.2,
    "e2e/a-new-device-is-confirmed.spec.ts": 9.4,
@@ -212,6 +213,7 @@
   },
   "desktop": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.5,
+   "e2e/a-guest-takes-full-part.spec.ts": 45,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 0.8,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1,
    "e2e/a-new-device-is-confirmed.spec.ts": 6.5,
@@ -421,6 +423,7 @@
   },
   "small-phone": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.8,
+   "e2e/a-guest-takes-full-part.spec.ts": 45,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 1,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1.2,
    "e2e/a-new-device-is-confirmed.spec.ts": 7.7,

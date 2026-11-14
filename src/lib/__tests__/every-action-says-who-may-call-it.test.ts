@@ -66,12 +66,20 @@ const WRITES = [".create(", ".createMany(", ".update(", ".updateMany(", ".upsert
  *   club role     a Commissioner or Admin of the club (`canEdit`), or its owner
  *   organizer     admin of that tournament, checked inline rather than by a gate
  *   the business  the platform's owner (`isOwner`)
+ *   guest link    the browser holding a guest's player link (`getGuestSession`, J39/J40) —
+ *                 held to GUEST_ACTIONS by a-guest-acts-only-through-its-list.test.ts
+ *   player viewer whoever a player screen is for: an account, or a guest's link
+ *                 (`getPlayerViewer`); also held to GUEST_ACTIONS
  */
 const WHO: Record<string, string> = {
   // anyone
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
   signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", confirmEntryCode: "anyone", getVapidPublicKey: "anyone",
   redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
+  // A tap on a guest's player link (J39/J40): the code is its own authorization, as a round code is.
+  openPlayerLink: "anyone",
+  // guest link: this browser's own link, forgotten here or chosen over its sign-in (S4).
+  forgetThisPhone: "guest link", choosePlayerView: "guest link",
   // The same two as plain forms, for a press made before the page's script arrived: they call them.
   redeemRoundCodeForm: "anyone", claimPlayerSlotForm: "anyone",
   // Sets a cookie and nothing else, and the cookie can only ever show an
@@ -87,7 +95,9 @@ const WHO: Record<string, string> = {
   deleteMyAccount: "themselves", signOutEverywhereAction: "themselves", leaveOrganization: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",
-  savePushSubscription: "themselves", removePushSubscription: "themselves", currentPlayStatus: "themselves",
+  savePushSubscription: "themselves", removePushSubscription: "themselves",
+  // player viewer: whoever the player screen is for, an account or a guest's link (G1, Rule 5.7).
+  currentPlayStatus: "player viewer",
   setMyMessagesOptOut: "themselves", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
   readThread: "themselves", sendMessage: "themselves", markThreadRead: "themselves", startDirectThread: "themselves",
   createMatch: "themselves", createEvent: "themselves", createEventFromAnswers: "themselves",keepRound: "themselves",
@@ -133,6 +143,8 @@ const NEEDS: Record<string, string[]> = {
   "club role": [".canEdit", "isOwner", "clubDeletionRefusal(", ".role"],
   organizer: ['role !== "admin"', 'role === "admin"', "isStaff", "requireMembership("],
   "the business": ["isOwner("],
+  "guest link": ["getGuestSession("],
+  "player viewer": ["getPlayerViewer("],
 };
 
 interface Action {

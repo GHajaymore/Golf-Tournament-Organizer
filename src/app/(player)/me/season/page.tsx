@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
 import { WayForward } from "@/components/WayForward";
-import { requireSession } from "@/lib/page-helpers";
+import { requireAccountViewer } from "@/lib/page-helpers";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { countWord } from "@/lib/domain/my-season";
 import { mySeasonFor, type SeasonEvent, type SeasonResult } from "@/lib/services/my-season";
@@ -21,7 +21,7 @@ export const metadata = screenMetadata("/me/season");
  * PLAYER_SEASON in player-nav.ts; reached from a link on Events.
  */
 export default async function MySeasonPage() {
-  const session = await requireSession();
+  const session = await requireAccountViewer();
   const season = await mySeasonFor(session.email, session.eventId);
   const label = season.season ? `${season.season.label} season` : "This season";
 
