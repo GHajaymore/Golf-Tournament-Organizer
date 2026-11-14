@@ -3,6 +3,7 @@ import webpush from "web-push";
 import { prisma } from "@/lib/db";
 import { ADMIN_EMAIL } from "@/lib/contact";
 import { demoRefusesMessage } from "@/lib/services/demo-guard";
+import { endpointFingerprint } from "@/lib/domain/push-device";
 
 /**
  * Sending a web-push notification to a member, on every device they opted in on.
@@ -59,6 +60,86 @@ export interface PushPayload {
 }
 
 /**
+ * HOW THE PUSH SERVICE IS ASKED TO CARRY IT (2026-11-14, safety sweep G-5).
+ *
+ *   "ordinary"     tee times, a cup's lineup: the library's defaults, unchanged
+ *                  (normal urgency; held for a phone that is off for weeks)
+ *   "play-status"  play suspended, and play resumed (Rule 5.7): HIGH urgency, so
+ *                  Android's push service wakes a dozing phone for it rather
+ *                  than batching it, and a SHORT life, so a phone that was off
+ *                  all afternoon is not told "stop now" the next morning
+ */
+export type PushDelivery = "ordinary" | "play-status";
+
+/** Half an hour: long enough to cover a dead spot on the back nine, short of being news from yesterday. */
+export const PLAY_STATUS_TTL_SECONDS = 30 * 60;
+
+export function sendOptionsFor(delivery: PushDelivery): { urgency: "high"; TTL: number } | undefined {
+  return delivery === "play-status" ? { urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS } : undefined;
+}
+
+/**
+ * A PHONE THAT CHANGES HANDS STOPS BEING THE FIRST PERSON'S (2026-11-14,
+ * safety sweep G-4; a Security Lead hole as much as a safety one).
+ *
+ * A subscription is a device's, stamped with the address of whoever turned
+ * alerts on. Signing out left it there, so the first person's "play is
+ * suspended" and tee times went on landing on a phone they no longer held, and
+ * the next person was told "alerts are on" and got nothing of their own.
+ *
+ *   Sign out             forgets THIS device for the person signing out: the
+ *                        endpoint the browser sends, matched with the session's
+ *                        own address, so a stranger's endpoint matches nothing
+ *   Sign out everywhere  forgets every device of theirs: it is for the phone
+ *                        they no longer hold, and that phone cannot be asked
+ *
+ * Never throws: signing out must always finish.
+ */
+export function pushEndpointFrom(raw: unknown): string {
+  // A plain form posts FormData (the account and choose pages); a button passes the string.
+  const value = typeof FormData !== "undefined" && raw instanceof FormData ? raw.get("pushEndpoint") : raw;
+  return typeof value === "string" ? value.trim().slice(0, 2048) : "";
+}
+
+export async function forgetThisDevicePush(email: string, endpoint: string): Promise<void> {
+  const who = email.trim().toLowerCase();
+  if (!who || !endpoint) return;
+  try {
+    await prisma.pushSubscription.deleteMany({ where: { endpoint, email: who } });
+  } catch (e) {
+    console.error(`[push] could not forget a device on sign-out: ${e instanceof Error ? e.message : "unknown"}`);
+  }
+}
+
+export async function forgetEveryDevicePush(email: string): Promise<void> {
+  const who = email.trim().toLowerCase();
+  if (!who) return;
+  try {
+    await prisma.pushSubscription.deleteMany({ where: { email: who } });
+  } catch (e) {
+    console.error(`[push] could not forget devices on sign-out everywhere: ${e instanceof Error ? e.message : "unknown"}`);
+  }
+}
+
+/**
+ * Which of this person's devices have alerts on, as fingerprints — so the
+ * toggle on a shared phone can tell whether the subscription the BROWSER holds
+ * is the signed-in person's, rather than taking the browser's word for it
+ * (`pushToggleState`). A fingerprint, never the endpoint: the endpoint is the
+ * device's secret address, and the page needs only to recognise its own.
+ */
+export async function pushFingerprintsFor(email: string | null | undefined): Promise<string[]> {
+  const who = (email ?? "").trim().toLowerCase();
+  if (!who) return [];
+  try {
+    const rows = await prisma.pushSubscription.findMany({ where: { email: who }, select: { endpoint: true } });
+    return Promise.all(rows.map((r) => endpointFingerprint(r.endpoint)));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Push one payload to every device of every listed member.
  *
  * Emails are lowercased and de-duplicated to match how subscriptions are
@@ -71,9 +152,10 @@ export async function sendPushToEmails(
   /**
    * The tournament the push is about, or null for none — REQUIRED, so every
    * caller says, and the demo club's tournaments push nothing to anybody
-   * (2026-10-24; docs/claude/demo-club.md).
+   * (2026-10-24; docs/claude/demo-club.md). `delivery` defaults to "ordinary"
+   * (`sendOptionsFor`).
    */
-  scope: { eventId: string | null },
+  scope: { eventId: string | null; delivery?: PushDelivery },
 ): Promise<void> {
   const targets = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
   if (targets.length === 0) return;
@@ -88,6 +170,7 @@ export async function sendPushToEmails(
     if (subs.length === 0) return;
 
     const body = JSON.stringify(payload);
+    const options = sendOptionsFor(scope.delivery ?? "ordinary");
     const dead: string[] = [];
 
     await Promise.all(
@@ -96,6 +179,7 @@ export async function sendPushToEmails(
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             body,
+            options,
           );
         } catch (e) {
           const code = (e as { statusCode?: number })?.statusCode;

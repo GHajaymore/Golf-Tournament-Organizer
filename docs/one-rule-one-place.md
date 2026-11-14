@@ -360,6 +360,11 @@ day and will drift: search for the expression.
 - **One rule**: `roundDayOf(playedOn, startOn)` in `domain/round-dates.ts` — the round's own `playedOn`, else the tournament's `startOn`, else "". Read by `lastTeeFor` (`services/field-change.ts`, the late-entry cutoff) and `daysToFirstRoundFrom` (`domain/promotion.ts`, the promotion email's reply line).
 - **Known divergence, left alone**: `services/club-events.ts` (`startOn: event.startOn || roundDaysOf(stages)[0]`) reads the other way round — the tournament's date first, then the earliest dated round — because it files a tournament under a season; it is not asking when one round is played.
 
+### Is play suspended, for the screen in front of this person (2026-11-14)
+- **One rule**: `playStatusForScreen(screen)` in `services/play-status-screen.ts` — the KIND of screen (`"player"`: the member's session; `"play"`: the round code's play session) chooses which of the caller's own cookies names the event, never an argument naming one. Asked by the banner `/play` draws, the siren on `/play` and `/play/board`, and the siren's poll `currentPlayStatus` (whose `screen` from the client can only choose between the caller's two cookies, `playScreenOf`). `SuspensionAlarm` takes `screen` as a REQUIRED prop, so a new screen that mounts the siren says which round it is for.
+- **Known divergence, left alone**: the player layout's banner reads its own `gateEvent` (the session's event), which `playStatusForScreen("player")` reads too. J39/J40's guest link (#1125, #1132) moves the player app to `getPlayerViewer`; when it lands, the `"player"` branch here asks the viewer, so the layout and the poll stay one answer.
+- Held by `the-siren-reaches-a-round-code.test.ts` (the screens ask it; the poll asks nothing else) and `.audit.test.ts` (against real rows: a round-code phone with no email; a phone holding a member's session and another club's code; a reissued code; a forged screen); as a code holder in `e2e/play-suspended.spec.ts`.
+
 ### Dead twins of live rules
 All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`, `seasonPosition`, `isMatchStarted` (2026-10-14).
 

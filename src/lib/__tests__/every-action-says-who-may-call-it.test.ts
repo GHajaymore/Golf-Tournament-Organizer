@@ -66,6 +66,8 @@ const WRITES = [".create(", ".createMany(", ".update(", ".updateMany(", ".upsert
  *   club role     a Commissioner or Admin of the club (`canEdit`), or its owner
  *   organizer     admin of that tournament, checked inline rather than by a gate
  *   the business  the platform's owner (`isOwner`)
+ *   player screen whoever a player screen is for: a member's session, or a round code's
+ *                 play session (`playStatusForScreen`), chosen by the kind of screen
  */
 const WHO: Record<string, string> = {
   // anyone
@@ -87,7 +89,9 @@ const WHO: Record<string, string> = {
   deleteMyAccount: "themselves", signOutEverywhereAction: "themselves", leaveOrganization: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",
-  savePushSubscription: "themselves", removePushSubscription: "themselves", currentPlayStatus: "themselves",
+  savePushSubscription: "themselves", removePushSubscription: "themselves",
+  // player screen: whoever the screen is for, a member or a round code's phone (safety sweep G-1, Rule 5.7).
+  currentPlayStatus: "player screen",
   setMyMessagesOptOut: "themselves", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
   readThread: "themselves", sendMessage: "themselves", markThreadRead: "themselves", startDirectThread: "themselves",
   createMatch: "themselves", createEvent: "themselves", createEventFromAnswers: "themselves",keepRound: "themselves",
@@ -133,6 +137,7 @@ const NEEDS: Record<string, string[]> = {
   "club role": [".canEdit", "isOwner", "clubDeletionRefusal(", ".role"],
   organizer: ['role !== "admin"', 'role === "admin"', "isStaff", "requireMembership("],
   "the business": ["isOwner("],
+  "player screen": ["playStatusForScreen("],
 };
 
 interface Action {

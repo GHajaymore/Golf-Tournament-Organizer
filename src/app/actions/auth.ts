@@ -19,6 +19,7 @@ import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
 import { isJobScreen } from "@/lib/domain/needs-you-now";
 import { markStaffSeen } from "@/lib/services/staff-seen";
+import { forgetEveryDevicePush, forgetThisDevicePush, pushEndpointFrom } from "@/lib/services/push";
 import { normalizeDiscountCode } from "@/lib/plans";
 import { discountRefusal } from "@/lib/domain/discount";
 import { SIGNINS_CLOSED_MESSAGE } from "@/lib/sign-in-gate";
@@ -677,7 +678,16 @@ export async function enterTournament(eventId: string, stay?: unknown): Promise<
   redirect(homeFor(access.role));
 }
 
-export async function signOutAction() {
+/**
+ * Sign out of THIS browser — and take this device's alerts with you (2026-11-14,
+ * safety sweep G-4). `device` is the browser's own push endpoint, sent by the
+ * sign-out button (a string) or a plain form's hidden field (FormData); it is
+ * matched against the SESSION's address, so it can only ever forget the caller's
+ * own subscription. Without it (no script yet, no alerts) nothing else changes.
+ */
+export async function signOutAction(device?: unknown) {
+  const session = await getSession();
+  if (session) await forgetThisDevicePush(session.email, pushEndpointFrom(device));
   await destroySession();
   redirect("/");
 }
@@ -703,6 +713,9 @@ export async function signOutEverywhereAction() {
   const session = await getSession();
   if (session) {
     await prisma.user.update({ where: { id: session.userId }, data: { sessionsValidFrom: new Date() } });
+    // And their alerts on every device: this is the press for a phone they no longer hold, and that
+    // phone would otherwise go on showing their tee times and "play is suspended" (safety sweep G-4).
+    await forgetEveryDevicePush(session.email);
   }
   await destroySession();
   redirect("/");

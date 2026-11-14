@@ -68,6 +68,23 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    id: "suspended",
+    question: "How will I know if play is suspended?",
+    href: "/me",
+    steps: [
+      "A red banner at the top says \"Play is suspended\".",
+      "Stop at once. Don't play another shot until your {organizer} resumes play.",
+      "With the app open, a siren sounds and the phone buzzes.",
+      "Tap the screen once, so your phone lets the siren sound.",
+      "Scoring with a round code? It works there too.",
+      "Phone in your pocket? On Today, turn on tee-time alerts. They cover this too.",
+      "On an iPhone, alerts need TourneyHQ on your Home Screen.",
+      "In Safari, tap Share, then Add to Home Screen.",
+      "Handing your phone to somebody? Sign out first. Your alerts leave with you.",
+      "Play resumed? The banner goes. Go back to where you stopped.",
+    ],
+  },
+  {
     id: "card",
     question: "How do I keep my card?",
     href: "/me/card",

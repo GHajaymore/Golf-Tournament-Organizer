@@ -7,7 +7,8 @@ import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { sendPushToEmails } from "@/lib/services/push";
 import { golfTermsForEvent } from "@/lib/services/organization";
-import { cleanSuspendNote, resumedWords, suspendedWords } from "@/lib/domain/play-status";
+import { cleanSuspendNote, playScreenOf, resumedWords, suspendedWords } from "@/lib/domain/play-status";
+import { playStatusForScreen } from "@/lib/services/play-status-screen";
 
 /**
  * SUSPEND AND RESUME PLAY for the whole tournament (Rule 5.7).
@@ -56,23 +57,24 @@ async function tellTheField(
     // One tag for both, so "resumed" replaces "suspended" on a lock screen
     // rather than stacking under it.
     { title: words.title, body: `${words.body} · ${eventName}`, url: "/me", tag: `play-${eventId}`, urgent },
-    { eventId },
+    // Both "stop now" and "play on" are about this minute: sent at high urgency
+    // so a dozing phone wakes for them, and dropped by the push service within
+    // minutes rather than delivered stale the next morning (safety sweep G-5).
+    { eventId, delivery: "play-status" },
   );
 }
 
 /**
- * Whether play is suspended in the caller's tournament, for the alarm on an
- * open player screen (`SuspensionAlarm`). Any signed-in member may ask: it is
- * the same fact the banner on their screen already shows.
+ * Whether play is suspended in the round of the screen the alarm sits on
+ * (`SuspensionAlarm`): the player app, or a round code's `/play`. Whoever that
+ * screen is for may ask: it is the same fact the banner on it already shows,
+ * and it is decided in one place (`playStatusForScreen`), from the caller's
+ * own cookie. `screen` arrives from the client and can only choose which of
+ * the caller's own two cookies is read; it never names an event.
  */
-export async function currentPlayStatus(): Promise<{ suspended: boolean; note: string }> {
-  const session = await getSession();
-  if (!session?.eventId) return { suspended: false, note: "" };
-  const event = await prisma.event.findUnique({
-    where: { id: session.eventId },
-    select: { playSuspendedAt: true, playSuspendedNote: true },
-  });
-  return { suspended: !!event?.playSuspendedAt, note: event?.playSuspendedNote ?? "" };
+export async function currentPlayStatus(screen?: unknown): Promise<{ suspended: boolean; note: string }> {
+  const { suspended, note } = await playStatusForScreen(playScreenOf(screen));
+  return { suspended, note };
 }
 
 export async function suspendPlay(note: string): Promise<{ ok: boolean; error?: string }> {
