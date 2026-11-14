@@ -71,7 +71,8 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
       "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts"],
       "guestViewer(": ["src/lib/player-viewer.ts"],
       // The player screens' door, and the one action that asks it (G1: the siren follows the screen's event).
-      "getPlayerViewer(": ["src/lib/page-helpers.ts", "src/app/actions/play-status.ts"],
+      // player-viewer.ts DEFINES it (`export async function getPlayerViewer(`).
+      "getPlayerViewer(": ["src/lib/player-viewer.ts", "src/lib/page-helpers.ts", "src/app/actions/play-status.ts"],
     };
     const files = sources("src");
     for (const [call, where] of Object.entries(allowed)) {
