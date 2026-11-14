@@ -2,10 +2,10 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { playGroups } from "./keep-on-play";
-import { seedDoorsClub, removeDoorsClub, SIDE_A, SIDE_B, type DoorsClub } from "./doors-fixture";
+import { seedDoorsClub, removeDoorsClub, groupLink, SIDE_A, SIDE_B, type DoorsClub } from "./doors-fixture";
 
 /**
- * A MEMBER SCORES FROM THE CART SIGN'S QR, WITH NO ACCOUNT AND NO EMAIL (2026-11-14).
+ * A MEMBER SCORES FROM THE CART SIGN'S QR, WITH NO ACCOUNT AND NO EMAIL (2026-11-13).
  *
  * Ajay's line for the guest player link (J39/J40): a member keeps scoring the way
  * they always have, by scanning the sign on the cart. The scan opens `/play#CODE`
@@ -20,8 +20,8 @@ import { seedDoorsClub, removeDoorsClub, SIDE_A, SIDE_B, type DoorsClub } from "
  *   hole 1               → stored for the member's side
  *   the same sign again  → the phone keeps its place, still no sign-in
  *
- * Done twice, in two clubs of its own: one whose four members have an email on the
- * list, one whose four have none. Both invented, `zz-` marked, deleted afterwards.
+ * Done twice, in two clubs of its own: one whose members have an email on the
+ * list, one whose members have none. Both invented, `zz-` marked, deleted afterwards.
  * WHAT IT CANNOT SEE: a camera reading the printed QR.
  */
 
@@ -45,8 +45,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   try {
-    await removeDoorsClub(prisma, clubs.withEmail);
-    await removeDoorsClub(prisma, clubs.noEmail);
+    await Promise.allSettled([removeDoorsClub(prisma, clubs.withEmail), removeDoorsClub(prisma, clubs.noEmail)]);
   } finally {
     await prisma.$disconnect();
   }
@@ -56,9 +55,6 @@ const storedHole = async (match: string, i: number) => {
   const m = await prisma.match.findUniqueOrThrow({ where: { id: match }, select: { holes: true } });
   return (JSON.parse(m.holes) as (string | null)[])[i];
 };
-
-/** The sign as it prints: `/play#ABCD-EFGH`. */
-const signAddress = (code: string) => `/play#${code.slice(0, 4)}-${code.slice(4)}`;
 
 for (const [which, label] of [
   ["withEmail", "a member with an email on the list"],
@@ -74,12 +70,13 @@ for (const [which, label] of [
     const errors: string[] = [];
     watchPageErrors(page, errors, `${label} by the sign`);
     try {
-      await page.goto(signAddress(round.code));
+      await page.goto(groupLink(round.code));
 
       // The scan opens the round's groups: no sign-in, no email asked for.
       await expect(page.getByText("Tap your group to start scoring.")).toBeVisible({ timeout: 30_000 });
       await expect(page.getByLabel(/e-?mail/i), "the sign asked a member for an email").toHaveCount(0);
       await expect(page.getByLabel(/password/i), "the sign asked a member for a password").toHaveCount(0);
+      await expect(page.locator('input[type="email"], input[type="password"]'), "the sign drew an email or password box").toHaveCount(0);
       expect(new URL(page.url()).pathname, "the scan left /play").toBe("/play");
       await expect(playGroups(page)).toHaveCount(1);
 
@@ -100,11 +97,18 @@ for (const [which, label] of [
       // Signed out all the way through: the account area still sends this phone to sign in.
       const me = await ctx.request.get("/me", { maxRedirects: 0 });
       expect([301, 302, 303, 307, 308], "a play session turned into an account").toContain(me.status());
+      expect(me.headers()["location"] ?? "", "/me sent a play session somewhere other than sign-in").toMatch(/^(https?:\/\/[^/]+)?\/(\?next=%2Fme)?$/);
 
-      // The same sign scanned again: this phone keeps its place and is still asked nothing about an account.
-      await page.goto(signAddress(round.code));
-      await expect(page.getByRole("group", { name: /^Who won hole/ }).or(page.getByText("Tap your group to start scoring.")).first()).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByLabel(/e-?mail/i)).toHaveCount(0);
+      // The same sign scanned again, as a camera does: a fresh document (a same-page fragment change would not reload).
+      const again = await ctx.newPage();
+      watchPageErrors(again, errors, `${label} by the sign, again`);
+      await again.goto(groupLink(round.code));
+      await expect(again.getByRole("group", { name: "Who won hole 1" })).toBeVisible({ timeout: 30_000 });
+      await expect(again.getByText("Zz Golds 1 up with 8 to play")).toBeVisible();
+      await expect(again.getByRole("button", { name: "Yes, that's my group" })).toHaveCount(0);
+      await expect(again.getByLabel(/e-?mail/i)).toHaveCount(0);
+      await expect(again.getByLabel(/password/i)).toHaveCount(0);
+      await expect(again.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
       expect(errors, errors.join("\n")).toEqual([]);
     } finally {
       await ctx.close();
