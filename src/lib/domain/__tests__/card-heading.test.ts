@@ -31,7 +31,7 @@ describe("a card played somewhere that is not the club's course", () => {
 describe("a card played at the club's own course", () => {
   it("carries the club's mark alone", () => {
     // Not a claim over somebody else's venue — it is their card.
-    const h = cardHeading({ ...CLUB, courseName: "CDG Home Course", venueIsHome: true })!;
+    const h = cardHeading({ ...CLUB, courseName: "OGC Home Course", venueIsHome: true })!;
     expect(h.primary).toBe("Cinci Desi Golf");
     expect(h.leadIsCourse).toBe(false);
   });

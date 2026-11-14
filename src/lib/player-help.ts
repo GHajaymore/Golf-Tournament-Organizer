@@ -106,7 +106,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "On Today, tap [[Score this match]].",
       "After each hole, tap the side that won it, or [[Halved]].",
-      "Each answer names a side: “CVC won”, or “Rakesh & Snehal won”.",
+      "Each answer names a side: “Oaks won”, or “Sam & Alex won”.",
       "The card never turns round. Your side may be on the right.",
       "Keeping it with a round code? Scan the sign, or type the code.",
       "A scanned sign opens its own group. Confirm it once.",

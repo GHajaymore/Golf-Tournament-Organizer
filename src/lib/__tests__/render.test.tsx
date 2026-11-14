@@ -3720,7 +3720,7 @@ describe("printed foursome cards", () => {
   const base = {
     groups,
     clubName: "Cinci Desi Golf",
-    courseName: "CDG Home Course",
+    courseName: "OGC Home Course",
     dates: "May 3 – Sep 30, 2026",
     roundLabel: "Round 1",
     pars: new Array(18).fill(4),
@@ -3733,7 +3733,7 @@ describe("printed foursome cards", () => {
     // point of merging printing into the sheet of record.
     const html = render(<TeeSheetPrint {...base} />);
     expect(html).toContain("Cinci Desi Golf");
-    expect(html).toContain("CDG Home Course");
+    expect(html).toContain("OGC Home Course");
     expect(html).toContain("May 3 – Sep 30, 2026");
     expect(html).toContain("Hole 10 · 8:00 AM");
   });

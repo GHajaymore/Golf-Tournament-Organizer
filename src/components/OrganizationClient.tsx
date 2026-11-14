@@ -639,7 +639,7 @@ export function OrganizationClient(props: Props) {
               This card used to re-implement both by hand: `shortName || name`
               for the text, which IGNORES the "Name beside the logo" setting
               three inches to its left, and `charAt(0)` for the monogram, where
-              `brandMonogram` keeps an all-caps short name whole ("CDG", not
+              `brandMonogram` keeps an all-caps short name whole ("OGC", not
               "C") and takes two initials from two words. So a club set to show
               its full name saw the short one here, and "Ridgeline National"
               previewed as "RN" in one box and "R" in the other. Two previews of

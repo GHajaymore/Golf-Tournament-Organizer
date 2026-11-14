@@ -2,7 +2,7 @@
  * How a club's name appears next to its logo.
  *
  * Clubs have two names and they are not interchangeable. "Cedar Dunes Golf &
- * Country Club" is what goes on a printed card; "CDG" is what fits in a
+ * Country Club" is what goes on a printed card; "OGC" is what fits in a
  * sidebar next to a logo. Forcing one choice for both places is why the
  * console showed an acronym nobody outside the club recognises, or a name that
  * wrapped onto three lines.
@@ -84,7 +84,7 @@ export function brandMonogram(name: string, shortName: string): string {
   const words = source.split(/\s+/).filter((w) => /[a-z0-9]/i.test(w));
   if (words.length === 0) return "?";
 
-  // An all-caps short name is already a monogram — "CDG" should stay "CDG",
+  // An all-caps short name is already a monogram — "OGC" should stay "OGC",
   // not become "C".
   if (words.length === 1) {
     const w = words[0];
