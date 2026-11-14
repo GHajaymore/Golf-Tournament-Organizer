@@ -249,6 +249,20 @@ describe("only the main session merges or pushes a round (ledger row 17)", () =>
     "bash ~/notes/merge.sh 1008",
     "bash ./chain.sh guest-train",
     "git status && gh pr merge 1008 --squash",
+    // wrappers, a shell handed a script, and the repository flag before the subcommand (PE review 1127b)
+    "env GH_TOKEN=x gh pr merge 1",
+    "env -i gh pr merge 1",
+    "command gh pr merge 1",
+    "time gh pr merge 1",
+    "time git push origin HEAD:round/x-3",
+    'bash -c "git push origin HEAD:round/x"',
+    "sh -c 'gh pr merge 1'",
+    "bash -lc 'git status && gh pr merge 1'",
+    "gh pr -R o/r merge 1",
+    "gh pr --repo o/r merge 1",
+    "sh ~/notes/merge.sh 1008",
+    "source ~/notes/chain.sh",
+    "./chain.sh x",
   ];
 
   beforeAll(() => {
@@ -287,6 +301,30 @@ describe("only the main session merges or pushes a round (ledger row 17)", () =>
     }
   });
 
+  it("tells the refused session how the file is claimed, and never to rewrite it to get past", () => {
+    const r = run(ONLY_MAIN[0], { cwd: tree, sessionId: "zz-other-session" });
+    expect(r.stderr).toContain("Never rewrite .claude/main-session to get past this");
+    expect(r.stderr).toContain("How it is claimed");
+    expect(r.stderr).toContain("<session-id>/scratchpad");
+  });
+
+  it("reads an id file written with a BOM and CRLF, or as UTF-16 by PowerShell", () => {
+    const file = path.join(main, ".claude", "main-session");
+    try {
+      for (const bytes of [
+        Buffer.from(`﻿${MAIN_ID}\r\n`, "utf8"),
+        Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(`${MAIN_ID}\r\n`, "utf16le")]),
+      ]) {
+        writeFileSync(file, bytes);
+        const r = run(ONLY_MAIN[0], { cwd: tree, sessionId: MAIN_ID });
+        expect(r.stderr).toBe("");
+        expect(r.code).toBe(0);
+      }
+    } finally {
+      writeFileSync(file, `${MAIN_ID}\n`);
+    }
+  });
+
   it("refuses a call with no session id at all", () => {
     const r = run(ONLY_MAIN[0], { cwd: main });
     expect(r.code).toBe(2);
@@ -318,6 +356,16 @@ describe("only the main session merges or pushes a round (ledger row 17)", () =>
     "gh pr create --draft --title x --body y",
     'git commit --dry-run -m "never gh pr merge from here; never push round/x"',
     "cat merge.sh.md",
+    // a script's NAME in text or as an argument is not running it (PE review 1127b)
+    'git commit --dry-run -m "see notes/chain.sh"',
+    'gh pr create --draft --title x --body "runs ~/notes/merge.sh"',
+    "cat ~/notes/merge.sh",
+    "grep -n round ~/notes/chain.sh",
+    // a local round/* pushed to a claude/* destination is not a round
+    "git push origin round/x:claude/x",
+    "gh pr -R o/r view 1",
+    "env GH_TOKEN=x gh pr view 1",
+    "bash -c 'git status'",
   ])("leaves every other session's ordinary work alone: %s", (command) => {
     const r = run(command, { cwd: tree, sessionId: "zz-other-session" });
     expect(r.stderr, command).toBe("");

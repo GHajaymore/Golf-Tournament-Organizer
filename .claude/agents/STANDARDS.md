@@ -47,7 +47,13 @@ any `git stash`, a database reset and a push to `main`.
 `round/*`, no `merge.sh` or `chain.sh` from an agent or from any other session. Push your `claude/*` branch and hand back.
 *Why:* on 14 Nov a separate session merged a PR with every check green but no QA GO line (process ledger row 17).
 *Enforced:* the guard refuses them unless the calling session's id is the one in the untracked `.claude/main-session`
-of the main checkout (written by the main session when it starts), and always from inside a subagent.
+of the main checkout, and always from inside a subagent.
+*Claiming it:* only a session the owner or the handover has made the main one writes the file — at its start, or when it
+takes over after the previous main session has stopped. It writes its OWN id, one line: the folder name above its
+scratchpad (`…/<session-id>/scratchpad`), which is also the name of its transcript (`<session-id>.jsonl`). **Never
+overwrite an id you did not write to get past a refusal**: that session may still be running; ask it, or the owner.
+*Known gaps* (the hook sees only Bash and PowerShell): a merge through an MCP tool or the app's merge button, a
+`gh api graphql` merge mutation, and `git push` with no refspec from a checked-out `round/*` branch.
 
 **k. No local absolute paths in the repository** — no `C:\Users\<you>`, `/c/Users/<you>` or profile `AppData`
 folders in a definition, doc, test or comment; write paths relative to the repository or as a placeholder.

@@ -136,17 +136,68 @@ function nativePath(p, platform) {
 }
 
 /** The gh command words of a segment (after any FOO=bar prefix), or null when it is not a gh call. */
-function ghCall(words) {
+/** Words that run the command after them: `env`, `command`, `time`, `nohup`, `exec`, `builtin`. */
+const WRAPPER = /^(env|command|time|nohup|exec|builtin)$/;
+
+/**
+ * Where the command itself starts in a segment: past FOO=bar assignments and wrapper words (with their flags),
+ * so `env GH_TOKEN=x gh ...`, `command gh ...` and `time git ...` are read as the gh or git call they are.
+ */
+function commandStart(words) {
   let i = 0;
-  while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i++; // GH_TOKEN=x gh ...
+  for (;;) {
+    while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i++; // GH_TOKEN=x gh ...
+    if (i < words.length && WRAPPER.test(words[i])) {
+      i++;
+      while (i < words.length && words[i].startsWith("-")) i++;
+      continue;
+    }
+    return i;
+  }
+}
+
+function ghCall(words) {
+  const i = commandStart(words);
   if (i >= words.length || !/(^|[\\/])gh(\.exe)?$/i.test(words[i])) return null;
   return words.slice(i + 1);
 }
 
+/** A gh call's positional words: flags dropped, and the VALUE of -R/--repo with them (`gh pr -R o/r merge`). */
+function ghPlain(gh) {
+  const plain = [];
+  for (let i = 0; i < gh.length; i++) {
+    if (gh[i] === "-R" || gh[i] === "--repo") i++;
+    else if (!gh[i].startsWith("-")) plain.push(gh[i]);
+  }
+  return plain;
+}
+
+/** `bash -c "<script>"` (or sh, zsh): the script, read as commands in its own right; otherwise null. */
+function shellScript(words) {
+  const i = commandStart(words);
+  if (!/(^|[\\/])(ba|z|da)?sh(\.exe)?$/i.test(words[i] ?? "")) return null;
+  for (let j = i + 1; j < words.length; j++) {
+    if (/^-[a-zA-Z]*c[a-zA-Z]*$/.test(words[j])) return words[j + 1] ?? null;
+    if (!words[j].startsWith("-")) return null;
+  }
+  return null;
+}
+
+/** The script a segment RUNS, by command position only: `./merge.sh`, `bash x.sh`, `sh x.sh`, `source x.sh`, `. x.sh`. */
+function scriptRun(words) {
+  const i = commandStart(words);
+  // Only the program word, or the script handed to a shell, is read: an argument (`cat x.sh`, `-m "... x.sh"`) is
+  // text. A quoted word in either place is still the program (`& "C:\Program Files\...\x.sh"`).
+  const cmd = words[i] ?? "";
+  if (/(^|[\\/])(ba|z|da)?sh(\.exe)?$/i.test(cmd) || cmd === "source" || cmd === ".") {
+    return words.slice(i + 1).find((w) => !w.startsWith("-")) ?? null;
+  }
+  return cmd;
+}
+
 /** The git subcommand of a segment, its arguments, and any -C directory. */
 function gitCall(words) {
-  let i = 0;
-  while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i++; // FOO=bar git ...
+  let i = commandStart(words);
   if (i >= words.length || !/(^|[\\/])git(\.exe)?$/i.test(words[i])) return null;
   i++;
   let dir = null;
@@ -176,6 +227,12 @@ const NO_CI_WAIT =
 
 const MAIN_SESSION_FILE = path.join(".claude", "main-session");
 
+/** How the main session claims the file (also in .claude/agents/STANDARDS.md, j). */
+const CLAIM =
+  "How it is claimed: when a session becomes the main one (its start, or taking over at a handover once the previous main " +
+  "session has stopped), it writes its OWN session id, one line, into .claude/main-session in the main checkout. Its id is the " +
+  "folder name above its scratchpad (…/<session-id>/scratchpad) and the name of its transcript (<session-id>.jsonl).";
+
 /**
  * Merges and round pushes belong to the main session (process ledger row 17: on 14 Nov a separate session read
  * the handover and merged #1132 with no QA GO line). The main session writes its session id into the untracked
@@ -192,12 +249,17 @@ export function mainSessionRefusal(what, dir, who = {}) {
   if (!existsSync(file)) {
     return refuse(
       `${rule} ${file} is missing, so the hook cannot tell which session is the main one and refuses rather than guess. ` +
-        "The main session writes its own session id there (one line, untracked) when it starts.",
+        `${CLAIM} Only a session the owner or the handover has made the main one claims it; any other session hands the step back.`,
     );
   }
-  const id = readFileSync(file, "utf8").trim();
+  // Tolerate a BOM, CRLF or a UTF-16 write (PowerShell 5.1's Out-File): the id is ASCII either way.
+  const id = readFileSync(file, "utf8").replace(/[\0﻿�]/g, "").trim();
   if (!id || !who.sessionId || who.sessionId !== id) {
-    return refuse(`${rule} This session (${who.sessionId || "no session id"}) is not the one named in ${file}. Hand the step to the main session.`);
+    return refuse(
+      `${rule} This session (${who.sessionId || "no session id"}) is not the one named in ${file}. Hand the step to the main session. ` +
+        "Never rewrite .claude/main-session to get past this: an id you did not write belongs to a session that may still be running, " +
+        `so ask that session (or the owner) first. ${CLAIM}`,
+    );
   }
   return null;
 }
@@ -205,7 +267,7 @@ export function mainSessionRefusal(what, dir, who = {}) {
 /** What a segment does that only the main session may do, or null. */
 function mainSessionOnly(words, gh, git) {
   if (gh) {
-    const plain = gh.filter((a) => !a.startsWith("-"));
+    const plain = ghPlain(gh);
     if (plain[0] === "pr" && plain[1] === "merge") return "`gh pr merge`";
     if (plain[0] === "api" && gh.some((a) => /(^|\/)pulls\/\d+\/merge$/.test(a))) {
       const put = gh.some((a, i) => /^(-X|--method)=?PUT$/i.test(a) || (/^(-X|--method)$/.test(a) && /^PUT$/i.test(gh[i + 1] ?? "")));
@@ -214,9 +276,12 @@ function mainSessionOnly(words, gh, git) {
   }
   if (git?.sub === "push") {
     const plain = git.args.filter((a) => !a.startsWith("-"));
-    if (plain.slice(1).some((a) => /^\+?(?:[^:]*:)?(?:refs\/heads\/)?round\//.test(a))) return "a push to `round/*`";
+    // The DESTINATION of each refspec: after the colon when there is one (`HEAD:round/x`, `:round/x`), else the
+    // branch itself (`round/x`). A local round/* pushed to claude/* is not a round.
+    const destination = (a) => (a.includes(":") ? a.slice(a.lastIndexOf(":") + 1) : a.replace(/^\+/, ""));
+    if (plain.slice(1).some((a) => /^(?:refs\/heads\/)?round\//.test(destination(a)))) return "a push to `round/*`";
   }
-  if (words.some((w) => /(^|[\\/])(merge|chain)\.sh$/i.test(w))) return "running merge.sh or chain.sh";
+  if (/(^|[\\/])(merge|chain)\.sh$/i.test(scriptRun(words) ?? "")) return "running merge.sh or chain.sh";
   return null;
 }
 
@@ -269,9 +334,18 @@ function checkSegment(words, platform, dir, who = {}) {
   const joined = words.map((w) => (/\s/.test(w) ? "_" : w)).join(" ");
   const git = gitCall(words);
 
+  // `bash -c "..."`: the quoted script is commands, so every rule reads it as such.
+  const script = shellScript(words);
+  if (script) {
+    for (const inner of segments(script)) {
+      const hit = checkSegment(inner, platform, dir, who);
+      if (hit) return hit;
+    }
+  }
+
   const gh = ghCall(words);
   if (gh) {
-    const plain = gh.filter((a) => !a.startsWith("-"));
+    const plain = ghPlain(gh);
     const watchesRun = plain[0] === "run" && plain[1] === "watch";
     const watchesChecks = plain[0] === "pr" && plain[1] === "checks" && gh.some((a) => /^--watch(=|$)/.test(a));
     if (watchesRun || watchesChecks) return refuse(NO_CI_WAIT);

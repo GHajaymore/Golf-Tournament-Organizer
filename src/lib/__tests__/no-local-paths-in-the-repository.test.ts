@@ -42,6 +42,8 @@ const controls = [
   `${drive}/Users/zzperson/repo`,
   ["", "c", "Users", "zzperson", "repo"].join("/"),
   ["", "mnt", "c", "Users", "zzperson"].join("/"),
+  ["", "c", "users", "zzperson"].join("/"), // any case
+  ["C", "", "Users", "zzperson", "Documents", "repo"].join("-"), // Claude's project folder name
   ["zz", "App" + "Data", "Local", "Temp", "claude"].join(sep),
   ["zz", "App" + "Data", "Roaming", "x"].join("/"),
 ];
@@ -52,6 +54,8 @@ const placeholders = [
   "resolving a module under App" + "Data at once",
   "/api/v1/users/42",
   "<main checkout>/node_modules",
+  ["C", "", "Users", "<you>"].join("-"),
+  "a pre--users-flag",
 ];
 
 describe("no tracked file holds a local absolute path", () => {

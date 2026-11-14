@@ -13,7 +13,8 @@ export const UNSCANNED_FILE = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.y
  */
 export const LOCAL_PATH = [
   /\b[A-Za-z]:(?:\\{1,2}|\/)Users(?:\\{1,2}|\/)+[A-Za-z0-9_]/i, // C:\Users\<you>, with one or two backslashes (escaped in JS or JSON) or a slash
-  /\/[A-Za-z]\/Users\/[A-Za-z0-9_]/, // /c/Users/<you> (Git Bash; WSL mounts too)
+  /\/[A-Za-z]\/Users\/[A-Za-z0-9_]/i, // /c/Users/<you> (Git Bash; WSL mounts too)
+  /\b[A-Za-z]--Users-[A-Za-z0-9]/i, // C--Users-<you>-Documents-…: the folder Claude names a project's memory and transcripts by
   /AppData(?:\\{1,2}|\/)+(?:Local|LocalLow|Roaming)\b/i, // the Local, LocalLow and Roaming folders under AppData
 ];
 
