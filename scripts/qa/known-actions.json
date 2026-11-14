@@ -410,6 +410,18 @@
   "app/actions/owner.ts:loadCourseCatalogue": "e2e/owner-catalogue-load.spec.ts",
   "app/actions/join.ts:dismissNamesakeNotice": "e2e/namesake-notice.spec.ts",
   "app/actions/owner.ts:saveOffers": "e2e/owner-console.spec.ts",
-  "app/actions/register.ts:confirmEntryCode": "e2e/organizer-entry.spec.ts"
+  "app/actions/register.ts:confirmEntryCode": "e2e/organizer-entry.spec.ts",
+  "app/actions/billing.ts:startCheckout": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/billing.ts:openBillingPortal": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/card-photo.ts:readScorecardPhoto": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/card-photo.ts:readGroupCardPhoto": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/card-photo.ts:readCourseCardPhoto": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/commentary.ts:suggestCommentary": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/courses.ts:checkCourseAgainstSource": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/draft-message.ts:draftMessage": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/setup-suggest.ts:suggestSetup": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/push.ts:getVapidPublicKey": "e2e/tee-time-alerts.spec.ts",
+  "app/actions/push.ts:savePushSubscription": "e2e/tee-time-alerts.spec.ts",
+  "app/actions/push.ts:removePushSubscription": "e2e/tee-time-alerts.spec.ts"
  }
 }
