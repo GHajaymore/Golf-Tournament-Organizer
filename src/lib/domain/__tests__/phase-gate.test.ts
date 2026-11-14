@@ -116,8 +116,10 @@ describe("going live", () => {
     // guide says "take it live" over a Launch the action then refuses.
     // Since PR 2 of the state machine the real facts are the setup side of the
     // one facts read: it asks `roundsMissingCards` per tournament, and
-    // `setupFactsOf` hands the answer to the flow unchanged.
-    expect(readSource("src/lib/services/setup-flow.ts")).toContain('import { setupFactsFor } from "./tournament-facts"');
+    // the machine reads it from there. Since PR 9a the guide and the Launch
+    // dialog are one read: the rail (`setupRailFor`) is the machine's flow on
+    // those facts, and the dialog is its `.launch`.
+    expect(readSource("src/lib/services/tournament-status.ts")).toMatch(/const facts = await setupSideFactsFor\(eventId\);\s*return facts \? setupFlowOf\(facts\) : null;/);
     const facts = readSource("src/lib/services/tournament-facts.ts");
     expect(facts).toContain("await roundsMissingCards(id)");
     expect(facts).toContain("missingCards: missing.get(id) ?? []");

@@ -164,6 +164,9 @@ describe("a single match", () => {
     const bare = FAMILY_FIXTURES.match();
     bare.rounds[0] = { ...bare.rounds[0], matches: 0 };
     expect(keyOf(bare)).toBe("stages");
+    // And Launch is refused — there is nothing to play (Golf Pro, 8.2; P2). Pinned here since the
+    // shadow test that held it beside the old flow went with the dead twins (state machine PR 9a).
+    expect(s(bare).refusals.launch).toMatch(/^Round 1 has no match made yet, so there is nothing to score\. Make it on Rounds & formats/);
   });
 
   it("is never held on Flights (8.2: not shown)", () => {

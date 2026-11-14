@@ -9,9 +9,10 @@
  *
  * So the facts are built HERE and nowhere else (`launch-facts-built-once.test.ts`
  * refuses a second builder), from the same `SetupFacts` the rail is drawn from.
- * The dashboard and the action ask `launchCheckFor` (services/setup-flow.ts),
- * which builds the flow and reads its `launch` — so the button, the action and
- * the rail cannot come to different verdicts about one tournament.
+ * Since the state machine, the dashboard's dialog, the action and the rail all
+ * read the machine's `refusals.launch`, whose first answer is this flow's
+ * verdict — so they cannot come to different verdicts about one tournament.
+ * (`launchCheckFor`, which asked the flow directly, was deleted in PR 9a.)
  *
  * THE PANEL'S RULING (tournament director, golf professional, UX Writer):
  * refuse only what would make a round unscorable or wrong — those are in
