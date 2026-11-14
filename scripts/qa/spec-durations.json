@@ -3,6 +3,7 @@
  "projects": {
   "phone": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.8,
+   "e2e/a-guest-takes-full-part.spec.ts": 45,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 1.1,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1.2,
    "e2e/a-new-device-is-confirmed.spec.ts": 9.4,
@@ -100,6 +101,7 @@
    "e2e/nothing-is-covered.spec.ts": 26.8,
    "e2e/offline.spec.ts": 9.8,
    "e2e/old-addresses.spec.ts": 6.4,
+   "e2e/old-setting-up-rows-keep-their-word.spec.ts": 20,
    "e2e/one-name-in-play.spec.ts": 8.1,
    "e2e/one-prize-per-player.spec.ts": 8.9,
    "e2e/one-setting-up-step.spec.ts": 3,
@@ -211,6 +213,7 @@
   },
   "desktop": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.5,
+   "e2e/a-guest-takes-full-part.spec.ts": 45,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 0.8,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1,
    "e2e/a-new-device-is-confirmed.spec.ts": 6.5,
@@ -308,6 +311,7 @@
    "e2e/nothing-is-covered.spec.ts": 23.1,
    "e2e/offline.spec.ts": 6.9,
    "e2e/old-addresses.spec.ts": 5.1,
+   "e2e/old-setting-up-rows-keep-their-word.spec.ts": 20,
    "e2e/one-name-in-play.spec.ts": 7.9,
    "e2e/one-prize-per-player.spec.ts": 7,
    "e2e/one-setting-up-step.spec.ts": 3.6,
@@ -419,6 +423,7 @@
   },
   "small-phone": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.8,
+   "e2e/a-guest-takes-full-part.spec.ts": 45,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 1,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1.2,
    "e2e/a-new-device-is-confirmed.spec.ts": 7.7,
@@ -516,6 +521,7 @@
    "e2e/nothing-is-covered.spec.ts": 27,
    "e2e/offline.spec.ts": 8.1,
    "e2e/old-addresses.spec.ts": 5.9,
+   "e2e/old-setting-up-rows-keep-their-word.spec.ts": 0,
    "e2e/one-name-in-play.spec.ts": 0,
    "e2e/one-prize-per-player.spec.ts": 6.7,
    "e2e/one-setting-up-step.spec.ts": 3.3,

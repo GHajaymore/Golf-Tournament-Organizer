@@ -26,8 +26,21 @@
 
 const REDACTED = "[redacted]";
 
-/** A path segment that follows one of these is a credential. */
-const TOKEN_ROUTES = ["live", "register"];
+/**
+ * A path segment that follows one of these is a credential. `p` is the guest
+ * player link's page (J39/J40, S3): its code rides in the fragment, and there
+ * is no `/p/<code>` route — but a person who types one, or a link mangled by a
+ * mail client, puts the code in a path that a 404's report would carry.
+ */
+const TOKEN_ROUTES = ["live", "register", "p"];
+
+/**
+ * A player link code written the way it is printed and read (`K7QM-2XRA-9DTP`,
+ * three groups of four Crockford symbols) wherever it sits in a report — an
+ * error message that quotes what was typed, a breadcrumb. Twelve symbols in
+ * three dashed fours is no other value this app writes.
+ */
+const LINK_CODE = /\b[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}\b/gi;
 
 /** Query parameters whose value is a credential. */
 const TOKEN_PARAMS = ["token", "code", "accessCode", "shareToken"];
@@ -53,6 +66,7 @@ export function scrubText(text: string): string {
   }
   // A URL fragment (2026-11-12): the printed round sign opens `/play#ABCD-EFGH`, and a beacon can fire before the page strips it. A `#` glued to a word or path is a fragment; "issue #5" (space before) is prose.
   out = out.replace(/([^\s#]#)[^\s"')]*/g, `$1${REDACTED}`);
+  out = out.replace(LINK_CODE, REDACTED);
   return out.replace(EMAIL, REDACTED);
 }
 

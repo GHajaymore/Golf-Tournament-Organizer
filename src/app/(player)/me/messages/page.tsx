@@ -1,6 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayerViewer } from "@/lib/page-helpers";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
 import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
@@ -21,7 +21,9 @@ export const metadata = screenMetadata("/me/messages");
  * flight, round, four and match and never the organizers' thread.
  */
 export default async function PlayMessagesPage() {
-  const session = await requireSession();
+  const session = await requirePlayerViewer();
+  // A guest's messages come with the design's PR 2 (messaging by who-key): Today until then.
+  if (session.guest) redirect("/me");
   if (!session.eventId) redirect("/choose");
 
   const ctx = await membershipFor(session.eventId, session.email, session.role);

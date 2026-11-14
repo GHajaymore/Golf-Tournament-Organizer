@@ -26,7 +26,8 @@ describe("a tournament that has not started refuses a score", () => {
     for (const status of PRE_LAUNCH_STATUSES) {
       expect(playRefusal({ status, anyResult: false }), status).toBeTruthy();
     }
-    expect(PRE_LAUNCH_STATUSES.length, "the sweep has nothing to sweep").toBeGreaterThan(1);
+    // One word since A045 (state machine PR 8); the control is that it is not empty and is the setting-up one.
+    expect(PRE_LAUNCH_STATUSES, "the sweep has nothing to sweep").toContain("draft");
   });
 
   it("names the remedy and who can apply it", () => {

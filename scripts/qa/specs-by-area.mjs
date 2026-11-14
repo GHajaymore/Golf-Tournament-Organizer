@@ -294,6 +294,8 @@ export const AREAS = {
  * where a change is never targeted anyway — or a check of the test harness itself.
  */
 export const FULL_ONLY = [
+  // J39/J40 PR 1: a guest takes full part by a personal player link, no email and no app (access and sign-in: shared ground).
+  "e2e/a-guest-takes-full-part.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",
@@ -368,6 +370,8 @@ export const FULL_ONLY = [
   "e2e/net-without-tees-says-so.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  // State machine PR 8 (J14): a row A045 moved keeps what members saw, launches like any other, and is copied without its old word.
+  "e2e/old-setting-up-rows-keep-their-word.spec.ts",
   "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",

@@ -199,6 +199,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   registrationOverride:
     "a decision about last year's deadline — a copy has a new deadline and starts following it",
   status: "a copy starts as a draft, however far along the original got",
+  legacyStatus:
+    "the old word migration A045 kept on a row it moved (state machine PR 8) is a fact of that row's history; a copy is a new tournament, opened to members by its own sign-up link",
   configUnlocked: "an unlock is granted to one tournament, not inherited",
   // The committee correction (state machine PR 5b): opened on one tournament, for one reason, until one day's end.
   correctionScope: "a committee correction is made on one tournament, for a stated reason — a copy has nothing to correct",
@@ -344,6 +346,9 @@ export const CLONE_IGNORED_RELATIONS = [
   // teams themselves are not carried — so a copy starts without them, and the
   // organizer adds this year's team net total point on the Team cup screen.
   "cupPoints",
+  // A guest's player link (J39/J40) opens one entry in one event. The entries are not
+  // carried, so neither is any link: a guest in this year's event is given a new one.
+  "playerPasses",
 ];
 
 /**

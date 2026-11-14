@@ -79,11 +79,18 @@ const EVENT_WRITE = /prisma\.event\.(?:create|update)\(/g;
 function seededStatuses(body: string): string[] {
   const out: string[] = [];
   for (const m of body.matchAll(EVENT_WRITE)) {
-    const from = body.indexOf("data: {", m.index ?? 0);
-    if (from === -1) continue;
+    const at = m.index ?? 0;
+    // The write's OWN `data:`, which must open an object literal. `data: event("spring")` (a helper
+    // builds it) has none to read, and searching on for the next `data: {` reads a later
+    // `prisma.player.create`'s — a player's "confirmed" reported as the tournament's.
+    const key = body.indexOf("data:", at);
+    const nextCall = body.indexOf("prisma.", at + 1);
+    if (key === -1 || (nextCall !== -1 && nextCall < key)) continue;
+    if (!body.slice(key + "data:".length).trimStart().startsWith("{")) continue;
+    const open = body.indexOf("{", key);
 
     let depth = 0;
-    let i = from + "data:".length;
+    let i = open;
     for (; i < body.length; i += 1) {
       const c = body[i];
       if (c === "{") depth += 1;
@@ -107,15 +114,27 @@ function filesUnder(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * And every audit test (state machine PR 8). From A045 the database REFUSES any status but draft,
+ * live and completed, so an audit fixture seeding `"active"` fails as a Prisma 23514 in the audit
+ * job — five did, on the first head of #1131, against a database that had the CHECK. Swept here,
+ * the same fixture fails in the fast unit job with its file named.
+ */
+const AUDIT_FILES = filesUnder(join(process.cwd(), "src")).filter((f) => /\.audit\.test\.ts$/.test(f));
+
 const FIXTURE_FILES = [
   ...filesUnder(join(process.cwd(), "e2e")),
   ...filesUnder(join(process.cwd(), "scripts")),
+  ...AUDIT_FILES,
 ];
 
 describe("no fixture invents a tournament status", () => {
   it("has fixture files to search", () => {
     // The control. A sweep over nothing reports nothing wrong.
     expect(FIXTURE_FILES.length).toBeGreaterThan(10);
+    // And the audit half is really in it: hundreds of files, one of them seeding a live tournament.
+    expect(AUDIT_FILES.length, "the sweep no longer reaches the audit tests").toBeGreaterThan(100);
+    expect(seededStatuses(readSource(join("src", "lib", "__tests__", "authz-scope.audit.test.ts")))).toContain("live");
   });
 
   it("actually finds the statuses it is meant to judge", () => {
@@ -170,5 +189,14 @@ describe("no fixture invents a tournament status", () => {
     const nested =
       'await prisma.event.create({ data: { name: "x", players: { create: [{ status: "confirmed" }] } } });';
     expect(seededStatuses(nested), "a nested player's status read as the tournament's").toEqual([]);
+
+    // A helper-built `data:`, followed by a player write: the player's word is not the tournament's
+    // (roster-handicap and stroke-board audits, the first time the sweep reached audit files).
+    const helper =
+      'const e = await prisma.event.create({ data: newEvent("solo") });\n' +
+      'await prisma.player.create({ data: { eventId: e.id, status: "confirmed" } });';
+    expect(seededStatuses(helper), "a later player's status read as the tournament's").toEqual([]);
+    // CONTROL: the same shape with a literal reads the literal, and the stray is still seen.
+    expect(seededStatuses(helper.replace('newEvent("solo")', '{ name: "x", status: "active" }'))).toEqual(["active"]);
   });
 });

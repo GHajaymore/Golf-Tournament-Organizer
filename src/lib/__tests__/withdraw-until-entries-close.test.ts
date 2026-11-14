@@ -12,7 +12,7 @@ import { ownWithdrawalOpen, registrationStatus, type RegistrationInput } from ".
 const NOW = new Date("2026-06-15T12:00:00Z");
 const base: RegistrationInput & { registrationOpen: boolean } = {
   registrationOpen: true,
-  eventStatus: "registration",
+  eventStatus: "draft",
   deadline: "",
   opens: "",
   capacity: 0,

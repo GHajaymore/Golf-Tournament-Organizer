@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayerViewer } from "@/lib/page-helpers";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { screenName } from "@/lib/nav";
 import { helpInClubWords, helpLineText } from "@/lib/player-help";
@@ -26,7 +26,7 @@ export const metadata = screenMetadata("/me/help");
  * wrong about a ruling, and costs nothing to run.
  */
 export default async function PlayerHelpPage() {
-  const session = await requireSession();
+  const session = await requirePlayerViewer();
   // The club's golf words — "Ask your organiser" to a British member.
   const words = golfTermsFor(session.eventId ? await golfRegisterForEvent(session.eventId) : "us");
   const topics = helpInClubWords(words);

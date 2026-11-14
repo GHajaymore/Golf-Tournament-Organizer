@@ -410,6 +410,13 @@
   "app/actions/owner.ts:loadCourseCatalogue": "e2e/owner-catalogue-load.spec.ts",
   "app/actions/join.ts:dismissNamesakeNotice": "e2e/namesake-notice.spec.ts",
   "app/actions/owner.ts:saveOffers": "e2e/owner-console.spec.ts",
-  "app/actions/register.ts:confirmEntryCode": "e2e/organizer-entry.spec.ts"
+  "app/actions/register.ts:confirmEntryCode": "e2e/organizer-entry.spec.ts",
+  "app/actions/player-link.ts:openPlayerLink": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:forgetThisPhone": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:choosePlayerView": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:playerLinkStatus": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:showPlayerLink": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:newPlayerLink": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:turnOffPlayerLink": "e2e/a-guest-takes-full-part.spec.ts"
  }
 }

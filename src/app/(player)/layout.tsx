@@ -4,7 +4,10 @@ import { Suspense } from "react";
 import { DeniedNotice } from "@/components/DeniedNotice";
 import { ArchiveBanner } from "@/components/ArchiveBanner";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayerViewer, guestIsWaiting } from "@/lib/page-helpers";
+import { playerViewSwitch } from "@/lib/player-viewer";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
+import { GuestForget, PlayerViewSwitchLine } from "@/components/GuestLinkControls";
 import { prisma } from "@/lib/db";
 import { hasLeftTheField } from "@/lib/domain/left-the-field";
 import { playerAppShut } from "@/lib/domain/lifecycle-state";
@@ -62,7 +65,16 @@ import { playStatusOf } from "@/lib/domain/play-status";
  * light ground on the course, which is what the sunlight argument was about.
  */
 export default async function PlayLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireSession();
+  /**
+   * AN ACCOUNT, OR A GUEST'S PLAYER LINK (J39/J40). A guest viewer is one
+   * entry in one event with no address: every by-address reader below answers
+   * nobody for it, and the club-wide parts (the switcher, and messages until
+   * the design's PR 2) are not drawn. A browser holding both a sign-in and a
+   * link is offered the other, never merged (S4).
+   */
+  const session = await requirePlayerViewer();
+  const viewSwitch = await playerViewSwitch();
+  const guest = session.guest;
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
   // The club's word for who runs it — organizer or organiser (`golf-terms.ts`).
   const register = session.eventId ? await golfRegisterForEvent(session.eventId) : "us";
@@ -106,10 +118,12 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   const gateEvent = session.eventId
     ? await prisma.event.findUnique({
         where: { id: session.eventId },
-        select: { name: true, status: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
+        select: { name: true, status: true, legacyStatus: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
       })
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
+  // A guest whose entry is not confirmed: Today's waiting card only (S5).
+  const guestWaiting = guestIsWaiting(session);
   const archived = session.eventId ? await archiveRefusalFor(session.eventId, "player") : null;
 
   /**
@@ -120,13 +134,13 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    * unread count is also simply where people look for messages on a phone, so
    * respecting that rule cost nothing.
    */
-  const ctx = session.eventId
+  const ctx = session.eventId && !guest
     ? await membershipFor(session.eventId, session.email, session.role)
     : null;
   const unread = ctx ? await unreadTotal(ctx) : 0;
   // Which tournament every tab is showing, and the way to the others. The same
   // rows the events list renders, so the two cannot disagree about a door.
-  const switcher = switcherFor(await clubEventsFor(session.email), session.eventId ?? null, isStaff);
+  const switcher = guest ? switcherFor([], null, false) : switcherFor(await clubEventsFor(session.email), session.eventId ?? null, isStaff);
   /**
    * Watching, but with money on the record — a player who withdrew or was
    * disqualified after paying into a pot (2026-10-08). They are not in the
@@ -204,6 +218,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
             should not have to sign out to run their own tournament. Rendered
             only for staff; a player has nothing to switch to. */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {!guest && (
           <Link
             href="/me/messages"
             aria-label={unread > 0 ? `Messages, ${unread} unread` : "Messages"}
@@ -234,6 +249,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
               </span>
             )}
           </Link>
+          )}
           {(session.viewRole === "admin" || session.viewRole === "assistant") && (
             <Link
               href="/dashboard"
@@ -247,9 +263,24 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
               never want to hit by accident. The shell had none at all: a player
               signing in on a phone passed round a fourball, or on the clubhouse
               iPad, left the next person signed in as them. */}
-          <PlayerSignOut name={session.name} />
+          {/* A guest has no account to sign out of: "Forget me on this phone"
+              clears the link from this browser only, and revokes nothing. */}
+          {guest ? <GuestForget /> : <PlayerSignOut name={session.name} />}
         </div>
       </header>
+
+      {/* A browser holding a sign-in AND a player link: the other, offered beside (S4). */}
+      {viewSwitch.other && (
+        <PlayerViewSwitchLine
+          line={
+            viewSwitch.other.kind === "account"
+              ? PLAYER_LINK_WORDS.viewingAsGuest(session.name)
+              : PLAYER_LINK_WORDS.alsoHoldsLink(viewSwitch.other.name)
+          }
+          button={viewSwitch.other.kind === "account" ? PLAYER_LINK_WORDS.backToAccount : PLAYER_LINK_WORDS.openTheLink}
+          to={viewSwitch.other.kind}
+        />
+      )}
 
       <TournamentSwitcher switcher={switcher} />
 
@@ -283,6 +314,18 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
               Playing in something else today? Use the switcher above.
             </p>
           </div>
+        ) : guestWaiting ? (
+          /* S5: A PENDING OR WAITLISTED GUEST'S LINK OPENS THIS AND NOTHING ELSE.
+             No card, no board, no money until the entry is confirmed; every
+             write refuses them on the server too (`myPlayerIdsFor`). */
+          <div className="card elev-sm" style={{ gap: 10, textAlign: "center", padding: "28px 20px" }}>
+            <h1 className="page-title" style={{ fontSize: 17, margin: 0 }}>
+              {gateEvent?.name ?? "Your event"}
+            </h1>
+            <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+              {PLAYER_LINK_WORDS.waiting}
+            </p>
+          </div>
         ) : (
           <>
             {/* A console screen a member followed a link to says why it did not
@@ -297,7 +340,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
                 anybody taps a card (`domain/club-archive.ts`). */}
             <ArchiveBanner sentence={archived} resubscribe={false} />
             {/* The siren when it happens while the screen is open. */}
-            {session.eventId && <SuspensionAlarm suspended={playStatusOf(gateEvent).suspended} />}
+            {session.eventId && <SuspensionAlarm screen="player" suspended={playStatusOf(gateEvent).suspended} />}
             {children}
           </>
         )}
@@ -308,7 +351,9 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
           Both named, because `watching` stopped covering the waiting list when
           the two were separated — see `isWaiting`. */}
       <PlayTabs
-        showMoney={moneyOn && (!switcher.current?.watching || leftWithMoney) && !switcher.current?.waiting}
+        guest={!!guest}
+        // A guest's money (their side-game exposure) comes with the design's later PRs: no tab until then.
+        showMoney={!guest && moneyOn && (!switcher.current?.watching || leftWithMoney) && !switcher.current?.waiting}
       />
     </div>
     </GolfTermsProvider>
