@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { switcherFor, isWatching, openCardOf, playOverOf, type SwitchableRow } from "@/lib/domain/tournament-switcher";
 import { BAND_LABEL, type EventBand } from "@/lib/domain/club-event-card";
-import { readSource } from "./source";
+import { consoleOffersPlayStop } from "@/lib/domain/play-status";
 import { tournamentStatus, type TournamentFacts } from "@/lib/domain/tournament-status";
 import { stepOf } from "@/lib/domain/tournament-step";
 import { FAMILY_FIXTURES, facts, round, launched, playedOut } from "@/lib/domain/__tests__/tournament-facts-fixtures";
@@ -223,11 +223,16 @@ describe("the tournament switcher", () => {
     // "live" is launched, not completed, and not play-over — which for a medal
     // is `playOverOf` (every playing round closed), and for a knockout is its
     // Final decided (D3k). The control below holds the machine to playOverOf.
-    const src = readSource("src/app/(app)/dashboard/page.tsx");
-    expect(src).toMatch(/isStaff && \(step === "live" \|\| !!event\.playSuspendedAt\) && \(\s*<PlayStatusControl/);
+    // Since simplicity cut 2 (14 Nov) the console's shell draws it on every screen, the dashboard
+    // included, by `consoleOffersPlayStop` (`suspend-play-is-in-the-console-shell.test.ts`).
     const closed = (c: boolean) => [round({ id: "r1", position: 0, hasResult: true, closed: c })];
-    expect(tournamentStatus(launched(facts({ rounds: closed(false) }))).step).toBe("live");
-    expect(tournamentStatus(launched(facts({ rounds: closed(true) }))).step).toBe("play-over");
+    const live = tournamentStatus(launched(facts({ rounds: closed(false) }))).step;
+    const over = tournamentStatus(launched(facts({ rounds: closed(true) }))).step;
+    expect(live).toBe("live");
+    expect(over).toBe("play-over");
+    expect(consoleOffersPlayStop("admin", live, false)).toBe(true);
+    expect(consoleOffersPlayStop("admin", over, false), "offered to suspend play that is over").toBe(false);
+    expect(consoleOffersPlayStop("admin", over, true), "suspended, with no way back on the screen").toBe(true);
     expect(playOverOf([{ type: "Stroke Play Round", closedAt: new Date() }])).toBe(true);
   });
 });

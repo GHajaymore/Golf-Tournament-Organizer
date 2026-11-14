@@ -52,7 +52,6 @@ import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
-import { PlayStatusControl } from "@/components/PlayStatusControl";
 import { PaceOfPlay } from "@/components/PaceOfPlay";
 import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
@@ -910,19 +909,9 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* SUSPEND PLAY (Rule 5.7) — while the tournament is being played, and
-          always while it is suspended, so the way back is never hidden. Not
-          once play is over — the machine's step, so for a knockout that is its
-          Final decided (D3), not only every round closed: there is no play
-          left to stop, and the button sat beside "8/8 scorecards certified"
-          (T69). */}
-      {isStaff && (step === "live" || !!event.playSuspendedAt) && (
-        <PlayStatusControl
-          suspended={!!event.playSuspendedAt}
-          note={event.playSuspendedNote}
-          since={event.playSuspendedAt ? event.playSuspendedAt.toISOString() : ""}
-        />
-      )}
+      {/* SUSPEND PLAY (Rule 5.7) is not drawn here: the console's shell draws
+          it above every screen, this one included (`ConsolePlayStatus`,
+          simplicity cut 2) — one mount, so the dashboard cannot show it twice. */}
 
       {/* PACE OF PLAY — a round played today, with timed groups on its sheet.
           The panel itself decides "today" on the committee's own clock. */}

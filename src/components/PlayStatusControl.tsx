@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { resumePlay, suspendPlay } from "@/app/actions/play-status";
-import { MAX_SUSPEND_NOTE } from "@/lib/domain/play-status";
+import { MAX_SUSPEND_NOTE, alertsOffWords } from "@/lib/domain/play-status";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import { formatClock } from "@/lib/domain/locale";
@@ -11,8 +11,23 @@ import { formatClock } from "@/lib/domain/locale";
  * field, one to start it again. Two taps to suspend — the button, then the
  * confirm with an optional reason — because it buzzes every phone in the
  * field; one to resume, because by then everybody is waiting on it.
+ *
+ * Drawn on every console screen by the shell (`ConsolePlayStatus`), never by
+ * a page. `alertsOff` is the names of the players the alarm will not reach
+ * (F-2, from `noticesOffAmong`): said on the confirm, before the press, so the
+ * TD knows whom to tell by voice or horn. Absent, the confirm says nothing.
  */
-export function PlayStatusControl({ suspended, note, since }: { suspended: boolean; note: string; since: string }) {
+export function PlayStatusControl({
+  suspended,
+  note,
+  since,
+  alertsOff = [],
+}: {
+  suspended: boolean;
+  note: string;
+  since: string;
+  alertsOff?: readonly string[];
+}) {
   const [open, setOpen] = useState(false);
   const [why, setWhy] = useState("");
   const { pending, error, run } = useAction();
@@ -74,6 +89,9 @@ export function PlayStatusControl({ suspended, note, since }: { suspended: boole
         Every player gets a notification to stop now, and every screen and the public board say so until you
         resume play.
       </p>
+      {alertsOff.length > 0 && (
+        <p style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>{alertsOffWords(alertsOff)}</p>
+      )}
       <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
         Reason (optional)
         <input

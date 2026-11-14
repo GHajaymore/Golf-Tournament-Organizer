@@ -140,6 +140,102 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
 });
 
 /**
+ * FROM WHEREVER THE ORGANIZER IS STANDING, IN TWO PRESSES (simplicity cut 2,
+ * 2026-11-14; Rule 5.7).
+ *
+ * Suspend play was on the dashboard only: from the tee sheet in a storm that
+ * was the menu, Home, Suspend play, Suspend play now — 4 presses — and
+ * resuming took the organizer off the sheet. The console's shell draws it on
+ * every screen now, once. Here the organizer, on a phone, stands on the tee
+ * sheet and stops play with exactly two presses (the button, then the
+ * confirm), the banner and Resume play are on every console screen walked,
+ * the dashboard draws ONE control, not two, and resuming is one press that
+ * leaves the organizer where they were. Each step is read back from the row.
+ */
+test("the organizer on a phone suspends play from the tee sheet in two presses, sees it on every console screen, and resumes where they stand", async ({ browser, baseURL }, testInfo) => {
+  test.setTimeout(180_000);
+  await playOn();
+  const errors: string[] = [];
+  const organizer = await browser.newContext({
+    ...testInfo.project.use,
+    baseURL,
+    storageState: ORGANIZER,
+    viewport: { width: 393, height: 851 },
+    hasTouch: true,
+    // A save on WebKit that the service worker sends is not the page's (G411-3): the presses here are saves.
+    serviceWorkers: "block",
+  });
+  const member = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: PLAYER, serviceWorkers: "block" });
+  try {
+    const page = await organizer.newPage();
+    watchPageErrors(page, errors, "the organizer's phone");
+    const banner = page.getByRole("alert").filter({ hasText: "Play is suspended" });
+    const suspendButton = page.getByRole("button", { name: "Suspend play", exact: true });
+    let presses = 0;
+    const press = async (name: string) => {
+      await page.getByRole("button", { name, exact: true }).click();
+      presses++;
+    };
+
+    // ── the tee sheet, with play on: the button is there, no banner ─────────
+    await page.goto(`/foursomes?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const sheet = new URL(page.url()).pathname;
+    expect(sheet, "the tee sheet sent the organizer somewhere else").toBe("/foursomes");
+    await expect(suspendButton, "Suspend play is not on the tee sheet").toBeVisible({ timeout: 20_000 });
+    await expect(banner, "CONTROL: the tee sheet says play is suspended before anybody suspended it").toHaveCount(0);
+
+    // ── two presses ─────────────────────────────────────────────────────────
+    await press("Suspend play");
+    await page.getByLabel("Reason (optional)").fill(REASON);
+    await press("Suspend play now");
+    await expect(banner, "the tee sheet does not say play is suspended").toBeVisible({ timeout: 20_000 });
+    expect(presses, "suspending play took more than the button and its confirm").toBe(2);
+    expect(new URL(page.url()).pathname, "suspending play took the organizer off the tee sheet").toBe(sheet);
+    const stamped = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true, playSuspendedNote: true } });
+    expect(stamped.playSuspendedAt, "the tournament is not marked suspended").not.toBeNull();
+    expect(stamped.playSuspendedNote).toBe(REASON);
+
+    // ── every console screen carries the banner and the way back, once ──────
+    for (const screen of ["/entry", "/leaderboard", "/dashboard", "/registration"]) {
+      await page.goto(`${screen}?bust=${Date.now()}`);
+      await expect(banner, `${screen} does not say play is suspended`).toBeVisible({ timeout: 20_000 });
+      await expect(banner, `${screen} draws the banner more than once`).toHaveCount(1);
+      await expect(banner).toContainText(REASON);
+      await expect(page.getByRole("button", { name: "Resume play" }), `${screen} has no way back`).toHaveCount(1);
+    }
+
+    // ── a player is never offered it ────────────────────────────────────────
+    const me = await member.newPage();
+    watchPageErrors(me, errors, "a member's phone");
+    await me.goto(`/me?bust=${Date.now()}`);
+    await expect(me.getByRole("alert").filter({ hasText: "Play is suspended" }), "CONTROL: the member is not told").toBeVisible({ timeout: 20_000 });
+    await expect(me.getByRole("button", { name: "Resume play" }), "a player is offered Resume play").toHaveCount(0);
+
+    // ── resumed in one press, from the tee sheet, staying on it ─────────────
+    await page.goto(`/foursomes?bust=${Date.now()}`);
+    await expect(banner).toBeVisible({ timeout: 20_000 });
+    const before = new URL(page.url()).pathname;
+    await page.getByRole("button", { name: "Resume play" }).click();
+    await expect(suspendButton, "after resuming, the tee sheet still shows play suspended").toBeVisible({ timeout: 20_000 });
+    await expect(banner).toHaveCount(0);
+    expect(new URL(page.url()).pathname, "resuming took the organizer off the tee sheet").toBe(before);
+    const lifted = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true } });
+    expect(lifted.playSuspendedAt, "the tournament is still marked suspended").toBeNull();
+
+    // ── and the dashboard draws one Suspend play, not its own beside the shell's ─
+    await page.goto(`/dashboard?bust=${Date.now()}`);
+    await expect(suspendButton, "the dashboard lost Suspend play").toBeVisible({ timeout: 20_000 });
+    await expect(suspendButton, "the dashboard draws Suspend play twice").toHaveCount(1);
+
+    expect(errors, errors.join("\n")).toEqual([]);
+  } finally {
+    await playOn();
+    await Promise.all([organizer, member].map((c) => c.close()));
+  }
+});
+
+/**
  * AND THE PHONE WITH A ROUND CODE (2026-11-14, safety sweep G-1).
  *
  * `/play` is the phone a group's scorer keeps the whole group's card on, and

@@ -15,6 +15,8 @@ vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
 const { suspendPlay, resumePlay } = await import("@/app/actions/play-status");
+const { tournamentStatusNow } = await import("@/lib/services/tournament-status");
+const { consoleOffersPlayStop } = await import("@/lib/domain/play-status");
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SUSPEND";
@@ -98,5 +100,52 @@ describe("the committee stops and restarts the field", () => {
     as(id, "player");
     await expect(resumePlay()).rejects.toThrow();
     expect((await row(id))!.playSuspendedAt).not.toBeNull();
+  });
+});
+
+/**
+ * AND THE CONSOLE OFFERS IT ON THE MACHINE'S REAL STEP (simplicity cut 2, 14 Nov).
+ *
+ * The shell draws Suspend play on every console screen by `consoleOffersPlayStop`,
+ * handed the step the shell's chip shows (`tournamentStatusFor` on the club's day).
+ * Asked here of real rows through the same service, so the rule is held to the
+ * machine and not to a hand-made step: a draft is never offered it, a launched
+ * tournament with a round to play is, a completed one is not — until play is
+ * suspended there, when the way back is offered whatever the step.
+ */
+describe("the console offers Suspend play on the machine's step, from real rows", () => {
+  async function seedWithRound(status: string) {
+    const id = await seed();
+    await prisma.event.update({ where: { id }, data: { status } });
+    await prisma.stage.create({ data: { eventId: id, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "gross" } });
+    return id;
+  }
+  /** What the shell would draw for this viewer: its step, its row, its rule. */
+  async function offered(id: string, viewRole: string) {
+    const step = (await tournamentStatusNow(id))?.status.step ?? null;
+    const r = await row(id);
+    return { step, offered: consoleOffersPlayStop(viewRole, step, !!r?.playSuspendedAt) };
+  }
+
+  it("a draft: not offered", async () => {
+    const id = await seedWithRound("draft");
+    expect(await offered(id, "admin")).toEqual({ step: "setting-up", offered: false });
+  });
+
+  it("launched with a round to play: offered to staff, never to a player", async () => {
+    const id = await seedWithRound("live");
+    expect(await offered(id, "admin")).toEqual({ step: "live", offered: true });
+    expect((await offered(id, "assistant")).offered).toBe(true);
+    expect((await offered(id, "player")).offered).toBe(false);
+  });
+
+  it("completed: not offered, until play is suspended there — then the way back is, and it goes once resumed", async () => {
+    const id = await seedWithRound("completed");
+    expect(await offered(id, "admin")).toEqual({ step: "completed", offered: false });
+    as(id, "assistant");
+    expect((await suspendPlay("Lightning")).ok).toBe(true);
+    expect(await offered(id, "assistant"), "suspended, with no way back on the screen").toEqual({ step: "completed", offered: true });
+    expect((await resumePlay()).ok).toBe(true);
+    expect((await offered(id, "assistant")).offered).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { EventContextBar } from "@/components/EventContextBar";
 import { BackToTheRound } from "@/components/BackToTheRound";
+import { ConsolePlayStatus } from "@/components/ConsolePlayStatus";
 import { LifecycleStepper } from "@/components/LifecycleStepper";
 import { LIFECYCLE_STEPPER_ON, lifecycleTrack, stepperShown } from "@/lib/domain/lifecycle-track";
 import { headers } from "next/headers";
@@ -352,6 +353,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               {paymentDue} <Link href="/organization#plan">Go to Your plan</Link>
             </p>
           )}
+          <ConsolePlayStatus viewRole={session.viewRole} step={told?.status.step ?? null} event={event} />
           {casualShell && <BackToTheRound />}
           <LifecycleStepper track={track} preview={!LIFECYCLE_STEPPER_ON} />
           {/* A club with no time zone takes this organizer's, once. Only for
