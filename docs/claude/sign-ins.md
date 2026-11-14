@@ -141,3 +141,11 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
 - **Analytics and reports (S3):** `/p` renders no analytics and `pageViewFor` drops a view of it;
   `scrubText` redacts the code in a fragment, a `/p/` path, a query or its printed dashed form.
 - A spec reaches a guest by the real door (`/p`, a tap or the typed box), never a hand-made `ng_guest`.
+- **A link's messages and notices (PR 2):** a guest is `guest:<playerId>` in messaging (never an address),
+  reads and posts in the threads its entry puts it in (never the club's), writes to the organizers
+  (`desk:<playerId>`), and starts no direct thread (D7: `startDirectThread` is account-only). Every messaging
+  action asks `messagingContextFor(target)`, which picks the link only for the target's own event, by PR 1's
+  precedence. Its notices go by push only, to `PlayerPassPush` rows bound to the pass's VERSION: New link,
+  Turn off, withdrawal and expiry stop them at once (`sendPushTo` asks `livePass`). The organizer can Mute a
+  guest in messages (the link stays live). The installed app starts at `/start`: an account goes home, a
+  live link to Today, anybody else to `/p` with "Have an account? Sign in".

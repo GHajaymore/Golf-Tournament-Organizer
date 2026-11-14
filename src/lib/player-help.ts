@@ -350,6 +350,10 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Tap the chat icon at the top.",
       "Announcements and replies are there.",
       "A badge shows anything unread.",
+      "Need your {organizer}? Tap Message the {organizer}.",
+      "Every {organizer} running the event reads it and can answer.",
+      "Playing as a guest? Your link opens messages too. No email needed.",
+      "Told your posts are off? You can still message your {organizer}.",
     ],
   },
   {
@@ -396,6 +400,10 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Borrowed phone? Tap [[Forget me on this phone]] when done.",
       "On a shared phone, clear the browser history too.",
       "It works until 90 days after the event.",
+      "Want tee-time alerts? On Today, tap Turn on.",
+      "On an iPhone, add the page to your Home Screen first.",
+      "Opening from the Home Screen? Type your code once more.",
+      "New link from your {organizer}? Turn alerts on again.",
     ],
   },
   {
