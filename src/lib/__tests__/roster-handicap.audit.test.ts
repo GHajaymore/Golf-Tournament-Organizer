@@ -384,7 +384,7 @@ describe("what one member has played", () => {
     const event = (name: string) => ({
       organizationId: orgId,
       name: `${TAG} ${name}`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       dates: "",

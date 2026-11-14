@@ -27,7 +27,7 @@ export interface KeptMatch {
   /** Each side's players, full names — what the answers are named from. */
   aPlayers: string[];
   bPlayers: string[];
-  /** In a team cup, the cup team each side plays for ("CVC", "CDG"). Empty elsewhere. */
+  /** In a team cup, the cup team each side plays for ("Oaks", "Pines"). Empty elsewhere. */
   aTeam: string;
   bTeam: string;
   aHandicap: number;
@@ -114,7 +114,7 @@ export async function matchCardFor(input: { match: Match }): Promise<MatchCardDa
   /**
    * The cup team a side plays for, in a team cup: the one team all its players
    * are on (`Player.group`, which is what a cup's two teams are). The answers
-   * are then "CVC won" and "CDG won" — the words a scorer at a cup uses.
+   * are then "Oaks won" and "Pines won" — the words a scorer at a cup uses.
    */
   const cupTeam = (groups: Array<string | undefined>) => {
     if (!stage || !isCupSession(stage)) return "";

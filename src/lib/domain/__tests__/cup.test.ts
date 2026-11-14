@@ -202,7 +202,7 @@ describe("the cup", () => {
 
 /**
  * POINTS OUTSIDE THE MATCHES (2026-10-19). The first real cup was fifteen
- * matches and a sixteenth point for the lower team net total — which CDG won,
+ * matches and a sixteenth point for the lower team net total — which Pines won,
  * and which the app had nowhere to put. Worked by hand: sixteen points, so 8½
  * to win.
  */
@@ -226,7 +226,7 @@ describe("a point outside the matches", () => {
     expect(cupVerdict(t, 0, null)).toEqual({ kind: "won", by: "B" });
   });
 
-  it("the first cup: 5½ – 9½ in the matches, the 16th point to CDG — 5½ – 10½", () => {
+  it("the first cup: 5½ – 9½ in the matches, the 16th point to Pines — 5½ – 10½", () => {
     const matches = [...Array(5).fill(won("A")), ...Array(9).fill(won("B")), halved];
     const t = cupTally(matches, [{ side: "B", points: 1 }]);
     expect([t.a, t.b, cupPointsInPlay(t)]).toEqual([5.5, 10.5, 16]);

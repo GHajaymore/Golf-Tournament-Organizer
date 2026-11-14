@@ -382,7 +382,7 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
 
   /**
    * A POINT OUTSIDE THE MATCHES (2026-10-19). The first real cup had a
-   * sixteenth point for the lower team net total, which CDG won and the app had
+   * sixteenth point for the lower team net total, which Pines won and the app had
    * nowhere to put. Worked by hand: three matches and one more point is four in
    * play, so 2½ to win — the Whites' 2 is no longer enough, and the cup is open
    * again until the point is given.

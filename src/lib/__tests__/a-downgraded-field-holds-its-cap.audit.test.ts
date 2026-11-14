@@ -78,7 +78,7 @@ beforeAll(async () => {
         organizationId: orgId,
         name: `${TAG} Spring Stableford`,
         dates: "", course: "", city: "", address: "", regDeadline: "",
-        status: "registration",
+        status: "draft",
         capacity: 0, // unlimited, as it was set on Eagle
         shareToken: `${TAG.toLowerCase()}-share`,
         registrationToken: TOKEN,
