@@ -144,6 +144,10 @@ describe("every server action is guarded", () => {
     // authorises anything. Verified by reading it, per the note above.
     "requireMembership",
     "getPlaySession",
+    // play-status.ts (`currentPlayStatus`): `getSession` or `getPlaySession`, chosen by the kind of screen
+    // and never by an event the caller names, then one read of that event's suspension. Verified against
+    // real rows in `the-siren-reaches-a-round-code.audit.test.ts`.
+    "playStatusForScreen",
     "effectiveAccess",
     /**
      * skins.ts: the one guard here that is deliberately NOT staff-only.

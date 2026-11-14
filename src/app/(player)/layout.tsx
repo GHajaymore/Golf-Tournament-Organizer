@@ -340,7 +340,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
                 anybody taps a card (`domain/club-archive.ts`). */}
             <ArchiveBanner sentence={archived} resubscribe={false} />
             {/* The siren when it happens while the screen is open. */}
-            {session.eventId && <SuspensionAlarm suspended={playStatusOf(gateEvent).suspended} />}
+            {session.eventId && <SuspensionAlarm screen="player" suspended={playStatusOf(gateEvent).suspended} />}
             {children}
           </>
         )}
