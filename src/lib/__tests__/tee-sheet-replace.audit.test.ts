@@ -24,6 +24,8 @@ import { PrismaClient } from "@prisma/client";
  *                                                    is renamed; the Teams screen's lock is untouched; a pair
  *                                                    that plays every round, a side's own card, and someone
  *                                                    already in another pair are refused
+ *   a member with no index, round scored net        → refused (named way on), taken once the committee gives
+ *                                                    strokes for the round and played off them; gross: taken
  *   an interclub pair                              → the sub must play for the same club; a guest is given it
  *   singles match play                             → refused (the draw is the pairing)
  *   a tournament with no weekly sign-up            → no attendance rows; the absentee is WITHDRAWN (row kept), so the field
@@ -65,8 +67,9 @@ vi.mock("@/lib/services/tee-sheet-locks", async (orig) => {
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { replaceInTeeSheet } from "@/app/actions/tee-sheet";
 import { addTeamMember } from "@/app/actions/teams";
-import { addStage } from "@/app/actions/tournament";
-import { REPLACE_EVERY_ROUND_NOTE, REPLACE_GROUPS_NOTE } from "@/lib/domain/tee-sheet-replace";
+import { addStage, setRoundHandicapOverride } from "@/app/actions/tournament";
+import { NO_FIGURE, NO_FIGURE_CARDS_IN, REPLACE_EVERY_ROUND_NOTE, REPLACE_GROUPS_NOTE } from "@/lib/domain/tee-sheet-replace";
+import { roundHandicapsFor } from "@/lib/services/round-handicap";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { clubToday } from "@/lib/domain/club-clock";
 import { sheetFieldFor } from "@/lib/services/sheet-field";
@@ -472,6 +475,87 @@ describe("replaceInTeeSheet — a guest and the handicap", () => {
     expect(field3, "the stand-in turned up in a week added later").not.toContain(standIn.id);
     expect(field3, "the CSV guest dropped off the added week").toContain(csv.id);
     expect(field3).toContain(p.c1);
+  });
+});
+
+/**
+ * A MEMBER WITH NO INDEX, IN A ROUND SCORED NET (found 14 Nov 2026 on main 25fce89d: let through, played off the
+ * stored nought — about scratch — while the confirm and the record said "no index (gross only)"). The Rules
+ * work a net allowance from an index (Rules of Handicapping 6.1, 6.2); with none, the figure is the Committee's
+ * (Rule 7; Rules of Golf 3.3b(4); Committee Procedures 5A(5)).
+ */
+describe("replaceInTeeSheet — a member with no index and the handicap", () => {
+  it("net: refused in words with nothing written; given the committee's strokes for the round, taken and played off them; gross: taken, gross only", async () => {
+    const eventId = await makeEvent("nonindex", "opt-out");
+    const net = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "net", handicapAllowance: 95 } })).id;
+    const gross = (await prisma.stage.create({ data: { eventId, position: 1, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "gross" } })).id;
+    const p = await players(eventId, ["m1", "m2", "m3"]);
+    const nox = await prisma.player.create({
+      data: { eventId, name: `${TAG} Noindex`, email: at("noindex"), handicap: 0, handicapSource: "none", seed: 50, status: "confirmed" },
+    });
+    const dec = await prisma.player.create({
+      data: { eventId, name: `${TAG} Decimal`, email: at("decimal"), handicap: 12.4, handicapSource: "manual", seed: 51, status: "confirmed" },
+    });
+    await setSheet(net, [["9:00 AM", [p.m1, p.m2]]]);
+    await setSheet(gross, [["9:00 AM", [p.m1, p.m3]]]);
+    await as(adminId, eventId);
+
+    // Net, no figure: refused, and told where the figure is given. Nothing written.
+    const before = await rawSheet(net);
+    expect(await replaceInTeeSheet(net, SAVED, p.m1, { kind: "member", playerId: nox.id }, "no-show")).toEqual({ ok: false, error: `${TAG} Noindex: ${NO_FIGURE}` });
+    expect(await rawSheet(net), "a refused press wrote the sheet").toBe(before);
+    expect(await prisma.roundAttendance.count({ where: { eventId } })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { eventId, action: "replaced" } })).toBe(0);
+
+    // The way on: the committee's strokes for this round, through the one writer of a round figure.
+    expect((await setRoundHandicapOverride(net, nox.id, 14)).ok).toBe(true);
+    const res = await replaceInTeeSheet(net, SAVED, p.m1, { kind: "member", playerId: nox.id }, "no-show");
+    expect(res.ok, JSON.stringify(res)).toBe(true);
+    expect((await sheetOf(net)).groups[0].playerIds).toEqual([nox.id, p.m2]);
+    const line = (await prisma.auditLog.findFirstOrThrow({ where: { eventId, action: "replaced" } })).detail;
+    expect(line).toContain("handicap used 14 strokes, the committee’s for this round.");
+    expect(line, "the record says gross only in a net round").not.toContain("gross only");
+    // A member WITH an index (a decimal one) steps in as before.
+    const second = await replaceInTeeSheet(net, (await sheetOf(net)).savedAt, p.m2, { kind: "member", playerId: dec.id }, "cancelled");
+    expect(second.ok, JSON.stringify(second)).toBe(true);
+
+    // SCORED OFF THOSE FIGURES, read from the list the board's own calculation fills. The fixture's facts first:
+    // the round's allowance is the 95 it was made with, and it has no tees, so a roster index is the course
+    // handicap (no conversion, no par strokes). Worked by the Rule (6.2a: the allowance of the unrounded figure,
+    // rounded once, a half up) in whole hundredths, not by the code's route:
+    //   Noindex  the committee's 14 (whole by decree):  14 x 95 = 1330 -> 13.30 -> 13   (off nought it was 0)
+    //   Decimal  index 12.4:                            124 x 95 = 11780 -> 11.780 -> 12
+    const rows = await roundHandicapsFor(eventId, net);
+    const row = (id: string) => rows.find((r) => r.playerId === id)!;
+    expect(row(nox.id).allowance).toBe(95);
+    expect(row(nox.id).parStrokes).toBe(0);
+    expect(row(nox.id).source).toBe("override");
+    expect(row(nox.id).playing).toBe(13);
+    expect(row(dec.id).playing).toBe(12);
+
+    // Gross: no index is taken, and "gross only" is the truth there.
+    const g = await replaceInTeeSheet(gross, SAVED, p.m3, { kind: "member", playerId: nox.id }, "other");
+    expect(g.ok, JSON.stringify(g)).toBe(true);
+    const lines = await prisma.auditLog.findMany({ where: { eventId, action: "replaced" }, orderBy: { createdAt: "asc" } });
+    expect(lines.at(-1)!.detail).toContain("handicap used no index (gross only).");
+  });
+
+  it("net, once a card is in for the round: the round keeps the handicaps it has, so a member with no index is refused and pointed at somebody else", async () => {
+    const eventId = await makeEvent("nonindexcards", "opt-out");
+    const net = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "stableford" } })).id;
+    const p = await players(eventId, ["c1", "c2", "c3", "c4"]);
+    const nox = await prisma.player.create({
+      data: { eventId, name: `${TAG} Latecomer`, email: at("latecomer"), handicap: 0, handicapSource: "none", seed: 50, status: "confirmed" },
+    });
+    await setSheet(net, [
+      ["9:00 AM", [p.c1, p.c2]],
+      ["9:10 AM", [p.c3, p.c4]],
+    ]);
+    await prisma.scorecard.create({ data: { eventId, stageId: net, playerId: p.c1, strokes: JSON.stringify([4]) } });
+    await as(assistantId, eventId);
+    const before = await rawSheet(net);
+    expect(await replaceInTeeSheet(net, SAVED, p.c3, { kind: "member", playerId: nox.id }, "no-show")).toEqual({ ok: false, error: `${TAG} Latecomer: ${NO_FIGURE_CARDS_IN}` });
+    expect(await rawSheet(net)).toBe(before);
   });
 });
 

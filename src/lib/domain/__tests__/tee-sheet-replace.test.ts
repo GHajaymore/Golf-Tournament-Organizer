@@ -6,6 +6,8 @@ import {
   clubTimeWords,
   guestFigureRefusal,
   handicapUsedWords,
+  NO_FIGURE,
+  NO_FIGURE_CARDS_IN,
   pairNameAfter,
   readReplaceReason,
   replaceAuditLine,
@@ -46,6 +48,9 @@ const world: ReplaceWorld = {
   cut: null,
   flights: {},
   sameFlight: false,
+  net: false,
+  figures: {},
+  handicapsFixed: false,
 };
 const noLocks = {};
 const facts = (day: string, minutes: number, cardsIn: string[] = []) => ({ roundDay: "2026-11-12", now: { day, minutes }, cardsIn: new Set(cardsIn) });
@@ -138,6 +143,57 @@ describe("who steps in", () => {
   });
 });
 
+/**
+ * A MEMBER WITH NO INDEX, IN A ROUND SCORED NET (found 14 Nov 2026: listed, choosable, and played off nought —
+ * about scratch — while the confirm and the record said "no index (gross only)").
+ *
+ * The Rules: a net allowance is worked from a Handicap Index (Rules of Handicapping 6.1, 6.2); a player with
+ * none is given a figure by the Committee (Rule 7; Rules of Golf 3.3b(4); Committee Procedures 5A(5)). So in a
+ * net round they step in only with the committee's strokes for the round; a gross round has no allowance and
+ * "gross only" is the truth.
+ */
+describe("a member with no index steps into a round scored net only with the committee's strokes", () => {
+  // I is in the field, on no group; give I no index for these cases.
+  const noIndexI = people.map((c) => (c.id === "i" ? { ...c, index: "no index" } : c));
+  const i = noIndexI.find((c) => c.id === "i")!;
+
+  it("net, no figure: listed, not choosable, and told where the committee's strokes are given", () => {
+    const net: ReplaceWorld = { ...world, net: true };
+    expect(candidateWhy(i, "a", net)).toBe(NO_FIGURE);
+    expect(NO_FIGURE).toContain("Handicaps for this round");
+    const rows = replaceCandidates(noIndexI, "a", net);
+    expect(rows.find((r) => r.id === "i")?.why).toBe(NO_FIGURE);
+    expect(rows.filter((r) => !r.why).map((r) => r.id), "only K, who has an index, is choosable").toEqual(["k"]);
+  });
+
+  it("net, a card already in: the round keeps the handicaps it has, so the way on is somebody else", () => {
+    expect(candidateWhy(i, "a", { ...world, net: true, handicapsFixed: true })).toBe(NO_FIGURE_CARDS_IN);
+  });
+
+  it("net, with the committee's strokes for this round: choosable, and the confirm and the record say the strokes", () => {
+    const given: ReplaceWorld = { ...world, net: true, figures: { i: 14 }, handicapsFixed: true };
+    expect(candidateWhy(i, "a", given)).toBeNull();
+    expect(handicapUsedWords(i.index, given.figures.i)).toBe("14 strokes, the committee’s for this round");
+    expect(handicapUsedWords("no index", -2)).toBe("+2 strokes, the committee’s for this round");
+    expect(handicapUsedWords("no index", 0)).toBe("scratch, the committee’s for this round");
+    // The committee's figure wins over an index too: it is what the round resolves first.
+    expect(handicapUsedWords("12.4", 10)).toBe("10 strokes, the committee’s for this round");
+    const said = replaceWillSay({ absentee: "Ann", sub: "I", group: "Group 1", time: "8:00 AM", handicap: i.index, figure: 14, inSides: false, weekly: true });
+    expect(said).toContain("playing off 14 strokes, the committee’s for this round;");
+    expect(said).not.toContain("gross only");
+  });
+
+  it("gross: no index is allowed, and said as gross only", () => {
+    expect(candidateWhy(i, "a", world)).toBeNull();
+    expect(handicapUsedWords(i.index, null)).toBe("no index (gross only)");
+  });
+
+  it("a member WITH an index is not touched by it, net or gross", () => {
+    const k = noIndexI.find((c) => c.id === "k")!;
+    expect(candidateWhy(k, "a", { ...world, net: true, handicapsFixed: true })).toBeNull();
+  });
+});
+
 describe("the sheet after a swap", () => {
   it("the substitute takes the exact place: same group, same position; the others and the times are untouched", () => {
     const r = applyReplace(sheet, "c", "i", noLocks);
@@ -199,7 +255,7 @@ describe("the words", () => {
         round: "Round 3",
         group: "Group 2",
         reason: "no-show",
-        handicap: handicapUsedWords("no index"),
+        handicap: handicapUsedWords("no index", null),
         games: voidedGamesWords({ contests: 1, sideGames: 0, kept: 1, skins: [{ cents: 500, paid: true }, { cents: 250, paid: false }] }),
       }),
     ).toBe(
@@ -224,9 +280,9 @@ describe("the words", () => {
   });
 
   it("the one sentence the confirm states", () => {
-    expect(replaceWillSay({ absentee: "Ann", sub: "Bea", group: "Group 2", time: "8:10 AM", handicap: "12.4", inSides: false, weekly: true })).toBe(
+    expect(replaceWillSay({ absentee: "Ann", sub: "Bea", group: "Group 2", time: "8:10 AM", handicap: "12.4", figure: null, inSides: false, weekly: true })).toBe(
       "Bea takes Ann’s place in Group 2, 8:10 AM, playing off 12.4; Ann comes off the sheet and is marked out for the week, and their side-game entries for this round are marked out (what they paid stays on the record).",
     );
-    expect(replaceWillSay({ absentee: "Ann", sub: "Rob", group: "Group 1", time: "", handicap: "no index", inSides: true, weekly: false })).toContain("playing off no index (gross only), keeping the pair and its match; Ann comes off the sheet and is withdrawn from the field (the row is kept), and their side-game entries");
+    expect(replaceWillSay({ absentee: "Ann", sub: "Rob", group: "Group 1", time: "", handicap: "no index", figure: null, inSides: true, weekly: false })).toContain("playing off no index (gross only), keeping the pair and its match; Ann comes off the sheet and is withdrawn from the field (the row is kept), and their side-game entries");
   });
 });
