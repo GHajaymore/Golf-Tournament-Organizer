@@ -8,6 +8,8 @@ import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
 import { isHeadToHead, isPlayingRound, hasKnockoutStage } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
 import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
+import { playersNeedingFigure } from "@/lib/services/committee-figure";
+import type { BandRound } from "@/components/NeedsStrokesBand";
 import { playersAnswer, resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -203,6 +205,35 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
   for (const s of playingStages(state.stages)) {
     roundHandicaps[s.id] = await roundHandicapsFor(session.eventId, s.id);
   }
+
+  /**
+   * PLAYERS WITH NO HANDICAP INDEX IN A ROUND SCORED NET (lane N): the band at the top. Who is on it is
+   * `playersNeedingFigure` (the one rule); each row's figures are the round's own handicap list above, so
+   * the "plays off" line is priced as the board prices it. Only for somebody who may give strokes — the
+   * actions behind Give ask the same (organizer or assistant organizer).
+   */
+  const mayGiveStrokes = session.viewRole === "admin" || session.viewRole === "assistant";
+  const strokesBand: BandRound[] = mayGiveStrokes
+    ? (await playersNeedingFigure(session.eventId)).flatMap((r) => {
+        const s = state.stages.find((x) => x.id === r.stageId);
+        if (!s) return [];
+        const rows = new Map((roundHandicaps[r.stageId] ?? []).map((v) => [v.playerId, v]));
+        return [
+          {
+            stageId: r.stageId,
+            label: r.label,
+            pricing: { format: s.format, type: s.type, scoringBasis: s.scoringBasis, handicapAllowance: s.handicapAllowance },
+            // Before the round's first card, Give; after it (frozen at the scratch figure, or a late
+            // entrant the next card will freeze), the staff correction with a reason.
+            players: [...r.players.map((p) => ({ p, scratch: false })), ...r.scratch.map((p) => ({ p, scratch: true }))].map(({ p, scratch }) => {
+              const v = rows.get(p.id);
+              const mode: "give" | "correct" = !scratch && (v?.editable ?? true) ? "give" : "correct";
+              return { id: p.id, name: p.name, mode, member: v?.member ?? 0, memberExact: v?.exact ?? v?.member ?? 0, parStrokes: v?.parStrokes ?? 0 };
+            }),
+          },
+        ];
+      })
+    : [];
 
   /**
    * A TIE AT A ROUND ROBIN'S CUT LINE, FOR THE ROUND IT DECIDES THE FIELD OF
@@ -565,6 +596,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         // state machine (timeline only).
         roundFacts={step2?.facts ?? null}
         courseDay={courseDay}
+        strokesBand={strokesBand}
         // A link straight to one round opens it (checked against this tournament's rounds there).
         linkedRound={typeof sp.round === "string" ? sp.round : null}
         // Today AT THE CLUB, from the server, so the browser's render asks the

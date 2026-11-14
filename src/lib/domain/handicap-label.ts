@@ -174,6 +174,6 @@ export function indexLabel(p: IndexLike): string {
  * small number: it is the absence of one, and code that sorts, balances
  * flights or pairs on it is making a decision from nothing.
  */
-export function hasIndex(p: IndexLike): boolean {
+export function hasIndex(p: Partial<IndexLike>): boolean {
   return (p.handicapSource ?? "manual") !== "none";
 }
