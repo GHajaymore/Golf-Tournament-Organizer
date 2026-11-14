@@ -103,7 +103,10 @@ for (const [which, label] of [
       const again = await ctx.newPage();
       watchPageErrors(again, errors, `${label} by the sign, again`);
       await again.goto(groupLink(round.code));
-      await expect(again.getByRole("group", { name: "Who won hole 1" })).toBeVisible({ timeout: 30_000 });
+      // The card reopens where the member left it: on the first hole with no result, which is hole 2 now
+      // that hole 1 is stored (the card's rule: open on the first unplayed hole), never back on hole 1.
+      await expect(again.getByRole("group", { name: "Who won hole 2" })).toBeVisible({ timeout: 30_000 });
+      await expect(again.getByRole("group", { name: "Who won hole 1" })).toHaveCount(0);
       await expect(again.getByText("Zz Golds 1 up with 8 to play")).toBeVisible();
       await expect(again.getByRole("button", { name: "Yes, that's my group" })).toHaveCount(0);
       await expect(again.getByLabel(/e-?mail/i)).toHaveCount(0);
