@@ -50,7 +50,7 @@ async function makeLeague(name: string, format: string) {
       organizationId: org.id,
       shape: "series",
       format,
-      status: "active",
+      status: "live",
       dates: "",
       course: "",
       city: "",
