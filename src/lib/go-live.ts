@@ -39,6 +39,9 @@ export function launchStateOf(held: boolean): LaunchState {
 
 const FREE_FIELD = PLANS.free.limits.playersPerEvent;
 
+/** The live front door's one primary call to action, as the hero, the top bar and the section breaks all say it. */
+const LIVE_PRIMARY_CTA = "Run an event";
+
 /* ─────────────────────────── held: the sign-in doors ─────────────────────────── */
 
 /** What a person is told when they try. Points a player at the one door that is open. */
@@ -151,8 +154,10 @@ export const FRONT_DOOR: Record<LaunchState, FrontDoorWords> = {
   // The words the front door said open before 2026-10-23, moved here unchanged.
   live: {
     startHref: (home) => `${home}#signup`,
-    navCta: "Start free",
-    heroCta: "Run an event",
+    // The top bar says what the hero says (Ajay, 2026-11-08): ONE primary call to action, in the
+    // same words wherever the front door draws it. `go-live-switch.test.tsx` holds the two equal.
+    navCta: LIVE_PRIMARY_CTA,
+    heroCta: LIVE_PRIMARY_CTA,
     pill: { badge: "New", text: "Ryder-style cups, on every player’s phone", href: "#does" },
     facts: [`Free for fields of up to ${FREE_FIELD}`, "No card", "No app for players"],
     freeYear: "Free for good",

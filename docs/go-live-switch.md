@@ -52,7 +52,7 @@ card says how many wait and when the next press can send them.
 | `compare-plans` | The free plan in "Compare the plans" and beside the two club platforms | "opens at launch", no tick | "free for good", a tick: up to 10 players | **wired** |
 | `search-data` | What search engines are told about the plans (schema.org offers) | The two paid plans only, no $0 offer | All three, the free plan at $0 | **wired** |
 | `front-door-close` | The closing section above the box | "Opening soon. Get in early." | "Run your first event." | followed (live words inline) |
-| `nav` | The top bar's button on /faq, /privacy, /terms, /interest | "Join the early list", to /interest | "Start free", to the form | followed (an optional argument that defaulted to live; now required) |
+| `nav` | The top bar's button on /faq, /privacy, /terms, /interest | "Join the early list", to /interest | "Run an event", to the form (the hero's own words) | followed (an optional argument that defaulted to live; now required) |
 | `faq-answers` | /faq: "Can I try it for free?" and "Do I need a credit card?" | The free plan "opens at launch"; no "no card to start" | "Yes …", "No card to start" | **wired** — said "Yes, free, no card" while the front door had taken both down |
 | `faq-cta` | /faq's last call to action (only while the contact address is off) | "Join the early list", to /interest | "Start free" | **wired** — "Start free" whatever the switch said |
 | `interest-page` | /interest: kicker, heading, offer | "Opening soon" · "Be first on the tee …" · 25% off at launch | "Now open" · "Tell us about your club" · "Set up your club", to the form | **wired** — said "Opening soon" for ever |
