@@ -3,7 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { landingSettled } from "./landing-settled";
 import { verifyByCode } from "./verify-by-code";
 import { journey, projectTag, ceilingBreaches, READ_MS, type Journey } from "./journey";
-import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSession, addDays, dayIn } from "./rounds-fixture";
+import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, sessionOf, addDays, dayIn } from "./rounds-fixture";
 import { expectLaunched } from "./end-early";
 import { clubToday } from "../src/lib/domain/club-clock";
 
@@ -353,8 +353,13 @@ test("J2: a new club secretary has a first event somebody can PLAY, in under ten
       const event = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId }, select: { id: true } });
       const [name] = EIGHT[3];
       const entry = await prisma.player.findFirstOrThrow({ where: { eventId: event.id, name }, select: { email: true } });
-      const { session } = await memberSession(event.id, entry.email, name);
-      await signInWith(memberCtx, baseURL!, session, event.id);
+      // The import gave the entry its tournament account already (Account is unique on event and address):
+      // the member only needs a sign-in of their own.
+      const user = await prisma.user.upsert({ where: { email: entry.email }, create: { email: entry.email, name, password: "x:unusable" }, update: {} });
+      if (!(await prisma.account.findFirst({ where: { eventId: event.id, email: entry.email }, select: { id: true } }))) {
+        await prisma.account.create({ data: { eventId: event.id, name, email: entry.email, role: "player" } });
+      }
+      await signInWith(memberCtx, baseURL!, sessionOf(user.id), event.id);
       const member = await memberCtx.newPage();
       watchPageErrors(member, errors, "member");
       await member.goto(`/me?bust=${Date.now()}`);

@@ -298,9 +298,17 @@ test.describe("a player's round, measured", () => {
       await walk.type(page.getByPlaceholder("Your password").locator("visible=true").first(), PASSWORD, "Password");
       await walk.press(page.getByRole("button", { name: "Log in", exact: true }).locator("visible=true").first(), "“Log in”");
       await page.waitForURL((u) => u.pathname !== "/", { timeout: 30_000 });
+      // The app may pass through another screen on its way to Today (CI, 25a0ffa0: / → /choose → /me, by
+      // itself). That is the app's walk and is counted as a visit; only if it never reaches Today does the
+      // person press the tab. (The first run pressed it too early, while /choose was still moving on.)
+      let reached = true;
+      try {
+        await page.waitForURL(/\/me$/, { timeout: 15_000 });
+      } catch {
+        reached = false;
+      }
       await page.waitForLoadState("networkidle").catch(() => {});
-      // Wherever the log-in lands, the person goes on from there: Today is where they were going.
-      if (new URL(page.url()).pathname !== "/me") {
+      if (!reached) {
         await walk.press(sections(page).getByRole("link", { name: /Today/ }), "the “Today” tab");
         await page.waitForURL(/\/me$/, { timeout: 30_000 });
       }
