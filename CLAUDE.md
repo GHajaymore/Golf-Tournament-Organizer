@@ -37,8 +37,11 @@ These are not preferences. Breaking one has consequences that cannot be undone f
 
 **Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
 every Bash and PowerShell command (`.claude/settings.json`) and refuses `git add -A`/`.`, any `git stash`,
-a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number,
-PowerShell writing a source file, and — on the Windows desktop only — builds, dev servers and Playwright.
+a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number or a
+local path (`C:\Users\<you>`), PowerShell writing a source file, `gh run watch`, a merge or `round/*` push from
+any session but the one named in the untracked `.claude/main-session` (or from a subagent), a migration applied
+to the shared dev database from anywhere but the main checkout (`--create-only` is fine), and — on the
+Windows desktop only — builds, dev servers and Playwright.
 A refusal names its rule. Text in quotes and heredocs is never read as a command. To change what it
 allows, edit the script with `src/lib/__tests__/claude-guard-hook.test.ts`.
 
@@ -460,6 +463,7 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | If your task touches… | Read first | What is in it |
 | --- | --- | --- |
 | sign-in, sign-up, sessions, passwords, codes, known devices, launching accounts | `docs/claude/sign-ins.md` | the hold in full; proved address, leaked passwords, new-device codes |
+| starting or briefing any agent | `.claude/agents/STANDARDS.md` | the one standard every agent follows: no waiting on CI, other PRs' files, no real names, short hand-backs |
 | any date, deadline, "today", time zone, E2E_TZ | `docs/claude/club-clock.md` | why the day is the club's; the helpers that must be told it |
 | `src/app/page.tsx`, `src/lib/landing/*`, `/faq`, `/privacy`, `/terms` | `docs/claude/landing-page.md` | its stylesheet, its three rules, the green test, ownership |
 | writing or REPORTING a browser-test result; coverage | `docs/claude/e2e-across-the-board.md` | why a pass count is not a claim; reach instruments; mutation habits |
