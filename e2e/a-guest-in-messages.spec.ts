@@ -68,8 +68,8 @@ async function openPanel(page: Page) {
 }
 
 async function compose(page: Page, body: string) {
-  await page.getByRole("textbox").last().fill(body);
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("textbox").last().fill(body, { timeout: 20_000 });
+  await page.getByRole("button", { name: "Send", exact: true }).click({ timeout: 20_000 });
 }
 
 test.describe("a guest in messages and notices", () => {
@@ -163,12 +163,12 @@ test.describe("a guest in messages and notices", () => {
       await g.getByRole("button", { name: "New message" }).click();
       await expect(g.locator("[data-muted-note]")).toContainText("Your organizer has turned off your posts here.", { timeout: 20_000 });
       await expect(g.getByRole("combobox", { name: "Send to a group" }).locator("option"), "a muted guest is offered the round").toHaveCount(1);
-      await g.getByRole("button").filter({ hasText: "zz Is the range open" }).first().click();
+      await g.getByRole("button").filter({ hasText: "zz Is the range open" }).first().click({ timeout: 20_000 });
       await expect(g.getByText("Your organizer has turned off your posts here.", { exact: false })).toBeVisible({ timeout: 20_000 });
       await expect(g.getByText("announcements only", { exact: false })).toHaveCount(0);
       await expect(g.getByPlaceholder("Message…"), "a reply box where the guest may not post").toHaveCount(0);
       await g.goto(`/me/messages?bust=${Date.now()}`);
-      await g.getByRole("button", { name: /^Message the organi[sz]er$/ }).click();
+      await g.getByRole("button", { name: /^Message the organi[sz]er$/ }).click({ timeout: 20_000 });
       await compose(g, "zz Still on for the Saturday?");
       await expect
         .poll(async () => prisma.message.count({ where: { body: "zz Still on for the Saturday?", thread: { scopeKey: `desk:${guestId}` } } }), { timeout: 20_000, message: "the desk closed with the round" })
@@ -177,15 +177,22 @@ test.describe("a guest in messages and notices", () => {
       // 7. Notices, pressed by the GUEST: Turn on files the row on the PASS, at its current version,
       //    and never an account's (#1133 review: the turn-on step).
       const pass = await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guestId } });
+      // Every press below carries a limit: a press on a control that is not there waits for the
+      // whole test otherwise, and the run says only "Test timeout" (CI on #1133).
+      const PRESS = { timeout: 20_000 };
       const today = async () => {
         await g.goto(`/me?bust=${Date.now()}`);
         await g.waitForLoadState("networkidle").catch(() => {});
-        // Today keeps the toggle behind its "more" extender when there is more to show: open it.
-        for (const s of await g.locator("details:not([open]) > summary").all()) await s.click().catch(() => {});
+        // Today keeps the toggle behind its ONE "More: …" extender when there is more to show: open
+        // that one, by its words (as tee-time-alerts.spec does). Pressing every closed <summary> on the
+        // page pressed hidden ones too, and a press on a hidden control never ends.
+        const more = g.locator("summary", { hasText: /^More:/ });
+        if (await more.count()) await more.first().click(PRESS);
       };
       const guestRows = () => prisma.playerPassPush.count({ where: { passId: pass.id, endpoint: ENDPOINT, passVersion: pass.version } });
       await today();
-      await g.getByRole("button", { name: "Turn on", exact: true }).click();
+      await expect(g.getByText("Get tee-time alerts"), "a guest's Today does not offer tee-time alerts").toBeVisible({ timeout: 30_000 });
+      await g.getByRole("button", { name: "Turn on", exact: true }).click(PRESS);
       await expect(g.getByText("Tee-time alerts are on.")).toBeVisible({ timeout: 20_000 });
       await expect.poll(guestRows, { timeout: 20_000 }).toBe(1);
       expect(await prisma.pushSubscription.count({ where: { endpoint: ENDPOINT } }), "a guest's Turn on filed an account's row").toBe(0);
@@ -193,17 +200,19 @@ test.describe("a guest in messages and notices", () => {
       await today();
       await expect(g.getByText("Tee-time alerts are on.")).toBeVisible({ timeout: 20_000 });
 
-      // 8. Turn off: this phone stops (the row goes).
-      await g.getByRole("button", { name: "Turn off", exact: true }).click();
+      // 8. Turn off: this phone stops (the row goes), and the card is offered again.
+      await g.getByRole("button", { name: "Turn off", exact: true }).click(PRESS);
+      await expect(g.getByText("Get tee-time alerts"), "Turn off did not offer alerts again").toBeVisible({ timeout: 20_000 });
       await expect.poll(async () => prisma.playerPassPush.count({ where: { endpoint: ENDPOINT } }), { timeout: 20_000 }).toBe(0);
 
       // 9. On again, then "Forget me on this phone": the link leaves the phone AND its notices stop
       //    there (#1133 review, SEC-1), although the link itself is still live at the same version.
       await today();
-      await g.getByRole("button", { name: "Turn on", exact: true }).click();
+      await expect(g.getByText("Get tee-time alerts")).toBeVisible({ timeout: 30_000 });
+      await g.getByRole("button", { name: "Turn on", exact: true }).click(PRESS);
       await expect.poll(guestRows, { timeout: 20_000 }).toBe(1);
-      await g.getByRole("button", { name: "Forget me on this phone" }).click();
-      await g.getByRole("button", { name: "Forget", exact: true }).click();
+      await g.getByRole("button", { name: "Forget me on this phone" }).click(PRESS);
+      await g.getByRole("button", { name: "Forget", exact: true }).click(PRESS);
       await g.waitForURL(/\/p(\?|#|$)/, { timeout: 30_000 });
       await expect
         .poll(async () => prisma.playerPassPush.count({ where: { endpoint: ENDPOINT } }), { timeout: 20_000, message: "a forgotten phone kept the guest's notices" })
