@@ -138,6 +138,22 @@ function FirstUseNotice({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
+/**
+ * Where a conversation's reply box would be, when this reader cannot post in it.
+ * A guest the organizer muted is TOLD so (S8, `mutedWordsFor`), never "announcements
+ * only": the round they wrote in yesterday is no announcement. Exported so a static
+ * render can see it (the thread view itself only draws after a read).
+ */
+export function ReplyClosed({ mutedWords, organizer }: { mutedWords: string; organizer: string }) {
+  return (
+    <div style={{ borderTop: "1px solid var(--color-divider)", padding: "10px 14px" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+        {mutedWords || `This one is announcements only — your ${organizer} posts here.`}
+      </p>
+    </div>
+  );
+}
+
 export function MessagesClient({
   threads,
   composable,
@@ -146,6 +162,10 @@ export function MessagesClient({
   optedOut = false,
   smsOptIn = false,
   organizer = "organizer",
+  surface = "console",
+  guest = false,
+  deskKey = "",
+  mutedWords = "",
 }: {
   threads: ThreadListItem[];
   composable: { key: string; label: string; kind: string }[];
@@ -159,6 +179,14 @@ export function MessagesClient({
   smsOptIn?: boolean;
   /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
   organizer?: string;
+  /** Which screen this is: the player app, or the console (J39/J40 PR 2). */
+  surface?: "player" | "console";
+  /** A guest's player link: no texting (no phone, ruled 7 Nov). Nothing on screen says what a guest cannot do. */
+  guest?: boolean;
+  /** This player's own "Message the organizer" scope (`desk:<playerId>`), or "" for staff and spectators. */
+  deskKey?: string;
+  /** `MUTED_WORDS` when the organizer muted this guest (S8): said on the compose card; "" otherwise. */
+  mutedWords?: string;
 }) {
   // The club's way of writing a date, from the same context its currency comes from.
   const { locale } = useFormatting();
@@ -175,6 +203,8 @@ export function MessagesClient({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [composing, setComposing] = useState(false);
+  // Which scope the compose panel opens on: the desk when "Message the organizer" was pressed.
+  const [composeTarget, setComposeTarget] = useState("");
   const [pending, start] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -312,6 +342,12 @@ export function MessagesClient({
               {!m.mine && (
                 <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.75, marginBottom: 2 }}>
                   {m.authorName || "A player"}
+                  {/* S8: written through a guest's player link. */}
+                  {m.guest && (
+                    <span data-guest-marker style={{ fontWeight: 600, marginLeft: 6 }}>
+                      Guest
+                    </span>
+                  )}
                 </div>
               )}
               <div data-authored style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
@@ -355,11 +391,7 @@ export function MessagesClient({
             </button>
           </div>
         ) : (
-          <div style={{ borderTop: "1px solid var(--color-divider)", padding: "10px 14px" }}>
-            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              This one is announcements only — your {organizer} posts here.
-            </p>
-          </div>
+          <ReplyClosed mutedWords={view.mutedWords} organizer={organizer} />
         )}
         {error && (
           <p style={{ color: "var(--color-danger)", fontSize: 13, margin: 0, padding: "0 14px 10px" }}>{error}</p>
@@ -373,9 +405,29 @@ export function MessagesClient({
       {seenRates === false && <FirstUseNotice onDismiss={ackRates} />}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" className="btn btn-primary" onClick={() => setComposing((v) => !v)}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => {
+            setComposeTarget("");
+            setComposing((v) => !v);
+          }}
+        >
           <Icon name="plus" /> New message
         </button>
+        {/* Message the organizer: every player has it, member or guest alike (J39/J40 PR 2). */}
+        {deskKey && !isStaff && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setComposeTarget(deskKey);
+              setComposing(true);
+            }}
+          >
+            <Icon name="chat-circle-dots" /> Message the {organizer}
+          </button>
+        )}
         <button
           type="button"
           className="btn btn-secondary"
@@ -387,14 +439,25 @@ export function MessagesClient({
       </div>
 
       {showPrefs && (
-        <OptOutPanel optedOut={off} onChange={setOff} smsOptIn={sms} onSmsChange={setSms} organizer={organizer} />
+        <OptOutPanel
+          optedOut={off}
+          onChange={setOff}
+          smsOptIn={sms}
+          onSmsChange={setSms}
+          organizer={organizer}
+          surface={surface}
+          canText={!guest}
+        />
       )}
 
       {composing && (
         <ComposePanel
+          key={composeTarget || "compose"}
           composable={composable}
           people={people}
           isStaff={isStaff}
+          initialTarget={composeTarget}
+          mutedWords={mutedWords}
           onOpen={(id) => {
             setComposing(false);
             setOpenId(id);
@@ -482,12 +545,16 @@ function OptOutPanel({
   smsOptIn,
   onSmsChange,
   organizer,
+  surface = "console",
+  canText = true,
 }: {
   optedOut: boolean;
   onChange: (v: boolean) => void;
   smsOptIn: boolean;
   onSmsChange: (v: boolean) => void;
   organizer: string;
+  surface?: "player" | "console";
+  canText?: boolean;
 }) {
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -495,7 +562,7 @@ function OptOutPanel({
   const toggle = (next: boolean) => {
     setError("");
     start(async () => {
-      const res = await setMyMessagesOptOut(next);
+      const res = await setMyMessagesOptOut(next, surface);
       if (!res.ok) {
         setError(res.error ?? "Couldn't save that.");
         return;
@@ -547,6 +614,7 @@ function OptOutPanel({
           number so an organizer can ring you is not agreeing to bulk texts,
           and treating those as the same thing is what gets an SMS programme
           shut down. */}
+      {canText && (
       <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
         <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
           <input
@@ -568,6 +636,7 @@ function OptOutPanel({
           </span>
         </label>
       </div>
+      )}
       {error && <p style={{ color: "var(--color-danger)", fontSize: 13, margin: 0 }}>{error}</p>}
     </div>
   );
@@ -591,18 +660,29 @@ export function ComposePanel({
   people,
   onOpen,
   isStaff,
+  initialTarget = "",
+  mutedWords = "",
 }: {
   composable: { key: string; label: string; kind: string }[];
   /** Who can be messaged: a name, and their entry in this tournament — never an address. */
   people: { name: string; id: string }[];
   onOpen: (threadId: string) => void;
   isStaff: boolean;
+  /** The scope to open on (the desk, for "Message the organizer"), when it is one of `composable`. */
+  initialTarget?: string;
+  /**
+   * A muted guest (S8): their picker holds only the desk, so the card SAYS why the
+   * round is not there, rather than leaving it to be noticed missing.
+   */
+  mutedWords?: string;
 }) {
   const [body, setBody] = useState("");
   // Opens on THIS TOURNAMENT where that is somewhere the writer may post, not on the first group in
   // the list. The first is the whole club, and a message cannot be called back: an organizer on a
   // tournament's Messages screen, moving the tee times, was one press from telling every member.
-  const [target, setTarget] = useState((composable.find((c) => c.kind === "event") ?? composable[0])?.key ?? "");
+  const [target, setTarget] = useState(
+    (composable.find((c) => c.key === initialTarget) ?? composable.find((c) => c.kind === "event") ?? composable[0])?.key ?? "",
+  );
   const [person, setPerson] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -659,7 +739,8 @@ export function ComposePanel({
           ? await broadcastWithText(target, body)
           : await (async () => {
               const r = await sendMessage(target, body);
-              return r.ok ? r : broadcastToScope(target, body);
+              // The broadcast door is staff's: a player's refusal (a muted guest's, say) is said as it came.
+              return r.ok || !isStaff ? r : broadcastToScope(target, body);
             })();
       if (!res.ok) {
         setError(res.error ?? "Couldn't send that.");
@@ -672,6 +753,11 @@ export function ComposePanel({
 
   return (
     <div className="card elev-sm" style={{ gap: 10, marginBottom: 12 }}>
+      {mutedWords && (
+        <p data-muted-note style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          <Icon name="info" /> {mutedWords}
+        </p>
+      )}
       <span className="card-kicker">Who is this for?</span>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select
@@ -696,6 +782,8 @@ export function ComposePanel({
             </option>
           ))}
         </select>
+        {/* No one to pick (a player link starts no direct conversation, D7): no picker drawn. */}
+        {people.length > 0 && (
         <select
           aria-label="…or send to one person"
           value={person}
@@ -716,6 +804,7 @@ export function ComposePanel({
             </option>
           ))}
         </select>
+        )}
       </div>
 
       {/* The answer to the heading, in words.

@@ -22,7 +22,7 @@ export default async function MessagesPage() {
   // `session.role`, not viewRole: an organizer previewing as a player should
   // see the app as a player does, but hiding their own staff conversation from
   // them while replies keep arriving in it is not a preview, it is a bug.
-  const ctx = await membershipFor(session.eventId, session.email, session.role);
+  const ctx = await membershipFor(session, session.eventId);
   if (!ctx) redirect("/");
 
   const [threads, composable, people, optedOut, rosterRow] = await Promise.all([
@@ -34,7 +34,7 @@ export default async function MessagesPage() {
     messageableField(ctx),
     messagesOptOutFor(ctx),
     prisma.member.findFirst({
-      where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+      where: { organizationId: ctx.organizationId, email: { equals: ctx.whoKey, mode: "insensitive" } },
       select: { smsOptIn: true },
     }),
   ]);

@@ -296,6 +296,8 @@ export const AREAS = {
 export const FULL_ONLY = [
   // J39/J40 PR 1: a guest takes full part by a personal player link, no email and no app (access and sign-in: shared ground).
   "e2e/a-guest-takes-full-part.spec.ts",
+  // J39/J40 PR 2: a guest in messages and notices, by who-key (messaging and push: shared ground).
+  "e2e/a-guest-in-messages.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",

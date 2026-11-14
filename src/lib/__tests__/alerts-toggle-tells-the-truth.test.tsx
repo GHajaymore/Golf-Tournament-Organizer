@@ -51,8 +51,12 @@ describe("on a phone that changed hands (G-4)", () => {
     const client = readSource("src", "components", "PushToggleClient.tsx");
     expect(client, "the toggle no longer asks whose subscription it is").toContain("pushToggleState(");
     expect(client, "the toggle believes the browser again").not.toMatch(/setState\(\s*sub\s*\?\s*"on"/);
+    // The list is the own devices of whoever the player screen is for — an account or a guest's link
+    // (J39/J40 PR 2) — the same viewer Turn on files the row for, never the bare session.
     const server = readSource("src", "components", "PushToggle.tsx");
-    expect(server).toContain("pushFingerprintsFor(session?.email)");
+    expect(server).toContain("pushFingerprintsForViewer(viewer)");
+    expect(server).toContain("const viewer = await getPlayerViewer();");
+    expect(server, "the toggle asks the session, which a guest has none of").not.toContain("getSession(");
   });
 });
 

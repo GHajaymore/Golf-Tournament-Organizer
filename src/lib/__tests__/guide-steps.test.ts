@@ -64,6 +64,9 @@ const PINNED: [label: string, file: string][] = [
   ["Copy link", "src/lib/domain/player-link.ts"],
   ["New link", "src/lib/domain/player-link.ts"],
   ["Turn off link", "src/lib/domain/player-link.ts"],
+  // PR 2 (S8): the panel's mute, from the same words module.
+  ["Mute in messages", "src/lib/domain/player-link.ts"],
+  ["Unmute in messages", "src/lib/domain/player-link.ts"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

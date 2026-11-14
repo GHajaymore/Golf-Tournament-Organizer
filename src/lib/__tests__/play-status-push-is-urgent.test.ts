@@ -4,7 +4,7 @@ import { readSource } from "./source";
 /**
  * "STOP NOW" IS SENT AS URGENT, AND DIES YOUNG (2026-11-14, safety sweep G-5).
  *
- * `sendPushToEmails` passed no options, so web-push sent every notice at
+ * The sender (then `sendPushToEmails`, now `sendPushTo`) passed no options, so web-push sent every notice at
  * Urgency normal with a four-week TTL. On Android a normal push is low
  * priority to a dozing phone, so "play is suspended" could arrive late; and a
  * phone that was off for weeks could still be told "stop now".
@@ -32,14 +32,22 @@ vi.mock("@/lib/db", () => ({
       findMany: async () => [{ endpoint: "https://push.example.invalid/zz-one", p256dh: "k", auth: "a" }],
       deleteMany: async () => ({ count: 0 }),
     },
+    // A guest's phone (J39/J40 PR 2): one row on a live pass.
+    playerPassPush: {
+      findMany: async () => [
+        { id: "zz-row", endpoint: "https://push.example.invalid/zz-guest", p256dh: "k", auth: "a", passVersion: 1, passId: "zz-pass", pass: { playerId: "zz-guest-player" } },
+      ],
+      deleteMany: async () => ({ count: 0 }),
+    },
   },
 }));
 vi.mock("@/lib/services/demo-guard", () => ({ demoRefusesMessage: async () => false }));
+vi.mock("@/lib/services/player-link", () => ({ livePass: async () => ({ id: "zz-pass" }) }));
 
 process.env.VAPID_PUBLIC_KEY = "zz-public";
 process.env.VAPID_PRIVATE_KEY = "zz-private";
 
-const { sendPushToEmails, sendOptionsFor, PLAY_STATUS_TTL_SECONDS } = await import("@/lib/services/push");
+const { sendPushTo, sendOptionsFor, PLAY_STATUS_TTL_SECONDS } = await import("@/lib/services/push");
 
 const payload = { title: "Play is suspended", body: "Stop now.", tag: "play-x", urgent: true };
 
@@ -47,15 +55,22 @@ describe("how a push is carried", () => {
   beforeEach(() => void sent.splice(0));
 
   it("a suspension or resumption goes at high urgency and lives hours, not weeks", async () => {
-    await sendPushToEmails(["zz@example.invalid"], payload, { eventId: "e1", delivery: "play-status" });
+    await sendPushTo(["zz@example.invalid"], payload, { eventId: "e1", delivery: "play-status" });
     expect(sent).toHaveLength(1);
     expect(sent[0].options, "the push service was not asked to hurry a safety notice").toEqual({ urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS });
     expect(PLAY_STATUS_TTL_SECONDS, "a player in a dead spot through a lightning hold never hears it").toBeGreaterThanOrEqual(2 * 60 * 60);
     expect(PLAY_STATUS_TTL_SECONDS, "a life past the round is no longer news about it").toBeLessThanOrEqual(4 * 60 * 60);
   });
 
+  it("a guest's phone is carried the same way as an account's (J39/J40 PR 2)", async () => {
+    const { guestWhoKey } = await import("@/lib/domain/messaging");
+    await sendPushTo([guestWhoKey("zz-guest-player")], payload, { eventId: "e1", delivery: "play-status" });
+    expect(sent.map((s) => s.endpoint)).toEqual(["https://push.example.invalid/zz-guest"]);
+    expect(sent[0].options, "a guest's phone was told 'stop now' at ordinary urgency").toEqual({ urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS });
+  });
+
   it("CONTROL: everything else is sent exactly as before, with no options", async () => {
-    await sendPushToEmails(["zz@example.invalid"], { title: "Your tee time is set", body: "08:10" }, { eventId: "e1" });
+    await sendPushTo(["zz@example.invalid"], { title: "Your tee time is set", body: "08:10" }, { eventId: "e1" });
     expect(sent).toHaveLength(1);
     expect(sent[0].options).toBeUndefined();
     expect(sendOptionsFor("ordinary")).toBeUndefined();
@@ -64,10 +79,10 @@ describe("how a push is carried", () => {
   it("suspend and resume both say so: the one sender of play's status asks for it", () => {
     const src = readSource("src", "app", "actions", "play-status.ts");
     const tell = src.slice(src.indexOf("async function tellTheField"), src.indexOf("export async function currentPlayStatus"));
-    expect(tell, "tellTheField was not found").toContain("sendPushToEmails(");
+    expect(tell, "tellTheField was not found").toContain("sendPushTo(");
     expect(tell, "the suspension push is sent as an ordinary one").toMatch(/delivery:\s*"play-status"/);
     // Both presses reach the field only through it.
     expect(src.match(/await tellTheField\(/g)?.length).toBe(2);
-    expect(src.match(/sendPushToEmails\(/g)?.length).toBe(1);
+    expect(src.match(/sendPushTo\(/g)?.length).toBe(1);
   });
 });

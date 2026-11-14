@@ -101,7 +101,9 @@ describe("the rounds-and-format actions ask the rounds rule (J12, PR 7b)", () =>
     const played = body(TOURNAMENT, "setStagePlayedOn");
     expect(played).toMatch(/roundVerdictFor\(eventId, stageId, \{ kind: "day" \}\)/);
     expect(played.indexOf("roundVerdictFor(")).toBeLessThan(played.search(FIRST_WRITE));
-    expect(played).toMatch(/said: SCHEDULES_WORDS/);
+    // Said beside the save once scores exist (J39/J40 PR 2 joins the notices-off line to it).
+    expect(played).toMatch(/judged\.verdict\.warn === "schedules" \? SCHEDULES_WORDS/);
+    expect(played).toMatch(/return said \? \{ ok: true, said \}/);
     const due = body(TOURNAMENT, "setStageDeadline");
     expect(due).toMatch(/roundRefusal\(eventId, stageId, \{ kind: "day" \}\)/);
     expect(due.indexOf("roundRefusal(")).toBeLessThan(due.search(FIRST_WRITE));

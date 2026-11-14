@@ -311,7 +311,8 @@ export default defineConfig({
       GOLFCOURSE_API_KEY: "",
       VAPID_PRIVATE_KEY: "",
       // A public key that lets the tee-time alerts card go as far as the server: the card is drawn
-      // either way, and a press asks the server for this key first (e2e/tee-time-alerts.spec.ts).
+      // either way, and a press asks the server for this key first (e2e/tee-time-alerts.spec.ts as a
+      // member, e2e/a-guest-in-messages.spec.ts as a guest).
       // This is the widely published web-push EXAMPLE pair (its private half is public too): a demo
       // key, never to be copied into a real environment. With the private key blanked, nothing is sent.
       VAPID_PUBLIC_KEY: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",

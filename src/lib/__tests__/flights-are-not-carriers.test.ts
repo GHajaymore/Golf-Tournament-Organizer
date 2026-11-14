@@ -108,6 +108,9 @@ function groupReads(): Site[] {
  * is not written here is a filter somebody forgot.
  */
 const ALLOWED: Record<string, string> = {
+  // J39/J40 PR 2: which EVENT a messaging target belongs to (`eventOf`), by the id the scope names.
+  // It reads no list of flights and authorises nothing: the read itself is still `visibleScopes`.
+  "lib/messaging-viewer.ts": "the event a scope id belongs to, never a list of flights; access is visibleScopes, not this",
   /**
    * A LOOKUP TABLE, not a list of flights. Both build `groupId -> teeId` and
    * are read through `player.groupId`, so a carrier contributes an entry

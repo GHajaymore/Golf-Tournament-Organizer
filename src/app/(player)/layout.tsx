@@ -68,8 +68,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   /**
    * AN ACCOUNT, OR A GUEST'S PLAYER LINK (J39/J40). A guest viewer is one
    * entry in one event with no address: every by-address reader below answers
-   * nobody for it, and the club-wide parts (the switcher, and messages until
-   * the design's PR 2) are not drawn. A browser holding both a sign-in and a
+   * nobody for it, and the club-wide part (the switcher) is not drawn; messages
+   * are the link's own entry's (PR 2). A browser holding both a sign-in and a
    * link is offered the other, never merged (S4).
    */
   const session = await requirePlayerViewer();
@@ -134,9 +134,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    * unread count is also simply where people look for messages on a phone, so
    * respecting that rule cost nothing.
    */
-  const ctx = session.eventId && !guest
-    ? await membershipFor(session.eventId, session.email, session.role)
-    : null;
+  // A guest too (J39/J40 PR 2): their link's own entry; a waiting guest gets none (S5).
+  const ctx = session.eventId ? await membershipFor(session, session.eventId) : null;
   const unread = ctx ? await unreadTotal(ctx) : 0;
   // Which tournament every tab is showing, and the way to the others. The same
   // rows the events list renders, so the two cannot disagree about a door.
@@ -218,7 +217,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
             should not have to sign out to run their own tournament. Rendered
             only for staff; a player has nothing to switch to. */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {!guest && (
+          {ctx && (
           <Link
             href="/me/messages"
             aria-label={unread > 0 ? `Messages, ${unread} unread` : "Messages"}

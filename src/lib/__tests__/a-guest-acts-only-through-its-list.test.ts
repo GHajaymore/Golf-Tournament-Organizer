@@ -22,7 +22,22 @@ import { GUEST_ACTIONS } from "@/lib/domain/player-link";
 const ACTIONS_DIR = join("src", "app", "actions");
 // `getPlayerViewer(` answers for a link as readily as for an account; `playStatusForScreen(`
 // asks it for the player screen (G1, `currentPlayStatus`).
-const GUEST_DOORS = ["getGuestSession(", "requireScoreEntryForStage(", "guestActorFor(", "getPlayerViewer(", "playStatusForScreen("];
+// PR 2: messaging asks `messagingContextFor` (through `requireActor`), push asks `pushOwnerNow`.
+// And every other door that resolves a guest (#1132 review, PE-1): ban the shape, not one spelling.
+const GUEST_DOORS = [
+  "getGuestSession(",
+  "requireScoreEntryForStage(",
+  "guestActorFor(",
+  "getPlayerViewer(",
+  "playStatusForScreen(",
+  "playerViewSwitch(",
+  "requirePlayerViewer(",
+  "requirePlayingViewer(",
+  "requireAccountViewer(",
+  "messagingContextFor(",
+  "requireActor(",
+  "pushOwnerNow(",
+];
 /** Actions that reach a guest door but are not a GUEST action: the open door itself. */
 const NOT_GUEST_WRITES = new Set(["openPlayerLink"]);
 
@@ -69,12 +84,24 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
     const allowed: Record<string, string[]> = {
       // guest-auth.ts DEFINES it (`getGuestSession = cache(`), so is not a caller.
       "getGuestSession(": ["src/lib/player-viewer.ts", "src/app/actions/player-link.ts"],
-      "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts"],
+      "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts", "src/lib/messaging-viewer.ts"],
       "guestViewer(": ["src/lib/player-viewer.ts"],
       // The player screens' door, and the one resolver the siren's poll asks through (G1: the siren
       // follows the screen's event; `currentPlayStatus` -> `playStatusForScreen`).
       // player-viewer.ts DEFINES it (`export async function getPlayerViewer(`).
-      "getPlayerViewer(": ["src/lib/player-viewer.ts", "src/lib/page-helpers.ts", "src/lib/services/play-status-screen.ts"],
+      // and the installed app's start (G3), which only redirects; the messaging and push owners (PR 2),
+      // and the alerts toggle, which asks whose devices are on for the person the screen is for.
+      "getPlayerViewer(": [
+        "src/lib/player-viewer.ts",
+        "src/lib/page-helpers.ts",
+        "src/lib/services/play-status-screen.ts",
+        "src/app/start/page.tsx",
+        "src/lib/messaging-viewer.ts",
+        "src/app/actions/push.ts",
+        "src/components/PushToggle.tsx",
+      ],
+      // The messaging resolver is asked by the messaging actions only (PR 2).
+      "messagingContextFor(": ["src/lib/messaging-viewer.ts", "src/app/actions/messaging.ts"],
     };
     const files = sources("src");
     for (const [call, where] of Object.entries(allowed)) {
@@ -97,6 +124,11 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
     expect(body, "a guest must never be asked by address").not.toContain("byAddress");
     const viewer = readSource("src", "lib", "player-viewer.ts");
     expect(viewer).toMatch(/email: "",/);
+  });
+
+  it("CONTROL: an action that asks a page helper which resolves a guest is seen too (PE-1)", () => {
+    const [fake] = actionsIn("export async function sneakyGuestWrite(id: string) {\n  const s = await getSession();\n  const v = await requirePlayerViewer();\n}\n");
+    expect(reachesAGuestDoor(fake.body)).toBe(true);
   });
 
   it("CONTROL: an action that reaches the guest session off the list is seen", () => {

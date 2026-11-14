@@ -4,7 +4,7 @@ import { Icon } from "./Icon";
 import { ConfirmButton } from "./ConfirmButton";
 import { qrModules, qrPath, type QrEncoder } from "@/lib/qr";
 import { PLAYER_LINK_WORDS, groupedCode, linkAddress, playerLinkShareMessage, playerLinkUrl, spokenCode } from "@/lib/domain/player-link";
-import { newPlayerLink, playerLinkStatus, showPlayerLink, turnOffPlayerLink } from "@/app/actions/player-link";
+import { muteGuestInMessages, newPlayerLink, playerLinkStatus, showPlayerLink, turnOffPlayerLink } from "@/app/actions/player-link";
 
 /**
  * THE PLAYER LINK PANEL (J39/J40 PR 1; design §4.1) — on a guest's row on
@@ -19,7 +19,7 @@ import { newPlayerLink, playerLinkStatus, showPlayerLink, turnOffPlayerLink } fr
  */
 export function PlayerLinkPanel({ playerId, name, eventName }: { playerId: string; name: string; eventName: string }) {
   const W = PLAYER_LINK_WORDS;
-  const [status, setStatus] = useState<{ text: string; made: boolean; revoked: boolean; suggestNew: boolean } | null>(null);
+  const [status, setStatus] = useState<{ text: string; made: boolean; revoked: boolean; suggestNew: boolean; muted: boolean } | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [view, setView] = useState<"qr" | "read" | null>(null);
   const [said, setSaid] = useState("");
@@ -29,7 +29,7 @@ export function PlayerLinkPanel({ playerId, name, eventName }: { playerId: strin
 
   const loadStatus = () =>
     playerLinkStatus(playerId).then((r) => {
-      if (r.ok) setStatus({ text: r.status, made: r.made, revoked: r.revoked, suggestNew: r.suggestNew });
+      if (r.ok) setStatus({ text: r.status, made: r.made, revoked: r.revoked, suggestNew: r.suggestNew, muted: r.muted });
       else setError(r.error);
     });
 
@@ -177,6 +177,26 @@ export function PlayerLinkPanel({ playerId, name, eventName }: { playerId: strin
               })
             }
           />
+        )}
+        {/* S8 (J39/J40 PR 2): quieten a guest's posts without ending the link. The desk stays open. */}
+        {status?.made && !status.revoked && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy}
+            aria-pressed={status.muted}
+            onClick={() =>
+              start(async () => {
+                setError("");
+                const r = await muteGuestInMessages(playerId, !status.muted);
+                if (!r.ok) setError(r.error ?? "Couldn't change that.");
+                else setSaid(status.muted ? W.unmutedSaid(name) : W.mutedSaid(name));
+                await loadStatus();
+              })
+            }
+          >
+            <Icon name={status.muted ? "chat-circle-dots" : "microphone-slash"} /> {status.muted ? W.unmute : W.mute}
+          </button>
         )}
       </div>
 
