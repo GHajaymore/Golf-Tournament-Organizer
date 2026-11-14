@@ -15,6 +15,7 @@ import { EventContextBar } from "@/components/EventContextBar";
 import { BackToTheRound } from "@/components/BackToTheRound";
 import { LifecycleStepper } from "@/components/LifecycleStepper";
 import { LIFECYCLE_STEPPER_ON, lifecycleTrack, stepperShown } from "@/lib/domain/lifecycle-track";
+import { mergesShown } from "@/lib/domain/console-merges";
 import { headers } from "next/headers";
 import { openTournamentJob } from "@/lib/services/whats-next";
 import { navForRole } from "@/lib/nav";
@@ -221,8 +222,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * 9 Nov) — the same switch, so nothing changes until Ajay has previewed it. Its sections are the
    * track's own stops; which screens it lists is still `navForRole`'s answer above, rearranged
    * (`lifecycleNav`). No track (the switch off, a casual round, no tournament open): the menu as it was.
+   * Step 3's merges reach it only where one is shown (`mergesShown`: none, without `&build=1`).
    */
-  const sections = track ? lifecycleNav(flatSections, track, { roundName }) : flatSections;
+  const merges = mergesShown(asked.get("x-search") ?? "");
+  const sections = track ? lifecycleNav(flatSections, track, { roundName, merges, role: session.viewRole }) : flatSections;
   const menuPreview = track !== null && !LIFECYCLE_STEPPER_ON;
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).

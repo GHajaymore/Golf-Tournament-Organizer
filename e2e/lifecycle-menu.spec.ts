@@ -4,6 +4,7 @@ import { watchPageErrors } from "./page-errors";
 import { statusFixture, prisma } from "./status-fixture";
 import { clubToday } from "../src/lib/domain/club-clock";
 import { addDays } from "../src/lib/domain/round-dates";
+import { mergesShown, relocate } from "../src/lib/domain/console-merges";
 
 /**
  * THE MENU FOLLOWS THE LIFECYCLE, OPENED AS AN ORGANIZER OPENS IT (the console structure review,
@@ -141,14 +142,33 @@ test("with the switch on the menu is the stepper's four stops, and every old des
 
     // …and every one of them OPENS for this organizer, on the screen it opened before: asked of the
     // server with the switch off and on (a bounce to another screen would answer 200 too, so the
-    // address it lands on is read as well).
+    // address it lands on is read as well). And with step 3's merges shown (`&build=1` while they are
+    // building): where `relocate()` sends that door — today's screen while no room is built.
     for (const href of before) {
       const off = await page.request.get(href);
-      const on = await page.request.get(`${href}?stepper=1`);
-      expect(on.status(), `${href} did not open`).toBe(200);
-      expect(new URL(on.url()).pathname, `${href} lands somewhere else with the menu on`).toBe(new URL(off.url()).pathname);
-      expect(new URL(on.url()).pathname, `${href} bounced to the sign-in or the chooser`).not.toMatch(/^\/(sign-in|login|choose)/);
+      for (const query of ["stepper=1", "stepper=1&build=1"]) {
+        const shown = mergesShown(`?${query}`);
+        const on = await page.request.get(`${href}?${query}`);
+        const landed = new URL(on.url()).pathname;
+        const moved = relocate({ href, role: "admin" }, shown);
+        expect(on.status(), `${href}?${query} did not open`).toBe(200);
+        expect(landed, `${href} lands somewhere else with ?${query}`).toBe(moved === href ? new URL(off.url()).pathname : new URL(moved, off.url()).pathname);
+        expect(landed, `${href} bounced to the sign-in or the chooser`).not.toMatch(/^\/(sign-in|login|choose)/);
+      }
     }
+
+    // STEP 3's MENU (merges shown): the event's helpers are "Helpers" beneath Club settings, one press,
+    // opening where `relocate()` sends today's Staff & helpers.
+    await page.goto("/dashboard?stepper=1&build=1");
+    menu = await menuOf(page);
+    await expect(menu.getByRole("link", { name: "Staff & helpers", exact: true })).toHaveCount(0);
+    const helpers = menu.getByRole("link", { name: "Helpers", exact: true });
+    await expect(helpers).toBeVisible();
+    await expect(helpers).toHaveAttribute("data-nav-beneath", "");
+    expect(plain((await helpers.getAttribute("href")) ?? "")).toBe(relocate({ href: "/access", role: "admin" }, mergesShown("?stepper=1&build=1")));
+    await helpers.click();
+    await expect(page).toHaveURL(/\/access\?stepper=1$/);
+    menu = await menuOf(page);
 
     // PRESSED: a screen that moved beneath another entry opens, is marked as here, and the preview stays on.
     await menu.getByRole("link", { name: "Flights", exact: true }).click();
@@ -209,6 +229,17 @@ test("a knockout's second stop reads Draw, with its bracket beneath Tee times & 
     const offered = new Set((await linksOf(menu)).map(plain));
     expect(before.filter((h) => !offered.has(h)), "screens the old menu reached and this one does not").toEqual([]);
     await menu.getByRole("link", { name: "Bracket", exact: true }).click();
+    await expect(page).toHaveURL(/\/bracket\?stepper=1$/);
+
+    // STEP 3's MENU (merges shown): the Bracket is beneath Leaderboard in the Play stop, not beneath
+    // Tee times & draw — one press, as today, opening where `relocate()` sends the old door.
+    await page.goto("/dashboard?stepper=1&build=1");
+    menu = await menuOf(page);
+    await expect(menu.locator('[data-nav-stop="draw"]').getByRole("link", { name: "Bracket", exact: true })).toHaveCount(0);
+    const bracket = menu.locator('[data-nav-stop="day"]').getByRole("link", { name: "Bracket", exact: true });
+    await expect(bracket).toBeVisible();
+    expect(plain((await bracket.getAttribute("href")) ?? "")).toBe(relocate({ href: "/bracket", role: "admin" }, mergesShown("?stepper=1&build=1")));
+    await bracket.click();
     await expect(page).toHaveURL(/\/bracket\?stepper=1$/);
 
     expect(errors).toEqual([]);
