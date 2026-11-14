@@ -257,6 +257,7 @@ typed number. What was found, each read by hand before it was counted:
 | are entries open: the sign-up link joined with the dates by hand (`acceptingEntries && registrationOpen`) | 5 (the intake, the member's list, the public form, the report's coming-up line, the Entries screen) | `entriesOpen` in `registration.ts`; `entries-open-is-asked-once.test.ts` (2026-11-05, the entries cleanup) |
 | birdies counted again (the report's highlights) | 1 | left: a highlight counts birdies exactly; the pot counts one under or better, by its own rule |
 | how many sign-ups an entry link takes in a window (a fixed sixty refused a 64-player field's 61st, round G583-1) | 1 (the public form's flood cap) | `entryLinkBudget` in `domain/rate-limit.ts`, asked through `entryLinkBudgetFor`; the limiter requires it for `register-token`; `entry-link-budget.test.ts` (2026-11-10) |
+| a question to the browser's push machinery (`pushManager`, `serviceWorker.ready` / `getRegistration`) asked bare: in WebKit without `PushManager` it never settled, `/choose` hung and Sign out never landed (round G636-1) | 4 (the sign-out release, the sign-out form's endpoint field, the alerts toggle's check, its Turn on and Turn off) | `src/lib/push-client.ts`: `pushSupported` first, every wait `withinLimit` (1.5 s; subscribe 20 s); `push-is-asked-in-one-place.test.ts` (2026-11-14) |
 
 And a property test (step 6) found a typed margin accepted that no match can
 finish on. The detail, and the mutation scores, are in the pass's own note.

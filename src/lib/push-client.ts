@@ -31,13 +31,17 @@ export const PUSH_SUBSCRIBE_MS = 20_000;
 export function withinLimit<T>(work: () => Promise<T> | T, fallback: T, ms: number = PUSH_WAIT_MS): Promise<T> {
   return new Promise<T>((resolve) => {
     let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve(fallback);
+    }, ms);
     const finish = (value: T) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       resolve(value);
     };
-    const timer = setTimeout(() => finish(fallback), ms);
     try {
       Promise.resolve(work()).then(finish, () => finish(fallback));
     } catch {
