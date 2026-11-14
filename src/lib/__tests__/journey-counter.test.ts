@@ -189,7 +189,7 @@ describe("the ratchet fails both ways", () => {
   });
 
   it("seconds fail only over, and the advice is the app's speed, not a step", () => {
-    const j1 = { name: "secretary-first-event", presses: 12, screens: 5, visits: 6, returns: 1, boxes: 9, chars: 211 };
+    const j1 = { name: "secretary-first-event", presses: 11, screens: 4, visits: 5, returns: 1, boxes: 9, chars: 211 };
     expect(ceilingBreaches(figures({ ...j1, seconds: 60 })), "fast is never a breach").toEqual([]);
     const slow = ceilingBreaches(figures({ ...j1, seconds: 121 }));
     expect(slow).toHaveLength(1);

@@ -82,7 +82,8 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A single round/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
 

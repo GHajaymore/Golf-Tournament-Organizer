@@ -56,7 +56,8 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A series of rounds/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("the format list holds only what the kind of round can be scored in", async () => {
@@ -185,7 +186,8 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     await page.getByLabel("Tournament name").fill(NAME);
     await page.getByRole("button", { name: /^A series of rounds/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("two round robins of match play, then a bracket", async () => {
