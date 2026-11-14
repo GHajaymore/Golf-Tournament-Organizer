@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { deployWindowFor, type DeployWindow } from "@/lib/domain/deploy-window";
+import { deployWindowFor, onToday, type ClubTournament, type DeployWindow } from "@/lib/domain/deploy-window";
 import { clubToday } from "@/lib/domain/club-clock";
 import { launchState } from "@/lib/services/signins-switch";
 import { signInAllowList } from "@/lib/sign-in-gate";
@@ -15,53 +15,73 @@ import { isOwner } from "@/lib/owner";
  * read as one (G1), and every one not completed is counted.
  */
 export async function currentDeployWindow(at: Date = new Date()): Promise<DeployWindow> {
-  // The UTC day either side: every club's own day falls inside it (no zone is more than 14 hours from UTC).
-  const day = (offset: number) => clubToday("UTC", new Date(at.getTime() + offset * 24 * 60 * 60 * 1000));
-  const days = [day(-1), day(0), day(1)];
   // The one answer every held page asks. A switch row that cannot be read keeps "held" — the safe
   // reading for the front door, but here, after launch, it LOWERS the freeze to pilot clubs only
   // until the row can be read again (the reason then begins "sign-ins are held").
   const launch = await launchState();
   // REAL CLUBS ONLY (2026-10-24). The demo club has a tournament "on today" every day of the year,
   // and a freeze that counted it would never lift: it is in neither query (docs/claude/demo-club.md).
-  const [clubs, events, pilots] = await Promise.all([
+  const [clubs, tournaments, pilots] = await Promise.all([
     prisma.organization.findMany({ where: { isDemo: false }, select: { timeZone: true }, distinct: ["timeZone"] }),
-    prisma.event.findMany({
-      where: {
-        organization: { isDemo: false },
-        // Every tournament not finished, set up or live (G1, 2026-10-31): the three
-        // pre-launch statuses read as one, and one being played before launch (a
-        // card is allowed once results exist) is a day in play. Holding a deploy
-        // for a draft dated today costs an hour; deploying under a field costs more.
-        status: { notIn: ["completed"] },
-        OR: [
-          { stages: { some: { playedOn: { in: days } } } },
-          { startOn: { not: "", lte: days[2] }, OR: [{ endOn: { gte: days[0] } }, { endOn: "", startOn: { gte: days[0] } }] },
-        ],
-      },
-      select: {
-        organizationId: true,
-        startOn: true,
-        endOn: true,
-        organization: { select: { timeZone: true } },
-        stages: { where: { playedOn: { in: days } }, select: { playedOn: true } },
-      },
-    }),
+    tournamentsNearToday(at),
     launch === "held" ? pilotClubIds() : Promise.resolve(new Set<string>()),
   ]);
   return deployWindowFor(
     launch,
     at,
     clubs.map((c) => c.timeZone),
-    events.map((e) => ({
-      clubId: e.organizationId,
-      timeZone: e.organization.timeZone,
-      startOn: e.startOn,
-      endOn: e.endOn,
-      playedOn: e.stages.map((s) => s.playedOn),
-    })),
+    tournaments,
     pilots,
   );
+}
+
+/**
+ * Every real club's tournament that might be on today somewhere: a round dated within a day either
+ * side of `at` in UTC, or dates that take that in. Whether one IS on today is `onToday`, by its own
+ * club's clock. Asked by the deploy window and by the event-day backup (`aTournamentIsOnToday`).
+ */
+export async function tournamentsNearToday(at: Date): Promise<ClubTournament[]> {
+  // The UTC day either side: every club's own day falls inside it (no zone is more than 14 hours from UTC).
+  const day = (offset: number) => clubToday("UTC", new Date(at.getTime() + offset * 24 * 60 * 60 * 1000));
+  const days = [day(-1), day(0), day(1)];
+  const events = await prisma.event.findMany({
+    where: {
+      organization: { isDemo: false },
+      // Every tournament not finished, set up or live (G1, 2026-10-31): the three
+      // pre-launch statuses read as one, and one being played before launch (a
+      // card is allowed once results exist) is a day in play. Holding a deploy
+      // for a draft dated today costs an hour; deploying under a field costs more.
+      status: { notIn: ["completed"] },
+      OR: [
+        { stages: { some: { playedOn: { in: days } } } },
+        { startOn: { not: "", lte: days[2] }, OR: [{ endOn: { gte: days[0] } }, { endOn: "", startOn: { gte: days[0] } }] },
+      ],
+    },
+    select: {
+      organizationId: true,
+      startOn: true,
+      endOn: true,
+      organization: { select: { timeZone: true } },
+      stages: { where: { playedOn: { in: days } }, select: { playedOn: true } },
+    },
+  });
+  return events.map((e) => ({
+    clubId: e.organizationId,
+    timeZone: e.organization.timeZone,
+    startOn: e.startOn,
+    endOn: e.endOn,
+    playedOn: e.stages.map((s) => s.playedOn),
+  }));
+}
+
+/**
+ * IS ANY REAL CLUB PLAYING TODAY, by its own clock? The event-day backup's question (B21): on such
+ * a day the hourly trigger takes a copy every hour, so a lost database costs an hour of a field's
+ * cards, not a day. Every real club counts, pilot or not, before launch or after — the freeze's
+ * pilot rule is about deploys, and a backup costs a field nothing.
+ */
+export async function aTournamentIsOnToday(at: Date): Promise<boolean> {
+  return (await tournamentsNearToday(at)).some((t) => onToday(t, at));
 }
 
 /**

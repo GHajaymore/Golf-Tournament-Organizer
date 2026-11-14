@@ -5,7 +5,8 @@ organizer setup from 14 Nov). This repository is public: no secrets, addresses o
 Placeholders are in angle brackets. Anything not confirmed from the code or workflows says **To confirm:**.
 
 Companions: `incident-sheet.md` (one page for the person on the course), `rollback-rehearsal.md`
-(Thu 12 Nov), `restore-drill.md` (Tue 17 Nov). Background: `docs/claude/deploy-history.md`,
+(Thu 12 Nov), `restore-drill.md` (Tue 17 Nov), `backups.md` (the nightly encrypted backup and how to
+restore it). Background: `docs/claude/deploy-history.md`,
 `docs/release-strategy.md`, `CLAUDE.md` ("What gates a merge, and what gates a deploy").
 
 Roles used below: **Organizer** (runs the event), **Tournament Director** (on the course),

@@ -7,6 +7,12 @@ and that the restored data is complete. A backup nobody has restored is a hope, 
 (`localhost/tourneyhq_dev`) or the preview database.** Production holds real people (Hard rule 1). The
 restored copy also holds real people: it is private data, kept off GitHub, off screenshots, and deleted at the end (Hard rule 2).
 
+**Since 14 Nov there is a backup to restore (B21): `backups.md`.** Production now takes its own nightly
+copy, sealed to the Owner's key and kept in private Vercel Blob. Its drill (Drill B in `backups.md`) is
+one command on the Owner's machine, prints counts only and needs no production string at all; use it for
+this drill as Route C, which tests the backups we would really use. The questions below about the
+provider's own backups still stand: the Free plan has none (`backups.md`, "Why this exists").
+
 ## Where backups come from
 
 What the code and docs show:
