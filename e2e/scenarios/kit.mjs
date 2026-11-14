@@ -180,7 +180,8 @@ export async function createTournament(page, name, shape, ownerEmail = CLUB_EMAI
     if (await how.count()) await how.selectOption({ label: shape });
     await page.getByRole("button", { name: /Create tournament/ }).click();
   }
-  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+  await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+  await page.goto("/dashboard");
   await setPlanFor(ownerEmail, plan);
   if (ownerEmail === CLUB_EMAIL) await ensureClubRoster();
 }

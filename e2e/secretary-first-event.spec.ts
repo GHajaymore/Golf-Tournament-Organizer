@@ -139,7 +139,8 @@ async function createFirstTournament(walk: Journey, page: Page, names: { tournam
     await expect(kind.locator("input")).toBeChecked();
   }
   await walk.press(page.getByRole("button", { name: "Create tournament" }), "“Create tournament”");
-  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+  // The create ends where entries are opened (journey budgets, cut B).
+  await page.waitForURL(/\/registration/, { timeout: 60_000 });
 }
 
 /** A console screen, opened from the sidebar as a secretary at a desk opens it. */
@@ -155,8 +156,11 @@ async function fromTheSidebar(walk: Journey, page: Page, href: string) {
 /** Entries → Open entries, and the sign-up link read off the screen. */
 async function publishTheLink(walk: Journey, page: Page): Promise<string> {
   await walk.settle();
-  await walk.press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })), "“Entries”");
-  await page.waitForURL(/\/registration/, { timeout: 30_000 });
+  // A new tournament's create already ends on Entries; a copy opens on the dashboard and goes there.
+  if (!new URL(page.url()).pathname.startsWith("/registration")) {
+    await walk.press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })), "“Entries”");
+    await page.waitForURL(/\/registration/, { timeout: 30_000 });
+  }
   await walk.settle();
   await walk.press(page.getByRole("button", { name: /^Open entries/ }), "“Open entries”");
   await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
