@@ -14,6 +14,8 @@ import {
   scratchJobSaid,
   scratchPlayedSaid,
   correctionAuditLine,
+  correctionConfirmSaid,
+  matchResultStored,
 } from "../committee-figure";
 import { jobHref, whatsNext, type TournamentJobFacts } from "../needs-you-now";
 import { playingHandicapPartsInRound } from "../../round-allowance";
@@ -206,6 +208,20 @@ describe("frozen at the scratch figure by the first card: still named, and corre
     expect(mayCorrectStrokes({ scoringBasis: "stableford" }, none)).toBe(true);
     expect(mayCorrectStrokes({ scoringBasis: "gross" }, none)).toBe(false);
     expect(mayCorrectStrokes({ scoringBasis: "net" }, { handicapSource: "ghin" })).toBe(false);
+  });
+
+  it("the confirm says who, from what, to what, and what is worked out again", () => {
+    expect(correctionConfirmSaid("Zz Okello", 14, "Round 1")).toBe(
+      "Zz Okello: from a scratch golfer (handicap index 0) to 14 strokes in Round 1. Their net, points and place in Round 1 are worked out again.",
+    );
+  });
+
+  it("a match has a result stored once a hole is recorded or it is conceded — never on an empty or unreadable card", () => {
+    expect(matchResultStored({ holes: "[]", forfeitedBy: "" })).toBe(false);
+    expect(matchResultStored({ holes: JSON.stringify(new Array(18).fill(null)), forfeitedBy: "" })).toBe(false);
+    expect(matchResultStored({ holes: JSON.stringify(["A", ...new Array(17).fill(null)]), forfeitedBy: "" })).toBe(true);
+    expect(matchResultStored({ holes: "[]", forfeitedBy: "p1" })).toBe(true);
+    expect(matchResultStored({ holes: "not json", forfeitedBy: null })).toBe(false);
   });
 
   it("the band and the audit line: what happened, the way on, and old, new and why", () => {

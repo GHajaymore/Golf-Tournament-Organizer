@@ -248,6 +248,35 @@ export const NOT_SAVED_TRY_AGAIN = "Not saved. Try again.";
 export const scratchPlayedSaid = (name: string, round: string) =>
   `${name} has no handicap index and is scored as a ${AS_SCRATCH} in ${round}: a card is in, and no strokes were given. Correct the strokes, with a reason. It is kept in the history.`;
 
+/**
+ * THE CONFIRM BEFORE A CORRECTION RE-SCORES A CARD ALREADY PLAYED (re-review of #1144, R4): who, from what,
+ * to what, and what is worked out again.
+ */
+export function correctionConfirmSaid(name: string, strokes: number, round: string): string {
+  return `${name}: from a scratch golfer (handicap index 0) to ${strokes} ${strokes === 1 ? "stroke" : "strokes"} in ${round}. Their net, points and place in ${round} are worked out again.`;
+}
+
+/**
+ * HAS THIS MATCH A RESULT STORED? A hole recorded, or a concession. A stored match result keeps the strokes
+ * it was derived with; re-deriving it is PR B's (the sink), so until then a correction is refused for a
+ * player with one (re-review of #1144, R1).
+ */
+export function matchResultStored(m: { holes: string; forfeitedBy: string | null }): boolean {
+  if (m.forfeitedBy) return true;
+  try {
+    const holes = JSON.parse(m.holes) as unknown[];
+    return Array.isArray(holes) && holes.some((h) => h !== null && h !== undefined && h !== "");
+  } catch {
+    return false;
+  }
+}
+
+/** Why a correction cannot be made yet, for the two states PR A does not re-score. */
+export const correctionClosedSaid = (round: string) =>
+  `${round} is closed, so its results stand. Untick “This round is finished” on ${round} first, then correct the strokes.`;
+export const correctionMatchSaid = (name: string, round: string, opponent: string) =>
+  `${name} has a match result in ${round}${opponent ? ` against ${opponent}` : ""}, worked out with the old strokes. Clear that match on Score entry, correct the strokes, then enter its result again.`;
+
 /** The correction's button, and its line on What's next. */
 export const CORRECT_STROKES = "Correct the strokes";
 export function scratchJobSaid(count: number, round: string): string {

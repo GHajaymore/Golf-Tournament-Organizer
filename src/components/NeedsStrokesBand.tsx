@@ -20,6 +20,7 @@ import {
   bandLeadSaid,
   bandStrokes,
   correctedSaid,
+  correctionConfirmSaid,
   figureGivenSaid,
   figurePreviewSaid,
   scratchPlayedSaid,
@@ -98,6 +99,8 @@ export function NeedsStrokesBand({ rounds }: { rounds: BandRound[] }) {
   const [given, setGiven] = useState<Given[]>([]);
   /** Lines whose Change was pressed: their row is drawn again, until given again. */
   const [reopened, setReopened] = useState<string[]>([]);
+  /** The correction whose confirm is open: who, from what, to what, before anything is re-scored. */
+  const [confirming, setConfirming] = useState("");
   const band = useRef<HTMLElement>(null);
 
   // ARRIVAL: a link to #needs-strokes scrolls the band into view and focuses the first empty box.
@@ -159,6 +162,7 @@ export function NeedsStrokesBand({ rounds }: { rounds: BandRound[] }) {
     setFailed((f) => ({ ...f, [key]: "" }));
     try {
       if (p.mode === "correct") {
+        setConfirming("");
         const why = (reasons[key] ?? "").trim();
         if (!why) return fail(key, CORRECTION_NEEDS_REASON, box);
         const done = await correctRoundStrokes(r.stageId, p.id, read.value, why);
@@ -183,6 +187,8 @@ export function NeedsStrokesBand({ rounds }: { rounds: BandRound[] }) {
   const onKey = (e: KeyboardEvent<HTMLInputElement>, r: BandRound, p: BandPlayer) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
+    // A correction re-scores a card already played: Enter asks first, it never writes.
+    if (p.mode === "correct") return setConfirming(`${r.stageId}:${p.id}`);
     void give(r, p, e.currentTarget);
   };
 
@@ -271,13 +277,28 @@ export function NeedsStrokesBand({ rounds }: { rounds: BandRound[] }) {
                       type="button"
                       className="btn btn-primary"
                       style={BUTTON}
-                      disabled={saving === key || !ready}
+                      disabled={saving === key || !ready || confirming === key}
                       aria-label={`${correcting ? CORRECT_STROKES : GIVE_STROKES} for ${p.name} in ${r.label}`}
-                      onClick={() => void give(r, p, boxOf(key))}
+                      onClick={() => (correcting ? setConfirming(key) : void give(r, p, boxOf(key)))}
                     >
                       {correcting ? "Correct" : "Give"}
                     </button>
                   </div>
+                  {/* THE CONFIRM (re-review R4): a correction re-scores a card already played, so it says who,
+                      from what and to what, and what is worked out again, before anything is written. */}
+                  {correcting && confirming === key && read && read.ok && (
+                    <div role="alertdialog" aria-label={`Confirm the correction for ${p.name}`} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <p style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>{correctionConfirmSaid(p.name, read.value, r.label)}</p>
+                      <div style={{ display: "flex", flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                        <button type="button" className="btn btn-primary" style={BUTTON} disabled={saving === key} onClick={() => void give(r, p, boxOf(key))}>
+                          Confirm
+                        </button>
+                        <button type="button" className="btn btn-secondary" style={BUTTON} disabled={saving === key} onClick={() => setConfirming("")}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {read && !read.ok && (
                     <p role="alert" style={{ fontSize: 14, margin: 0, color: "var(--color-danger)" }}>{read.error}</p>
                   )}

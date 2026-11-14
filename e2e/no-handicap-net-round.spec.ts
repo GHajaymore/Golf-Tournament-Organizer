@@ -154,6 +154,11 @@ test.describe("no handicap index in a net round", () => {
       await band.getByLabel("Strokes for Round 1 (whole number, 0 to 54)").fill("14");
       await band.getByLabel("Why (kept in the history)").fill("Handicap card shown at the desk");
       await band.getByRole("button", { name: `Correct the strokes for ${nox.name} in Round 1` }).click();
+      // Nothing is re-scored before the confirm says who, from what and to what.
+      expect((await prisma.roundHandicap.findUniqueOrThrow({ where: { stageId_playerId: { stageId, playerId: nox.id } } })).override).toBeNull();
+      const confirm = band.getByRole("alertdialog", { name: `Confirm the correction for ${nox.name}` });
+      await expect(confirm).toContainText(`${nox.name}: from a scratch golfer (handicap index 0) to 14 strokes in Round 1. Their net, points and place in Round 1 are worked out again.`);
+      await confirm.getByRole("button", { name: "Confirm" }).click();
       await expect(band.getByRole("status")).toContainText(`${nox.name}: 14 strokes in Round 1, corrected by you.`, { timeout: 20_000 });
     } finally {
       await context.close();

@@ -46,7 +46,8 @@ import { launchCheckFor } from "@/lib/services/setup-flow";
 import { secretaryHomeFor } from "@/lib/services/whats-next";
 import { freezeRoundHandicaps, roundHandicapsFor } from "@/lib/services/round-handicap";
 import { correctRoundStrokes } from "@/app/actions/committee-figure";
-import { BAND_REFUSAL, CORRECTION_NEEDS_REASON } from "@/lib/domain/committee-figure";
+import { BAND_REFUSAL, CORRECTION_NEEDS_REASON, correctionClosedSaid, correctionMatchSaid } from "@/lib/domain/committee-figure";
+import { loadEventState } from "@/lib/services/tournament";
 import { jobHref } from "@/lib/domain/needs-you-now";
 import { warningText } from "@/lib/domain/launch-check";
 import { clubToday } from "@/lib/domain/club-clock";
@@ -284,6 +285,81 @@ describe("frozen at the scratch figure by the round's first card: still named, a
     const v = (await roundHandicapsFor(t.eventId, t.stages[0])).find((x) => x.playerId === t.nox)!;
     expect([v.source, v.handicap, v.playing]).toEqual(["frozen", 14, 13]);
     expect(await playersNeedingFigure(t.eventId)).toEqual([]);
+  });
+
+  it("a stroke card's net follows the correction on the next read: 90 gross, off 0 → net 90; given 14 at 95% (13.30 → 13) → net 77", async () => {
+    const t = await makeEvent("reprice", ["net"]);
+    // A card to score against: par 72 and a stroke index, so the net is worked hole by hole.
+    await prisma.event.update({
+      where: { id: t.eventId },
+      data: { customPars: JSON.stringify(new Array(18).fill(4)), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)) },
+    });
+    await prisma.scorecard.create({ data: { eventId: t.eventId, stageId: t.stages[0], playerId: t.nox, strokes: JSON.stringify(new Array(18).fill(5)), status: "entered" } });
+    await cardIn(t.eventId, t.stages[0], t.indexed);
+    const netOf = async () => (await loadEventState(t.eventId))!.strokeStandings.find((s) => s.player.id === t.nox)?.net;
+    expect(await netOf(), "unrated tees: index 0 plays off 0").toBe(90);
+    await as("admin", t.eventId);
+    expect(await correctRoundStrokes(t.stages[0], t.nox, 14, "Card shown at the desk")).toEqual({ ok: true });
+    expect(await netOf()).toBe(90 - 13);
+  });
+
+  it("is refused while the player has a match result stored in the round, naming the match and the way on", async () => {
+    const t = await makeEvent("matched", ["net"]);
+    const group = await prisma.group.create({ data: { eventId: t.eventId, name: `${TAG} match group`, position: 0 } });
+    await prisma.match.create({
+      data: { eventId: t.eventId, stageId: t.stages[0], groupId: group.id, round: 1, playerAId: t.nox, playerBId: t.indexed, holes: JSON.stringify(["A", "B", "H", ...new Array(15).fill(null)]) },
+    });
+    await cardIn(t.eventId, t.stages[0], t.indexed);
+    await as("admin", t.eventId);
+    expect(await correctRoundStrokes(t.stages[0], t.nox, 14, "card")).toEqual({
+      ok: false,
+      error: correctionMatchSaid(`${TAG} Noindex Okello`, "Round 1", `${TAG} Indexed Ilsa`),
+    });
+    const row = await prisma.roundHandicap.findUnique({ where: { stageId_playerId: { stageId: t.stages[0], playerId: t.nox } } });
+    expect(row?.override ?? null).toBeNull();
+  });
+
+  it("is refused on a closed round: its results stand", async () => {
+    const t = await makeEvent("closed", ["net"]);
+    await cardIn(t.eventId, t.stages[0], t.indexed);
+    await prisma.stage.update({ where: { id: t.stages[0] }, data: { closedAt: new Date() } });
+    await as("admin", t.eventId);
+    expect(await correctRoundStrokes(t.stages[0], t.nox, 14, "card")).toEqual({ ok: false, error: correctionClosedSaid("Round 1") });
+    expect(await prisma.auditLog.count({ where: { eventId: t.eventId, action: "strokes-corrected" } })).toBe(0);
+  });
+
+  /**
+   * A LATE ENTRANT ON TEES OF A HIGHER PAR (Rule 6.2b; re-review R3). Field on par 71 (71.0/113) and the
+   * late entrant on par 72 (72.0/113): the field's lowest par is 71, so he receives 1 stroke for the par,
+   * after the allowance and with none taken of it. By the Rule, not the code: 14 × 95 = 1330 hundredths,
+   * 13.30 → 13; plus 1 → 14. Without the par strokes kept on the row he would play off 13 for ever.
+   */
+  it("a late entrant on higher-par tees keeps the difference: 14 at 95% → 13, + 1 for the par → 14", async () => {
+    const PARS = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 4];
+    const course = await prisma.course.create({
+      data: { organizationId: orgId, name: `${TAG} two pars`, pars: JSON.stringify(PARS), yards: JSON.stringify(new Array(18).fill(400)), strokeIndex: JSON.stringify(PARS.map((_, i) => i + 1)) },
+    });
+    const yellow = await prisma.tee.create({ data: { courseId: course.id, name: `${TAG} yellow`, courseRating: 71, slopeRating: 113, par: 71, position: 0 } });
+    const red = await prisma.tee.create({ data: { courseId: course.id, name: `${TAG} red`, courseRating: 72, slopeRating: 113, par: 72, position: 1 } });
+    const t = await makeEvent("higher-par", ["net"]);
+    await prisma.event.update({ where: { id: t.eventId }, data: { courseId: course.id, defaultTeeId: yellow.id, teePolicy: "own", customPars: JSON.stringify(PARS) } });
+    await prisma.stage.update({ where: { id: t.stages[0] }, data: { courseId: course.id } });
+    // The field is frozen at the first card; then the late entrant arrives, on the reds, with no index.
+    await prisma.player.delete({ where: { id: t.nox } });
+    await cardIn(t.eventId, t.stages[0], t.indexed);
+    const late = await prisma.player.create({
+      data: { eventId: t.eventId, name: `${TAG} Late Lorna`, email: at("lorna"), handicap: 0, handicapSource: "none", seed: 3, status: "confirmed", teeId: red.id },
+    });
+    const listed = await playersNeedingFigure(t.eventId);
+    expect(listed.map((r) => [r.players.map((p) => p.id), r.scratch.map((p) => p.id)]), "a card is in: a correction, not a Give").toEqual([[[], [late.id]]]);
+    expect((await roundHandicapsFor(t.eventId, t.stages[0])).find((v) => v.playerId === late.id)?.parStrokes, "the field gives her 1 for the par").toBe(1);
+
+    await as("admin", t.eventId);
+    expect(await correctRoundStrokes(t.stages[0], late.id, 14, "Late entry, card shown")).toEqual({ ok: true });
+    const row = await prisma.roundHandicap.findUniqueOrThrow({ where: { stageId_playerId: { stageId: t.stages[0], playerId: late.id } } });
+    expect([row.frozen, row.frozenParStrokes]).toEqual([14, 1]);
+    const v = (await roundHandicapsFor(t.eventId, t.stages[0])).find((x) => x.playerId === late.id)!;
+    expect([v.handicap, v.allowance, v.parStrokes, v.playing]).toEqual([14, 95, 1, 14]);
   });
 
   it("is refused once results are released", async () => {

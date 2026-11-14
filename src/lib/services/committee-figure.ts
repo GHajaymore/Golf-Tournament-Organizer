@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { SINK_LIVE, needsCommitteeFigure, needsFigureSaid, needsStrokesFact, scoredAsScratch } from "../domain/committee-figure";
 import { roundLabel } from "../domain/round-label";
 import { isPlayingRound } from "../stage-types";
+import { roundHasReturnedCard } from "./round-handicap";
 
 /**
  * WHO NEEDS STROKES FROM THE COMMITTEE, round by round — the one list every screen reads (the band on
@@ -27,7 +28,10 @@ export interface NeedsStrokesRound {
   day: string;
   /** Who needs strokes (`needsCommitteeFigure`), in roster order (`seed`), as the round's own handicap list. */
   players: { id: string; name: string }[];
-  /** Who was frozen at the scratch figure with nothing given (`scoredAsScratch`): a correction, not a Give. */
+  /**
+   * Who is scored as a scratch golfer in a round that has a card in — frozen there with nothing given
+   * (`scoredAsScratch`), or a late entrant the next card will freeze: a correction, not a Give.
+   */
   scratch: { id: string; name: string }[];
 }
 
@@ -67,10 +71,14 @@ export async function needsStrokesFor(eventIds: readonly string[]): Promise<Map<
     const rounds: NeedsStrokesRound[] = [];
     for (const s of open.filter((r) => r.eventId === id)) {
       const mine = maybe.filter((p) => p.eventId === id);
-      const need = mine.filter((p) => needsCommitteeFigure(s, p, rowOf.get(`${s.id}:${p.id}`) ?? null));
+      const asked = mine.filter((p) => needsCommitteeFigure(s, p, rowOf.get(`${s.id}:${p.id}`) ?? null));
+      // A round with a card in is past Give (`setRoundHandicapOverride` refuses): a late entrant there is
+      // a correction, as a player the first card froze is. Asked only of a round with somebody to name.
+      const cardsIn = asked.length > 0 && (await roundHasReturnedCard(id, s.id));
+      const need = cardsIn ? [] : asked;
       // Frozen at the scratch figure by the round's first card with nothing given: still named (review of
       // #1144), with the staff correction as the way on, so no list goes quiet over them.
-      const scratch = mine.filter((p) => scoredAsScratch(s, p, rowOf.get(`${s.id}:${p.id}`) ?? null));
+      const scratch = [...(cardsIn ? asked : []), ...mine.filter((p) => scoredAsScratch(s, p, rowOf.get(`${s.id}:${p.id}`) ?? null))];
       if (need.length === 0 && scratch.length === 0) continue;
       rounds.push({
         stageId: s.id,
