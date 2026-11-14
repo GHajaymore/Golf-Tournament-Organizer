@@ -170,6 +170,9 @@ export function mayPlayThroughLink(entryStatus: string): boolean {
  * other door learns about guests. `a-guest-acts-only-through-its-list.test.ts`
  * holds the source to this list.
  *
+ * And it asks whether play is suspended in its own event, for the siren on an
+ * open screen (`currentPlayStatus`, G1: Rule 5.7, a safety notice).
+ *
  * Not yet on it (later PRs of the design): messages and push (PR 2), side-game
  * opt-in, withdrawing an entry, and a match card's hole-by-hole presses — a
  * guest's match is kept from the round code until then.
@@ -181,6 +184,7 @@ export const GUEST_ACTIONS = [
   "disputeScorecard",
   "forgetThisPhone",
   "choosePlayerView",
+  "currentPlayStatus",
 ] as const;
 
 /** What a guest viewer carries: one pass, one entry, one event. Never taken from an argument. */

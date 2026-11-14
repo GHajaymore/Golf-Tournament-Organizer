@@ -71,7 +71,7 @@ async function tournament(orgId: string, name: string, extra: Record<string, unk
     data: {
       organizationId: orgId,
       name: `${TAG} ${name}`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       formationRule: "balanced",

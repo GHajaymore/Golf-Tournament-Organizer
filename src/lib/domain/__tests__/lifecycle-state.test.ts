@@ -37,11 +37,11 @@ describe("when the status disagrees with the tournament", () => {
     expect(nextLifecycleAction({ status: "draft", resultsIn: 40 })?.kind).toBe("launch");
   });
 
-  it("flags it from any of the pre-launch statuses, not just draft", () => {
-    // Not because launch gates anything — it does not, see below — but
-    // because "registration" and "ready" are just as far from saying "this
-    // tournament is live" as "draft" is, and results have arrived in all three.
-    for (const status of ["draft", "registration", "ready"]) {
+  it("flags it from every pre-launch status", () => {
+    // Not because launch gates anything — it does not, see below. Swept from the
+    // list (one word since A045, state machine PR 8), so a status added to it is
+    // flagged the day it is added.
+    for (const status of PRE_LAUNCH_STATUSES) {
       expect(lifecycleMismatch(facts({ status, resultsIn: 1 })), status).not.toBeNull();
     }
   });
@@ -214,9 +214,10 @@ describe("what to do next", () => {
   });
 
   it("offers Launch from every setting-up status, played or not — one step before launch (G1)", () => {
-    // Ajay, 2026-10-31: draft, registration and ready are one "Setting up" step.
-    // "Start taking entries" and "Mark ready" gated nothing and are gone.
-    for (const status of ["draft", "registration", "ready"]) {
+    // Ajay, 2026-10-31: the old ladder's three pre-launch words are one "Setting up"
+    // step, stored as one since A045 (state machine PR 8). "Start taking entries"
+    // and "Mark ready" gated nothing and are gone.
+    for (const status of PRE_LAUNCH_STATUSES) {
       for (const resultsIn of [0, 3]) {
         expect(nextLifecycleAction({ status, resultsIn }), `${status} with ${resultsIn} results`).toEqual({
           label: "Launch tournament",
@@ -242,7 +243,7 @@ describe("what to do next", () => {
     // state, this returns a single action or none. The dashboard reads it to
     // decide whether its own header still deserves a primary button, which
     // only works because there is exactly one answer.
-    for (const status of ["draft", "registration", "ready", "live", "completed"]) {
+    for (const status of [...PRE_LAUNCH_STATUSES, "live", "completed"]) {
       for (const n of [0, 1, 47]) {
         const a = nextLifecycleAction({ status, resultsIn: n });
         if (a) expect(typeof a.label, `${status}/${n}`).toBe("string");
