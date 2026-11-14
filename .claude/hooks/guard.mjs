@@ -26,6 +26,9 @@
 //   prisma generate (or npm run db:generate) in a worktree whose prisma/schema.prisma differs
 //                                     from the main checkout's: every worktree shares the main
 //                                     checkout's node_modules, so it replaces EVERYONE's client
+//   prisma migrate deploy / resolve, migrate dev without --create-only, db push (npm run db:push) from anywhere
+//   but the main checkout          Shared development database rule — a branch's migration reaches the one dev
+//                                     database only after it merges (14 Nov: A045/A046 broke 56 audit files)
 //   PowerShell writing a source file  "Never rewrite a source file with PowerShell"
 //   gh run watch, gh pr checks --watch
 //                                     Agent standard (a), .claude/agents/STANDARDS.md — never
@@ -329,6 +332,32 @@ export function sharedClientRefusal(dir, env = process.env) {
   );
 }
 
+/**
+ * Every worktree on this machine reads ONE development database (localhost/tourneyhq_dev). On 14 Nov two branches'
+ * migrations (A045, A046) were applied to it from worktrees before either was on main, and A045's CHECK broke 56 audit
+ * files for every engineer running main's code. A branch's migration is proved on CI's fresh database; it reaches the
+ * development database only after it merges, applied from the main checkout.
+ */
+export function sharedDatabaseRefusal(dir) {
+  const main = mainCheckout(dir);
+  let top = null;
+  try {
+    top = git(dir, ["rev-parse", "--show-toplevel"]).trim();
+  } catch {
+    // not in a repository: the hook cannot see which schema this is, so it refuses rather than guess
+  }
+  if (main && top && path.resolve(top) === path.resolve(main)) return null;
+  return refuse(
+    "Shared development database rule: applying migrations (`prisma migrate deploy`, `migrate dev` without --create-only, " +
+      "`migrate resolve`, `db push`) runs only from the MAIN checkout, never from a worktree" +
+      (top ? "" : " or from outside the repository") +
+      ". Every worktree shares one development database: on 14 Nov two branches' migrations applied from worktrees broke 56 " +
+      "audit files for every engineer on main's code. A branch's migration is proved on CI's fresh database and reaches the " +
+      "development database only after it merges. Write the migration with `prisma migrate dev --create-only`, push, and say " +
+      "in your report that it is not applied locally (docs/claude/migrations.md).",
+  );
+}
+
 function checkSegment(words, platform, dir, who = {}) {
   // A word holding spaces came from quotes (a message, a title): text, not part of the command.
   const joined = words.map((w) => (/\s/.test(w) ? "_" : w)).join(" ");
@@ -374,6 +403,14 @@ function checkSegment(words, platform, dir, who = {}) {
   }
   if (/\bprisma (migrate reset|db push\b.*--(force-reset|accept-data-loss))/.test(joined) || /\bnpm (run )?db:reset\b/.test(joined)) {
     return refuse("Hard rule 6: never drop or reset the development database. If Prisma asks for a reset, fix the drift by hand (docs/claude/migrations.md).");
+  }
+  const appliesMigrations =
+    /\bprisma (migrate (deploy|resolve)|db push)\b/.test(joined) ||
+    (/\bprisma migrate dev\b/.test(joined) && !/(^| )--create-only\b/.test(joined)) ||
+    /\bnpm (run )?db:push\b/.test(joined);
+  if (appliesMigrations) {
+    const hit = sharedDatabaseRefusal(dir);
+    if (hit) return hit;
   }
   if (dir && (/\bprisma generate\b/.test(joined) || /\bnpm (run )?db:generate\b/.test(joined))) {
     const env = { ...process.env };

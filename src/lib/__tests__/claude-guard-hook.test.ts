@@ -115,7 +115,6 @@ describe("the hard-rule guard lets through", () => {
     "git status && git log --oneline -3",
     "git push -u origin claude/guard-hooks",
     "git push origin HEAD:refs/heads/claude/round-notes",
-    "npx prisma migrate deploy",
     "npx prisma migrate dev --create-only --name x",
     "npx vitest run src/lib/__tests__/x.test.ts",
     "npx tsc --noEmit",
@@ -368,6 +367,83 @@ describe("only the main session merges or pushes a round (ledger row 17)", () =>
     "bash -c 'git status'",
   ])("leaves every other session's ordinary work alone: %s", (command) => {
     const r = run(command, { cwd: tree, sessionId: "zz-other-session" });
+    expect(r.stderr, command).toBe("");
+    expect(r.code).toBe(0);
+  });
+});
+
+describe("migrations reach the shared development database only from the main checkout", () => {
+  let main: string;
+  let tree: string;
+  let outside: string;
+  const g = (dir: string, ...args: string[]) => {
+    const r = spawnSync("git", ["-C", dir, "-c", "user.name=zz-guard", "-c", "user.email=zz-guard@example.invalid", ...args], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+  };
+  const APPLIES = [
+    "npx prisma migrate deploy",
+    "npx prisma migrate dev",
+    "npx prisma migrate dev --name a046_x",
+    "npx prisma migrate resolve --applied A045_x",
+    "npx prisma db push",
+    "npm run db:push",
+    "env DATABASE_URL=x npx prisma migrate deploy",
+    "bash -c 'npx prisma migrate deploy'",
+  ];
+
+  beforeAll(() => {
+    main = mkdtempSync(path.join(tmpdir(), "zz-guard-db-"));
+    tree = `${main}-tree`;
+    outside = mkdtempSync(path.join(tmpdir(), "zz-guard-db-out-"));
+    g(main, "init", "-q");
+    writeFileSync(path.join(main, "seed.txt"), "zz\n");
+    g(main, "add", "seed.txt");
+    g(main, "commit", "-q", "-m", "seed");
+    g(main, "worktree", "add", "-q", "-b", "zz-db-branch", tree);
+  });
+  afterAll(() => {
+    rmSync(tree, { recursive: true, force: true });
+    rmSync(main, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  it.each(APPLIES)("refuses from a worktree, naming the rule, in Bash and PowerShell: %s", (command) => {
+    for (const tool of ["Bash", "PowerShell"]) {
+      const r = run(command, { cwd: tree, tool });
+      expect(r.code, `${tool}: ${command}`).toBe(2);
+      expect(r.stderr).toContain("Shared development database rule");
+      expect(r.stderr).toContain("only after it merges");
+    }
+  });
+
+  it("refuses from outside any repository", () => {
+    const r = run("npx prisma migrate deploy", { cwd: outside });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("outside the repository");
+  });
+
+  it.each(APPLIES)("lets the main checkout apply them: %s", (command) => {
+    const r = run(command, { cwd: main });
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+  });
+
+  it("reads `cd` into a worktree from the main checkout", () => {
+    expect(run(`cd "${tree}" && npx prisma migrate deploy`, { cwd: main }).code).toBe(2);
+  });
+
+  it.each([
+    "npx prisma migrate dev --create-only",
+    "npx prisma migrate dev --create-only --name a046_x",
+    "npx prisma migrate dev --name a046_x --create-only",
+    "npx prisma generate",
+    "npx prisma migrate status",
+    "npx prisma validate",
+    'git commit --dry-run -m "never prisma migrate deploy or prisma db push from a worktree"',
+    "cat <<'EOF' > /dev/null\nnpx prisma migrate deploy\nEOF",
+    "echo 'npx prisma db push'",
+  ])("leaves a worktree's ordinary work alone: %s", (command) => {
+    const r = run(command, { cwd: tree });
     expect(r.stderr, command).toBe("");
     expect(r.code).toBe(0);
   });

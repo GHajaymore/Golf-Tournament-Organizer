@@ -59,3 +59,9 @@ overwrite an id you did not write to get past a refusal**: that session may stil
 folders in a definition, doc, test or comment; write paths relative to the repository or as a placeholder.
 *Why:* the repository is public and a path names the Windows user (process ledger row 10). *Enforced:* the guard
 refuses such a commit, and `src/lib/__tests__/no-local-paths-in-the-repository.test.ts` sweeps every tracked file.
+
+**l. A branch's migration never touches the shared development database.** Write it with
+`prisma migrate dev --create-only`; never `migrate deploy`, `migrate dev`, `migrate resolve` or `db push` from a worktree.
+It is proved on CI's fresh database and applied to the development database from the main checkout after it merges.
+*Why:* on 14 Nov two branches' migrations applied from worktrees broke 56 audit files for everyone on main's code.
+*Enforced:* the guard refuses those commands anywhere but the main checkout.
