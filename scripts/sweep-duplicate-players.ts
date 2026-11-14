@@ -126,6 +126,11 @@ export const NOT_TIES: Readonly<Record<string, string>> = {
   "Member.memberNumber": "a club's number for a member, not a player id",
   "LeaguePlayoffHole.winnerId": "a club's id, not a player's",
   "Player.memberId": "the roster link, handled as a conflict between two rows",
+  // A guest's player link (J39/J40) is ONE entry's and unique to it: a merge drops the removed
+  // row's link with the row (cascade), never moves it onto another entry; the organizer makes a new one.
+  "PlayerPass.playerId": "a guest's link belongs to that one entry; it goes with the row, never to another",
+  "PlayerPass.createdBy": "the staff member's display name, not an id",
+  "PlayerPass.revokedBy": "the staff member's display name, not an id",
   // `...By` columns that hold a display name or a setting, read from the schema's own comments:
   "Organization.defaultScoreEntryBy": "a setting (staff | players)",
   "Organization.defaultAttestBy": "a setting (marker | opponent | all)",

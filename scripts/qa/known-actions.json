@@ -422,6 +422,13 @@
   "app/actions/setup-suggest.ts:suggestSetup": "e2e/switched-off-services-answer-in-words.spec.ts",
   "app/actions/push.ts:getVapidPublicKey": "e2e/tee-time-alerts.spec.ts",
   "app/actions/push.ts:savePushSubscription": "e2e/tee-time-alerts.spec.ts",
-  "app/actions/push.ts:removePushSubscription": "e2e/tee-time-alerts.spec.ts"
+  "app/actions/push.ts:removePushSubscription": "e2e/tee-time-alerts.spec.ts",
+  "app/actions/player-link.ts:openPlayerLink": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:forgetThisPhone": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:choosePlayerView": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:playerLinkStatus": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:showPlayerLink": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:newPlayerLink": "e2e/a-guest-takes-full-part.spec.ts",
+  "app/actions/player-link.ts:turnOffPlayerLink": "e2e/a-guest-takes-full-part.spec.ts"
  }
 }
