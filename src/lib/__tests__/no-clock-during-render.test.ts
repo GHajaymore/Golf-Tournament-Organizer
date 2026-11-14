@@ -46,10 +46,6 @@ import { readSource } from "./source";
 const CLOCK = ["new Date()", "Date.now()", "Math.random()"];
 
 const ALLOWED: Record<string, { reads: number; why: string }> = {
-  "src/components/PlayStatusFrame.tsx": {
-    reads: 1,
-    why: "the refresh's two-second de-duplication (visible and focused at once), inside the effect's listener — runs on a timer or an event, never during render",
-  },
   "src/components/LiveRefresh.tsx": {
     reads: 2,
     why: "mount-only state plus its one-second tick, both inside useEffect — the component that documented this bug",

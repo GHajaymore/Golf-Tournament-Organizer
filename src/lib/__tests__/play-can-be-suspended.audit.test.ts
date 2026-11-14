@@ -18,6 +18,7 @@ const { suspendPlay, resumePlay } = await import("@/app/actions/play-status");
 const { tournamentStatusNow } = await import("@/lib/services/tournament-status");
 const { consoleOffersPlayStop } = await import("@/lib/domain/play-status");
 const { isMatch } = await import("@/lib/tournament-shape");
+const { GET } = await import("@/app/api/console-play-status/route");
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SUSPEND";
@@ -101,6 +102,47 @@ describe("the committee stops and restarts the field", () => {
     as(id, "player");
     await expect(resumePlay()).rejects.toThrow();
     expect((await row(id))!.playSuspendedAt).not.toBeNull();
+  });
+});
+
+/**
+ * THE CONSOLE'S PROBE (`/api/console-play-status`, re-review of #1149): what
+ * an open console asks every 20 seconds instead of re-rendering the shell. A
+ * door, so held against real rows: staff only, the session's own tournament
+ * only, one timestamp.
+ */
+describe("the console's probe answers staff, about their own tournament only", () => {
+  const ask = async () => {
+    const res = await GET();
+    return { status: res.status, body: (await res.json()) as { ok: boolean; since?: string } };
+  };
+
+  it("nobody signed in, or a player: refused, with no answer", async () => {
+    const id = await seed();
+    session = null;
+    expect(await ask()).toEqual({ status: 401, body: { ok: false } });
+    as(id, "player");
+    await prisma.event.update({ where: { id }, data: { playSuspendedAt: new Date() } });
+    expect(await ask(), "a player read the committee's probe").toEqual({ status: 401, body: { ok: false } });
+  });
+
+  it("staff: \"\" while play is on, the stamp while it is suspended — the action's own stamp", async () => {
+    const id = await seed();
+    as(id, "assistant");
+    expect(await ask()).toEqual({ status: 200, body: { ok: true, since: "" } });
+    await suspendPlay("Lightning");
+    const stamped = (await row(id))!.playSuspendedAt!.toISOString();
+    expect(await ask()).toEqual({ status: 200, body: { ok: true, since: stamped } });
+    await resumePlay();
+    expect((await ask()).body.since).toBe("");
+  });
+
+  it("never another tournament's: a storm at the club next door is not this console's", async () => {
+    const mine = await seed();
+    const theirs = await seed();
+    await prisma.event.update({ where: { id: theirs }, data: { playSuspendedAt: new Date(), playSuspendedNote: "Not yours" } });
+    as(mine, "admin");
+    expect((await ask()).body.since).toBe("");
   });
 });
 

@@ -3,7 +3,7 @@ import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { readSource } from "./source";
 import { alertsOffWords, consoleOffersPlayStop } from "@/lib/domain/play-status";
-import { PLAY_STATUS_REFRESH_MS } from "@/components/PlayStatusFrame";
+import { PLAY_STATUS_PROBE, PLAY_STATUS_REFRESH_MS } from "@/components/PlayStatusFrame";
 
 /**
  * SUSPEND PLAY IS ON EVERY CONSOLE SCREEN, DRAWN ONCE (simplicity cut 2,
@@ -105,7 +105,7 @@ describe("one mount: the console's shell", () => {
   });
 
   it("framed: never on paper, kept in view (sticky under the phone's top bar), kept the server's", () => {
-    expect(readSource("src/components/ConsolePlayStatus.tsx")).toMatch(/<PlayStatusFrame>\s*<PlayStatusControl/);
+    expect(readSource("src/components/ConsolePlayStatus.tsx")).toMatch(/<PlayStatusFrame since=\{since\}>\s*<PlayStatusControl/);
     const frame = readSource("src/components/PlayStatusFrame.tsx");
     expect(frame).toMatch(/className="no-print console-play-status"/);
     expect(frame, "the frame does not sit under the phone's top bar").toMatch(/querySelector<HTMLElement>\("\.m-topbar"\)/);
@@ -116,12 +116,61 @@ describe("one mount: the console's shell", () => {
     expect(rule, "content shows through the sticky row").toMatch(/background: var\(--color-bg\)/);
   });
 
-  it("a layout is not drawn again between screens, so the frame asks the server again: on a timer and when the screen comes back (#1149 C2)", () => {
+  it("a layout is not drawn again between screens, so the frame asks the probe: on a timer, when the screen comes back, on every move (#1149 C2)", () => {
     const frame = readSource("src/components/PlayStatusFrame.tsx");
     expect(frame).toMatch(/setInterval\(ask, PLAY_STATUS_REFRESH_MS\)/);
     expect(frame).toMatch(/addEventListener\("visibilitychange", ask\)/);
-    expect(frame).toMatch(/router\.refresh\(\)/);
+    expect(frame, "a move between screens does not ask").toMatch(/\}, \[router, since, pathname\]\);/);
     expect(PLAY_STATUS_REFRESH_MS, "slower than the player side's siren").toBeLessThanOrEqual(20_000);
+    expect(PLAY_STATUS_PROBE).toBe("/api/console-play-status");
+  });
+
+  it("…and re-renders the route only when the answer differs from what it drew — never a blind refresh of the shell (re-review)", () => {
+    const frame = readSource("src/components/PlayStatusFrame.tsx");
+    expect(frame).toMatch(/fetch\(PLAY_STATUS_PROBE, \{ cache: "no-store" \}\)/);
+    expect(frame.match(/router\.refresh\(\)/g), "the shell is re-rendered on more than a change").toHaveLength(1);
+    expect(frame).toMatch(/if \(typeof now\.since === "string" && now\.since !== since\) router\.refresh\(\);/);
+    // The frame is handed the suspension it was drawn with, the same one the control shows.
+    expect(readSource("src/components/ConsolePlayStatus.tsx")).toMatch(/<PlayStatusFrame since=\{since\}>\s*<PlayStatusControl[^>]*since=\{since\}/);
+  });
+
+  it("the probe answers only staff, only of the session's own tournament, only one timestamp", () => {
+    const route = readSource("src/app/api/console-play-status/route.ts");
+    expect(route, "the probe takes an argument").toMatch(/export async function GET\(\)/);
+    expect(route).toMatch(/session\.role !== "admin" && session\.role !== "assistant"/);
+    expect(route).toMatch(/where: \{ id: session\.eventId \}, select: \{ playSuspendedAt: true \}/);
+    expect(route).not.toMatch(/export async function (POST|PUT|PATCH|DELETE)/);
+  });
+
+  it("stacked, never over: the settings' own sticky navs stick below the band, and anchors land below it (re-review S1.1)", () => {
+    for (const f of ["src/components/SettingsNav.tsx", "src/components/SettingsTabs.tsx"]) {
+      const src = readSource(f);
+      expect(src, `${f} sticks at 0, under Suspend play`).toMatch(/position: "sticky",\s*top: "var\(--console-sticky-top, 0px\)"/);
+    }
+    // Every other console header that sticks to the top of the WINDOW would have to do the same.
+    const stuckAtTop = [...sourcesUnder("src/components"), ...sourcesUnder("src/app/(app)")]
+      .filter((f) => /position: "sticky"[^}]*?top: 0\b/s.test(readSource(f)))
+      .filter((f) => !/top: "var\(--console-sticky-top/.test(readSource(f)));
+    // BracketClient's heads stick inside the draw's own scroll box, not the window; the sidebar is its own column.
+    expect(stuckAtTop.sort(), "a console screen's sticky header sits under Suspend play").toEqual([
+      "src/components/BracketClient.tsx",
+      "src/components/Sidebar.tsx",
+    ]);
+    const css = readSource("src/app/globals.css");
+    expect(css).toMatch(/html \{\s*scroll-padding-top: var\(--console-sticky-top, 0px\);\s*\}/);
+    expect(readSource("src/components/PlayStatusFrame.tsx")).toMatch(/root\.style\.setProperty\("--console-sticky-top", `\$\{top \+ el\.getBoundingClientRect\(\)\.height\}px`\)/);
+  });
+
+  it("a long confirm stays reachable above the phone's tab bar, and is brought into view when it opens (re-review S1.2)", () => {
+    const css = readSource("src/app/globals.css");
+    const at = css.indexOf(".console-play-status {");
+    const rule = css.slice(at, css.indexOf("}", at));
+    expect(rule).toMatch(/max-height: calc\(100dvh - var\(--play-status-top, 0px\) - var\(--play-status-bottom, 0px\) - 8px\)/);
+    expect(rule).toMatch(/overflow-y: auto/);
+    expect(readSource("src/components/PlayStatusFrame.tsx")).toMatch(/querySelector<HTMLElement>\("\.m-tabbar"\)/);
+    const control = readSource("src/components/PlayStatusControl.tsx");
+    expect(control).toMatch(/if \(open \|\| resuming\) confirmButton\.current\?\.scrollIntoView\(\{ block: "nearest" \}\)/);
+    expect(control.match(/ref=\{confirmButton\}/g), "Suspend play now and Resume play now are both brought into view").toHaveLength(2);
   });
 
   it("Resume confirms, and says the field will be told to play on (#1149 C3)", () => {

@@ -606,7 +606,12 @@ body {
    phone's sticky top bar (`--play-status-top` is that bar's measured height,
    0 on a desktop where the bar is hidden) and beneath it in the stack; on the
    page's own ground, so the screen scrolls UNDER it rather than through it.
-   Its row's own margins are taken in here, so it covers its row and no more. */
+   Its row's own margins are taken in here, so it covers its row and no more.
+   CAPPED to the room between the top bar and the phone's tab bar
+   (`--play-status-bottom`), scrolling inside itself beyond that: a sticky block
+   taller than the window can never show its lower part, and that is where a
+   long confirm's button is. `dvh` where the browser has it, so the cap follows
+   a phone's collapsing address bar. */
 .console-play-status {
   position: sticky;
   top: var(--play-status-top, 0px);
@@ -614,6 +619,16 @@ body {
   background: var(--color-bg);
   padding: 6px 0;
   margin: -6px 0 14px;
+  max-height: calc(100vh - var(--play-status-top, 0px) - var(--play-status-bottom, 0px) - 8px);
+  max-height: calc(100dvh - var(--play-status-top, 0px) - var(--play-status-bottom, 0px) - 8px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Where the console's sticky band ends, while the frame is drawn
+   (`--console-sticky-top`, published by the frame; unset otherwise): anchors,
+   scrolled-to sections and focused inputs land below it, not under it. */
+html {
+  scroll-padding-top: var(--console-sticky-top, 0px);
 }
 .console-play-status > * {
   margin-bottom: 0 !important;

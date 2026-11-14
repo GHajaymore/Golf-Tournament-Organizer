@@ -37,13 +37,10 @@ export function ConsolePlayStatus({
   if (!event) return null;
   const suspended = !!event.playSuspendedAt;
   if (!consoleOffersPlayStop({ viewRole, step, suspended, casualRound: isMatch(event.shape) })) return null;
+  const since = event.playSuspendedAt ? event.playSuspendedAt.toISOString() : "";
   return (
-    <PlayStatusFrame>
-      <PlayStatusControl
-        suspended={suspended}
-        note={event.playSuspendedNote}
-        since={event.playSuspendedAt ? event.playSuspendedAt.toISOString() : ""}
-      />
+    <PlayStatusFrame since={since}>
+      <PlayStatusControl suspended={suspended} note={event.playSuspendedNote} since={since} />
     </PlayStatusFrame>
   );
 }

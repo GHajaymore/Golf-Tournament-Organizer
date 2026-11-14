@@ -169,7 +169,8 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     ...testInfo.project.use,
     baseURL,
     storageState: ORGANIZER,
-    viewport: { width: 393, height: 851 },
+    // The small phone the re-review measured: the least room between the top bar and the tab bar.
+    viewport: { width: 360, height: 640 },
     hasTouch: true,
     // A save on WebKit that the service worker sends is not the page's (G411-3): the presses here are saves.
     serviceWorkers: "block",
@@ -202,8 +203,13 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     const button = await suspendButton.boundingBox();
     if (bar && button) expect(button.y, "Suspend play is under the phone's top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 
-    // ── two presses ─────────────────────────────────────────────────────────
+    // ── two presses; the open confirm, scrolled down, is in view and above the tab bar ─
     await press("Suspend play");
+    const now = page.getByRole("button", { name: "Suspend play now" });
+    await expect(now, "the confirm's button is out of view on a small phone").toBeInViewport();
+    const tabs = await page.locator(".m-tabbar").boundingBox();
+    const nowBox = await now.boundingBox();
+    if (tabs && nowBox) expect(nowBox.y + nowBox.height, "Suspend play now sits behind the phone's tab bar").toBeLessThanOrEqual(tabs.y + 1);
     await page.getByLabel("Reason (optional)").fill(REASON);
     await press("Suspend play now");
     await expect(banner, "the tee sheet does not say play is suspended").toBeVisible({ timeout: 20_000 });
@@ -220,6 +226,19 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
       await expect(banner, `${screen} draws the banner more than once`).toHaveCount(1);
       await expect(banner).toContainText(REASON);
       await expect(page.getByRole("button", { name: "Resume play", exact: true }), `${screen} has no way back`).toHaveCount(1);
+    }
+
+    // ── a screen with a sticky header of its own: stacked under the banner, never covered ─
+    await page.goto(`/event?bust=${Date.now()}`);
+    await expect(banner).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    // The strip's own heading, so no larger card around it is measured instead.
+    const strip = page.locator(".card-kicker", { hasText: "On this page" }).first();
+    if (await strip.count()) {
+      await expect(strip).toBeInViewport();
+      const band = await page.locator(".console-play-status").boundingBox();
+      const stripBox = await strip.boundingBox();
+      if (band && stripBox) expect(stripBox.y, "the settings' On this page strip is under the Suspend play banner").toBeGreaterThanOrEqual(band.y + band.height - 1);
     }
 
     // ── a player is never offered it ────────────────────────────────────────
@@ -311,8 +330,10 @@ test("a second staff device sees a suspension and a resume after moving by the m
     await office.getByRole("button", { name: "Resume play", exact: true }).click();
     await office.getByRole("button", { name: "Resume play now" }).click();
     await expect(bannerOn(office)).toHaveCount(0, { timeout: 20_000 });
-    await menu("/leaderboard").click();
-    await starter.waitForURL(/\/leaderboard/, { timeout: 20_000 });
+    // Entries, not the leaderboard: the leaderboard has a poller of its own (LiveRefresh), which
+    // would clear the banner without the frame. Entries has none, so this half discriminates too.
+    await menu("/registration").click();
+    await starter.waitForURL(/\/registration/, { timeout: 20_000 });
     await expect(bannerOn(starter), "device B still shows a banner (and a Resume) after play resumed").toHaveCount(0, { timeout: 30_000 });
     await expect(starter.getByRole("button", { name: "Suspend play", exact: true })).toBeVisible();
     expect(await stillTheSamePage(), "B's page was reloaded").toBe(true);

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { resumePlay, suspendPlay } from "@/app/actions/play-status";
 import { MAX_SUSPEND_NOTE, alertsOffWords } from "@/lib/domain/play-status";
 import { Icon } from "./Icon";
@@ -52,6 +52,16 @@ export function PlayStatusControl({
     setResuming(false);
   }, [suspended, since]);
   /**
+   * A confirm that opens is brought fully into view: inside the shell's
+   * sticky frame, which scrolls within itself once it is taller than the room
+   * between the phone's bars, its button must never sit behind the tab bar
+   * during a lightning stop (re-review of #1149, S1.2).
+   */
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (open || resuming) confirmButton.current?.scrollIntoView({ block: "nearest" });
+  }, [open, resuming]);
+  /**
    * The time on the ORGANIZER'S clock, so only in the browser. Formatted on
    * the server it would be the server's zone (UTC in production) and then a
    * different string after hydration.
@@ -83,7 +93,7 @@ export function PlayStatusControl({
               Players will be told to play on, from where they stopped, on their phones and on the public board.
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run(resumePlay, close)}>
+              <button ref={confirmButton} type="button" className="btn btn-primary" disabled={pending} onClick={() => run(resumePlay, close)}>
                 {pending ? "Resuming…" : "Resume play now"}
               </button>
               <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => setResuming(false)}>
@@ -140,6 +150,7 @@ export function PlayStatusControl({
       </label>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button
+          ref={confirmButton}
           type="submit"
           className="btn btn-primary"
           disabled={pending}
