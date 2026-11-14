@@ -33,6 +33,7 @@ import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
 import { formatDayAt } from "./locale";
 import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
 import { unratedTeesTodo, type LaunchCheck, type UnratedTees } from "./launch-check";
+import { SINK_LIVE, needsFigureTodo, type NeedsStrokes } from "./committee-figure";
 import { completingCheckFor, finishRefusal, playRefusal, statusMove } from "./phase-gate";
 import type { BracketView } from "./bracket";
 import { screenName } from "@/lib/nav";
@@ -148,6 +149,8 @@ export interface TournamentFacts {
   missingCards: { stageId: string; label: string; course: string }[];
   /** Tees with no rating under a round that scores off a handicap (`unratedTeesFact`); a launch warning only. */
   unratedTees?: UnratedTees | null;
+  /** Players with no handicap index in a net round, with no strokes yet (`needsStrokesFact`); a launch warning and a to-do only. */
+  needsStrokes?: NeedsStrokes | null;
   /** A knockout's draws and its play-off for third; null when there is no Bracket Stage. */
   knockout: { draws: DrawFacts[]; thirdPlace: { on: boolean; decided: boolean } } | null;
   /** A cup's verdict is no longer "open"; null when not a cup or not read. */
@@ -455,6 +458,7 @@ export function setupFactsOf(f: SetupSideFacts): SetupFacts {
     playingRounds: playing.length,
     missingCards: f.missingCards,
     unratedTees: f.unratedTees ?? null,
+    needsStrokes: f.needsStrokes ?? null,
     straightKnockout: isStraightKnockout(f.rounds),
     moneyAnswered: f.moneyAnswered,
     launched: isLaunched(f.status),
@@ -685,6 +689,15 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
       done = !holdsNow && f.groups > 0 && f.unplacedInFlights === 0;
       if (!holdsNow && f.groups === 0) missing = "Optional — one field.";
       else if (!holdsNow && f.unplacedInFlights > 0) missing = `${playersAre(f.unplacedInFlights)} in no flight.`;
+    } else if (s.key === "registration") {
+      done = !holdsNow && s.done;
+      // Lane N: players with no handicap index in a round scored net are a to-do on the field's own
+      // step, never a hold (the launch dialog warns of the same fact, `needsStrokesWarning`).
+      const strokes = f.needsStrokes;
+      if (done && strokes && strokes.players > 0 && !isFinished(f.status)) {
+        done = false;
+        missing = needsFigureTodo(strokes.players, strokes.rounds, SINK_LIVE);
+      }
     } else {
       done = !holdsNow && s.done;
     }

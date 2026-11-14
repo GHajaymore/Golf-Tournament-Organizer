@@ -1,6 +1,8 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { NeedsStrokesNote } from "@/components/NeedsStrokesNote";
+import { needsStrokesNoteFor } from "@/lib/services/committee-figure";
 import { screenName } from "@/lib/nav";
 import { LeagueSection } from "@/components/LeagueSection";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
@@ -79,6 +81,9 @@ export default async function TeamsPage({
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
       <ScopeLockBanner locks={sidesLock ? [sidesLock] : []} isAdmin={session.viewRole === "admin"} />
+      {/* A side's handicap is made from its players' (lane N): one with no index in a round scored net is
+          said here, as on Entries; the link only for somebody who may give strokes. */}
+      <NeedsStrokesNote note={await needsStrokesNoteFor(session.eventId, session.viewRole === "admin" || session.viewRole === "assistant")} />
       <TeamsClient
         locked={locked}
         rounds={teamStages.map((s) => ({

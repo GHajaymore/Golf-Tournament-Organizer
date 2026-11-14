@@ -1,6 +1,7 @@
 import type { ReviewQueue } from "./review-queue";
 import type { TournamentStatus, WayOut } from "./tournament-status";
 import { addDays, shortDate } from "./round-dates";
+import { GIVE_STROKES, NEEDS_STROKES_ANCHOR, strokesJobSaid } from "./committee-figure";
 
 /**
  * THE ORGANIZER'S TO-DO LIST ON THE DAY — Ajay, 2026-10-05.
@@ -156,6 +157,11 @@ export interface TournamentJobFacts {
    * A dispute outranks chasing cards: approving is never the answer to one. Absent is none.
    */
   disputed?: number;
+  /**
+   * THE EARLIEST OPEN NET ROUND WITH PLAYERS WHO NEED STROKES FROM THE COMMITTEE (lane N) — the first round
+   * of `playersNeedingFigure`, which asks `needsCommitteeFigure`. Absent or null is nobody.
+   */
+  strokes?: { roundId: string; round: string; day: string; count: number } | null;
 }
 
 /**
@@ -166,6 +172,7 @@ export interface TournamentJobFacts {
  */
 export type ClubJobKey =
   | "entries"
+  | "strokes"
   | "settle"
   | "tee-sheet"
   | "launch"
@@ -188,6 +195,14 @@ export interface ClubJob {
   due: string;
   /** The round it opens, for a job done on one round (`Close Round 1`, a draw): `/stages?round=`. */
   roundId?: string;
+  /** Where on that screen it lands (`#needs-strokes`, the band), when the job has one place. */
+  hash?: string;
+}
+
+/** A job's link on its own tournament: the round it opens and the place on the screen (`jobHref`). */
+export function jobHref(j: Pick<ClubJob, "href" | "roundId" | "hash">): string {
+  const base = j.roundId && j.href === "/stages" ? `/stages?round=${j.roundId}` : j.href;
+  return j.hash ? `${base}#${j.hash}` : base;
 }
 
 /**
@@ -197,16 +212,19 @@ export interface ClubJob {
  */
 const JOB_ORDER: Record<ClubJobKey, number> = {
   entries: 0,
-  launch: 1,
-  "tee-sheet": 2,
-  schedule: 3,
-  draw: 4,
-  settle: 5,
-  cards: 6,
-  close: 7,
-  results: 8,
-  waiting: 9,
-  reopen: 10,
+  // Strokes for players with no index come straight after the field: a wrong result is cheaper to
+  // prevent before launch than to explain after it.
+  strokes: 1,
+  launch: 2,
+  "tee-sheet": 3,
+  schedule: 4,
+  draw: 5,
+  settle: 6,
+  cards: 7,
+  close: 8,
+  results: 9,
+  waiting: 10,
+  reopen: 11,
 };
 
 /** A launch is a job once the first day is this near — the tee sheet's fortnight. */
@@ -314,6 +332,26 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
         href: "/registration",
         action: "Approve entries",
         due: closes || today,
+      });
+    }
+
+    /**
+     * PLAYERS WITH NO HANDICAP INDEX IN A ROUND SCORED NET (lane N): "3 players need strokes from you for
+     * Round 1 (Sat 21 Nov)", ordered by the round's day, opening the band on Rounds & formats. No window:
+     * a wrong result is a job whenever it is found.
+     */
+    const s = t.strokes;
+    if (s && s.count > 0) {
+      const dated = isIso(s.day);
+      jobs.push({
+        ...base,
+        key: "strokes",
+        text: strokesJobSaid(s.count, s.round, dated ? day(s.day) : ""),
+        href: "/stages",
+        action: GIVE_STROKES,
+        due: dated && s.day > today ? s.day : today,
+        roundId: s.roundId,
+        hash: NEEDS_STROKES_ANCHOR,
       });
     }
 
@@ -490,7 +528,7 @@ export function tournamentJob(t: TournamentJobFacts, today: string, day: (iso: s
 
 function jobFrom(j: ClubJob, t: TournamentJobFacts): TournamentJob {
   const next = t.status.nextAction!;
-  const href = j.roundId && j.href === "/stages" ? `/stages?round=${j.roundId}` : j.href;
+  const href = jobHref(j);
   // A status move is the machine's button, refused or not — its own words, refusal and way out.
   if (j.key === "launch" || j.key === "results") {
     // The home's line ends in the refusal ("Starts Sat 21 Nov · <refusal>"); here the refusal is said

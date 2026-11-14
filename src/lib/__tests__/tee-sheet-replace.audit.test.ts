@@ -482,7 +482,7 @@ describe("replaceInTeeSheet — a guest and the handicap", () => {
  * A MEMBER WITH NO INDEX, IN A ROUND SCORED NET (found 14 Nov 2026 on main 25fce89d: let through, played off the
  * stored nought — about scratch — while the confirm and the record said "no index (gross only)"). The Rules
  * work a net allowance from an index (Rules of Handicapping 6.1, 6.2); with none, the figure is the Committee's
- * (Rule 7; Rules of Golf 3.3b(4); Committee Procedures 5A(5)).
+ * (Rules of Golf 3.3b(4)).
  */
 describe("replaceInTeeSheet — a member with no index and the handicap", () => {
   it("net: refused in words with nothing written; given the committee's strokes for the round, taken and played off them; gross: taken, gross only", async () => {
@@ -513,7 +513,7 @@ describe("replaceInTeeSheet — a member with no index and the handicap", () => 
     expect(res.ok, JSON.stringify(res)).toBe(true);
     expect((await sheetOf(net)).groups[0].playerIds).toEqual([nox.id, p.m2]);
     const line = (await prisma.auditLog.findFirstOrThrow({ where: { eventId, action: "replaced" } })).detail;
-    expect(line).toContain("handicap used 14 strokes, the committee’s for this round.");
+    expect(line).toContain("handicap used 14 strokes, given for this round.");
     expect(line, "the record says gross only in a net round").not.toContain("gross only");
     // A member WITH an index (a decimal one) steps in as before.
     const second = await replaceInTeeSheet(net, (await sheetOf(net)).savedAt, p.m2, { kind: "member", playerId: dec.id }, "cancelled");

@@ -17,6 +17,7 @@ import { tournamentStatusFor } from "./tournament-status";
 import { roundLabel } from "../domain/round-label";
 import { isPlayingRound } from "../stage-types";
 import { TEAM_SESSION } from "./cup";
+import { needsStrokesFor, playersNeedingFigure, type NeedsStrokesRound } from "./committee-figure";
 
 /**
  * THE SECRETARY'S HOME — what's next for every tournament of the open
@@ -122,9 +123,11 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
    * is not read twice.
    */
   const others = running.filter((e) => e.id !== session.eventId).map((e) => e.id);
-  const [opened, batch] = await Promise.all([
+  const [opened, batch, strokes] = await Promise.all([
     running.some((e) => e.id === session.eventId) ? tournamentStatusFor(session.eventId, today) : null,
     tournamentFactsForMany(others, today),
+    // Who needs strokes from the committee, for every running tournament at once (`needsCommitteeFigure`).
+    needsStrokesFor(running.map((e) => e.id)),
   ]);
   const statusOf = new Map<string, TournamentStatus>();
   if (opened) statusOf.set(session.eventId, opened.status);
@@ -144,6 +147,7 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
       status,
       startOn: e.startOn,
       endOn: e.endOn,
+      strokes: strokesJobFactsOf(strokes.get(e.id) ?? []),
     };
     /**
      * THE ROUND FACTS ARE THE TOURNAMENT'S OWN STATE — `loadEventState`, the
@@ -164,6 +168,12 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
 }
 
 type EventState = NonNullable<Awaited<ReturnType<typeof loadEventState>>>;
+
+/** The job's round: the first of `playersNeedingFigure`'s rounds (play order), and how many need strokes in it. */
+function strokesJobFactsOf(rounds: readonly NeedsStrokesRound[]): TournamentJobFacts["strokes"] {
+  const first = rounds[0];
+  return first ? { roundId: first.stageId, round: first.label, day: first.day, count: first.players.length } : null;
+}
 
 /**
  * THE ROUND FACTS OF A TOURNAMENT'S JOBS — one builder, for the home's lines and for the open
@@ -201,11 +211,13 @@ function roundJobFactsOf(state: EventState): Pick<TournamentJobFacts, "nextSheet
  * the lifecycle stepper marks it. Null for a casual round, which has neither.
  */
 export const openTournamentJob = cache(async (eventId: string, today: string): Promise<TournamentJob | null> => {
-  const [event, told, state, formatting] = await Promise.all([
+  const [event, told, state, formatting, strokes] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { name: true, regDeadline: true, startOn: true, endOn: true } }),
     tournamentStatusFor(eventId, today),
     loadEventState(eventId),
     formattingForEvent(eventId),
+    // As the home reads it, so the one button and the home's first line cannot disagree.
+    playersNeedingFigure(eventId),
   ]);
   if (!event || !told || !state) return null;
   const entrants = await prisma.player.findMany({ where: { eventId }, select: { eventId: true, status: true } });
@@ -219,6 +231,7 @@ export const openTournamentJob = cache(async (eventId: string, today: string): P
     status: told.status,
     startOn: event.startOn,
     endOn: event.endOn,
+    strokes: strokesJobFactsOf(strokes),
     // As the home reads them: a sheet to publish or a card to chase only with a field and a round open.
     ...(state.confirmed.length > 0 && state.stages.some((s) => isPlayingRound(s.type) && s.closedAt == null) ? roundJobFactsOf(state) : {}),
   };

@@ -39,7 +39,7 @@ const sheet: TeeSheet = {
     { name: "Group 3", startHole: 10, time: "8:20 AM", playerIds: ["g", "h"] },
   ],
 };
-const people: ReplaceCandidate[] = "abcdefghijk".split("").map((id, n) => ({ id, name: id.toUpperCase(), index: n === 7 ? "no index" : `${10 + n}.0` }));
+const people: ReplaceCandidate[] = "abcdefghijk".split("").map((id, n) => ({ id, name: id.toUpperCase(), index: n === 7 ? "no index" : `${10 + n}.0`, handicapSource: n === 7 ? "none" : "manual" }));
 const world: ReplaceWorld = {
   sheet,
   field: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "k"],
@@ -48,7 +48,7 @@ const world: ReplaceWorld = {
   cut: null,
   flights: {},
   sameFlight: false,
-  net: false,
+  scoringBasis: "gross",
   figures: {},
   handicapsFixed: false,
 };
@@ -148,38 +148,38 @@ describe("who steps in", () => {
  * about scratch — while the confirm and the record said "no index (gross only)").
  *
  * The Rules: a net allowance is worked from a Handicap Index (Rules of Handicapping 6.1, 6.2); a player with
- * none is given a figure by the Committee (Rule 7; Rules of Golf 3.3b(4); Committee Procedures 5A(5)). So in a
+ * none is given a figure by the Committee (Rules of Golf 3.3b(4)). So in a
  * net round they step in only with the committee's strokes for the round; a gross round has no allowance and
  * "gross only" is the truth.
  */
 describe("a member with no index steps into a round scored net only with the committee's strokes", () => {
   // I is in the field, on no group; give I no index for these cases.
-  const noIndexI = people.map((c) => (c.id === "i" ? { ...c, index: "no index" } : c));
+  const noIndexI = people.map((c) => (c.id === "i" ? { ...c, index: "no index", handicapSource: "none" } : c));
   const i = noIndexI.find((c) => c.id === "i")!;
 
   it("net, no figure: listed, not choosable, and told where the committee's strokes are given", () => {
-    const net: ReplaceWorld = { ...world, net: true };
+    const net: ReplaceWorld = { ...world, scoringBasis: "net" };
     expect(candidateWhy(i, "a", net)).toBe(NO_FIGURE);
-    expect(NO_FIGURE).toContain("Handicaps for this round");
+    expect(NO_FIGURE).toContain("Rounds & formats");
     const rows = replaceCandidates(noIndexI, "a", net);
     expect(rows.find((r) => r.id === "i")?.why).toBe(NO_FIGURE);
     expect(rows.filter((r) => !r.why).map((r) => r.id), "only K, who has an index, is choosable").toEqual(["k"]);
   });
 
   it("net, a card already in: the round keeps the handicaps it has, so the way on is somebody else", () => {
-    expect(candidateWhy(i, "a", { ...world, net: true, handicapsFixed: true })).toBe(NO_FIGURE_CARDS_IN);
+    expect(candidateWhy(i, "a", { ...world, scoringBasis: "net", handicapsFixed: true })).toBe(NO_FIGURE_CARDS_IN);
   });
 
   it("net, with the committee's strokes for this round: choosable, and the confirm and the record say the strokes", () => {
-    const given: ReplaceWorld = { ...world, net: true, figures: { i: 14 }, handicapsFixed: true };
+    const given: ReplaceWorld = { ...world, scoringBasis: "net", figures: { i: 14 }, handicapsFixed: true };
     expect(candidateWhy(i, "a", given)).toBeNull();
-    expect(handicapUsedWords(i.index, given.figures.i)).toBe("14 strokes, the committee’s for this round");
-    expect(handicapUsedWords("no index", -2)).toBe("+2 strokes, the committee’s for this round");
-    expect(handicapUsedWords("no index", 0)).toBe("scratch, the committee’s for this round");
+    expect(handicapUsedWords(i.index, given.figures.i)).toBe("14 strokes, given for this round");
+    expect(handicapUsedWords("no index", -2)).toBe("+2 strokes, given for this round");
+    expect(handicapUsedWords("no index", 0)).toBe("scratch, given for this round");
     // The committee's figure wins over an index too: it is what the round resolves first.
-    expect(handicapUsedWords("12.4", 10)).toBe("10 strokes, the committee’s for this round");
+    expect(handicapUsedWords("12.4", 10)).toBe("10 strokes, given for this round");
     const said = replaceWillSay({ absentee: "Ann", sub: "I", group: "Group 1", time: "8:00 AM", handicap: i.index, figure: 14, inSides: false, weekly: true });
-    expect(said).toContain("playing off 14 strokes, the committee’s for this round;");
+    expect(said).toContain("playing off 14 strokes, given for this round;");
     expect(said).not.toContain("gross only");
   });
 
@@ -190,7 +190,7 @@ describe("a member with no index steps into a round scored net only with the com
 
   it("a member WITH an index is not touched by it, net or gross", () => {
     const k = noIndexI.find((c) => c.id === "k")!;
-    expect(candidateWhy(k, "a", { ...world, net: true, handicapsFixed: true })).toBeNull();
+    expect(candidateWhy(k, "a", { ...world, scoringBasis: "net", handicapsFixed: true })).toBeNull();
   });
 });
 

@@ -2,7 +2,6 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { indexLabel } from "../domain/handicap-label";
-import { isNetBasis } from "../domain/match-entry";
 import { acceptsHandicapChange } from "../domain/round-handicap";
 import type { TeeSheet } from "../domain/tee-sheet";
 import type { ReplaceCandidate, ReplaceWorld } from "../domain/tee-sheet-replace";
@@ -76,11 +75,12 @@ export async function replaceWorldFor(
       cut: cut ? [...cut] : null,
       flights,
       sameFlight: sides.some((t) => !!t.clubGroupId),
-      net: isNetBasis(stage?.scoringBasis ?? "gross"),
+      // No round read means nothing to price, which the rule reads as gross.
+      scoringBasis: stage?.scoringBasis ?? "gross",
       figures,
       handicapsFixed: !acceptsHandicapChange(returned),
     },
-    candidates: confirmed.map((p) => ({ id: p.id, name: p.name, index: indexLabel(p) })),
+    candidates: confirmed.map((p) => ({ id: p.id, name: p.name, index: indexLabel(p), handicapSource: p.handicapSource ?? null })),
     sides,
   };
 }

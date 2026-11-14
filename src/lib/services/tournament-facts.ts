@@ -32,6 +32,8 @@ import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
 import { teesInPlayFor } from "./handicaps";
 import { unratedTeesFact, hasTypedCard } from "../domain/launch-check";
+import { needsStrokesFact } from "../domain/committee-figure";
+import { needsStrokesFor, type NeedsStrokesRound } from "./committee-figure";
 import { loadEventState, settingsOf } from "./tournament";
 import { cupBoard } from "./cup";
 
@@ -389,6 +391,12 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
       ] as const;
     }),
   );
+  /**
+   * PLAYERS WITH NO HANDICAP INDEX IN A ROUND SCORED NET (lane N): the one list (`needsStrokesFor`, which
+   * asks `needsCommitteeFigure`), for the launch warning and the rail's to-do. Grouped like every read
+   * here; asked only where the setup checks are.
+   */
+  const strokesOf = opts.setupChecks ? await needsStrokesFor(found) : new Map<string, NeedsStrokesRound[]>();
   const cardsOf = byEvent([...cardRows, ...teamCardRows]);
   const matchesOf = byEvent(matchRows);
   const matchCardsOf = byEvent(matchCardRows);
@@ -471,6 +479,7 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
         rounds,
         missingCards: missing.get(id) ?? [],
         unratedTees: unratedOf.get(id) ?? null,
+        needsStrokes: needsStrokesFact(strokesOf.get(id) ?? []),
       },
       thirdPlace: { on: !!thirdStage, decided: !!thirdMatch && storedMatchIsOver(thirdMatch) },
       hasBracket: stages.some((s) => isKnockoutRound(s.type)),

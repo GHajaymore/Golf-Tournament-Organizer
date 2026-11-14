@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { replaceInTeeSheet } from "@/app/actions/tee-sheet";
 import { NO_INDEX, readHandicapIndex, indexFigure } from "@/lib/domain/handicap-label";
+import { isNetBasis } from "@/lib/domain/match-entry";
 import {
   REPLACE_REASONS,
   REPLACE_REASON_WORDS,
@@ -148,7 +149,7 @@ export function ReplacePlayer({
             Handicap index
             <input className="input" style={{ minWidth: 0, minHeight: 44 }} inputMode="decimal" value={guestIndex} autoComplete="off" disabled={pending} onChange={(e) => setGuestIndex(e.target.value)} />
             <span className="text-muted">
-              {!world.net ? "Leave blank: they play gross only." : `Type the handicap the committee gives ${guestName.trim() || "the guest"} — this round is scored net.`}
+              {!isNetBasis(world.scoringBasis) ? "Leave blank: they play gross only." : `Type the handicap the committee gives ${guestName.trim() || "the guest"} — this round is scored net.`}
             </span>
           </label>
           {guestBad && <p className="form-error" role="alert" style={{ margin: 0 }}>Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap.</p>}
