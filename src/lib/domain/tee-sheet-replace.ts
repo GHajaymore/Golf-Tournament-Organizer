@@ -109,6 +109,18 @@ export interface ReplaceChoice extends ReplaceCandidate {
   why?: string;
 }
 
+/**
+ * A MEMBER WITH NO INDEX, IN A ROUND SCORED NET: listed, not choosable, and told the way on — the committee's
+ * strokes for this round, set where every round figure is set (Rounds & formats, Customize this round,
+ * Handicaps for this round: `setRoundHandicapOverride`, the one writer of a round figure). Same family as
+ * `guestFigureRefusal`. Once a card is in, the round keeps the handicaps it has (`FROZEN_HANDICAP_REFUSAL`),
+ * so then the way on is somebody else.
+ */
+export const NO_FIGURE =
+  "No handicap index, and this round is scored net. Give them the committee’s strokes on Rounds & formats (Customize this round, Handicaps for this round), then choose them.";
+export const NO_FIGURE_CARDS_IN =
+  "No handicap index, and this round is scored net. Its cards are in, so it keeps the handicaps it has: choose somebody with a handicap, or a guest.";
+
 /** Why one person cannot step into this slot, or null when they can. */
 export function candidateWhy(c: ReplaceCandidate, absenteeId: string, world: ReplaceWorld): string | null {
   if (c.id === absenteeId) return "The player being replaced.";
@@ -125,18 +137,6 @@ export function candidateWhy(c: ReplaceCandidate, absenteeId: string, world: Rep
   if (world.net && c.index === NO_INDEX && world.figures[c.id] === undefined) return world.handicapsFixed ? NO_FIGURE_CARDS_IN : NO_FIGURE;
   return null;
 }
-
-/**
- * A MEMBER WITH NO INDEX, IN A ROUND SCORED NET: listed, not choosable, and told the way on — the committee's
- * strokes for this round, set where every round figure is set (Rounds & formats, Customize this round,
- * Handicaps for this round: `setRoundHandicapOverride`, the one writer of a round figure). Same family as
- * `guestFigureRefusal`. Once a card is in, the round keeps the handicaps it has (`FROZEN_HANDICAP_REFUSAL`),
- * so then the way on is somebody else.
- */
-export const NO_FIGURE =
-  "No handicap index, and this round is scored net. Give them the committee’s strokes on Rounds & formats (Customize this round, Handicaps for this round), then choose them.";
-export const NO_FIGURE_CARDS_IN =
-  "No handicap index, and this round is scored net. Its cards are in, so it keeps the handicaps it has: choose somebody with a handicap, or a guest.";
 
 /** Everybody offered for one slot, choosable first, the rest listed with their reason. */
 export function replaceCandidates(candidates: readonly ReplaceCandidate[], absenteeId: string, world: ReplaceWorld): ReplaceChoice[] {
