@@ -152,7 +152,8 @@ describe("the ratchet", () => {
   });
 
   it("a journey with no ceiling yet asserts nothing, and one with a seconds ceiling holds it", () => {
-    expect(ceilingBreaches(figures({ name: "secretary-playable-event", presses: 99 }))).toEqual([]);
+    expect(ceilingBreaches(figures({ name: "a-journey-not-yet-measured", presses: 99 }))).toEqual([]);
+    expect(ceilingBreaches(figures({ presses: 99 }), null)).toEqual([]);
     expect(ceilingBreaches(figures({ name: "secretary-first-event", presses: 12, screens: 5, visits: 6, returns: 1, boxes: 9, chars: 211, seconds: 121 }))).toEqual([
       "secretary-first-event (phone): seconds is 121, over its ceiling of 120 — remove a step elsewhere in this journey or lower nothing",
     ]);

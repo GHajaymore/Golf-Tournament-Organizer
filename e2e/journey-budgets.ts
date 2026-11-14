@@ -38,10 +38,12 @@ export const JOURNEY_BUDGETS: Record<string, JourneyBudget> = {
     target: { presses: 7, screens: 4, visits: 5, returns: 1, boxes: 9, seconds: 70 },
     by: "cuts A′ (roster opens ready and hands back), B (open entries where create ended), C (the kind asked once), D (the code submits itself), E (a single round already chosen)",
   },
-  // J2. TODO(row 0b): no figure yet — its first CI run (25a0ffa0) stopped at the member's sign-in, a
-  // fault of the spec's own (fixed); set the ceiling from the next run's JOURNEY line.
+  // J2. Measured on #1140 at 0a29c5e4, desktop: 24 presses, 8 screens over 10 visits, 2 returns
+  // (/choose after /roster, /dashboard after /registration), 13 boxes, 216 characters, 130 s. Route:
+  // / → /choose → /roster → /choose → /dashboard → /event → /stages → /registration → /dashboard → /foursomes.
+  // Seconds: the ten-minute promise.
   "secretary-playable-event": {
-    ceiling: null,
+    ceiling: { presses: 24, screens: 8, visits: 10, returns: 2, boxes: 13, chars: 216, seconds: 600 },
     target: { screens: 8, returns: 0, seconds: 600 },
     by: "console step 3 (the draw on one screen per round), row 6b (the day asked once), row 7, P4 (first score entry launches); under ten minutes at the panel's pace",
   },
