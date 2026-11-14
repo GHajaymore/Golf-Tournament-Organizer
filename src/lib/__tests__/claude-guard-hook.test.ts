@@ -10,12 +10,17 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const GUARD = path.join(process.cwd(), ".claude", "hooks", "guard.mjs");
 
-function run(command: string, opts: { cwd?: string; tool?: string; platform?: string } = {}) {
+function run(
+  command: string,
+  opts: { cwd?: string; tool?: string; platform?: string; sessionId?: string; agentId?: string } = {},
+) {
   const input = JSON.stringify({
     hook_event_name: "PreToolUse",
     tool_name: opts.tool ?? "Bash",
     tool_input: { command },
     cwd: opts.cwd ?? process.cwd(),
+    ...(opts.sessionId ? { session_id: opts.sessionId } : {}),
+    ...(opts.agentId ? { agent_id: opts.agentId, agent_type: "tourneyhq-engineer" } : {}),
   });
   const r = spawnSync(process.execPath, [GUARD], {
     input,
@@ -108,8 +113,8 @@ describe("the hard-rule guard lets through", () => {
     "git add src/lib/a.ts docs/b.md",
     "git add -u",
     "git status && git log --oneline -3",
-    "git push origin HEAD:round/state-machine-3-2",
     "git push -u origin claude/guard-hooks",
+    "git push origin HEAD:refs/heads/claude/round-notes",
     "npx prisma migrate deploy",
     "npx prisma migrate dev --create-only --name x",
     "npx vitest run src/lib/__tests__/x.test.ts",
@@ -117,7 +122,7 @@ describe("the hard-rule guard lets through", () => {
     // the rules quoted inside text are text, not commands
     'git commit --dry-run -m "Never git stash; never git add -A; never prisma migrate reset"',
     "cat <<'EOF' > /dev/null\ngit stash\ngit push origin main\nEOF",
-    'gh pr merge 1008 --squash --match-head-commit abc',
+    'gh pr view 1008 --json state,mergeCommit',
   ])("%s", (command) => {
     const r = run(command);
     expect(r.stderr).toBe("");
@@ -178,6 +183,145 @@ describe("a commit carrying contact details", () => {
     const r = run("git commit -m x", { cwd: path.join(tmpdir(), "zz-guard-no-such-dir") });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("could not read");
+  });
+});
+
+describe("a commit carrying a local absolute path (ledger row 10)", () => {
+  let repo: string;
+  const g = (...args: string[]) => {
+    const r = spawnSync("git", ["-C", repo, "-c", "user.name=zz-guard", "-c", "user.email=zz-guard@example.invalid", ...args], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+  };
+  // Built at run time so this file itself never holds one.
+  const winPath = ["C:", "Users", "zzperson", "repo", "x.ts"].join(String.fromCharCode(92));
+  const bashPath = ["", "c", "Users", "zzperson", "repo"].join("/");
+
+  beforeAll(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "zz-guard-paths-"));
+    g("init", "-q");
+    writeFileSync(path.join(repo, "seed.txt"), "zz\n");
+    g("add", "seed.txt");
+    g("commit", "-q", "-m", "seed");
+  });
+  afterAll(() => rmSync(repo, { recursive: true, force: true }));
+
+  it.each([
+    ["win.md", `Open ${winPath} first.\n`],
+    ["bash.md", `cd "${bashPath}"\n`],
+    ["json.json", `{ "p": ${JSON.stringify(winPath)} }\n`],
+  ])("is refused, naming the file and the rule: %s", (file, text) => {
+    writeFileSync(path.join(repo, file), text);
+    const r = run(`git add ${file} && git commit -m x`, { cwd: repo });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("Hard rule 2");
+    expect(r.stderr).toContain(`${file}: local path`);
+    expect(r.stderr).not.toContain("zzperson");
+    g("rm", "-q", "--cached", "--ignore-unmatch", file);
+    rmSync(path.join(repo, file));
+  });
+
+  it("is let through with a placeholder or prose", () => {
+    writeFileSync(path.join(repo, "fine.md"), "A Git Bash path (/c/Users/...); `%APPDATA%/TourneyHQ`; <main checkout>/node_modules\n");
+    const r = run("git add fine.md && git commit -m x", { cwd: repo });
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+  });
+});
+
+describe("only the main session merges or pushes a round (ledger row 17)", () => {
+  let main: string;
+  let tree: string;
+  let bare: string;
+  const MAIN_ID = "zz-main-session-0001";
+  const g = (dir: string, ...args: string[]) => {
+    const r = spawnSync("git", ["-C", dir, "-c", "user.name=zz-guard", "-c", "user.email=zz-guard@example.invalid", ...args], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+  };
+  const ONLY_MAIN = [
+    "gh pr merge 1008 --squash --match-head-commit abc",
+    "GH_TOKEN=x gh pr merge 1008 --squash",
+    "gh api -X PUT repos/o/r/pulls/1008/merge",
+    "gh api --method PUT repos/o/r/pulls/1008/merge -f merge_method=squash",
+    "git push origin HEAD:round/state-machine-3-2",
+    "git push origin abc123:refs/heads/round/guest-train-1",
+    "git push -f origin +HEAD:round/x-2",
+    "git push origin --delete round/x-1",
+    "bash ~/notes/merge.sh 1008",
+    "bash ./chain.sh guest-train",
+    "git status && gh pr merge 1008 --squash",
+  ];
+
+  beforeAll(() => {
+    main = mkdtempSync(path.join(tmpdir(), "zz-guard-mainsession-"));
+    tree = `${main}-tree`;
+    bare = mkdtempSync(path.join(tmpdir(), "zz-guard-nofile-"));
+    g(main, "init", "-q");
+    writeFileSync(path.join(main, "seed.txt"), "zz\n");
+    g(main, "add", "seed.txt");
+    g(main, "commit", "-q", "-m", "seed");
+    g(main, "worktree", "add", "-q", "-b", "zz-branch", tree);
+    mkdirSync(path.join(main, ".claude"));
+    writeFileSync(path.join(main, ".claude", "main-session"), `${MAIN_ID}\n`);
+    g(bare, "init", "-q");
+  });
+  afterAll(() => {
+    rmSync(tree, { recursive: true, force: true });
+    rmSync(main, { recursive: true, force: true });
+    rmSync(bare, { recursive: true, force: true });
+  });
+
+  it.each(ONLY_MAIN)("lets the main session through, from the main checkout and from a worktree: %s", (command) => {
+    for (const cwd of [main, tree]) {
+      const r = run(command, { cwd, sessionId: MAIN_ID });
+      expect(r.stderr, `${cwd}: ${command}`).toBe("");
+      expect(r.code).toBe(0);
+    }
+  });
+
+  it.each(ONLY_MAIN)("refuses another session, naming the rule: %s", (command) => {
+    for (const tool of ["Bash", "PowerShell"]) {
+      const r = run(command, { cwd: tree, tool, sessionId: "zz-other-session" });
+      expect(r.code, `${tool}: ${command}`).toBe(2);
+      expect(r.stderr).toContain("Main-session rule");
+      expect(r.stderr).toContain("ledger row 17");
+    }
+  });
+
+  it("refuses a call with no session id at all", () => {
+    const r = run(ONLY_MAIN[0], { cwd: main });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("Main-session rule");
+  });
+
+  it("refuses a subagent even though it carries the main session's id", () => {
+    const r = run(ONLY_MAIN[4], { cwd: tree, sessionId: MAIN_ID, agentId: "zz-agent-1" });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("subagent");
+  });
+
+  it("refuses, saying so, when .claude/main-session is missing", () => {
+    const r = run(ONLY_MAIN[0], { cwd: bare, sessionId: MAIN_ID });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("main-session is missing");
+  });
+
+  it("reads git -C as the repository the push runs in", () => {
+    expect(run(`git -C "${tree}" push origin HEAD:round/x-1`, { cwd: bare, sessionId: MAIN_ID }).code).toBe(0);
+    expect(run(`git -C "${tree}" push origin HEAD:round/x-1`, { cwd: bare, sessionId: "zz-other" }).code).toBe(2);
+  });
+
+  it.each([
+    "git push -u origin claude/x",
+    "git push origin HEAD:breaks/state-machine-1",
+    "gh pr view 1008 --json state",
+    "gh api repos/o/r/pulls/1008/merge",
+    "gh pr create --draft --title x --body y",
+    'git commit --dry-run -m "never gh pr merge from here; never push round/x"',
+    "cat merge.sh.md",
+  ])("leaves every other session's ordinary work alone: %s", (command) => {
+    const r = run(command, { cwd: tree, sessionId: "zz-other-session" });
+    expect(r.stderr, command).toBe("");
+    expect(r.code).toBe(0);
   });
 });
 

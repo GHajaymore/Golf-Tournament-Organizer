@@ -15,8 +15,14 @@
 //                                     Hard rule 6 — never drop the development database
 //   git push ... main (or --all / --mirror)
 //                                     Hard rule 3 — main reaches production only via a PR
-//   git commit whose changes hold a real-looking email address or phone number
-//                                     Hard rule 2 — the repository is public
+//   git commit whose changes hold a real-looking email address or phone number, or a local
+//   absolute path (C:\Users\<you>, /c/Users/<you>, a profile's AppData folder) that names the Windows user
+//                                     Hard rule 2 — the repository is public (ledger row 10)
+//   gh pr merge (or the merge API), git push to round/*, running merge.sh or chain.sh — from any
+//   session but the main one (its id is in the untracked .claude/main-session of the main
+//   checkout), and from any subagent
+//                                     Main-session rule — the main session merges and rounds,
+//                                     with a QA GO line (ledger row 17)
 //   prisma generate (or npm run db:generate) in a worktree whose prisma/schema.prisma differs
 //                                     from the main checkout's: every worktree shares the main
 //                                     checkout's node_modules, so it replaces EVERYONE's client
@@ -168,6 +174,52 @@ const NO_CI_WAIT =
   "`gh pr checks --watch`, no loops around gh. Every agent shares one GitHub API budget (5,000 an hour). Push, hand back, " +
   "and let the main session read CI centrally (.qa/reader.txt in the main checkout); read branches with git, not gh.";
 
+const MAIN_SESSION_FILE = path.join(".claude", "main-session");
+
+/**
+ * Merges and round pushes belong to the main session (process ledger row 17: on 14 Nov a separate session read
+ * the handover and merged #1132 with no QA GO line). The main session writes its session id into the untracked
+ * `.claude/main-session` of the main checkout when it starts; the hook compares the calling session's id with it.
+ * A subagent carries its parent's session id, so a call made inside one (agent_id set) is refused as well.
+ */
+export function mainSessionRefusal(what, dir, who = {}) {
+  const rule = `Main-session rule (process ledger row 17): ${what} is the main session's job alone — it merges and pushes rounds with a QA GO line.`;
+  if (who.agentId) {
+    return refuse(`${rule} This command came from a subagent (${who.agentType || "agent"}). Push your claude/* branch, hand back, and the main session takes it from there.`);
+  }
+  const root = mainCheckout(dir) ?? mainCheckout(path.dirname(fileURLToPath(import.meta.url)));
+  const file = path.join(root ?? dir, MAIN_SESSION_FILE);
+  if (!existsSync(file)) {
+    return refuse(
+      `${rule} ${file} is missing, so the hook cannot tell which session is the main one and refuses rather than guess. ` +
+        "The main session writes its own session id there (one line, untracked) when it starts.",
+    );
+  }
+  const id = readFileSync(file, "utf8").trim();
+  if (!id || !who.sessionId || who.sessionId !== id) {
+    return refuse(`${rule} This session (${who.sessionId || "no session id"}) is not the one named in ${file}. Hand the step to the main session.`);
+  }
+  return null;
+}
+
+/** What a segment does that only the main session may do, or null. */
+function mainSessionOnly(words, gh, git) {
+  if (gh) {
+    const plain = gh.filter((a) => !a.startsWith("-"));
+    if (plain[0] === "pr" && plain[1] === "merge") return "`gh pr merge`";
+    if (plain[0] === "api" && gh.some((a) => /(^|\/)pulls\/\d+\/merge$/.test(a))) {
+      const put = gh.some((a, i) => /^(-X|--method)=?PUT$/i.test(a) || (/^(-X|--method)$/.test(a) && /^PUT$/i.test(gh[i + 1] ?? "")));
+      if (put) return "merging a pull request through the API";
+    }
+  }
+  if (git?.sub === "push") {
+    const plain = git.args.filter((a) => !a.startsWith("-"));
+    if (plain.slice(1).some((a) => /^\+?(?:[^:]*:)?(?:refs\/heads\/)?round\//.test(a))) return "a push to `round/*`";
+  }
+  if (words.some((w) => /(^|[\\/])(merge|chain)\.sh$/i.test(w))) return "running merge.sh or chain.sh";
+  return null;
+}
+
 /** The main checkout's folder, from any worktree of it; null when dir is not in a repository. */
 function mainCheckout(dir) {
   try {
@@ -212,7 +264,7 @@ export function sharedClientRefusal(dir, env = process.env) {
   );
 }
 
-function checkSegment(words, platform, dir) {
+function checkSegment(words, platform, dir, who = {}) {
   // A word holding spaces came from quotes (a message, a title): text, not part of the command.
   const joined = words.map((w) => (/\s/.test(w) ? "_" : w)).join(" ");
   const git = gitCall(words);
@@ -239,6 +291,12 @@ function checkSegment(words, platform, dir) {
     if (plain.slice(1).some((a) => /^\+?(?:[^:]*:)?(?:refs\/heads\/)?main$/.test(a))) {
       return refuse("Hard rule 3: main auto-deploys to production and reaches it only through a pull request and the gate. Push your branch and open a PR.");
     }
+  }
+  const onlyMain = mainSessionOnly(words, gh, git);
+  if (onlyMain) {
+    const at = git?.dir ? path.resolve(dir, nativePath(git.dir, platform)) : dir;
+    const hit = mainSessionRefusal(onlyMain, at, who);
+    if (hit) return hit;
   }
   if (/\bprisma (migrate reset|db push\b.*--(force-reset|accept-data-loss))/.test(joined) || /\bnpm (run )?db:reset\b/.test(joined)) {
     return refuse("Hard rule 6: never drop or reset the development database. If Prisma asks for a reset, fix the drift by hand (docs/claude/migrations.md).");
@@ -334,14 +392,47 @@ export function findPersonalData(lines) {
   return found;
 }
 
+/**
+ * A local absolute path names the Windows user and the machine's layout (ledger row 10: agent definitions went into
+ * a public-repo PR holding scratchpad paths). Each pattern needs a real name or folder after the prefix, so a
+ * placeholder (`/c/Users/...`, `C:\Users\<you>`) or the bare word AppData in prose is not a hit.
+ */
+export const LOCAL_PATH = [
+  /\b[A-Za-z]:(?:\\{1,2}|\/)Users(?:\\{1,2}|\/)+[A-Za-z0-9_]/i, // C:\Users\<you>, with one or two backslashes (escaped in JS or JSON) or a slash
+  /\/[A-Za-z]\/Users\/[A-Za-z0-9_]/, // /c/Users/<you> (Git Bash; WSL mounts too)
+  /AppData(?:\\{1,2}|\/)+(?:Local|LocalLow|Roaming)\b/i, // the Local, LocalLow and Roaming folders under AppData
+];
+
+/** Added lines holding a local absolute path, as "file:line-in-diff" descriptions (the path itself is not echoed). */
+export function findLocalPaths(lines) {
+  const found = [];
+  for (const { file, text } of lines) {
+    if (UNSCANNED_FILE.test(file)) continue;
+    if (LOCAL_PATH.some((re) => re.test(text))) found.push(`${file}: local path`);
+  }
+  return found;
+}
+
 function checkCommit(dir, addPaths, args) {
   if (args.includes("--dry-run")) return null;
   const includeWorking = args.some((a) => a === "--all" || /^-[a-zA-Z]*a[a-zA-Z]*$/.test(a));
   let found;
+  let paths;
   try {
-    found = findPersonalData(commitContent(dir, addPaths, includeWorking));
+    const content = commitContent(dir, addPaths, includeWorking);
+    found = findPersonalData(content);
+    paths = findLocalPaths(content);
   } catch (e) {
     return refuse(`The privacy check could not read what this commit carries, so it is refused rather than waved through (${e.message}). Run the commit with \`git -C <dir>\` or from the repository's folder.`);
+  }
+  if (!found.length && paths.length) {
+    const list = [...new Set(paths)].slice(0, 10).map((f) => `  - ${f}`).join("\n");
+    return refuse(
+      "Hard rule 2: the repository is public, and this commit carries a local absolute path that names the Windows user " +
+        `(C:\\Users\\<you>, /c/Users/<you> or a profile's AppData folder; ledger row 10):\n${list}\n` +
+        "Write paths relative to the repository, or a placeholder such as `<main checkout>` or `C:\\Users\\<you>`. " +
+        "src/lib/__tests__/no-local-paths-in-the-repository.test.ts sweeps every tracked file for the same.",
+    );
   }
   if (!found.length) return null;
   const list = found.slice(0, 10).map((f) => `  - ${f}`).join("\n");
@@ -365,6 +456,7 @@ export function verdict(input, platform = process.platform) {
     if (ps) return ps;
   }
   let dir = input.cwd || process.cwd();
+  const who = { sessionId: input.session_id, agentId: input.agent_id, agentType: input.agent_type };
   const addPaths = [];
   for (const words of segments(cmd, input.tool_name === "PowerShell")) {
     if (words[0] === "cd" && words[1]) {
@@ -376,7 +468,7 @@ export function verdict(input, platform = process.platform) {
       dir = path.resolve(dir, words[1]);
       continue;
     }
-    const hit = checkSegment(words, platform, dir);
+    const hit = checkSegment(words, platform, dir, who);
     if (hit) return hit;
     const call = gitCall(words);
     if (!call) continue;

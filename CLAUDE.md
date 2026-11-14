@@ -37,8 +37,10 @@ These are not preferences. Breaking one has consequences that cannot be undone f
 
 **Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
 every Bash and PowerShell command (`.claude/settings.json`) and refuses `git add -A`/`.`, any `git stash`,
-a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number,
-PowerShell writing a source file, and — on the Windows desktop only — builds, dev servers and Playwright.
+a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number or a
+local path (`C:\Users\<you>`), PowerShell writing a source file, `gh run watch`, a merge or `round/*` push from
+any session but the one named in the untracked `.claude/main-session` (or from a subagent), and — on the
+Windows desktop only — builds, dev servers and Playwright.
 A refusal names its rule. Text in quotes and heredocs is never read as a command. To change what it
 allows, edit the script with `src/lib/__tests__/claude-guard-hook.test.ts`.
 

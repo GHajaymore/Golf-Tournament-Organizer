@@ -42,3 +42,14 @@ and the audit config are fine.
 **i. Commit with explicit paths; never stash, reset or push to `main`** (`CLAUDE.md` hard rules 3–6).
 *Why:* the tree is shared and `main` deploys to production. *Enforced:* the guard refuses `git add -A`/`.`,
 any `git stash`, a database reset and a push to `main`.
+
+**j. Only the main session merges or pushes a round.** No `gh pr merge`, no merge through the API, no push to
+`round/*`, no `merge.sh` or `chain.sh` from an agent or from any other session. Push your `claude/*` branch and hand back.
+*Why:* on 14 Nov a separate session merged a PR with every check green but no QA GO line (process ledger row 17).
+*Enforced:* the guard refuses them unless the calling session's id is the one in the untracked `.claude/main-session`
+of the main checkout (written by the main session when it starts), and always from inside a subagent.
+
+**k. No local absolute paths in the repository** — no `C:\Users\<you>`, `/c/Users/<you>` or profile `AppData`
+folders in a definition, doc, test or comment; write paths relative to the repository or as a placeholder.
+*Why:* the repository is public and a path names the Windows user (process ledger row 10). *Enforced:* the guard
+refuses such a commit, and `src/lib/__tests__/no-local-paths-in-the-repository.test.ts` sweeps every tracked file.
