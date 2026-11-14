@@ -37,7 +37,8 @@ import type { Role } from "./roles";
  * shown (`mergesShown`; nothing is, without `?stepper=1&build=1` while every merge is building):
  *
  *   grouping   an entry beneath one place WITHOUT a merge sits beneath another WITH it — given once
- *              here, both ways, so a later PR never edits this file to move it (the design, §7.2):
+ *              here, both ways (the design, §7.2). Only these two are given yet; the money and
+ *              courses entries and the cup's new place are added by the PRs that build them:
  *              the Bracket under Leaderboard with the boards merge, the event's helpers named
  *              "Helpers" under Club settings with the staff merge
  *   doors      every entry's address goes through `relocate()`. An entry marked `stays` is

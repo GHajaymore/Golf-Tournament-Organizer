@@ -9,6 +9,8 @@ import { DEFAULT_SETTINGS, type TournamentSettings } from "../tournament-setting
 import type { Role } from "../roles";
 import { MERGE_KEYS, NO_MERGES, mergesShown, relocate, type MergeKey, type Move } from "../domain/console-merges";
 import { readSource } from "./source";
+import { frozenMenu, step2Cases, type FrozenMenus } from "./step2-menus";
+import FROZEN_STEP2 from "./step2-menus.json";
 
 /**
  * THE MENU THAT FOLLOWS THE LIFECYCLE (the console structure review, 9 Nov 2026; step 2).
@@ -296,26 +298,36 @@ describe("step 3's merges in the menu", () => {
    */
   const destinations = (menu: readonly NavSection[]) => [...new Set(everyEntry(menu).map((i) => path(i.href)))].sort();
 
-  it("switched off as shipped: the same menu, deep-equal, for every role, setting and shape", () => {
-    // As shipped, no merge shows for a preview without the engineer's query.
-    const asShipped = mergesShown("?stepper=1");
-    expect(asShipped.size).toBe(0);
+  it("switched off as shipped: MAIN's step 2 menu, deep-equal, for every role, setting, shape, family and stage", () => {
+    // The menus `main` drew before step 3, frozen in a committed file (`step2-menus.ts` says how):
+    // compared with the head, never with the head's own empty-set path, which shares its code.
+    const frozen = FROZEN_STEP2 as FrozenMenus;
+    const off: Array<[string, ReadonlySet<MergeKey> | undefined]> = [
+      ["no merges passed", undefined],
+      ["nothing shown", NO_MERGES],
+      ["?stepper=1", mergesShown("?stepper=1")],
+      ["?stepper=1&build=1 in production", mergesShown("?stepper=1&build=1", "production")],
+    ];
     let checked = 0;
-    for (const role of ROLES) {
-      for (const [, settings] of SETTINGS) {
-        for (const shape of SHAPES) {
-          const flat = navForRole(role, settings, shape);
-          const step2 = lifecycleNav(flat, medal);
-          expect(lifecycleNav(flat, medal, { merges: asShipped, role })).toEqual(step2);
-          expect(lifecycleNav(flat, medal, { merges: NO_MERGES, role })).toEqual(step2);
-          checked++;
-        }
+    for (const c of step2Cases()) {
+      const was = frozenMenu(frozen, c.key);
+      expect(was, `${c.key} is not in the frozen file`).toBeDefined();
+      for (const [how, merges] of off) {
+        const now = merges ? lifecycleNav(c.flat, c.track, { roundName: c.roundName, merges, role: c.role }) : lifecycleNav(c.flat, c.track, { roundName: c.roundName });
+        expect(now, `${c.key}, ${how}`).toEqual(was);
+        checked++;
       }
     }
-    expect(checked).toBe(ROLES.length * SETTINGS.length * 32);
-    // CONTROL: the comparison sees a menu the merges DO change (a knockout's bracket moves).
-    const ko = navForRole("admin", undefined, { hasKnockout: true });
-    expect(merged("admin", ko)).not.toEqual(lifecycleNav(ko, medal));
+    expect(checked).toBe(Object.keys(frozen.cases).length * off.length);
+    expect(Object.keys(frozen.cases)).toHaveLength(3 * 4 * 64 + 8 * 4);
+    // CONTROL: the comparison sees a menu the merges DO change (a knockout's bracket moves)…
+    const ko = step2Cases().find((c) => c.key === "admin|no settings|2")!;
+    expect(ko.flat.flatMap((s) => s.items).some((i) => i.key === "bracket")).toBe(true);
+    expect(lifecycleNav(ko.flat, ko.track, { roundName: ko.roundName, merges: ALL_MERGES, role: "admin" })).not.toEqual(frozenMenu(frozen, ko.key));
+    // …and a frozen menu a label has drifted from (the file is read, not trusted to be empty).
+    const drifted = JSON.parse(JSON.stringify(frozenMenu(frozen, ko.key))) as NavSection[];
+    drifted[0].items[0].label = "zz-drifted";
+    expect(lifecycleNav(ko.flat, ko.track, { roundName: ko.roundName })).not.toEqual(drifted);
   });
 
   it("with every merge shown, every destination is still one press away, and nothing withheld is offered", () => {
