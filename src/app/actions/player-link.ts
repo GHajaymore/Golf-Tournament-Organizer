@@ -10,6 +10,7 @@ import { ensurePass, mutePass, passForCode, passStatusFor, recordOpen, revokePas
 import { choosePlayerViewCookie, clearGuestCookie, getGuestSession, setGuestCookie } from "@/lib/guest-auth";
 import { deviceValueHere } from "@/lib/services/known-device";
 import { logAudit } from "@/lib/services/action-shared";
+import { forgetPassHere } from "@/lib/services/push";
 
 /**
  * THE GUEST'S PLAYER LINK, PRESSED (J39/J40 PR 1; design §2, §4.1).
@@ -98,9 +99,16 @@ export async function openPlayerLink(code: unknown): Promise<Opened> {
   return { ok: true };
 }
 
-/** "Forget me on this phone": clears the link from THIS browser only. Revokes nothing. */
-export async function forgetThisPhone(): Promise<{ ok: true }> {
+/**
+ * "Forget me on this phone": clears the link from THIS browser only. Revokes
+ * nothing. And this phone stops getting the guest's notices (review of #1133,
+ * SEC-1): the held pass's push row for this browser's endpoint goes first, as
+ * Forget changes no version and the sender would otherwise go on reaching a
+ * borrowed phone. The endpoint is the browser's own, sent by the button.
+ */
+export async function forgetThisPhone(endpoint?: unknown): Promise<{ ok: true }> {
   const held = await getGuestSession();
+  if (held) await forgetPassHere(held.passId, endpoint);
   await clearGuestCookie();
   if (held) revalidatePath("/me", "layout");
   return { ok: true };

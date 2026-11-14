@@ -303,6 +303,11 @@ export default defineConfig({
       // NO MAIL LEAVES FROM A TEST SERVER: an empty key beats any in .env, so the sender answers "not configured"
       // (the owner-console spec presses Send on the early list and expects exactly that).
       RESEND_API_KEY: "",
+      // A public key that lets the tee-time alerts card go as far as the server: the card is drawn
+      // either way, and a press asks the server for this key first (e2e/a-guest-in-messages.spec.ts
+      // presses Turn on as a guest). Public by design, and only the public half: with no private key
+      // nothing is ever sent. The same key #1129 gives its member spec.
+      VAPID_PUBLIC_KEY: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",
     },
   },
 });

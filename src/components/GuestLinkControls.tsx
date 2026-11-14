@@ -11,7 +11,21 @@ import { choosePlayerView, forgetThisPhone } from "@/app/actions/player-link";
  * no account to leave. It clears the link from THIS browser and revokes
  * nothing — the slip in their pocket still opens it. Confirmed first, as Sign
  * out is, because a tap by feel on a phone passed round a fourball is easy.
+ * It also stops the guest's notices on THIS phone (review of #1133, SEC-1).
  */
+
+/** This browser's push endpoint, or "" where there is none (no service worker, no subscription). */
+async function thisBrowsersPushEndpoint(): Promise<string> {
+  try {
+    if (!("serviceWorker" in navigator)) return "";
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager?.getSubscription();
+    return sub?.endpoint ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function GuestForget() {
   const [asking, setAsking] = useState(false);
   const [pending, start] = useTransition();
@@ -31,7 +45,8 @@ export function GuestForget() {
         disabled={pending}
         onClick={() =>
           start(async () => {
-            await forgetThisPhone();
+            // This browser's push endpoint, so the guest's notices stop on this phone too (SEC-1).
+            await forgetThisPhone(await thisBrowsersPushEndpoint());
             window.location.assign("/p");
           })
         }

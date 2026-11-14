@@ -146,6 +146,9 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
   (`desk:<playerId>`), and starts no direct thread (D7: `startDirectThread` is account-only). Every messaging
   action asks `messagingContextFor(target)`, which picks the link only for the target's own event, by PR 1's
   precedence. Its notices go by push only, to `PlayerPassPush` rows bound to the pass's VERSION: New link,
-  Turn off, withdrawal and expiry stop them at once (`sendPushTo` asks `livePass`). The organizer can Mute a
+  Turn off, withdrawal and expiry stop them at once (`sendPushTo` asks `livePass`). **Forget me on this phone**
+  changes no version, so it deletes the held pass's row for this browser's endpoint itself (`forgetPassHere`;
+  #1133 review SEC-1). The player's **Turn off** is about the PHONE: it deletes every row on its endpoint,
+  any identity's (`silenceEndpoint`; SEC-2), and unsubscribes the browser. The organizer can Mute a
   guest in messages (the link stays live). The installed app starts at `/start`: an account goes home, a
   live link to Today, anybody else to `/p` with "Have an account? Sign in".

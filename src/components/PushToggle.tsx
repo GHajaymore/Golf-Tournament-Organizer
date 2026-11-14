@@ -105,9 +105,17 @@ export function PushToggle() {
     try {
       const reg = await navigator.serviceWorker.getRegistration();
       const sub = await reg?.pushManager.getSubscription();
-      // Only this person's row goes. The browser's own subscription is left alone: the same browser may
-      // hold an account and a guest link, and the other one's notices must not stop with this press.
-      if (sub) await removePushSubscription(sub.endpoint);
+      // THIS PHONE stops (review of #1133, SEC-2): the server removes every row on this endpoint,
+      // whoever's — a previous person's left on a handed-on phone included — and then the browser's own
+      // subscription goes too, as before J39/J40 PR 2, since nothing holds it any more.
+      if (sub) {
+        const res = await removePushSubscription(sub.endpoint);
+        if (!res.ok) {
+          setError(res.error ?? "Couldn't turn off alerts.");
+          return;
+        }
+        await sub.unsubscribe().catch(() => false);
+      }
       setState("off");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't turn off alerts.");

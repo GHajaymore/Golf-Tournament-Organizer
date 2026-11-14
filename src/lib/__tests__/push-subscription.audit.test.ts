@@ -8,9 +8,12 @@ import { PrismaClient } from "@prisma/client";
  * The endpoint is a device's own URL, and the whole point of the table is to
  * reach a member on every device they turned alerts on. So the two things that
  * matter are: a save stamps the row with the CALLER's email (lowercased, the
- * identity a send looks up by), and a remove is SCOPED to the caller — a leaked
- * endpoint must not let one member silence another's phone. Against real rows,
- * because both are decisions made from a session and a column together.
+ * identity a send looks up by), and a remove is about the PHONE (#1133 review,
+ * SEC-2): Turn off clears every row on that endpoint, a previous holder's
+ * included, and no other endpoint. (A remove scoped to the caller never stopped
+ * somebody who held the endpoint anyway: a save by endpoint takes the row over.)
+ * Against real rows, because both are decisions made from a session and a
+ * column together.
  *
  *   npx vitest run --config vitest.audit.config.ts
  */
@@ -28,6 +31,7 @@ vi.mock("@/lib/auth", async (importOriginal) => ({ ...(await importOriginal<type
 const { savePushSubscription, removePushSubscription } = await import("@/app/actions/push");
 
 const E1 = `https://push.example.invalid/${TAG}-e1`;
+const E2 = `https://push.example.invalid/${TAG}-e2`;
 const ANN = `${TAG}.Ann@Example.Invalid`; // mixed case on purpose
 const BEA = `${TAG}.bea@example.invalid`;
 
@@ -71,20 +75,16 @@ describe("a member's push subscription", () => {
     expect(await rowFor(E1)).toBeNull();
   });
 
-  it("lets another member's remove do NOTHING to it", async () => {
+  it("Turn off silences THIS PHONE: the previous holder's row on its endpoint goes too (#1133 review, SEC-2)", async () => {
+    // Ann turned alerts on and handed the phone on without turning them off; Bea now uses it.
     session = sess(ANN);
     await savePushSubscription({ endpoint: E1, keys: { p256dh: "key1", auth: "auth1" } });
-
-    // Bea, a different member, tries to remove Ann's device by its endpoint.
+    await savePushSubscription({ endpoint: E2, keys: { p256dh: "key1", auth: "auth1" } });
     session = sess(BEA);
-    const res = await removePushSubscription(E1);
-    expect(res.ok).toBe(true); // it succeeds, but scoped to Bea — so it matches nothing
-    expect(await rowFor(E1)).not.toBeNull();
-
-    // Ann removes her own, and it goes.
-    session = sess(ANN);
-    await removePushSubscription(E1);
-    expect(await rowFor(E1)).toBeNull();
+    expect((await removePushSubscription(E1)).ok).toBe(true);
+    expect(await rowFor(E1), "a handed-on phone kept buzzing with the previous holder's notices").toBeNull();
+    // Only that endpoint: Ann's other phone is untouched.
+    expect(await rowFor(E2)).not.toBeNull();
   });
 
   it("refuses save and remove when nobody is signed in", async () => {

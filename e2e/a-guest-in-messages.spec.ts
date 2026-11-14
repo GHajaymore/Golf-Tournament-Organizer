@@ -9,19 +9,21 @@ import { watchPageErrors } from "./page-errors";
  * with no account, writes in their round's thread and presses Message the organizer; the
  * organizer reads both in the console (the round post marked "Guest"), answers the desk, and
  * mutes the guest from the Player link panel; the guest's next round post is refused in words
- * while the desk stays open. Then the guest's notices: the toggle asks the SERVER whether this
- * browser is on for this guest (`pushIsOnHere`), and Turn off removes only the guest's own row.
+ * while the desk stays open. Then the guest's notices, pressed by the guest: Turn on files a row on
+ * the PASS at its current version (never an account's); the toggle asks the SERVER whether this
+ * browser is on for this guest (`pushIsOnHere`); Turn off stops this phone; and "Forget me on this
+ * phone" stops its notices too while the link stays live (#1133 review, SEC-1).
  * Read back from the database at each step.
  *
  * Actions pressed: sendMessage, readThread, markThreadRead (as the guest and the organizer),
- * muteGuestInMessages (organizer), pushIsOnHere and removePushSubscription (guest), and PR 1's
- * showPlayerLink and openPlayerLink to get there.
+ * muteGuestInMessages (organizer), getVapidPublicKey, savePushSubscription, pushIsOnHere,
+ * removePushSubscription and forgetThisPhone (guest), and PR 1's showPlayerLink and openPlayerLink
+ * to get there.
  *
  * Push in a headless browser: the browser's push machinery is stubbed in the page
- * (`addInitScript`); nothing in the app is. The server holds no VAPID key in CI, so a fresh
- * subscribe (`savePushSubscription`) is not reached here; it is proved against real rows in
- * `a-guest-push-dies-with-its-link.audit.test.ts`. The guest's notice row is made in the fixture,
- * at the pass's current version, so the toggle has something true to report.
+ * (`addInitScript`); nothing in the app is. The test server holds only the PUBLIC VAPID key
+ * (playwright.config.ts), so Turn on goes all the way to `savePushSubscription` and nothing is ever
+ * sent; the send side is proved against real rows in `a-guest-push-dies-with-its-link.audit.test.ts`.
  *
  * Fixture facts are read from the fixture. Service workers are blocked in every context. Memory:
  * two browser contexts at most, one page each, about 400 MB.
@@ -90,7 +92,7 @@ test.describe("a guest in messages and notices", () => {
     }
   });
 
-  test("the guest writes to the round and the organizer, is marked Guest, is muted, and keeps their own notices", async ({ browser, baseURL }, testInfo) => {
+  test("the guest writes to the round and the organizer, is marked Guest, is muted, and turns their own notices on, off and forgotten", async ({ browser, baseURL }, testInfo) => {
     test.setTimeout(240_000);
     const errors: string[] = [];
 
@@ -161,16 +163,42 @@ test.describe("a guest in messages and notices", () => {
       await expect(g.getByText("Your organizer has turned off your posts here.", { exact: false })).toBeVisible({ timeout: 20_000 });
       expect(await prisma.message.count({ where: { body: "zz One more thing for everyone" } })).toBe(0);
 
-      // 7. Notices: the server says whether THIS browser is on for THIS guest.
+      // 7. Notices, pressed by the GUEST: Turn on files the row on the PASS, at its current version,
+      //    and never an account's (#1133 review: the turn-on step).
       const pass = await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guestId } });
-      await prisma.playerPassPush.create({ data: { passId: pass.id, passVersion: pass.version, endpoint: ENDPOINT, p256dh: "zz-p256dh", auth: "zz-auth" } });
-      await g.goto(`/me?bust=${Date.now()}`);
-      await g.waitForLoadState("networkidle").catch(() => {});
-      // Today keeps the toggle behind its "more" extender when there is more to show: open it.
-      for (const s of await g.locator("details:not([open]) > summary").all()) await s.click().catch(() => {});
+      const today = async () => {
+        await g.goto(`/me?bust=${Date.now()}`);
+        await g.waitForLoadState("networkidle").catch(() => {});
+        // Today keeps the toggle behind its "more" extender when there is more to show: open it.
+        for (const s of await g.locator("details:not([open]) > summary").all()) await s.click().catch(() => {});
+      };
+      const guestRows = () => prisma.playerPassPush.count({ where: { passId: pass.id, endpoint: ENDPOINT, passVersion: pass.version } });
+      await today();
+      await g.getByRole("button", { name: "Turn on", exact: true }).click();
       await expect(g.getByText("Tee-time alerts are on.")).toBeVisible({ timeout: 20_000 });
+      await expect.poll(guestRows, { timeout: 20_000 }).toBe(1);
+      expect(await prisma.pushSubscription.count({ where: { endpoint: ENDPOINT } }), "a guest's Turn on filed an account's row").toBe(0);
+      // A reload asks the SERVER (`pushIsOnHere`), and it says on.
+      await today();
+      await expect(g.getByText("Tee-time alerts are on.")).toBeVisible({ timeout: 20_000 });
+
+      // 8. Turn off: this phone stops (the row goes).
       await g.getByRole("button", { name: "Turn off", exact: true }).click();
-      await expect.poll(async () => prisma.playerPassPush.count({ where: { passId: pass.id } }), { timeout: 20_000 }).toBe(0);
+      await expect.poll(async () => prisma.playerPassPush.count({ where: { endpoint: ENDPOINT } }), { timeout: 20_000 }).toBe(0);
+
+      // 9. On again, then "Forget me on this phone": the link leaves the phone AND its notices stop
+      //    there (#1133 review, SEC-1), although the link itself is still live at the same version.
+      await today();
+      await g.getByRole("button", { name: "Turn on", exact: true }).click();
+      await expect.poll(guestRows, { timeout: 20_000 }).toBe(1);
+      await g.getByRole("button", { name: "Forget me on this phone" }).click();
+      await g.getByRole("button", { name: "Forget", exact: true }).click();
+      await g.waitForURL(/\/p(\?|#|$)/, { timeout: 30_000 });
+      await expect
+        .poll(async () => prisma.playerPassPush.count({ where: { endpoint: ENDPOINT } }), { timeout: 20_000, message: "a forgotten phone kept the guest's notices" })
+        .toBe(0);
+      const still = await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guestId } });
+      expect([still.version, still.revokedAt], "Forget revokes nothing").toEqual([pass.version, null]);
     } finally {
       await phone.close();
       await desk.close();

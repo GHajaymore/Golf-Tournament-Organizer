@@ -168,6 +168,9 @@ async function serve(mode) {
     DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
     // No mail leaves a test server (the owner-console spec presses Send on the early list).
     RESEND_API_KEY: "",
+    // As playwright.config.ts gives its server: the tee-time alerts card can reach the server's
+    // public key (the public half only; nothing is sent).
+    VAPID_PUBLIC_KEY: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
   };
   delete env.E2E_TZ;

@@ -1,6 +1,7 @@
 "use server";
 import { prisma } from "@/lib/db";
 import { getPlayerViewer, type PlayerViewer } from "@/lib/player-viewer";
+import { pushEndpoint, silenceEndpoint } from "@/lib/services/push";
 
 /**
  * Opting a device in and out of web-push.
@@ -21,16 +22,12 @@ import { getPlayerViewer, type PlayerViewer } from "@/lib/player-viewer";
  * Every export here is a public HTTP endpoint. The rule is the same one the
  * whole app runs on: a caller may only act on their OWN record. Saving stamps
  * the row with the caller's own identity, taken from the viewer and never from
- * an argument; removing and asking are scoped to it, so nobody can unsubscribe
- * or probe somebody else's phone.
+ * an argument; asking is scoped to it, so nobody can probe somebody else's
+ * phone. Turning off is about the PHONE, not the person (review of #1133,
+ * SEC-2): it silences every row on the endpoint the caller's own browser holds.
  */
 
 /* The boundary checks and the owner, above every action so no action's text carries them. */
-/** An endpoint as a push service issues it: https, and bounded. Anything else is not one. */
-function cleanEndpoint(value: unknown): string {
-  const v = typeof value === "string" ? value.trim() : "";
-  return v.length > 0 && v.length <= 1024 && v.startsWith("https://") ? v : "";
-}
 const cleanKey = (value: unknown): string => {
   const v = typeof value === "string" ? value.trim() : "";
   return v.length > 0 && v.length <= 256 ? v : "";
@@ -69,7 +66,7 @@ export async function savePushSubscription(sub: {
   const owner = await pushOwnerNow();
   if (!owner) return { ok: false, error: "Not signed in." };
 
-  const endpoint = cleanEndpoint(sub?.endpoint);
+  const endpoint = pushEndpoint(sub?.endpoint);
   const p256dh = cleanKey(sub?.keys?.p256dh);
   const auth = cleanKey(sub?.keys?.auth);
   if (!endpoint || !p256dh || !auth) return { ok: false, error: "That isn't a push subscription." };
@@ -94,23 +91,24 @@ export async function savePushSubscription(sub: {
 }
 
 /**
- * Forget this device's subscription.
+ * "Turn off": THIS PHONE stops getting notices (review of #1133, SEC-2).
  *
- * Scoped to the caller's own identity as well as the endpoint, so a leaked
- * endpoint cannot be used to silence another person's phone — a foreign
- * endpoint simply matches no row of theirs. A guest removes only their own
- * pass's row; an account only its own.
+ * Every row on this browser's endpoint goes, whoever it belongs to: the
+ * caller's own, and a previous person's left behind on a phone that was handed
+ * on (sign-out never removed an account's row, and the toggle shows only the
+ * caller's own, so that row was otherwise one nobody on the phone could reach).
+ * The client then unsubscribes the browser, as before J39/J40 PR 2. A browser
+ * holding an account AND a guest link is one phone: Turn off on either stops
+ * both, and either can Turn on again for itself.
+ *
+ * Why this cannot be pointed at somebody else's phone: the endpoint is the push
+ * service's unguessable URL for one browser, the server never hands one out,
+ * and a caller must still be somebody the player screen is for.
  */
 export async function removePushSubscription(endpoint: string): Promise<PushActionResult> {
   const owner = await pushOwnerNow();
   if (!owner) return { ok: false, error: "Not signed in." };
-  const at = cleanEndpoint(endpoint);
-  if (!at) return { ok: true };
-  if (owner.guest) {
-    await prisma.playerPassPush.deleteMany({ where: { passId: owner.guest.passId, endpoint: at } });
-    return { ok: true };
-  }
-  await prisma.pushSubscription.deleteMany({ where: { endpoint: at, email: owner.email.trim().toLowerCase() } });
+  await silenceEndpoint(pushEndpoint(endpoint));
   return { ok: true };
 }
 
@@ -123,7 +121,7 @@ export async function removePushSubscription(endpoint: string): Promise<PushActi
  */
 export async function pushIsOnHere(endpoint: string): Promise<boolean> {
   const owner = await pushOwnerNow();
-  const at = cleanEndpoint(endpoint);
+  const at = pushEndpoint(endpoint);
   if (!owner || !at) return false;
   if (owner.guest) {
     const row = await prisma.playerPassPush.findFirst({

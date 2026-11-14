@@ -667,7 +667,7 @@ async function openDirectThread(
   // endpoint. Staff are not exempt: an organizer who needs to reach this
   // person has the tournament and flight threads, which the opt-out
   // deliberately does not touch.
-  const optedOut = await directMessagesOff(ctx, wanted);
+  const optedOut = [...(await directMessagesOff(ctx, wanted)).values()];
   if (optedOut.length > 0) {
     return {
       ok: false,
@@ -733,26 +733,32 @@ async function openDirectThread(
  * two records an identity owns (J39/J40 PR 2): an account's switch lives on its
  * club roster row (`Member.messagesOptOut`, by email), a guest's on their pass
  * (`PlayerPass.messagesOptOut`), because a guest's roster row, where there is
- * one, has no email to be found by. Names, for the refusal.
+ * one, has no email to be found by. Each key that is off, with its owner's name
+ * for the refusal. The endpoint (`openDirectThread`) and the picker
+ * (`messageableField`) both ask THIS, so the picker can never list somebody the
+ * endpoint refuses, or hide somebody it allows (the 2026-10-11 class).
  */
-async function directMessagesOff(ctx: MembershipContext, keys: string[]): Promise<string[]> {
-  const emails = keys.filter((k) => !isGuestKey(k));
-  const guestIds = keys.map(playerOfGuestKey).filter((id): id is string => !!id);
+async function directMessagesOff(ctx: MembershipContext, keys: string[]): Promise<Map<string, string>> {
+  const emails = [...new Set(keys.filter((k) => !isGuestKey(k)).map((k) => k.trim().toLowerCase()).filter(Boolean))];
+  const guestIds = [...new Set(keys.map(playerOfGuestKey).filter((id): id is string => !!id))];
   const [members, passes] = await Promise.all([
     emails.length
       ? prisma.member.findMany({
           where: { organizationId: ctx.organizationId, email: { in: emails, mode: "insensitive" }, messagesOptOut: true },
-          select: { name: true },
+          select: { email: true, name: true },
         })
       : [],
     guestIds.length
       ? prisma.playerPass.findMany({
           where: { playerId: { in: guestIds }, eventId: ctx.eventId, messagesOptOut: true },
-          select: { player: { select: { name: true } } },
+          select: { playerId: true, player: { select: { name: true } } },
         })
       : [],
   ]);
-  return [...members.map((m) => m.name), ...passes.map((p) => p.player.name)];
+  const off = new Map<string, string>();
+  for (const m of members) off.set(m.email.trim().toLowerCase(), m.name);
+  for (const p of passes) off.set(guestWhoKey(p.playerId), p.player.name);
+  return off;
 }
 
 
@@ -813,14 +819,8 @@ export async function messageableField(
     orderBy: { name: "asc" },
   });
   const keyed = field.map((p) => ({ p, keys: whoKeysForEntry(p) })).filter((r) => r.keys.length > 0 && !r.keys.includes(ctx.whoKey));
-  const [optedOut, guestsOff] = await Promise.all([
-    prisma.member.findMany({ where: { organizationId: ctx.organizationId, messagesOptOut: true }, select: { email: true } }),
-    prisma.playerPass.findMany({ where: { eventId: ctx.eventId, messagesOptOut: true }, select: { playerId: true } }),
-  ]);
-  const off = new Set([
-    ...optedOut.map((m) => m.email.trim().toLowerCase()).filter(Boolean),
-    ...guestsOff.map((g) => guestWhoKey(g.playerId)),
-  ]);
+  // The same reader the endpoint refuses by (PE-2): one rule for "direct messages off".
+  const off = await directMessagesOff(ctx, keyed.flatMap((r) => r.keys));
   // The keys decide who is listed and then STAY HERE: what goes to the
   // browser is a name and the person's entry in this tournament. This list
   // carried `email`, and the picker used it as its value — so every player

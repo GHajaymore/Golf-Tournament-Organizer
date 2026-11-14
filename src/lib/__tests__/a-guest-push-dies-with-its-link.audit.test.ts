@@ -17,7 +17,12 @@ import { PrismaClient } from "@prisma/client";
  *       same. The new phone turns notices on at the new version and is reached.
  *   A11 one browser, two identities: the account's `PushSubscription` and the
  *       guest's `PlayerPassPush` on the SAME endpoint both survive, and
- *       `pushIsOnHere` answers per viewer; removing is the caller's own row only.
+ *       `pushIsOnHere` answers per viewer.
+ *   SEC-1 (#1133 review) "Forget me on this phone" changes no version, so it
+ *       deletes the held pass's row for this endpoint itself; nobody else's.
+ *   SEC-2 (#1133 review) Turn off is about the PHONE: every identity's row on
+ *       the endpoint goes (a handed-on phone's previous holder's included), and
+ *       no other endpoint's.
  *   A12 `noticesOffAmong` counts exactly the entries the sender would skip.
  *
  * Fixtures: `zz-guest-push`, invented names, `@example.invalid`, deleted in `finally`.
@@ -53,8 +58,9 @@ process.env.VAPID_PRIVATE_KEY = "zz-private";
 
 import { createSession } from "@/lib/auth";
 import { ensurePass, rotatePass, revokePass } from "@/lib/services/player-link";
-import { setGuestCookie } from "@/lib/guest-auth";
+import { getGuestSession, setGuestCookie } from "@/lib/guest-auth";
 import { savePushSubscription, removePushSubscription, pushIsOnHere } from "@/app/actions/push";
+import { forgetThisPhone } from "@/app/actions/player-link";
 import { sendPushTo, noticesOffAmong } from "@/lib/services/push";
 import { guestWhoKey } from "@/lib/domain/messaging";
 
@@ -184,7 +190,7 @@ describe("a guest's notices die with their link", () => {
     await rotatePass(eventId, guest, "Corin Abernethy");
   });
 
-  it("A11: one browser, two identities — both rows survive on one endpoint, each viewer sees its own, each removes only its own", async () => {
+  it("A11: one browser, two identities — both rows survive on one endpoint, and each viewer sees only its own", async () => {
     expect(await createSession(memberUser)).toBe(true);
     expect((await savePushSubscription({ endpoint: SHARED, keys: KEYS })).ok).toBe(true);
     jar.clear();
@@ -193,12 +199,57 @@ describe("a guest's notices die with their link", () => {
     expect((await savePushSubscription({ endpoint: SHARED, keys: KEYS })).ok).toBe(true);
     expect(await prisma.pushSubscription.count({ where: { endpoint: SHARED, email: MEMBER } }), "the guest's subscribe overwrote the account's").toBe(1);
     expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED } })).toBe(1);
-    expect((await removePushSubscription(SHARED)).ok).toBe(true);
-    expect(await prisma.pushSubscription.count({ where: { endpoint: SHARED } }), "the guest removed the account's row").toBe(1);
-    expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED } })).toBe(0);
+    expect(await pushIsOnHere(SHARED)).toBe(true);
     jar.clear();
     expect(await createSession(memberUser)).toBe(true);
     expect(await pushIsOnHere(SHARED)).toBe(true);
+  });
+
+  it("SEC-1 (#1133 review): Forget me on this phone removes the held pass's row for THIS endpoint, and only it", async () => {
+    // The phone from A11 holds the account's row and the guest's. A second guest's link was also
+    // turned on in it, and the guest's own other phone is on too.
+    jar.clear();
+    await holdLink(quietGuest);
+    expect((await savePushSubscription({ endpoint: SHARED, keys: KEYS })).ok).toBe(true);
+    jar.clear();
+    await holdLink(guest);
+    expect((await savePushSubscription({ endpoint: PHONE_B, keys: KEYS })).ok).toBe(true);
+    const version = (await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guest } })).version;
+
+    expect(await forgetThisPhone(SHARED)).toEqual({ ok: true });
+    expect(await getGuestSession(), "the link is still held here").toBeNull();
+    expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED, pass: { playerId: guest } } }), "a forgotten phone kept the guest's notices").toBe(0);
+    // Only this pass, only this endpoint: the other guest's row, the account's, and the guest's other phone stay.
+    expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED, pass: { playerId: quietGuest } } })).toBe(1);
+    expect(await prisma.pushSubscription.count({ where: { endpoint: SHARED, email: MEMBER } })).toBe(1);
+    expect(await prisma.playerPassPush.count({ where: { endpoint: PHONE_B, pass: { playerId: guest } } })).toBe(1);
+    // Forget revokes nothing, so the version is unchanged and the sender would still pass `livePass`:
+    // the row going is what stops the send.
+    expect((await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guest } })).version).toBe(version);
+    await push([guestWhoKey(guest)]);
+    expect(endpointsSent(), "the forgotten phone was still reached").toEqual([PHONE_B]);
+    // A crafted endpoint is no endpoint: nothing else goes.
+    await holdLink(quietGuest);
+    expect(await forgetThisPhone("not-a-url")).toEqual({ ok: true });
+    expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED, pass: { playerId: quietGuest } } })).toBe(1);
+  });
+
+  it("SEC-2 (#1133 review): Turn off silences THIS PHONE — every identity's row on its endpoint, and no other endpoint", async () => {
+    // The phone holds the account's row and the second guest's; the second guest presses Turn off.
+    jar.clear();
+    await holdLink(quietGuest);
+    expect((await savePushSubscription({ endpoint: SHARED, keys: KEYS })).ok).toBe(true);
+    expect((await removePushSubscription(SHARED)).ok).toBe(true);
+    expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED } })).toBe(0);
+    expect(await prisma.pushSubscription.count({ where: { endpoint: SHARED } }), "a row nobody on this phone can see kept it buzzing").toBe(0);
+    expect(await prisma.playerPassPush.count({ where: { endpoint: PHONE_B } }), "another phone was silenced").toBe(1);
+    // Refused without a viewer: nobody can silence a phone from outside.
+    jar.clear();
+    expect((await removePushSubscription(PHONE_B)).ok).toBe(false);
+    expect(await prisma.playerPassPush.count({ where: { endpoint: PHONE_B } })).toBe(1);
+    // The account turns its alerts on again in that browser, for A12.
+    expect(await createSession(memberUser)).toBe(true);
+    expect((await savePushSubscription({ endpoint: SHARED, keys: KEYS })).ok).toBe(true);
   });
 
   it("A11: a push payload is a code-free notice that opens Today", async () => {

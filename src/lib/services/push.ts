@@ -61,6 +61,46 @@ export interface PushPayload {
 }
 
 /**
+ * An endpoint as a push service issues it: https, and bounded. Anything else is
+ * not one, and is read as "" (the boundary check every door that takes one asks).
+ */
+export function pushEndpoint(value: unknown): string {
+  const v = typeof value === "string" ? value.trim() : "";
+  return v.length > 0 && v.length <= 1024 && v.startsWith("https://") ? v : "";
+}
+
+/**
+ * THIS PHONE STOPS (review of #1133, SEC-2): every row that sends to this
+ * endpoint, whoever's it is — an account's `PushSubscription`, any pass's
+ * `PlayerPassPush`. "Turn off" is a press on a phone, and a phone handed on
+ * holds a previous person's row nobody on it can see; before J39/J40 PR 2 the
+ * browser's unsubscribe ended those, and this is that, said to the server.
+ * An endpoint is the push service's unguessable URL for one browser and the
+ * server never hands one out, so knowing it is holding that browser.
+ */
+export async function silenceEndpoint(endpoint: string): Promise<void> {
+  const at = pushEndpoint(endpoint);
+  if (!at) return;
+  await prisma.$transaction([
+    prisma.pushSubscription.deleteMany({ where: { endpoint: at } }),
+    prisma.playerPassPush.deleteMany({ where: { endpoint: at } }),
+  ]);
+}
+
+/**
+ * A GUEST'S LINK FORGOTTEN ON THIS PHONE (review of #1133, SEC-1): the held
+ * pass's row for this endpoint, and only it. Forget changes no version, so
+ * without this the sender's `livePass` check would go on passing and a
+ * borrowed phone would keep getting the guest's tee times. Another identity's
+ * row on the same browser (a signed-in account) is theirs and is left.
+ */
+export async function forgetPassHere(passId: string, endpoint: unknown): Promise<void> {
+  const at = pushEndpoint(endpoint);
+  if (!passId || !at) return;
+  await prisma.playerPassPush.deleteMany({ where: { passId, endpoint: at } });
+}
+
+/**
  * WHERE A NOTICE CAN GO, FOR THESE WHO-KEYS — the one routing the sender and
  * the notices-off count share (J39/J40 PR 2, design §3), so the organizer's
  * "N players have notices off" can never claim somebody is reachable whom the
