@@ -377,7 +377,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
 
   const rows: ClubEventRow[] = events
     // A tournament still being set up is on the list when members may see it —
-    // `openToMembers`, the one rule (the link, or a legacy registration/ready row).
+    // `openToMembers`, the one rule (the link, or a row A045 moved, `legacyStatus`).
     // It was `status !== "draft"`, a button ("Start taking entries") that no
     // longer exists: the three pre-launch statuses read as one (G1, 2026-10-31).
     .filter((event) => openToMembers(event) || hasResults.has(event.id))

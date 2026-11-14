@@ -46,7 +46,7 @@ async function makeEvent(name: string, scoreApproval: string, shape = "series") 
       organizationId: org.id,
       shape,
       format: "match",
-      status: "active",
+      status: "live",
       scoreApproval,
       dates: "",
       course: "",

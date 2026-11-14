@@ -48,7 +48,7 @@ async function makeClub(label: string): Promise<Club> {
       address: "",
       regDeadline: "",
       capacity: 0,
-      status: "active",
+      status: "live",
       shape: "series",
       formationRule: "balanced",
       shareToken: `audit-authz-${label}-${Date.now()}-${Math.random()}`,

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { seedDoorsClub, removeDoorsClub, groupLink } from "./doors-fixture";
 
 /**
  * THE COMMITTEE STOPS PLAY, AND EVERYBODY IS TOLD (Rule 5.7).
@@ -135,5 +136,56 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
     expect(errors, "a screen threw while play was suspended or resumed").toEqual([]);
   } finally {
     await Promise.all([organizer, member, latecomer, family].map((c) => c.close()));
+  }
+});
+
+/**
+ * AND THE PHONE WITH A ROUND CODE (2026-11-14, safety sweep G-1).
+ *
+ * `/play` is the phone a group's scorer keeps the whole group's card on, and
+ * the door a player with no email is sent to. It drew no banner and its open
+ * screen was never told: a group could play on through lightning. Its own
+ * club (`doors-fixture.ts`, a cup session on a round code), so the suspension
+ * here touches nobody else's screen; the press itself is the test above, so
+ * here the committee's row is written directly and what is checked is that
+ * the phone FINDS OUT — without being reloaded — and is told when it is over.
+ */
+test("a round-code phone on /play is told play is suspended without a reload, and told when it resumes", async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
+  const club = await seedDoorsClub(prisma, "zz-suspend-code", { visibility: "participants", rounds: 1 });
+  const errors: string[] = [];
+  const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const stop = (on: boolean) =>
+    prisma.event.update({ where: { id: club.event }, data: on ? { playSuspendedAt: new Date(), playSuspendedNote: REASON } : { playSuspendedAt: null, playSuspendedNote: "" } });
+  try {
+    const page = await ctx.newPage();
+    watchPageErrors(page, errors, "a round-code phone");
+    const banner = page.getByRole("alert").filter({ hasText: "Play is suspended" });
+    const r = club.rounds[0];
+    await page.goto(groupLink(r.code, r.match));
+    await page.getByRole("button", { name: "Yes, that's my group" }).click({ timeout: 30_000 });
+    const card = page.getByRole("group", { name: /^Who won hole/ }).first();
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await expect(banner, "CONTROL: /play says play is suspended before anybody suspended it").toHaveCount(0);
+
+    // ── the committee stops play; the open card is not touched ─────────────
+    await stop(true);
+    await expect(banner, "an open /play screen never noticed that play was suspended").toBeVisible({ timeout: 45_000 });
+    await expect(banner).toContainText(`${REASON}. Stop now and don't play another shot until the`);
+    await expect(card, "the card went away when the banner came").toBeVisible();
+
+    // ── the code holder's board says so too ────────────────────────────────
+    await page.goto(`/play/board?bust=${Date.now()}`);
+    await expect(banner, "/play/board does not tell a code holder that play is suspended").toBeVisible({ timeout: 30_000 });
+    await page.goto(`/play?bust=${Date.now()}`);
+    await expect(banner, "a round-code phone opened during the suspension is not told").toBeVisible({ timeout: 30_000 });
+
+    // ── and play resumes ───────────────────────────────────────────────────
+    await stop(false);
+    await expect(banner, "an open /play screen still says play is suspended after it was resumed").toHaveCount(0, { timeout: 45_000 });
+    expect(errors, errors.join("\n")).toEqual([]);
+  } finally {
+    await ctx.close();
+    await removeDoorsClub(prisma, club);
   }
 });
