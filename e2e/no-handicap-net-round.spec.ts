@@ -33,7 +33,7 @@ test.describe("no handicap index in a net round", () => {
     await dropClub(MARK);
     club = await makeClub(MARK, { timeZone: ZONE });
     const made = await makeEvent(club, "Autumn Medal", {
-      status: "registration",
+      status: "draft",
       stages: [
         { scoringBasis: "net", playedOn: addDays(dayIn(ZONE), 7) },
         { scoringBasis: "net", playedOn: addDays(dayIn(ZONE), 8) },

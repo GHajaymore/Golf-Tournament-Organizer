@@ -42,8 +42,6 @@ export const NOT_A_DOOR: Record<string, string> = {
   // held credentials to look through set cookies on this browser and change nothing in a tournament.
   // An archived tournament stays open to players to view; every write still meets the scoring gate's archive check.
   openPlayerLink: "person", forgetThisPhone: "person", choosePlayerView: "person",
-  // PR 2: whether this browser's notices are on, for the person this screen is for. Reads only their own row.
-  pushIsOnHere: "person",
   // club
   checkDiscountCode: "club", startCheckout: "club", openBillingPortal: "club", deleteClub: "club",
   saveHandicapPolicy: "club", saveScoreReporting: "club", approveJoinRequest: "club", declineJoinRequest: "club", dismissNamesakeNotice: "club",

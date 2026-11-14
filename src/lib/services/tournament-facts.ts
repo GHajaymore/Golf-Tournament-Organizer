@@ -456,7 +456,6 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
     out.set(id, {
       facts: {
         status: event.status,
-        legacyStatus: "",
         configUnlocked: event.configUnlocked,
         // An instant against an instant: the correction lapses when the club's day ended (`endOfClubDay`).
         correction: openCorrectionOf(event, new Date()),

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamEntryMode } from "@/lib/domain/team-entry";
+import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
 import { PlayClient } from "@/components/PlayClient";
@@ -2088,13 +2089,13 @@ describe("course library", () => {
 
 describe("event switcher", () => {
   const event = {
-    id: "e1", name: "Ajay More Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
+    id: "e1", name: "Rowan Hale Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
     course: "Bushwood", players: 32, isActive: true, hasAccess: true, isOrganizer: true,
   };
 
   it("renders the list with the active event marked", () => {
     const html = render(<EventSwitcher events={[event]} />);
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
     expect(html).toContain("32");
   });
 
@@ -2102,7 +2103,7 @@ describe("event switcher", () => {
     const html = render(
       <EventSwitcher events={[{ ...event, hasAccess: false, isOrganizer: false, isActive: false }]} />,
     );
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
   });
 
   it("renders with no events", () => {
@@ -3719,8 +3720,8 @@ describe("printed foursome cards", () => {
   ];
   const base = {
     groups,
-    clubName: "Cinci Desi Golf",
-    courseName: "CDG Home Course",
+    clubName: "Cedar Dunes Golf Club",
+    courseName: "Cedar Dunes Home Course",
     dates: "May 3 – Sep 30, 2026",
     roundLabel: "Round 1",
     pars: new Array(18).fill(4),
@@ -3732,8 +3733,8 @@ describe("printed foursome cards", () => {
     // A card without its provenance is a page of numbers — this is the whole
     // point of merging printing into the sheet of record.
     const html = render(<TeeSheetPrint {...base} />);
-    expect(html).toContain("Cinci Desi Golf");
-    expect(html).toContain("CDG Home Course");
+    expect(html).toContain("Cedar Dunes Golf Club");
+    expect(html).toContain("Cedar Dunes Home Course");
     expect(html).toContain("May 3 – Sep 30, 2026");
     expect(html).toContain("Hole 10 · 8:00 AM");
   });
@@ -3754,14 +3755,14 @@ describe("printed foursome cards", () => {
     // was already on it; the badge that is on the paper one was not.
     const html = render(<TeeSheetPrint {...base} clubLogoUrl="https://x.test/l.png" />);
     expect(html).toContain("https://x.test/l.png");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   it("prints the name alone for a club with no logo", () => {
     // No logo means no mark — never ours in its place.
     const html = render(<TeeSheetPrint {...base} />);
     expect(html).not.toContain("<img");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   /**
@@ -6849,7 +6850,7 @@ describe("registration and field", () => {
       <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -6945,7 +6946,7 @@ describe("registration and field", () => {
       <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -7940,11 +7941,11 @@ describe("the lifecycle button names the phase, not the link", () => {
     );
   };
 
-  it("offers Launch and says Setting up, whichever setting-up status is stored (G1, 2026-10-31)", async () => {
+  it("offers Launch and says Setting up on the one setting-up status (G1, 2026-10-31; A045)", async () => {
     // The ladder's two buttons gated nothing — taking entries is the sign-up
-    // link, readiness is the launch gate — so they are gone, and the three
-    // stored values read as one step.
-    for (const status of ["draft", "registration", "ready"]) {
+    // link, readiness is the launch gate — so they are gone, and since A045
+    // (state machine PR 8) one stored value is left before launch.
+    for (const status of PRE_LAUNCH_STATUSES) {
       const html = await bar(status);
       expect(html, status).toContain("Launch tournament");
       expect(html, status).toContain("Setting up");

@@ -257,6 +257,7 @@ typed number. What was found, each read by hand before it was counted:
 | are entries open: the sign-up link joined with the dates by hand (`acceptingEntries && registrationOpen`) | 5 (the intake, the member's list, the public form, the report's coming-up line, the Entries screen) | `entriesOpen` in `registration.ts`; `entries-open-is-asked-once.test.ts` (2026-11-05, the entries cleanup) |
 | birdies counted again (the report's highlights) | 1 | left: a highlight counts birdies exactly; the pot counts one under or better, by its own rule |
 | how many sign-ups an entry link takes in a window (a fixed sixty refused a 64-player field's 61st, round G583-1) | 1 (the public form's flood cap) | `entryLinkBudget` in `domain/rate-limit.ts`, asked through `entryLinkBudgetFor`; the limiter requires it for `register-token`; `entry-link-budget.test.ts` (2026-11-10) |
+| a question to the browser's push machinery (`pushManager`, `serviceWorker.ready` / `getRegistration`) asked bare: in WebKit without `PushManager` it never settled, `/choose` hung and Sign out never landed (round G636-1) | 4 (the sign-out release, the sign-out form's endpoint field, the alerts toggle's check, its Turn on and Turn off) | `src/lib/push-client.ts`: `pushSupported` first, every wait `withinLimit` (1.5 s; subscribe 20 s); `push-is-asked-in-one-place.test.ts` (2026-11-14) |
 
 And a property test (step 6) found a typed margin accepted that no match can
 finish on. The detail, and the mutation scores, are in the pass's own note.
@@ -363,6 +364,11 @@ day and will drift: search for the expression.
 ### A round's day (2026-11-06)
 - **One rule**: `roundDayOf(playedOn, startOn)` in `domain/round-dates.ts` — the round's own `playedOn`, else the tournament's `startOn`, else "". Read by `lastTeeFor` (`services/field-change.ts`, the late-entry cutoff) and `daysToFirstRoundFrom` (`domain/promotion.ts`, the promotion email's reply line).
 - **Known divergence, left alone**: `services/club-events.ts` (`startOn: event.startOn || roundDaysOf(stages)[0]`) reads the other way round — the tournament's date first, then the earliest dated round — because it files a tournament under a season; it is not asking when one round is played.
+
+### Is play suspended, for the screen in front of this person (2026-11-14)
+- **One rule**: `playStatusForScreen(screen)` in `services/play-status-screen.ts` — the KIND of screen (`"player"`: the member's session; `"play"`: the round code's play session) chooses which of the caller's own cookies names the event, never an argument naming one. Asked by the banner `/play` draws, the siren on `/play` and `/play/board`, and the siren's poll `currentPlayStatus` (whose `screen` from the client can only choose between the caller's two cookies, `playScreenOf`). `SuspensionAlarm` takes `screen` as a REQUIRED prop, so a new screen that mounts the siren says which round it is for.
+- **Known divergence, left alone**: the player layout's banner reads its own `gateEvent` (the session's event), which `playStatusForScreen("player")` reads too. J39/J40's guest link (#1125, #1132) moves the player app to `getPlayerViewer`; when it lands, the `"player"` branch here asks the viewer, so the layout and the poll stay one answer.
+- Held by `the-siren-reaches-a-round-code.test.ts` (the screens ask it; the poll asks nothing else) and `.audit.test.ts` (against real rows: a round-code phone with no email; a phone holding a member's session and another club's code; a reissued code; a forged screen); as a code holder in `e2e/play-suspended.spec.ts`.
 
 ### Dead twins of live rules
 All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`, `seasonPosition`, `isMatchStarted` (2026-10-14).

@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { Icon } from "./Icon";
 import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
 import { choosePlayerView, forgetThisPhone } from "@/app/actions/player-link";
+import { thisDevicesPushEndpoint } from "@/lib/push-client";
 
 /**
  * A GUEST'S OWN TWO CONTROLS in the player shell (J39/J40 PR 1).
@@ -12,19 +13,10 @@ import { choosePlayerView, forgetThisPhone } from "@/app/actions/player-link";
  * nothing — the slip in their pocket still opens it. Confirmed first, as Sign
  * out is, because a tap by feel on a phone passed round a fourball is easy.
  * It also stops the guest's notices on THIS phone (review of #1133, SEC-1).
+ * The endpoint is asked through `push-client.ts`, which never waits for ever
+ * (a Forget press must always land, as a Sign out must); the browser keeps its
+ * subscription, since another identity on this phone may still hold it.
  */
-
-/** This browser's push endpoint, or "" where there is none (no service worker, no subscription). */
-async function thisBrowsersPushEndpoint(): Promise<string> {
-  try {
-    if (!("serviceWorker" in navigator)) return "";
-    const reg = await navigator.serviceWorker.getRegistration();
-    const sub = await reg?.pushManager?.getSubscription();
-    return sub?.endpoint ?? "";
-  } catch {
-    return "";
-  }
-}
 
 export function GuestForget() {
   const [asking, setAsking] = useState(false);
@@ -46,7 +38,7 @@ export function GuestForget() {
         onClick={() =>
           start(async () => {
             // This browser's push endpoint, so the guest's notices stop on this phone too (SEC-1).
-            await forgetThisPhone(await thisBrowsersPushEndpoint());
+            await forgetThisPhone(await thisDevicesPushEndpoint());
             window.location.assign("/p");
           })
         }

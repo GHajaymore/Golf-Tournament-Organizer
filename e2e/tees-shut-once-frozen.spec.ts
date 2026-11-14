@@ -226,7 +226,7 @@ for (const rule of ["balanced", "manual"] as const) {
     const at = await ratedCourse(club);
     const make = async (name: string) => {
       const made = await makeEvent(club, `${name} ${rule}`, {
-        status: "registration",
+        status: "draft",
         configUnlocked: false,
         stages: [{}, {}],
         players: 4,
@@ -243,7 +243,7 @@ for (const rule of ["balanced", "manual"] as const) {
     // every set offered by flight and by player.
     for (const m of [scored, fresh]) {
       const ev = await prisma.event.findUniqueOrThrow({ where: { id: m.event.id } });
-      expect([ev.status, ev.teePolicy, ev.formationRule, ev.flightsConfirmed]).toEqual(["registration", "own", rule, false]);
+      expect([ev.status, ev.teePolicy, ev.formationRule, ev.flightsConfirmed]).toEqual(["draft", "own", rule, false]);
       expect(m.flights.length).toBe(2);
       expect(m.flights.every((f) => f.teeId === null) && m.players.every((p) => p.teeId === null), "the fixture starts with tees set").toBe(true);
     }
