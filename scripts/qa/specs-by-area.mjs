@@ -370,6 +370,8 @@ export const FULL_ONLY = [
   "e2e/net-without-tees-says-so.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  // State machine PR 8 (J14): a row A045 moved keeps what members saw, launches like any other, and is copied without its old word.
+  "e2e/old-setting-up-rows-keep-their-word.spec.ts",
   "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",
@@ -383,6 +385,9 @@ export const FULL_ONLY = [
   // The round-code holder's board (2026-11-05): all three visibility settings; /live stays the privacy line.
   "e2e/play-board.spec.ts",
   "e2e/play-suspended.spec.ts",
+  // Work plan row 0b (14 Nov): a member's and a guest's first hole, MEASURED — screens, presses, characters, seconds
+  // (one JOURNEY line each). Shared ground: sign-in, the player link, the card and the board at once.
+  "e2e/player-journey.spec.ts",
   "e2e/pot-on-the-scores.spec.ts",
   "e2e/prizes.spec.ts",
   "e2e/roster-handicap-and-field.spec.ts",

@@ -209,3 +209,12 @@ chosen: `await pressRadio(radio)` from `e2e/press-radio.ts` (label click, then `
 `getByText("X won", { exact: true }).click()` then `expect(radio).toBeChecked()`.
 `src/lib/__tests__/seg-opt-radios-are-pressed-not-checked.test.ts` refuses a `.check(` on any locator that reaches a
 radio (by role, by `input[type="radio"]`, or by the words of a `.seg-opt` label); real checkboxes are untouched.
+
+**A PAGE HAS TWO ALERTS ONCE THE APP REFUSES SOMETHING (2026-11-14).** Next draws its own
+`<div role="alert" id="__next-route-announcer__">` on every page, so `page.getByRole("alert")` — or the
+same on anything made by `.newPage()` — matches two elements and strict mode fails the step, after
+every step before it has passed. It reached CI twice in one night (#1123's owner-finance spec, #1125's
+guest-link spec), each written by an engineer who could not run Playwright. Find a page's refusal by its
+own element and role — `p`, `div` or `span[role="alert"]`, e.g. `page.locator('[role="alert"]:not(#__next-route-announcer__)')` — or better by its text with `.filter({ hasText })`; inside a card,
+section or dialog locator the plain role is fine. `src/lib/__tests__/no-page-wide-alert-locator.test.ts`
+refuses the page-wide form.

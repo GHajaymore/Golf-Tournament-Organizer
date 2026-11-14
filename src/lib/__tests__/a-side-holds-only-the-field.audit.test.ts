@@ -62,7 +62,7 @@ beforeAll(async () => {
     data: {
       name: `${TAG} invitational`,
       organizationId: org.id,
-      status: "active",
+      status: "live",
       /**
        * The state a committee is actually in when it substitutes. Teams are a
        * structural change, so a LAUNCHED tournament refuses them until the
