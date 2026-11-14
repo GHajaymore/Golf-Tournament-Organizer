@@ -155,26 +155,31 @@ test("the AI helpers, pressed by an organizer whose club has them: each says in 
       expect(await prisma.commentary.count({ where: { eventId: event.id } }), "pressing AjAi draft posted a line").toBe(0);
     });
 
-    await test.step("Score entry, one player's card, Read from a photo: told to enter the scores by hand", async () => {
+    // The Scoring box (hole by hole) says whose card is on the screen: the one player, or the group the
+    // draw put them in. Score entry opens on the group, so the whole card is read first, then one player's.
+    await test.step("Score entry, the group's card, Read the whole card: told to enter the scores by hand", async () => {
       await open("/entry");
-      const read = page.getByRole("button", { name: "Read from a photo" });
-      await expect(read, "score entry offers no way to read a card from a photo").toBeVisible({ timeout: 20_000 });
+      await page.getByRole("button", { name: "Hole by hole" }).click();
+      const scoring = page.getByLabel("Scoring");
+      await expect(scoring, "score entry offers no choice between one player and the group").toBeVisible({ timeout: 20_000 });
+      await scoring.selectOption({ index: 1 });
+      const read = page.getByRole("button", { name: "Read the whole card" });
+      await expect(read, "choosing the group did not offer the whole card").toBeVisible({ timeout: 20_000 });
       await centre(read);
       await pressAndWait(page, () => read.locator("xpath=ancestor::div[1]").locator('input[type="file"]').setInputFiles({ name: "card.png", mimeType: "image/png", buffer: PNG }));
       const line = said(page, /not switched on\. Enter the scores by hand/);
-      await expect(line, "reading one player's card did not say it is not switched on").toBeVisible({ timeout: 30_000 });
+      await expect(line, "reading the group's card did not say it is not switched on").toBeVisible({ timeout: 30_000 });
       await expect(line, "the refusal is not where the press was").toBeInViewport();
+      expect(await prisma.scorecard.count({ where: { eventId: event.id } }), "a refused photo filled in a card").toBe(0);
     });
 
-    await test.step("Score entry, the group's card, Read the whole card: the same words", async () => {
-      await page.getByRole("button", { name: "Hole by hole" }).click();
-      await page.getByLabel("Scoring").selectOption({ index: 1 });
-      const read = page.getByRole("button", { name: "Read the whole card" });
-      await expect(read, "choosing the group did not offer the whole card").toBeVisible();
+    await test.step("Score entry, one player's card, Read from a photo: the same words", async () => {
+      await page.getByLabel("Scoring").selectOption({ index: 0 });
+      const read = page.getByRole("button", { name: "Read from a photo" });
+      await expect(read, "choosing one player did not offer to read their card from a photo").toBeVisible({ timeout: 20_000 });
       await centre(read);
       await pressAndWait(page, () => read.locator("xpath=ancestor::div[1]").locator('input[type="file"]').setInputFiles({ name: "card.png", mimeType: "image/png", buffer: PNG }));
-      await expect(said(page, /not switched on\. Enter the scores by hand/), "reading the group's card did not say it is not switched on").toBeVisible({ timeout: 30_000 });
-      expect(await prisma.scorecard.count({ where: { eventId: event.id } }), "a refused photo filled in a card").toBe(0);
+      await expect(said(page, /not switched on\. Enter the scores by hand/), "reading one player's card did not say it is not switched on").toBeVisible({ timeout: 30_000 });
     });
 
     await test.step("Courses, Paste a card, Photograph the card: told to type the card in below", async () => {
