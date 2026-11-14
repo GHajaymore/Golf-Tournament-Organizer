@@ -76,7 +76,7 @@ test.beforeAll(async () => {
     data: {
       name: NAME,
       organizationId: clubId,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       dates: "",

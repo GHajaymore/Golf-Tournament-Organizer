@@ -91,7 +91,7 @@ test("what's next opens the right tournament on the right screen, and copy last 
     });
 
     // ── The autumn foursomes, taking entries: one waiting for approval ──
-    const autumn = await makeEvent(club, "Autumn Foursomes", { status: "registration", stages: [{}], players: 2 });
+    const autumn = await makeEvent(club, "Autumn Foursomes", { status: "draft", stages: [{}], players: 2 });
     const waiting = await prisma.player.create({
       data: { eventId: autumn.event.id, name: "Wren Halloran-Pike", email: `${mark}-w@example.invalid`, handicap: 14.2, seed: 9, status: "pending" },
     });
@@ -115,7 +115,7 @@ test("what's next opens the right tournament on the right screen, and copy last 
     await prisma.stage.update({ where: { id: winter.stages[0].id }, data: { closedAt: new Date() } });
 
     // ── Next door, an entry waiting that is nobody here's business ──
-    const theirs = await makeEvent(nextDoor, "Next Door Open", { status: "registration", stages: [{}], players: 1 });
+    const theirs = await makeEvent(nextDoor, "Next Door Open", { status: "draft", stages: [{}], players: 1 });
     await prisma.player.create({ data: { eventId: theirs.event.id, name: "Zz Neighbour", email: `${mark}-nd-n@example.invalid`, handicap: 9, seed: 2, status: "pending" } });
 
     // ── A Guest of the club, made organizer of the foursomes ──

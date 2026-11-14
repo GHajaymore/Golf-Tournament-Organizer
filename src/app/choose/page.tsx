@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { verify } from "@/lib/auth";
 import { chooseGreeting } from "@/lib/domain/choose-greeting";
 import { enterTournament, signOutAction } from "@/app/actions/auth";
+import { PushEndpointField } from "@/components/PushEndpointField";
 import { homeFor } from "@/lib/roles";
 import { safeNextPath } from "@/lib/domain/safe-next";
 import { prisma } from "@/lib/db";
@@ -140,6 +141,8 @@ export default async function ChooseTournamentPage({
               treatment of "the logo" beside the sidebar's and the landing's. */}
           <Lockup size={LOGO_SIZE.md} />
           <form action={signOutAction}>
+            {/* This phone's alerts leave with the person signing out (safety sweep G-4). */}
+            <PushEndpointField />
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 12 }}>
               <Icon name="sign-out" /> Sign out
             </button>
