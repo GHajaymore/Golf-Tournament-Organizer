@@ -3,6 +3,14 @@ import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 import { getVapidPublicKey, savePushSubscription, removePushSubscription } from "@/app/actions/push";
 import { deviceFrom, endpointFingerprint, pushToggleState, pushUnavailableWords } from "@/lib/domain/push-device";
+import {
+  pushRegistration,
+  pushSupported,
+  subscribeThisBrowser,
+  subscriptionOf,
+  thisBrowsersSubscription,
+  unsubscribeWithinLimit,
+} from "@/lib/push-client";
 
 /**
  * Why alerts cannot reach this device, and what still works (safety sweep
@@ -73,11 +81,7 @@ export function PushToggleClient({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const supported =
-        typeof window !== "undefined" &&
-        "serviceWorker" in navigator &&
-        "PushManager" in window &&
-        "Notification" in window;
+      const supported = pushSupported() && "Notification" in window;
       if (!supported) {
         // An iPhone in Safari lands here every time: Apple allows web push only
         // from the Home Screen. Say so, and what still works, rather than
@@ -90,10 +94,10 @@ export function PushToggleClient({
       // No registered service worker (e.g. the dev server never registers one)
       // means nothing to subscribe against — treat as unavailable rather than
       // offering a button that cannot work.
-      const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+      const reg = await pushRegistration();
       if (!reg) return void (!cancelled && setState("unavailable"));
       if (Notification.permission === "denied") return void (!cancelled && setState("blocked"));
-      const sub = await reg.pushManager.getSubscription().catch(() => null);
+      const sub = await subscriptionOf(reg);
       const browserFingerprint = sub ? await endpointFingerprint(sub.endpoint).catch(() => null) : null;
       if (!cancelled) setState(pushToggleState({ browserFingerprint, mine }));
     })();
@@ -116,13 +120,9 @@ export function PushToggleClient({
         setState("unavailable");
         return;
       }
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        // Cast: a Uint8Array is a BufferSource, but TS 5.7's typed-array
-        // generics don't narrow the ArrayBufferLike backing to ArrayBuffer.
-        applicationServerKey: urlBase64ToUint8Array(key) as BufferSource,
-      });
+      // Cast: a Uint8Array is a BufferSource, but TS 5.7's typed-array
+      // generics don't narrow the ArrayBufferLike backing to ArrayBuffer.
+      const sub = await subscribeThisBrowser(urlBase64ToUint8Array(key) as BufferSource);
       const json = sub.toJSON();
       const res = await savePushSubscription({
         endpoint: sub.endpoint,
@@ -144,11 +144,10 @@ export function PushToggleClient({
     setError("");
     setBusy(true);
     try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      const sub = await reg?.pushManager.getSubscription();
+      const sub = await thisBrowsersSubscription();
       if (sub) {
         await removePushSubscription(sub.endpoint);
-        await sub.unsubscribe().catch(() => {});
+        await unsubscribeWithinLimit(sub);
       }
       setState("off");
     } catch (e) {
