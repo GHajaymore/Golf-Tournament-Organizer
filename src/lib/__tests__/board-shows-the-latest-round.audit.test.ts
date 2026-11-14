@@ -64,7 +64,7 @@ async function makeEvent(name: string) {
       organizationId: org.id,
       shape: "series",
       format: "match",
-      status: "active",
+      status: "live",
       dates: "",
       course: "",
       city: "",
