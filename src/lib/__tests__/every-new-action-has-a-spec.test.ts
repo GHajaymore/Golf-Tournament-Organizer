@@ -52,6 +52,18 @@ function gone(exported: Record<string, string[]>, list: Known): string[] {
   ];
 }
 
+/**
+ * Keys that are not in sorted order. The file is kept SORTED BY KEY so two pull
+ * requests that each add an action land at different places and merge without a
+ * conflict (13 Nov: it conflicted on every update when entries were appended at
+ * the end). Nothing reads the order; only the diff does.
+ */
+function outOfOrder(o: Record<string, unknown>): string[] {
+  const keys = Object.keys(o);
+  const sorted = [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return keys.filter((k, i) => k !== sorted[i]);
+}
+
 const list = known as unknown as Known;
 
 describe("every server action is on the list, or names the spec that presses it", () => {
@@ -73,6 +85,16 @@ describe("every server action is on the list, or names the spec that presses it"
 
   it("the list names nothing that is gone (it describes the app as it is)", () => {
     expect(gone(exportedActions(), list), "take these off scripts/qa/known-actions.json").toEqual([]);
+  });
+
+  it("the file's keys are sorted, so two PRs adding different actions do not conflict", () => {
+    expect(outOfOrder(list.actions), "actions: keep the file keys sorted").toEqual([]);
+    expect(outOfOrder(list.newSince), "newSince: put your new line at its sorted place, not at the end").toEqual([]);
+  });
+
+  it("CONTROL: the sorted check sees an unsorted object and passes a sorted one", () => {
+    expect(outOfOrder({ b: 1, a: 2 }).length).toBeGreaterThan(0);
+    expect(outOfOrder({ a: 1, b: 2 })).toEqual([]);
   });
 
   it("CONTROL: the check sees a new action, and is satisfied only by naming its spec", () => {
