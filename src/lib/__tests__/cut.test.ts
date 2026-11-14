@@ -422,7 +422,7 @@ describe("the cut line for the current round", () => {
     expect(currentRoundCutRule(rounds, 0)).toEqual({ scope: "perFlight", mode: "percent", count: 16, percent: 30 });
   });
 
-  it("gives the highlight and the label the same rule — the Pines shape cuts to top 4, not 8", () => {
+  it("gives the highlight and the label the same rule — a 4-flight shape cuts to top 4, not 8", () => {
     // The bug this closes: a 4-flight event highlighted qualifyPerGroup (2/flight
     // = 8) regardless of the top-4 the organizer set. The rule that labels the
     // card must be the one that picks the surviving players.

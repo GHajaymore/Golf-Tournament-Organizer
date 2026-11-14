@@ -1,8 +1,8 @@
 /**
  * THE FINAL REPORT'S ARITHMETIC (2026-10-19) — pure, so it is tested by hand.
  *
- * Ajay, after the first real cup: "close the Oaks vs Pines cup and provide me the
- * final report which app generates with all the tournament details", then
+ * Ajay, after the first real cup, asked (paraphrased) to close the cup and for the
+ * final report the app generates with all the tournament details, then
  * "whatever you are doing, the actual app should do it". The report reads the
  * cup board (`cupBoard`) and works three things out of it here:
  *

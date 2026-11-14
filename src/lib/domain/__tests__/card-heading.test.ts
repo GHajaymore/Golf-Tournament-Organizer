@@ -9,16 +9,16 @@ import { cardHeading } from "../card-heading";
  * else.
  */
 
-const CLUB = { clubName: "Cinci Desi Golf", clubLogoUrl: "https://x.test/l.png" };
+const CLUB = { clubName: "Cedar Dunes Golf Club", clubLogoUrl: "https://x.test/l.png" };
 
 describe("a card played somewhere that is not the club's course", () => {
   it("leads with the course and names the club beneath it", () => {
-    // A society's outing at Pebble Beach came out headed "Cinci Desi Golf"
+    // A society's outing at Pebble Beach came out headed "Cedar Dunes Golf Club"
     // above Pebble Beach's holes, which reads as though the society owns the
     // course. On paper that card says Pebble Beach.
     const h = cardHeading({ ...CLUB, courseName: "Pebble Beach Golf Links" })!;
     expect(h.primary).toBe("Pebble Beach Golf Links");
-    expect(h.secondary).toBe("Cinci Desi Golf");
+    expect(h.secondary).toBe("Cedar Dunes Golf Club");
     expect(h.leadIsCourse).toBe(true);
   });
 
@@ -31,8 +31,8 @@ describe("a card played somewhere that is not the club's course", () => {
 describe("a card played at the club's own course", () => {
   it("carries the club's mark alone", () => {
     // Not a claim over somebody else's venue — it is their card.
-    const h = cardHeading({ ...CLUB, courseName: "OGC Home Course", venueIsHome: true })!;
-    expect(h.primary).toBe("Cinci Desi Golf");
+    const h = cardHeading({ ...CLUB, courseName: "Cedar Dunes Home Course", venueIsHome: true })!;
+    expect(h.primary).toBe("Cedar Dunes Golf Club");
     expect(h.leadIsCourse).toBe(false);
   });
 
@@ -72,7 +72,7 @@ describe("cards with nothing to head them", () => {
 
   it("leads with the club when the course is unknown", () => {
     const h = cardHeading({ ...CLUB })!;
-    expect(h.primary).toBe("Cinci Desi Golf");
+    expect(h.primary).toBe("Cedar Dunes Golf Club");
     expect(h.leadIsCourse).toBe(false);
   });
 

@@ -3719,8 +3719,8 @@ describe("printed foursome cards", () => {
   ];
   const base = {
     groups,
-    clubName: "Cinci Desi Golf",
-    courseName: "OGC Home Course",
+    clubName: "Cedar Dunes Golf Club",
+    courseName: "Cedar Dunes Home Course",
     dates: "May 3 – Sep 30, 2026",
     roundLabel: "Round 1",
     pars: new Array(18).fill(4),
@@ -3732,8 +3732,8 @@ describe("printed foursome cards", () => {
     // A card without its provenance is a page of numbers — this is the whole
     // point of merging printing into the sheet of record.
     const html = render(<TeeSheetPrint {...base} />);
-    expect(html).toContain("Cinci Desi Golf");
-    expect(html).toContain("OGC Home Course");
+    expect(html).toContain("Cedar Dunes Golf Club");
+    expect(html).toContain("Cedar Dunes Home Course");
     expect(html).toContain("May 3 – Sep 30, 2026");
     expect(html).toContain("Hole 10 · 8:00 AM");
   });
@@ -3754,14 +3754,14 @@ describe("printed foursome cards", () => {
     // was already on it; the badge that is on the paper one was not.
     const html = render(<TeeSheetPrint {...base} clubLogoUrl="https://x.test/l.png" />);
     expect(html).toContain("https://x.test/l.png");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   it("prints the name alone for a club with no logo", () => {
     // No logo means no mark — never ours in its place.
     const html = render(<TeeSheetPrint {...base} />);
     expect(html).not.toContain("<img");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   /**
