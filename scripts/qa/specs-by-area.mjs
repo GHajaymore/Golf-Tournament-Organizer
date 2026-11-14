@@ -442,7 +442,11 @@ export const FULL_ONLY = [
   "e2e/status-stroke.spec.ts",
   "e2e/status-team-cup.spec.ts",
   "e2e/status-team-match-result-line.spec.ts",
+  // The reach gap (2026-11-13): the buttons that ask an outside service (Stripe, a model, a course directory), pressed where a person
+  // would, and a member's tee-time alerts turned on and off. Shared ground: plan, announcements, scoring, courses and Today at once.
+  "e2e/switched-off-services-answer-in-words.spec.ts",
   "e2e/team-cup.spec.ts",
+  "e2e/tee-time-alerts.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",
   "e2e/the-bot-check-cannot-shut-the-door.spec.ts",
