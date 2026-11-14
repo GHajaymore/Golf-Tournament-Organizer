@@ -1,0 +1,59 @@
+name: Event-day backup
+
+# AN HOURLY COPY OF PRODUCTION ON A DAY A CLUB IS PLAYING (B21;
+# docs/operations/backups.md).
+#
+# Vercel's own cron backs production up once a night at 02:00 UTC (vercel.json,
+# /api/cron/backup); this plan allows a cron once a day and no more. On an event
+# day a lost database would then cost up to a day of a field's cards. So every
+# hour this presses /api/backup/run, and the APP decides:
+#
+#   no real club has a tournament on today (in its own time)   200, nothing taken
+#   the newest copy is under 30 minutes old                    429, nothing taken
+#   otherwise                                                  a copy is taken and filed
+#
+# WHAT THIS RUNNER HOLDS: one secret, BACKUP_TRIGGER_SECRET, which can only ask
+# for a backup and ask whether one is recent. NEVER a database credential
+# (CLAUDE.md, "the deploy job does not build"): the database is read inside
+# Vercel, with the string Vercel already holds, and sealed there to the owner's
+# public key. This runner sees counts.
+#
+# Without the secret the run says so and passes: nothing is asked.
+#
+# SECRET (name only): BACKUP_TRIGGER_SECRET — the same value as the Vercel
+# production variable of that name.
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: backup-event-day
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Ask production for an event-day copy
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Ask production for a copy if a club is playing today
+        env:
+          BACKUP_TRIGGER_SECRET: ${{ secrets.BACKUP_TRIGGER_SECRET }}
+        run: |
+          if [ -z "$BACKUP_TRIGGER_SECRET" ]; then
+            echo "SKIPPED: BACKUP_TRIGGER_SECRET is not set, so no event-day copy was asked for."
+            exit 0
+          fi
+          code=$(curl -s -o answer.json -w "%{http_code}" --max-time 320 -X POST \
+            -H "Authorization: Bearer $BACKUP_TRIGGER_SECRET" \
+            https://tourneyhq.club/api/backup/run)
+          echo "answered $code: $(cat answer.json)"
+          if [ "$code" != "200" ] && [ "$code" != "429" ]; then
+            echo "::error::The event-day backup failed (HTTP $code). Sentry has the reason, tagged backup."
+            exit 1
+          fi

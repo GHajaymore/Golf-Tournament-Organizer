@@ -89,3 +89,26 @@ jobs:
             echo "::error::Production could not deliver a test email (HTTP $code)."
             exit 1
           fi
+      # IS THERE A RECENT BACKUP (B21, 2026-11-14; docs/operations/backups.md)?
+      # A backup that FAILS reaches Sentry; a backup that never RUNS raises
+      # nothing — a cron nobody invokes is silent. So every hour this asks
+      # /api/backup/status, which answers only {"fresh": true|false}: a copy
+      # filed in the last 30 hours, or not. No age, size or name comes back.
+      #
+      # SECRET (name only): BACKUP_TRIGGER_SECRET, the same value as the Vercel
+      # production variable. Without it the step says so and passes.
+      - name: Production has a backup from the last 30 hours
+        env:
+          BACKUP_TRIGGER_SECRET: ${{ secrets.BACKUP_TRIGGER_SECRET }}
+        run: |
+          if [ -z "$BACKUP_TRIGGER_SECRET" ]; then
+            echo "SKIPPED: BACKUP_TRIGGER_SECRET is not set, so the backup check did not run."
+            exit 0
+          fi
+          code=$(curl -s -o backup.json -w "%{http_code}" --max-time 30 \
+            -H "Authorization: Bearer $BACKUP_TRIGGER_SECRET" https://tourneyhq.club/api/backup/status)
+          cat backup.json; echo
+          if [ "$code" != "200" ] || ! grep -q '"fresh":true' backup.json; then
+            echo "::error::Production has no backup from the last 30 hours (HTTP $code). Read docs/operations/backups.md."
+            exit 1
+          fi
