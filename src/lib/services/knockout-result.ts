@@ -1,6 +1,25 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { parseFlightPlan } from "@/lib/domain/bracket-flights";
+import { bracketDraws } from "@/lib/domain/my-tie";
+import { laterTieRefusal, thirdPlaceFrom } from "@/lib/domain/knockout-ties";
+import type { loadEventState } from "./tournament";
+
+type EventState = NonNullable<Awaited<ReturnType<typeof loadEventState>>>;
+
+/**
+ * WHY THIS TIE'S RESULT IS HELD, asked of the tournament as it stands, or null.
+ * `laterTieRefusal` given every fact it needs, read ONE way for every door that
+ * changes or takes back a knockout result: the bracket's tap (`setBracketWinner`)
+ * and Undo / Change result (`undoTieResult`). The draw's later ties, a plate drawn
+ * from the first round's losers, and the play-off for third (a stored match).
+ */
+export function resultHeldBecause(state: EventState, key: string): string | null {
+  return laterTieRefusal(bracketDraws(state.brackets), key, {
+    plate: state.event.bracketMode === "plate",
+    thirdPlace: thirdPlaceFrom(state.matches),
+  });
+}
 
 /**
  * TAKE A KNOCKOUT RESULT BACK — the one delete of a `BracketWinner`, shared by

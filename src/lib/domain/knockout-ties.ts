@@ -1,5 +1,6 @@
 import { tieNotReady, type BracketMatch, type BracketView } from "./bracket";
 import { marginWords } from "./my-tie";
+import { storedMatchIsOver } from "./match";
 
 /**
  * KNOCKOUT TIES ON SCORE ENTRY, AND WHEN A RESULT MAY STILL BE TAKEN BACK
@@ -63,13 +64,38 @@ function findTie(draws: Draws, key: string): { index: number; draw: string; view
  * `plate` is whether the second draw is a plate (`Event.bracketMode === "plate"`);
  * the draws are `bracketDraws(state.brackets)`, every flight included.
  */
-export function laterTieRefusal(draws: Draws, key: string, opts: { plate: boolean }): string | null {
+export function laterTieRefusal(
+  draws: Draws,
+  key: string,
+  opts: {
+    plate: boolean;
+    /** The play-off for third (`thirdPlaceFrom`), when one has been made; null or absent when not. */
+    thirdPlace?: ThirdPlaceFact | null;
+  },
+): string | null {
   const found = findTie(draws, key);
   if (!found) return null;
   const next = tieItFeeds(found.view, found.match);
   if (next?.winnerId && next.a.playerId && next.b.playerId) {
     const round = found.view.rounds[next.roundIndex]?.label ?? "";
     return `${roundWords(found.draw, round)}: ${next.a.name} v ${next.b.name} already has a result, and it was played by this tie's winner. Undo that result first, then change this one.`;
+  }
+  /**
+   * THE PLAY-OFF FOR THIRD is fed by the semi-finals' LOSERS (`third-place.ts`), and is
+   * stored as a match outside the draw. Once it has a result, a semi-final of the main
+   * draw whose loser played in it is held the same way: changing it would leave the
+   * play-off's result standing between the wrong players.
+   */
+  const tp = opts.thirdPlace;
+  const m = found.match;
+  if (tp?.decided && found.index === 0 && m.roundIndex === found.view.rounds.length - 2 && m.a.playerId && m.b.playerId) {
+    if (tp.playerIds.includes(m.a.playerId) || tp.playerIds.includes(m.b.playerId)) {
+      const name = (id: string) => {
+        for (const rd of found.view.rounds) for (const t of rd.matches) for (const s of [t.a, t.b]) if (s.playerId === id) return s.name;
+        return "a player no longer in the draw";
+      };
+      return `Play-off for third: ${name(tp.playerIds[0])} v ${name(tp.playerIds[1])} already has a result, and it was played by this tie's loser. Clear the play-off's result first, then change this one.`;
+    }
   }
   if (opts.plate && found.index === 0 && found.match.roundIndex === 0 && draws[1]) {
     const plate = draws[1];
@@ -80,6 +106,25 @@ export function laterTieRefusal(draws: Draws, key: string, opts: { plate: boolea
     }
   }
   return null;
+}
+
+/** The play-off for third as the rule needs it: who is in it, and whether it has a result. */
+export interface ThirdPlaceFact {
+  playerIds: readonly string[];
+  decided: boolean;
+}
+
+/**
+ * The event's play-off for third, read off its matches: `round: 0` is the marker
+ * `createThirdPlaceMatch` writes and nothing else does. "Has a result" is
+ * `storedMatchIsOver` (a forfeit counts; a card being filled in does not).
+ */
+export function thirdPlaceFrom(
+  matches: readonly { round: number; playerAId: string; playerBId: string; holes: string; forfeitedBy?: string | null }[],
+): ThirdPlaceFact | null {
+  const p = matches.find((x) => x.round === 0);
+  if (!p) return null;
+  return { playerIds: [p.playerAId, p.playerBId], decided: storedMatchIsOver(p) };
 }
 
 export interface TieSide {

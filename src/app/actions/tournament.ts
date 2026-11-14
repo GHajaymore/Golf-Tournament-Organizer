@@ -4403,18 +4403,22 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
   // A result its winner has played on from is not changed or taken back here:
   // the later result would leave the draw without a word (cut 3, 2026-11-14).
   // The one rule, asked by Undo on Score entry too (`undoTieResult`).
-  const { laterTieRefusal } = await import("@/lib/domain/knockout-ties");
-  const later = existing ? laterTieRefusal(bracketDraws(state!.brackets), key, { plate: state!.event.bracketMode === "plate" }) : null;
+  const { clearTieResult, resultHeldBecause } = await import("@/lib/services/knockout-result");
+  const later = existing ? resultHeldBecause(state!, key) : null;
   if (later) return { ok: false, error: later };
 
+  // Every press on the draw is on the record: who (the actor), when, and from what to what.
+  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const was = existing ? `${resultLine(round, { ...tie.match, winnerId: existing.winnerId })}${marginWords(existing.result)}` : "";
   if (existing?.winnerId === winnerId) {
     // Toggle off if the same slot is clicked again: the one delete, which
-    // re-opens a draw left with no results (`clearTieResult`), on the record.
-    const { clearTieResult } = await import("@/lib/services/knockout-result");
+    // re-opens a draw left with no results (`clearTieResult`).
     await clearTieResult(eventId, key);
-    await logAudit(eventId, "knockout.undo", `${resultLine(tie.draw ? `${tie.draw} · ${tie.round}` : tie.round, { ...tie.match, winnerId: existing.winnerId })}${marginWords(existing.result)}: taken back on the draw`);
+    await logAudit(eventId, "knockout.undo", `${was}: taken back on the draw`);
   } else {
     await recordBracketWinner(eventId, key, winnerId);
+    const now = resultLine(round, { ...tie.match, winnerId });
+    await logAudit(eventId, "knockout.result", existing ? `${now}, changed on the draw (was: ${was})` : `${now}, recorded on the draw (it had no result)`);
   }
   // Whatever a player reported for this tie, staff have now answered it
   // themselves — a report left behind would ask them the same question again.
@@ -4525,7 +4529,10 @@ export async function recordTieResult(input: {
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
   const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
   const said = `${resultLine(round, { a: m.a, b: m.b, winnerId })}${marginWords(result)}`;
-  await logAudit(eventId, "knockout.result", `${said}, recorded from To play`);
+  // Said as what happened, from what to what: the screen that pressed it is not
+  // known here (To play on the Bracket, or Score entry's list), and it is only
+  // ever recorded on a tie with no result (refused above otherwise).
+  await logAudit(eventId, "knockout.result", `${said}, recorded (it had no result)`);
   await refresh();
   return { ok: true, said };
 }

@@ -30,14 +30,14 @@ let session: { eventId: string; email: string; viewRole: string; name: string; r
 vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { recordTieResult, setBracketWinner } = await import("@/app/actions/tournament");
+const { recordTieResult, setBracketWinner, createThirdPlaceMatch } = await import("@/app/actions/tournament");
 const { undoTieResult } = await import("@/app/actions/knockout-results");
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-TIE-UNDO";
 let orgId = "";
 
-async function seed(n = 4) {
+async function seed(n = 4, thirdPlace = false) {
   const stamp = `${Date.now()}-${Math.random()}`;
   const event = await prisma.event.create({
     data: {
@@ -54,7 +54,7 @@ async function seed(n = 4) {
       bracketMode: "single",
     },
   });
-  await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Bracket Stage", format: "Match Play", holes: 18 } });
+  const stage = await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Bracket Stage", format: "Match Play", holes: 18, thirdPlace } });
   for (let i = 0; i < n; i += 1) {
     await prisma.player.create({
       data: { eventId: event.id, name: `${TAG} P${i + 1}`, email: `${TAG.toLowerCase()}-${i}-${stamp}@example.invalid`, handicap: 5 + i, seed: i + 1, status: "confirmed" },
@@ -62,7 +62,7 @@ async function seed(n = 4) {
   }
   session = { eventId: event.id, email: `${TAG.toLowerCase()}-staff@example.invalid`, viewRole: "admin", name: `${TAG} Secretary`, role: "admin" };
   const state = await loadEventState(event.id);
-  return { eventId: event.id, view: state!.brackets.winners };
+  return { eventId: event.id, stageId: stage.id, view: state!.brackets.winners };
 }
 
 const rows = (eventId: string) =>
@@ -156,6 +156,64 @@ describe("Undo on Score entry", () => {
     session = { ...session!, viewRole: "player", role: "player" };
     await expect(undoTieResult({ key: first.key, players: pairOf(first) })).rejects.toThrow();
     expect((await rows(eventId)).length).toBe(1);
+  });
+});
+
+describe("every knockout result is on the record, from what to what", () => {
+  it("a result recorded from a list says the tie had none, not which screen", async () => {
+    const { eventId, view } = await seed();
+    const [first] = view.rounds[0].matches;
+    await recordTieResult({ key: first.key, players: pairOf(first), winnerId: first.a.playerId!, how: "played", margin: "4&3" });
+    const line = await prisma.auditLog.findFirstOrThrow({ where: { eventId, action: "knockout.result" }, select: { actor: true, detail: true } });
+    expect(line).toEqual({ actor: `${TAG} Secretary`, detail: `Semi-finals: ${first.a.name} beat ${first.b.name} 4&3, recorded (it had no result)` });
+  });
+
+  it("the bracket's tap records, changes and takes back on the record: who, and from what to what", async () => {
+    const { eventId, view } = await seed();
+    const [first] = view.rounds[0].matches;
+    expect((await setBracketWinner(first.key, first.a.playerId!)).ok).toBe(true);
+    expect((await setBracketWinner(first.key, first.b.playerId!)).ok).toBe(true);
+    expect((await setBracketWinner(first.key, first.b.playerId!)).ok).toBe(true);
+    expect(await rows(eventId)).toEqual([]);
+    const lines = await prisma.auditLog.findMany({ where: { eventId }, orderBy: { createdAt: "asc" }, select: { actor: true, action: true, detail: true } });
+    expect(lines).toEqual([
+      { actor: `${TAG} Secretary`, action: "knockout.result", detail: `Semi-finals: ${first.a.name} beat ${first.b.name}, recorded on the draw (it had no result)` },
+      {
+        actor: `${TAG} Secretary`,
+        action: "knockout.result",
+        detail: `Semi-finals: ${first.b.name} beat ${first.a.name}, changed on the draw (was: Semi-finals: ${first.a.name} beat ${first.b.name})`,
+      },
+      { actor: `${TAG} Secretary`, action: "knockout.undo", detail: `Semi-finals: ${first.b.name} beat ${first.a.name}: taken back on the draw` },
+    ]);
+  });
+});
+
+describe("the play-off for third holds the semi-finals that fed it", () => {
+  it("refuses Undo and the tap on a semi-final once the play-off has a result, naming it; the way out works", async () => {
+    const { eventId, stageId, view } = await seed(4, true);
+    const [first, second] = view.rounds[0].matches;
+    // 1 beats 4, 3 beats 2: the play-off for third is 4 v 2.
+    await recordTieResult({ key: first.key, players: pairOf(first), winnerId: first.a.playerId!, how: "played" });
+    await recordTieResult({ key: second.key, players: pairOf(second), winnerId: second.b.playerId!, how: "played" });
+    expect(await createThirdPlaceMatch(stageId)).toEqual({ ok: true });
+    const playoff = await prisma.match.findFirstOrThrow({ where: { eventId, round: 0 } });
+
+    // Made but not played: the semi-final may still be put right.
+    expect((await undoTieResult({ key: first.key, players: pairOf(first) })).ok).toBe(true);
+    await recordTieResult({ key: first.key, players: pairOf(first), winnerId: first.a.playerId!, how: "played" });
+
+    // The play-off has a result (a concession settles it, Rule 3.2b): both semi-finals are held.
+    await prisma.match.update({ where: { id: playoff.id }, data: { forfeitedBy: playoff.playerAId } });
+    const before = await rows(eventId);
+    const said = `Play-off for third: ${first.b.name} v ${second.a.name} already has a result, and it was played by this tie's loser. Clear the play-off's result first, then change this one.`;
+    expect(await undoTieResult({ key: first.key, players: pairOf(first) })).toEqual({ ok: false, error: said });
+    expect(await undoTieResult({ key: second.key, players: pairOf(second) })).toEqual({ ok: false, error: said });
+    expect(await setBracketWinner(second.key, second.a.playerId!)).toEqual({ ok: false, error: said });
+    expect(await rows(eventId)).toEqual(before);
+
+    // The way out: the play-off's result cleared, the semi-final can be changed.
+    await prisma.match.update({ where: { id: playoff.id }, data: { forfeitedBy: "" } });
+    expect((await undoTieResult({ key: second.key, players: pairOf(second) })).ok).toBe(true);
   });
 });
 

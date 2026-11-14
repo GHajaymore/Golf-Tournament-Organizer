@@ -6,10 +6,9 @@ import { assertEventWritable, archiveRefusalOf } from "@/lib/services/club-archi
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { loadEventState } from "@/lib/services/tournament";
-import { clearTieResult } from "@/lib/services/knockout-result";
+import { clearTieResult, resultHeldBecause } from "@/lib/services/knockout-result";
 import { bracketDraws, tieByKey, marginWords } from "@/lib/domain/my-tie";
 import { resultLine, tieStillHolds } from "@/lib/domain/knockout-play-by";
-import { laterTieRefusal } from "@/lib/domain/knockout-ties";
 
 /** Organizer or Assistant Organizer, of a tournament that may still be written. */
 async function requireStaffEvent(): Promise<string> {
@@ -62,7 +61,7 @@ export async function undoTieResult(input: { key: string; players: string[] }): 
     return { ok: false, error: "The draw has changed: that place now holds a different tie. Reload to see the draw as it is." };
   }
   if (!m.winnerId) return { ok: false, error: "That tie has no result to take back." };
-  const later = laterTieRefusal(draws, key, { plate: state.event.bracketMode === "plate" });
+  const later = resultHeldBecause(state, key);
   if (later) return { ok: false, error: later };
 
   const stored = (await prisma.bracketWinner.findFirst({ where: { eventId, key }, select: { result: true } }))?.result ?? "";
