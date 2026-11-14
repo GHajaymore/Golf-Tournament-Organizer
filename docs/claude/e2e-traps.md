@@ -128,6 +128,12 @@ where the thing is at the moment it scrolls. The visitor is fine: somebody alrea
 sign-up form keeps their place to the pixel on Chrome's engine and on Safari's — measured, after
 it had been assumed otherwise and written down as a fault that was not there.
 
+**ONE WEBKIT CHECK RUNS ON EVERY PULL REQUEST (2026-11-14).** Job `e2e-webkit-door` in `ci.yml` runs
+`e2e/front-door.spec.ts` (sign-up, log-in, reset, sign-out) on WebKit's iPhone profile in the Playwright
+image, which already holds WebKit, against the same bundle as the shards, with `E2E_PLAIN_HTTP=1`. Round
+G636 had cost 2 h 43 min to learn what it says in minutes. It is not in the shard matrix, so `e2e-cover`
+does not count it; `verify` needs it. Everything else on WebKit is still by hand, as below.
+
 **AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPhone, which is WebKit.
 `E2E_ENGINE=webkit npx playwright test` runs the same three projects on it (CI installs Chromium
 only, so this is by hand: `npx playwright install webkit` once). Two things to know before
