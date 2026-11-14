@@ -96,10 +96,15 @@ export type LockScope = (typeof LOCK_SCOPES)[number];
 export interface TournamentFacts {
   /** The club's day (`clubDayForEvent`), never the server's. */
   today: string;
-  /** Stored: draft | registration | ready | live | completed. Legacy values allowed until J14. */
+  /**
+   * Stored: draft | live | completed (state machine PR 8, J14: migration A045
+   * moved the old ladder's two later words to `draft`). The old word a row kept
+   * (`Event.legacyStatus`) is not a fact of the machine: the step is Setting up
+   * either way, and the one thing it still decides, whether members may see the
+   * tournament, is asked of the row by `openToMembers`. It was a placeholder
+   * here, "" on every tournament and read by nothing, and left with PR 8.
+   */
   status: string;
-  /** The old value of a row moved to `draft` by J14's migration; "" until it lands (PR 8). */
-  legacyStatus: "" | "registration" | "ready";
   /** Today's blanket Unlock. Read as the legacy correction until PR 9. */
   configUnlocked: boolean;
   /**

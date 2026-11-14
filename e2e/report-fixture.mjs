@@ -173,7 +173,7 @@ export async function seedReport(mark) {
       data: {
         organizationId: org.id,
         name: `${mark} Autumn Foursomes`,
-        status: "registration",
+        status: "draft",
         registrationOpen: true,
         shape: "single",
         format: "stroke",

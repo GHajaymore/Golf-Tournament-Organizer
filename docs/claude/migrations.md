@@ -54,3 +54,16 @@ holds two in-play tournaments of one name, so production's real events are never
 blocked; where it was skipped the app's own check still holds, and its SQL can be run again by
 hand with `prisma db execute --file` (it is idempotent) once the clubs have resolved their duplicates. Check whether it exists
 with `select indexname from pg_indexes where indexname = 'Event_name_in_play_key'`.
+
+**A CHECK Prisma cannot express, the same way (state machine PR 8, 2026-11-13).**
+`A045_old_setting_up_rows_keep_their_word` moved every `Event` stored as `registration` or `ready` to
+`draft`, keeping the old word in `Event.legacyStatus` (read by `openToMembers`), and then adds
+`Event_status_is_one_the_app_writes`: `CHECK ("status" IN ('draft', 'live', 'completed'))`. From then on
+`isLaunched` is "not `draft`", so a row written in any other word would read as LAUNCHED; the CHECK
+refuses the writer. It is not in `schema.prisma` (a comment beside `status` says so), and it is GUARDED
+like A036 — added only where no row holds another status, a NOTICE otherwise, every statement safe to
+run twice. So a fixture, seed or audit test that writes an invented status (`"active"`, `"complete"`
+were found in twelve audit files and moved to `"live"`) now fails at the insert, loudly. Check it with
+`select pg_get_constraintdef(oid) from pg_constraint where conname = 'Event_status_is_one_the_app_writes'`.
+The proof is `a-legacy-row-keeps-its-word.audit.test.ts`, which runs the file's own text against a
+scratch copy of a zz- club's rows.
