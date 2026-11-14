@@ -49,6 +49,8 @@ import { EntryTermsCard } from "./EntryTermsCard";
 import { MoreInfo } from "./MoreInfo";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
+import { PlayerLinkPanel } from "./PlayerLinkPanel";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
 import { EMAIL_MAX, PERSON_NAME_MAX, PHONE_MAX, PLACE_MAX } from "@/lib/domain/typed-limits";
 import { HANDICAP_BODIES, bodyInProse, bodyShortLabel, handicapBody as bodyById } from "@/lib/domain/handicap-body";
 
@@ -315,6 +317,8 @@ export function RegistrationClient({
    * in one tap (the tournament director on the review panel: a typo is wrong
    * everywhere, so the offer is made, not left to be found).
    */
+  // Whose Player link panel is open (J39/J40): one guest's at a time, under their row.
+  const [linkFor, setLinkFor] = useState<string | null>(null);
   const [memberOffer, setMemberOffer] = useState<{ playerId: string; name: string; to: number; memberFrom: number; done?: string } | null>(null);
   const commitIndex = (p: { id: string; name: string; handicap: number }, value: number) =>
     startTransition(async () => {
@@ -902,7 +906,18 @@ export function RegistrationClient({
                     {/* A GUEST HAS NO EMAIL HERE (2026-11-07): one would make a sign-in
                         account and hand the entry to whoever holds the address. */}
                     {isGuest(p) ? (
-                      <span className="text-muted">—</span>
+                      /* A GUEST'S WAY IN IS THEIR PLAYER LINK (J39/J40): no email, no app.
+                         The panel opens under the row; the code is fetched only by a press. */
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ fontSize: 13, padding: "3px 8px", whiteSpace: "nowrap" }}
+                        aria-expanded={linkFor === p.id}
+                        aria-label={`${PLAYER_LINK_WORDS.panelButton} for ${p.name}`}
+                        onClick={() => setLinkFor((v) => (v === p.id ? null : p.id))}
+                      >
+                        <Icon name="link" /> {PLAYER_LINK_WORDS.panelButton}
+                      </button>
                     ) : (
                     <input
                       className="input"
@@ -987,6 +1002,13 @@ export function RegistrationClient({
                       <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
                         <Icon name="warning-circle" /> {rowSaid.text}
                       </p>
+                    </td>
+                  </tr>
+                )}
+                {linkFor === p.id && isGuest(p) && (
+                  <tr>
+                    <td colSpan={20} style={{ paddingTop: 0 }}>
+                      <PlayerLinkPanel playerId={p.id} name={p.name} eventName={event.name} />
                     </td>
                   </tr>
                 )}

@@ -28,6 +28,17 @@ const DEVICE_COOKIE_SECONDS = 400 * 24 * 60 * 60;
 
 /** This browser's device value, hashed — made (and set) when asked to. */
 async function deviceHashHere(make: boolean): Promise<string | null> {
+  const value = await deviceValueHere(make);
+  return value ? hashBrowserValue(value) : null;
+}
+
+/**
+ * This browser's raw device value — made (and set) when asked to. Exported for
+ * the guest player link (2026-11-13), which hashes it under its OWN key
+ * (`services/player-link.ts`), so a `PlayerPassDevice` row can never be joined
+ * to a `KnownDevice` row through the shared cookie.
+ */
+export async function deviceValueHere(make: boolean): Promise<string | null> {
   const jar = await cookies();
   let value = jar.get(DEVICE_COOKIE)?.value;
   if (!value) {
@@ -41,7 +52,7 @@ async function deviceHashHere(make: boolean): Promise<string | null> {
       maxAge: DEVICE_COOKIE_SECONDS,
     });
   }
-  return hashBrowserValue(value);
+  return value;
 }
 
 /** Has this person signed in on this browser before? */

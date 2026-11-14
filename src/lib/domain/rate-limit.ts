@@ -61,6 +61,9 @@ export type RateLimitKind =
   | "code-send-client"
   | "round-code"
   | "round-code-client"
+  | "player-link-client"
+  | "player-link-alarm"
+  | "player-link-slow"
   | "discount-check"
   | "register-token"
   | "register-email"
@@ -129,6 +132,22 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  must survive an event morning of mistypes), still only 240 an hour for a
    *  script against an 8-character code instead of a thousand a second. See `clientGuessGate`. */
   "round-code-client": { limit: 60, windowMs: 15 * MINUTE },
+  /** A GUEST'S PLAYER LINK, opened or typed at /p (J39/J40, the review's S2). Keyed on the
+   *  CLIENT, never on the code: an enumerator spends one guess on each of a billion codes, so a
+   *  per-code budget would never slow it, and it would store an unkeyed hash of a 60-bit secret.
+   *  Counts only FAILED opens: a link that opens gives its attempt back and nothing is ever
+   *  cleared, so alternating one real link with guesses still counts every guess. Twenty in
+   *  fifteen minutes is a household mistyping a slip; for a script it is 80 an hour against
+   *  2^60. Where no client address can be read, one shared fallback bucket. See `clientGuessGate`. */
+  "player-link-client": { limit: 20, windowMs: 15 * MINUTE },
+  /** THE PLATFORM ALARM (S2c): failed opens across the whole app in an hour. Past it an error is
+   *  reported AND every open is slowed to `player-link-slow`'s pace per client: distributed
+   *  guessing from many addresses is the attack a per-client budget cannot see. */
+  "player-link-alarm": { limit: 200, windowMs: 60 * MINUTE },
+  /** While the alarm stands: three failed opens per client in fifteen minutes — twelve an hour
+   *  against the usual eighty (security review SF-2: one a minute was sixty, barely slower). A
+   *  guest with the right link still opens it (a success gives its attempt back). */
+  "player-link-slow": { limit: 3, windowMs: 15 * MINUTE },
   /** Discount codes, tried at sign-up or on a club's plan panel. A code is
    *  eight characters from 31, so this is not about guessing one — it is about
    *  a script trying to, and ten typos in fifteen minutes is a person who
@@ -387,6 +406,10 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `We've sent several codes from this connection. Try again in ${wait}.`;
     case "email-code-send":
       return EMAIL_CODE_WORDS.tooManySends(wait);
+    case "player-link-client":
+    case "player-link-alarm":
+    case "player-link-slow":
+      return `Too many link attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
     case "round-code":
     case "round-code-client":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
