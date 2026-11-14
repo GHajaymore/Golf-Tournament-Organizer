@@ -90,6 +90,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 4, of: 5, optional: ["Flights"] },
+      home: { text: "ready to launch", action: "Launch tournament" },
       journey: "Launch",
     });
     await expect(page.locator("main"), "Tournament details still says flights are missing").not.toContainText("No flights yet");
@@ -110,6 +111,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
       setup: null,
       journey: "Play",
     });
@@ -128,7 +130,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     // THE ROUND'S FIRST CARD: one of six in, the round open. Still live, Complete now allowed —
     // and Round 1's format and holes are shut, each with the reason and the way out.
     await cardsIn(f, f.stageIds[0], f.playerIds.slice(0, 1));
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, setup: null, journey: "Play" });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, setup: null, journey: "Play", home: null });
     await expectRoundDoors(page, f.stageIds[0], "Round 1", { format: FORMAT_SHUT, holes: HOLES_SHUT });
 
     // Every card in and approved, and the committee closes the round: Play over (2d).
@@ -153,7 +155,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish" });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish", home: null });
     // Completed: locked by completion, the way out Reopen — and no correction opens a final result.
     const reopenIt = { says: "Reopen it on the dashboard", href: "/dashboard" };
     await expectScopeLock(page, "/event", { scope: "Details", because: LOCKED_COMPLETED, wayOut: reopenIt });

@@ -90,6 +90,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
 
     // One singles match under way in the first session (Blues' first v Whites' first): live.
@@ -107,7 +108,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
         holes: JSON.stringify(["A", "H", "H", ...new Array(15).fill(null)]),
       },
     });
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
 
     // Both sessions closed by the Committee: play over. One match of a cup's points is in, so it is not decided.
     await prisma.stage.updateMany({ where: { eventId: f.eventId }, data: { closedAt: new Date() } });
@@ -115,6 +116,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
       chip: "Play over",
       lock: "live",
       chipDetail: "Every session closed · results not released",
+      home: { text: "Every session closed · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });
@@ -123,7 +125,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
 
     // Reopened by the press: both sessions are still closed, so play is over again.
     await pressReopen(page);
@@ -132,6 +134,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
       chip: "Play over",
       lock: "live",
       chipDetail: "Every session closed · results not released",
+      home: { text: "Every session closed · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });

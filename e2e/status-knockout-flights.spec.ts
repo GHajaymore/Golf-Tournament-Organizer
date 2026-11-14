@@ -112,7 +112,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
 
     // Dated: nothing else holds a flighted knockout (the division is made after launch, by design).
     await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Club championship", startOn: day, endOn: day } });
-    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null, home: { text: "ready to launch", action: "Launch tournament" } });
 
     // Launched by the press, as the other walks do it.
     await page.goto(`/dashboard?bust=${Date.now()}`);
@@ -142,6 +142,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
 
     // The division made (after launch, as a qualifying round would): still live, nothing played.
@@ -155,6 +156,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
 
     // Division made, nothing played: the draw is still the organizer's.
@@ -162,13 +164,13 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
 
     // Flight A decided: one Final of three. Live, and Complete is allowed.
     await decide(0);
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
     // The first result shut the draw (the machine's "results" lock): the screen says the flights are fixed.
     await expectDraw("first result in", false);
 
     // Flights A and B: the third Final is still to play. Still live.
     await decide(1);
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
 
     // All three Finals: play over, said for every final.
     await decide(2);
@@ -176,6 +178,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chip: "Play over",
       lock: "live",
       chipDetail: "Every final decided · results not released",
+      home: { text: "Every final decided · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });
@@ -184,7 +187,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
     await expectDraw("completed", false, "completed");
 
     // Reopened by the press: every Final is still decided, so play is over again.
@@ -194,6 +197,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chip: "Play over",
       lock: "live",
       chipDetail: "Every final decided · results not released",
+      home: { text: "Every final decided · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });

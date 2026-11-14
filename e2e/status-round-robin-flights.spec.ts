@@ -156,7 +156,7 @@ test("a round robin in flights says the same thing at every stage, and takes a l
     await prisma.match.createMany({
       data: pairs.map((p) => ({ eventId: f.eventId, stageId: round1, groupId: flight.id, round: p.round, playerAId: p.a, playerBId: p.b, holes: holes([]) })),
     });
-    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null, home: { text: "ready to launch", action: "Launch tournament" } });
 
     // ── launched, no match played ───────────────────────────────────────────
     await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
@@ -166,6 +166,7 @@ test("a round robin in flights says the same thing at every stage, and takes a l
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
     // Launch shuts none of a round's own settings: drawn and unplayed, its format and holes are open.
     await expectRoundDoors(page, round1, "Round 1", { format: null, holes: null });
@@ -217,11 +218,12 @@ test("a round robin in flights says the same thing at every stage, and takes a l
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
 
     // ── one match under way (A wins the first, two halved): live, and the round's settings shut ──
     await prisma.match.update({ where: { id: before[0].id }, data: { holes: holes(["A", "H", "H"]), scoreStatus: "confirmed", confirmedBy: "zz" } });
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
     await expectRoundDoors(page, round1, "Round 1", { format: FORMAT_SHUT, holes: HOLES_SHUT });
 
     // ── every match over (each won 3&2) and the Committee closes the round: play over ──
@@ -234,6 +236,7 @@ test("a round robin in flights says the same thing at every stage, and takes a l
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
+      home: { text: "Every round closed · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     } as const;
@@ -244,7 +247,7 @@ test("a round robin in flights says the same thing at every stage, and takes a l
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
     await pressReopen(page);
     await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
     await expectTournamentSays(page, over);

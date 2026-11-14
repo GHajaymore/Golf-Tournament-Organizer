@@ -67,6 +67,7 @@ test("a league needs only its next week dated, and a medal of the same rounds is
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 4, of: 5, optional: ["Flights"] },
+      home: { text: "ready to launch", action: "Launch tournament" },
       journey: "Launch",
     });
     const rail = page.locator(".card").filter({ hasText: "Ready to launch" });
@@ -80,6 +81,7 @@ test("a league needs only its next week dated, and a medal of the same rounds is
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 3, of: 5, optional: ["Rounds & formats", "Flights"] },
+      home: { text: "ready to launch", action: "Launch tournament" },
       journey: "Launch",
     });
     await prisma.event.update({ where: { id: f.eventId }, data: { attendanceMode: "opt-out" } });
@@ -102,6 +104,7 @@ test("a league needs only its next week dated, and a medal of the same rounds is
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
 
     // Week 1 played and closed: the next week has no day, so setting it is the next thing to do.
@@ -127,6 +130,7 @@ test("a league needs only its next week dated, and a medal of the same rounds is
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
+      home: { text: "Every round closed · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     } as const;
@@ -137,7 +141,7 @@ test("a league needs only its next week dated, and a medal of the same rounds is
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
     await pressReopen(page);
     await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
     await expectTournamentSays(page, over);

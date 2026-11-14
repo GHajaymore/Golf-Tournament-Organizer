@@ -52,6 +52,10 @@ test("a casual round is never offered Launch, Complete or Reopen, at any stage (
       await expect(page, `${stage}: the dashboard did not send a casual round to Score entry`).toHaveURL(/\/entry/, { timeout: 30_000 });
       await expect(page.getByRole("button", { name: LIFECYCLE_BUTTON }), `${stage}: a lifecycle button on Score entry`).toHaveCount(0);
       await expect(page.getByRole("link", { name: LIFECYCLE_BUTTON }), `${stage}: a lifecycle link on Score entry`).toHaveCount(0);
+      // H: the home's line. The dashboard is not drawn for a casual round, so there is no "What's next"
+      // to carry a launch, a draw or a results line for it (`home: null` in the family walks).
+      await expect(page.getByRole("region", { name: "What's next" }), `${stage}: the home has a What's next line for a casual round`).toHaveCount(0);
+      await expect(page.locator('[data-job="launch"], [data-job="schedule"], [data-job="draw"], [data-job="results"]'), `${stage}: a job line for a casual round`).toHaveCount(0);
       await page.goto(`/event?bust=${Date.now()}`);
       await expect(page.locator("main"), `${stage}: Tournament details offers launching`).not.toContainText("Ready to launch");
       await expect(page.getByRole("button", { name: LIFECYCLE_BUTTON }), `${stage}: a lifecycle button on Tournament details`).toHaveCount(0);
