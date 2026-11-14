@@ -44,6 +44,7 @@ import {
 import type { Role } from "@/lib/roles";
 import { bracketSizeFor, buildBracket, seedOrder, drawBrackets, firstRoundLosers, bracketFinishOrderAll, flightKind } from "@/lib/domain/bracket";
 import { planFlights, proposeShapes } from "@/lib/domain/bracket-flights";
+import { laterTieRefusal, type Draws } from "@/lib/domain/knockout-ties";
 import { flightCountFor, formGroups } from "@/lib/domain/grouping";
 import { groupByStandings, positionLookup } from "@/lib/domain/draw";
 import {
@@ -3727,5 +3728,117 @@ describe("an upstream edit to the tee sheet, every round type × step × publish
         }
       }
     }
+  }
+});
+
+/**
+ * TAKING A KNOCKOUT RESULT BACK, AT EVERY FIELD SIZE AND IN ANY ORDER (cut 3,
+ * 2026-11-14; Rules 3.2a(4) and 3.2b).
+ *
+ * A knockout's draw is rebuilt from its stored winners by POSITION
+ * (`buildBracket`), and a stored winner whose opponent is no longer known is
+ * dropped (`claimedWinner`). So taking back, or changing, a result its winner
+ * has already played on from takes the LATER result off the draw without a
+ * word. `laterTieRefusal` is the rule the server asks before either; this holds
+ * it to what actually happens to the other results, both ways:
+ *
+ *   allowed  ⇒ every other recorded result is still on the rebuilt draw;
+ *   refused  ⇒ at least one other recorded result would have left it
+ *              (the rule refuses nothing it need not).
+ *
+ * For one draw at every field size from ONE, and for a main draw with its
+ * plate (built as `loadEventState` builds it, from the first round's losers).
+ * Results are played in random orders, because an order-dependent rule is the
+ * one round-by-round play cannot reach (`a-tie-not-yet-played-is-not-a-bye`).
+ */
+describe("taking a knockout result back, at every field size and in any order", () => {
+  /** A small, repeatable random: the same orders every run. */
+  const rand = (seed: number) => () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+
+  const build = (players: Player[], winners: Record<string, string>, plate: boolean): Draws => {
+    const main = buildBracket("winners", players, winners);
+    if (!plate) return [{ label: "", view: main }];
+    const losers = firstRoundLosers(main, new Map(players.map((p) => [p.id, p])));
+    return [
+      { label: "Main draw", view: main },
+      { label: "Plate", view: buildBracket("consolation", losers, winners, false) },
+    ];
+  };
+
+  /** The recorded results that are on the draw, by key. */
+  const applied = (draws: Draws, winners: Record<string, string>) => {
+    const on = new Map<string, string>();
+    for (const { view } of draws) for (const rd of view.rounds) for (const m of rd.matches) {
+      if (m.winnerId && winners[m.key] === m.winnerId) on.set(m.key, m.winnerId);
+    }
+    return on;
+  };
+
+  /** Plays `steps` results, one ready tie at a time, in a random order. */
+  const play = (players: Player[], plate: boolean, next: () => number, steps: number) => {
+    const winners: Record<string, string> = {};
+    for (let s = 0; s < steps; s += 1) {
+      const ready = build(players, winners, plate)
+        .flatMap(({ view }) => view.rounds.flatMap((rd) => rd.matches))
+        .filter((m) => m.a.playerId && m.b.playerId && !m.winnerId);
+      if (ready.length === 0) break;
+      const m = ready[Math.floor(next() * ready.length)];
+      winners[m.key] = next() < 0.5 ? m.a.playerId! : m.b.playerId!;
+    }
+    return winners;
+  };
+
+  const cells: Array<{ n: number; plate: boolean }> = [
+    ...FIELD_SIZES.map((n) => ({ n, plate: false })),
+    ...[4, 5, 8, 12, 16].map((n) => ({ n, plate: true })),
+  ];
+  for (const { n, plate } of cells) {
+    it(`a ${n}-player ${plate ? "draw with a plate" : "draw"}: a result is held exactly when another was built on it`, () => {
+      const players = field(n);
+      let refusedSeen = 0;
+      let allowedSeen = 0;
+      for (let order = 0; order < 8; order += 1) {
+        const next = rand(order * 7919 + n * 31 + (plate ? 1 : 0));
+        const winners = play(players, plate, next, Math.floor(next() * 2 * n) + 1);
+        const draws = build(players, winners, plate);
+        const before = applied(draws, winners);
+        for (const [key, winnerId] of before) {
+          const tie = draws.flatMap(({ view }) => view.rounds.flatMap((rd) => rd.matches)).find((m) => m.key === key)!;
+          // A first-round bye goes through on its own and is no result to take back.
+          if (!tie.a.playerId || !tie.b.playerId) continue;
+          const refusal = laterTieRefusal(draws, key, { plate });
+          const other = tie.a.playerId === winnerId ? tie.b.playerId : tie.a.playerId;
+          for (const after of [
+            Object.fromEntries(Object.entries(winners).filter(([k]) => k !== key)), // taken back
+            { ...winners, [key]: other }, // changed
+          ]) {
+            const kept = applied(build(players, after, plate), after);
+            const othersKept = [...before].every(([k, w]) => k === key || kept.get(k) === w);
+            if (refusal === null) {
+              expect(othersKept, `${key} was allowed, and another result left the draw (n=${n}, order ${order})`).toBe(true);
+            }
+          }
+          // Refused only where taking it back WOULD move another result. (A plate is
+          // held as a whole once it has a result: the conservative answer, since
+          // its field is re-drawn from the losers; that side is not asserted.)
+          if (refusal !== null && !plate) {
+            const taken = Object.fromEntries(Object.entries(winners).filter(([k]) => k !== key));
+            const kept = applied(build(players, taken, plate), taken);
+            expect(
+              [...before].every(([k, w]) => k === key || kept.get(k) === w),
+              `${key} was refused, yet taking it back moves nothing (n=${n}, order ${order}): ${refusal}`,
+            ).toBe(false);
+          }
+          if (refusal !== null) refusedSeen += 1;
+          else allowedSeen += 1;
+        }
+      }
+      // Each cell reaches both answers where the field can (a draw of two has one tie).
+      if (n >= 4) expect(refusedSeen, "no result was ever held: the cell never reached the case").toBeGreaterThan(0);
+      if (n >= 2) expect(allowedSeen).toBeGreaterThan(0);
+    });
   }
 });

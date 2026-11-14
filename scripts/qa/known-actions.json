@@ -409,6 +409,7 @@
   "app/actions/tournament.ts:endCorrection": "e2e/locked-setup-refuses-in-words.spec.ts",
   "app/actions/owner.ts:loadCourseCatalogue": "e2e/owner-catalogue-load.spec.ts",
   "app/actions/join.ts:dismissNamesakeNotice": "e2e/namesake-notice.spec.ts",
+  "app/actions/knockout-results.ts:undoTieResult": "e2e/organizer-knockout-report.spec.ts",
   "app/actions/owner.ts:saveOffers": "e2e/owner-console.spec.ts",
   "app/actions/register.ts:confirmEntryCode": "e2e/organizer-entry.spec.ts",
   "app/actions/player-link.ts:openPlayerLink": "e2e/a-guest-takes-full-part.spec.ts",

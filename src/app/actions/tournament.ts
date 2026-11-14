@@ -4400,30 +4400,19 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
   // (`tieNotReady` — the same rule a player's report is held to).
   const notReady = existing?.winnerId === winnerId ? null : tieNotReady(tie.match);
   if (notReady) return { ok: false, error: notReady };
+  // A result its winner has played on from is not changed or taken back here:
+  // the later result would leave the draw without a word (cut 3, 2026-11-14).
+  // The one rule, asked by Undo on Score entry too (`undoTieResult`).
+  const { laterTieRefusal } = await import("@/lib/domain/knockout-ties");
+  const later = existing ? laterTieRefusal(bracketDraws(state!.brackets), key, { plate: state!.event.bracketMode === "plate" }) : null;
+  if (later) return { ok: false, error: later };
 
   if (existing?.winnerId === winnerId) {
-    // Toggle off if the same slot is clicked again.
-    await prisma.bracketWinner.delete({ where: { id: existing.id } });
-    /**
-     * Clearing the last result re-opens the draw.
-     *
-     * Without this a frozen draw would be a one-way door: an organizer who
-     * recorded a result by mistake, undid it, and then fixed the qualifying
-     * scores would be stuck with a bracket seeded from the wrong standings and
-     * no way in the UI to say so. A bracket with no results has not started,
-     * so there is no draw to protect.
-     */
-    const remaining = await prisma.bracketWinner.count({ where: { eventId } });
-    if (remaining === 0) {
-      // A FLAT draw is what the first result wrote down, and is what this
-      // re-opens. A division into flights was made by the organizer before any
-      // result and is not a by-product of one: clearing the last result leaves
-      // it exactly as they arranged it.
-      const kept = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketDraw: true } });
-      if (!parseFlightPlan(kept?.bracketDraw)) {
-        await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
-      }
-    }
+    // Toggle off if the same slot is clicked again: the one delete, which
+    // re-opens a draw left with no results (`clearTieResult`), on the record.
+    const { clearTieResult } = await import("@/lib/services/knockout-result");
+    await clearTieResult(eventId, key);
+    await logAudit(eventId, "knockout.undo", `${resultLine(tie.draw ? `${tie.draw} · ${tie.round}` : tie.round, { ...tie.match, winnerId: existing.winnerId })}${marginWords(existing.result)}: taken back on the draw`);
   } else {
     await recordBracketWinner(eventId, key, winnerId);
   }
