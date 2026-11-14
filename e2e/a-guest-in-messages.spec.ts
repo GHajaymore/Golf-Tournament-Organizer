@@ -8,7 +8,7 @@ import { watchPageErrors } from "./page-errors";
  * Pressed as the people who would: the ORGANIZER hands a guest their link; the GUEST, on a phone
  * with no account, writes in their round's thread and presses Message the organizer; the
  * organizer reads both in the console (the round post marked "Guest"), answers the desk, and
- * mutes the guest from the Player link panel; the guest's next round post is refused in words
+ * mutes the guest from the Player link panel; the guest is told so in words where a round post would be
  * while the desk stays open. Then the guest's notices, pressed by the guest: Turn on files a row on
  * the PASS at its current version (never an account's); the toggle asks the SERVER whether this
  * browser is on for this guest (`PushToggle`, drawn for the viewer); Turn off stops this phone; and "Forget me on this
@@ -156,12 +156,23 @@ test.describe("a guest in messages and notices", () => {
       expect((await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guestId } })).mutedAt).not.toBeNull();
       expect(await prisma.auditLog.count({ where: { eventId, action: "player-link.muted" } })).toBe(1);
 
-      // 6. The guest's next round post is refused in words; the desk stays open.
+      // 6. The guest is TOLD, not only refused (S8): the compose card says so and offers the desk
+      //    alone; the round's own thread says so where its reply box was (never "announcements
+      //    only"); and the desk stays open.
       await g.goto(`/me/messages?bust=${Date.now()}`);
       await g.getByRole("button", { name: "New message" }).click();
-      await compose(g, "zz One more thing for everyone");
+      await expect(g.locator("[data-muted-note]")).toContainText("Your organizer has turned off your posts here.", { timeout: 20_000 });
+      await expect(g.getByRole("combobox", { name: "Send to a group" }).locator("option"), "a muted guest is offered the round").toHaveCount(1);
+      await g.getByRole("button").filter({ hasText: "zz Is the range open" }).first().click();
       await expect(g.getByText("Your organizer has turned off your posts here.", { exact: false })).toBeVisible({ timeout: 20_000 });
-      expect(await prisma.message.count({ where: { body: "zz One more thing for everyone" } })).toBe(0);
+      await expect(g.getByText("announcements only", { exact: false })).toHaveCount(0);
+      await expect(g.getByPlaceholder("Message…"), "a reply box where the guest may not post").toHaveCount(0);
+      await g.goto(`/me/messages?bust=${Date.now()}`);
+      await g.getByRole("button", { name: /^Message the organi[sz]er$/ }).click();
+      await compose(g, "zz Still on for the Saturday?");
+      await expect
+        .poll(async () => prisma.message.count({ where: { body: "zz Still on for the Saturday?", thread: { scopeKey: `desk:${guestId}` } } }), { timeout: 20_000, message: "the desk closed with the round" })
+        .toBe(1);
 
       // 7. Notices, pressed by the GUEST: Turn on files the row on the PASS, at its current version,
       //    and never an account's (#1133 review: the turn-on step).

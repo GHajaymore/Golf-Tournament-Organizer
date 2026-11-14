@@ -1,7 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requirePlayingViewer } from "@/lib/page-helpers";
-import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
+import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor, MUTED_WORDS } from "@/lib/services/messaging";
 import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
 import { golfTermsForEvent } from "@/lib/services/organization";
@@ -62,6 +62,7 @@ export default async function PlayMessagesPage() {
         surface="player"
         guest={ctx.guest}
         deskKey={ctx.playerId ? `desk:${ctx.playerId}` : ""}
+        mutedWords={ctx.muted ? MUTED_WORDS : ""}
       />
     </div>
   );
