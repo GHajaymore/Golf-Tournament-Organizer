@@ -14,7 +14,7 @@ TypeScript, Prisma 6, PostgreSQL). Your brief names one change. Do that change, 
   change needs one, stop and say so in your report rather than editing it.
 
 ## The engineering checklist (owned by the QA Lead; every item, every time)
-1. A new server action gets a spec that PRESSES it as the person who would, and its `newSince` line in `scripts/qa/known-actions.json` (the unit job is red without it).
+1. A new server action gets a spec that PRESSES it as the person who would, and its `newSince` line in `scripts/qa/known-actions.json` at its sorted place (plain `<` order, never appended at the end) (the unit job is red without it).
 2. A new spec gets its line in `scripts/qa/specs-by-area.mjs`.
 3. Time is passed in: never `new Date()` for a club's day; tell the day helpers the day (`clubToday(zone)`).
 4. Read the fixture's facts from the fixture, never assume them (seeded club, plans, tees).
