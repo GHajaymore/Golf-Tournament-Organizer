@@ -1,7 +1,8 @@
 "use client";
 
 import Script from "next/script";
-import { scrubAnalyticsEvent, type AnalyticsEventLike } from "@/lib/domain/analytics-event";
+import { usePathname } from "next/navigation";
+import { isPlayerLinkPage, pageViewFor, type AnalyticsEventLike } from "@/lib/domain/analytics-event";
 
 type Va = ((...args: unknown[]) => void) & { q?: unknown[] };
 
@@ -28,11 +29,14 @@ declare global {
  * script is not served.
  */
 export function SiteAnalytics() {
+  // NOT ON A GUEST'S PLAYER LINK PAGE (/p, J39/J40, S3): no script loads there at all.
+  const path = usePathname();
+  if (isPlayerLinkPage(path ?? "/")) return null;
   if (typeof window !== "undefined" && !window.va) {
     window.va = function va(...args: unknown[]) {
       (window.vaq = window.vaq || []).push(args);
     };
-    window.va("beforeSend", (event: AnalyticsEventLike) => scrubAnalyticsEvent(event));
+    window.va("beforeSend", (event: AnalyticsEventLike) => pageViewFor(event));
   }
   return <Script src="/_vercel/insights/script.js" strategy="afterInteractive" data-sdkn="tourneyhq" />;
 }

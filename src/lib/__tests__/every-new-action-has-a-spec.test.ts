@@ -89,7 +89,7 @@ describe("every server action is on the list, or names the spec that presses it"
 
   it("the file's keys are sorted, so two PRs adding different actions do not conflict", () => {
     expect(outOfOrder(list.actions), "actions: keep the file keys sorted").toEqual([]);
-    expect(outOfOrder(list.newSince), "newSince: put your new line at its sorted place, not at the end").toEqual([]);
+    expect(outOfOrder(list.newSince), "newSince: put your new line at its sorted place (plain < order), not at the end").toEqual([]);
   });
 
   it("CONTROL: the sorted check sees an unsorted object and passes a sorted one", () => {

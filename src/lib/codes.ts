@@ -1,6 +1,7 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { CODE_ALPHABET, CODE_LENGTH } from "./code-format";
+import { LINK_ALPHABET, LINK_CODE_LENGTH } from "./domain/player-link";
 
 /**
  * Generating Round Codes and share tokens.
@@ -38,6 +39,15 @@ function randomFrom(alphabet: string, length: number): string {
  */
 export function generateAccessCode(): string {
   return randomFrom(CODE_ALPHABET, CODE_LENGTH);
+}
+
+/**
+ * A guest's player link code (J39/J40): twelve Crockford base32 symbols, 60
+ * bits, unbiased (`randomFrom`). Typed off a slip or read aloud, so it is short;
+ * guessing is online only and rate limited per client (`player-link-client`).
+ */
+export function generateLinkCode(): string {
+  return randomFrom(LINK_ALPHABET, LINK_CODE_LENGTH);
 }
 
 /** Opaque id for a public leaderboard link. */

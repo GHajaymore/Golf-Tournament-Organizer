@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
-import { requireSession } from "@/lib/page-helpers";
+import { requireAccountViewer } from "@/lib/page-helpers";
 import { clubEventsFor, clubSeasonFor } from "@/lib/services/club-events";
 import { enterTournament } from "@/app/actions/auth";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -57,7 +57,7 @@ async function openTournament(formData: FormData): Promise<void> {
  * in `clubEventsFor`, from the same `registrationStatus` the organizer reads.
  */
 export default async function ClubEventsPage() {
-  const session = await requireSession();
+  const session = await requireAccountViewer();
   const events = await clubEventsFor(session.email);
   // The club's own season, so this list groups the way its fixture card reads.
   const season = await clubSeasonFor(session.eventId);

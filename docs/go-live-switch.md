@@ -75,6 +75,7 @@ with the landing preview. Every other live word is the one the page already had.
 | `launch-codes` | Emailing the 25% codes to the early list | His message going out: never by Go live, never automatic. Once live the card shows who is waiting and the email, and sends only on his press of Send, confirmed. |
 | `interest-offer` | The 25% offer for somebody who joins after launch | Its terms are for clubs that join before launch, so live /interest makes no offer. **Open question for Ajay.** |
 | `round-codes` | /play, round codes, every public board | Never held. |
+| `player-links` | A guest's personal player link at /p (J39/J40) | Never held, like round codes (Ajay, 7 Nov): one guest entry in one event, never a sign-in. `guest-auth.ts` does not ask the hold. |
 | `entry-windows` | "Opens soon" on a tournament's entries | A tournament's own entry window. |
 | `contact-address` | /faq's "our contact address opens soon" | About mail (`CONTACT_EMAIL_LIVE`), not launch. |
 | `sitemap` | /interest in the sitemap and robots.txt | The page answers in both states, so an old post or ad still lands somewhere true. |
