@@ -2,8 +2,11 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { indexLabel } from "../domain/handicap-label";
+import { isNetBasis } from "../domain/match-entry";
+import { acceptsHandicapChange } from "../domain/round-handicap";
 import type { TeeSheet } from "../domain/tee-sheet";
 import type { ReplaceCandidate, ReplaceWorld } from "../domain/tee-sheet-replace";
+import { roundHasReturnedCard } from "./round-handicap";
 import { sheetFieldFor } from "./sheet-field";
 import { strokeCutField } from "./stroke-cut";
 
@@ -43,7 +46,7 @@ export async function replaceWorldFor(
   sheet: TeeSheet,
   inSides: boolean,
 ): Promise<{ world: ReplaceWorld; candidates: ReplaceCandidate[]; sides: RoundSide[] }> {
-  const [confirmed, field, cut, sides] = await Promise.all([
+  const [confirmed, field, cut, sides, stage, overrides, returned] = await Promise.all([
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
       orderBy: { name: "asc" },
@@ -52,11 +55,18 @@ export async function replaceWorldFor(
     sheetFieldFor(eventId, stageId),
     strokeCutField(eventId, stageId),
     inSides ? sidesOfStage(eventId, stageId) : Promise.resolve([] as RoundSide[]),
+    prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoringBasis: true } }),
+    // THE COMMITTEE'S STROKES FOR THIS ROUND — what `resolveRoundHandicap` takes before the roster — so a member
+    // with no index who has been given some may step into a round scored net, and the record says the figure.
+    prisma.roundHandicap.findMany({ where: { eventId, stageId, override: { not: null } }, select: { playerId: true, override: true } }),
+    roundHasReturnedCard(eventId, stageId),
   ]);
   const sideOf: Record<string, string> = {};
   for (const t of sides) for (const m of t.members) sideOf[m.playerId] = t.name;
   const flights: Record<string, string> = {};
   for (const p of confirmed) flights[p.id] = p.groupId ?? "";
+  const figures: Record<string, number> = {};
+  for (const r of overrides) if (r.override !== null) figures[r.playerId] = r.override;
   return {
     world: {
       sheet,
@@ -66,6 +76,9 @@ export async function replaceWorldFor(
       cut: cut ? [...cut] : null,
       flights,
       sameFlight: sides.some((t) => !!t.clubGroupId),
+      net: isNetBasis(stage?.scoringBasis ?? "gross"),
+      figures,
+      handicapsFixed: !acceptsHandicapChange(returned),
     },
     candidates: confirmed.map((p) => ({ id: p.id, name: p.name, index: indexLabel(p) })),
     sides,

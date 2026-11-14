@@ -19,12 +19,25 @@
  * week — refused if they hold a place in another group or pair (one player,
  * one card per round), are marked out for the week, missed the cut, or play for
  * another club in an interclub league. Or a guest with a handicap typed at
- * the moment; blank is allowed and means "no index": gross only, never
- * silently scratch, and never a reason to refuse the swap.
+ * the moment.
+ *
+ * AND NOBODY STEPS INTO A ROUND SCORED NET WITH NOTHING TO PLAY OFF. The
+ * handicap resolver reads the stored number, not "no index", so a player with
+ * no index would be played off nought — about scratch — while the record said
+ * "gross only" (found 14 Nov 2026). The Rules of Handicapping (6.1, 6.2) work a
+ * net allowance from an index; with none, the figure is the Committee's to give
+ * (Rule 7; Rules of Golf 3.3b(4); Committee Procedures 5A(5)). So, in a round
+ * scored net: a guest is taken only with the committee's figure typed
+ * (`guestFigureRefusal`), and a member with no index only once the committee
+ * has given them strokes for this round under Handicaps for this round
+ * (`candidateWhy`, the one place the list and the server both ask). In a gross
+ * round a blank is "no index": gross only, and true.
  *
  * Pure: told the sheet, the locks and the facts; reads no clock.
  */
 
+import { NO_INDEX, indexFigure } from "./handicap-label";
+import { isNetBasis } from "./match-entry";
 import type { TeeSheet } from "./tee-sheet";
 import type { SlotLocks } from "./tee-sheet-moves";
 
@@ -76,6 +89,12 @@ export interface ReplaceWorld {
   flights: Record<string, string>;
   /** An interclub league: a pair is drawn from its own club, so the substitute must be too. */
   sameFlight: boolean;
+  /** The round is scored net (`isNetBasis` of its `scoringBasis`): whoever steps in needs something to play off. */
+  net: boolean;
+  /** Player id -> the strokes the committee has given them for THIS round (`RoundHandicap.override`). */
+  figures: Record<string, number>;
+  /** A card is in for this round, so its handicaps are fixed and no figure can be given now (`acceptsHandicapChange`). */
+  handicapsFixed: boolean;
 }
 
 export interface ReplaceCandidate {
@@ -103,8 +122,21 @@ export function candidateWhy(c: ReplaceCandidate, absenteeId: string, world: Rep
     const mine = world.flights[absenteeId] ?? "";
     if (mine && (world.flights[c.id] ?? "") !== mine) return "Plays for another club.";
   }
+  if (world.net && c.index === NO_INDEX && world.figures[c.id] === undefined) return world.handicapsFixed ? NO_FIGURE_CARDS_IN : NO_FIGURE;
   return null;
 }
+
+/**
+ * A MEMBER WITH NO INDEX, IN A ROUND SCORED NET: listed, not choosable, and told the way on — the committee's
+ * strokes for this round, set where every round figure is set (Rounds & formats, Customize this round,
+ * Handicaps for this round: `setRoundHandicapOverride`, the one writer of a round figure). Same family as
+ * `guestFigureRefusal`. Once a card is in, the round keeps the handicaps it has (`FROZEN_HANDICAP_REFUSAL`),
+ * so then the way on is somebody else.
+ */
+export const NO_FIGURE =
+  "No handicap index, and this round is scored net. Give them the committee’s strokes on Rounds & formats (Customize this round, Handicaps for this round), then choose them.";
+export const NO_FIGURE_CARDS_IN =
+  "No handicap index, and this round is scored net. Its cards are in, so it keeps the handicaps it has: choose somebody with a handicap, or a guest.";
 
 /** Everybody offered for one slot, choosable first, the rest listed with their reason. */
 export function replaceCandidates(candidates: readonly ReplaceCandidate[], absenteeId: string, world: ReplaceWorld): ReplaceChoice[] {
@@ -158,9 +190,16 @@ export function pairNameAfter(name: string, before: readonly string[], after: re
   return name === before.join(" / ") ? after.join(" / ") : name;
 }
 
-/** The handicap a substitute plays off, said for the record: "12.4", "+2.4", "no index (gross only)". */
-export function handicapUsedWords(index: string): string {
-  return index === "no index" ? "no index (gross only)" : index;
+/**
+ * The handicap a substitute plays off, said for the record and on the confirm: "12.4", "+2.4", the
+ * committee's strokes for this round where they have given some ("14 strokes, the committee’s for this
+ * round" — that, and not the index, is what the round resolves first), or "no index (gross only)", which
+ * `candidateWhy` and `guestFigureRefusal` leave reachable only where it is true: a gross round.
+ * `figure` is `ReplaceWorld.figures[id]`, null for none (a guest has none: they are made by the press).
+ */
+export function handicapUsedWords(index: string, figure: number | null): string {
+  if (figure !== null) return `${figure === 0 ? "scratch" : `${indexFigure(figure)} strokes`}, the committee’s for this round`;
+  return index === NO_INDEX ? "no index (gross only)" : index;
 }
 
 /** "7 Nov 2026 08:05" — the club's own day and wall clock, told, for the audit line. */
@@ -195,10 +234,20 @@ export function replaceAuditLine(r: ReplaceRecord): string {
 }
 
 /** The one sentence the confirm button states before anything is done. */
-export function replaceWillSay(args: { absentee: string; sub: string; group: string; time: string; handicap: string; inSides: boolean; weekly: boolean }): string {
+export function replaceWillSay(args: {
+  absentee: string;
+  sub: string;
+  group: string;
+  time: string;
+  handicap: string;
+  /** The committee's strokes for this round, or null (`handicapUsedWords`). */
+  figure: number | null;
+  inSides: boolean;
+  weekly: boolean;
+}): string {
   const slot = args.time ? `${args.group}, ${args.time}` : args.group;
   return (
-    `${args.sub} takes ${args.absentee}’s place in ${slot}, playing off ${handicapUsedWords(args.handicap)}` +
+    `${args.sub} takes ${args.absentee}’s place in ${slot}, playing off ${handicapUsedWords(args.handicap, args.figure)}` +
     (args.inSides ? ", keeping the pair and its match" : "") +
     `; ${args.absentee} comes off the sheet${args.weekly ? " and is marked out for the week" : " and is withdrawn from the field (the row is kept)"}, and their side-game entries for this round are marked out (what they paid stays on the record).`
   );
@@ -224,12 +273,13 @@ export function voidedGamesWords(v: { contests: number; sideGames: number; kept:
 /**
  * A GUEST WITH NO FIGURE IS NOT PLAYED OFF NOUGHT. The handicap resolver reads the stored number and not
  * "no index", so a blank guest in a round that uses handicaps would play as a scratch golfer. Until that is
- * fixed at its root, a round scored net (net, both or Stableford — anything but gross) takes a guest only
- * with a figure the committee has given them (the Rules of Handicapping allow one for a non-member).
+ * fixed at its root, a round scored net (net, both or Stableford — anything but gross, `isNetBasis`) takes a
+ * guest only with a figure the committee has given them (the Rules of Handicapping allow one for a
+ * non-member). A member with no index is held to the same in `candidateWhy` (`NO_FIGURE`).
  * Gross: a blank is allowed. Returns the refusal, or null.
  */
 export function guestFigureRefusal(scoringBasis: string, guestName: string, hasFigure: boolean): string | null {
-  if (hasFigure || scoringBasis === "gross") return null;
+  if (hasFigure || !isNetBasis(scoringBasis)) return null;
   return `Type the handicap the committee gives ${guestName} — this round is scored net.`;
 }
 
