@@ -68,8 +68,9 @@ const WRITES = [".create(", ".createMany(", ".update(", ".updateMany(", ".upsert
  *   the business  the platform's owner (`isOwner`)
  *   guest link    the browser holding a guest's player link (`getGuestSession`, J39/J40) —
  *                 held to GUEST_ACTIONS by a-guest-acts-only-through-its-list.test.ts
- *   player viewer whoever a player screen is for: an account, or a guest's link
- *                 (`getPlayerViewer`); also held to GUEST_ACTIONS
+ *   player screen whoever a player screen is for: an account, a guest's link, or a round
+ *                 code's play session (`playStatusForScreen`, which asks `getPlayerViewer`
+ *                 for the player app), chosen by the kind of screen; also held to GUEST_ACTIONS
  */
 const WHO: Record<string, string> = {
   // anyone
@@ -96,8 +97,8 @@ const WHO: Record<string, string> = {
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",
   savePushSubscription: "themselves", removePushSubscription: "themselves",
-  // player viewer: whoever the player screen is for, an account or a guest's link (G1, Rule 5.7).
-  currentPlayStatus: "player viewer",
+  // player screen: whoever the screen is for, an account, a guest's link or a round code's phone (safety sweep G-1, G1, Rule 5.7).
+  currentPlayStatus: "player screen",
   setMyMessagesOptOut: "themselves", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
   readThread: "themselves", sendMessage: "themselves", markThreadRead: "themselves", startDirectThread: "themselves",
   createMatch: "themselves", createEvent: "themselves", createEventFromAnswers: "themselves",keepRound: "themselves",
@@ -144,7 +145,7 @@ const NEEDS: Record<string, string[]> = {
   organizer: ['role !== "admin"', 'role === "admin"', "isStaff", "requireMembership("],
   "the business": ["isOwner("],
   "guest link": ["getGuestSession("],
-  "player viewer": ["getPlayerViewer("],
+  "player screen": ["playStatusForScreen("],
 };
 
 interface Action {

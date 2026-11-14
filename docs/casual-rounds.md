@@ -29,7 +29,7 @@ reverse; the ones worth a second look are marked **↺**.
 | **↺ No scramble, shamble, best ball, greensomes, alternate shot, Chapman** | Not offered | A scramble's allowance is a weighted table over an ability order nobody has ranked on this screen. The others are mostly reasonable to add — this was a "short list" instinct, not a hard constraint |
 | **2–8 players** | Pairs formats need exactly 4 | Two fourballs is the most that goes out together. Beyond it you want a field, flights and a tee sheet |
 | **↺ Pairs only at two sides** | Four-Ball and Foursomes are 4 players, not 6 or 8 | Three pairs is a competition with a draw in it. Adding 6/8 is easy if you want society pairs days |
-| **Three money games** | Skins, Birdie pot, Nassau | Nassau is offered only on a head-to-head — it is three bets on one match |
+| **Four money games** | Skins, Birdie pot, The match, Nassau | The match and Nassau are offered only on a head-to-head (`matchOnly`), and Nassau only over eighteen holes (`needsEighteen`) — it is three games on one match. `The match` (one game on the result, #246) was added after this table was written |
 | **↺ No low gross / low net / eagles** | Not offered at setup | They exist and work; they are reachable on the round's money screen afterwards. Offering five at setup felt like the eighteen-format picker this screen exists to avoid |
 | **↺ £1,000 a head stake cap** | Refuses more | Not a moral position — a typo of 50000 for 500 is a settle-up demanding a hundred times what anybody said |
 | **24-hour expiry** | Round deletes itself | Your instruction. Clock starts at SET-UP, not at finish: a round nobody ever scored never finishes, and those are exactly the rows this clears |

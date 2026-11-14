@@ -208,7 +208,7 @@ beforeAll(async () => {
   // Next door: a tournament with an entry waiting, which nobody at this club may see.
   const elsewhere = await prisma.event.create({
     data: {
-      organizationId: other.id, name: `${MARK} Next Door Open`, status: "registration", shape: "single", format: "stroke",
+      organizationId: other.id, name: `${MARK} Next Door Open`, status: "draft", shape: "single", format: "stroke",
       dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${MARK}-next-${process.pid}`,
     },
   });

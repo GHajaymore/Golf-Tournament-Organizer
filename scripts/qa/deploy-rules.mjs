@@ -112,3 +112,37 @@ export function decideDeploy(f) {
 export function cleanNightlyShas(runs) {
   return runs.filter((r) => (r.jobs ?? []).some((j) => j.name.endsWith("Verdict") && j.conclusion === "success")).map((r) => r.headSha);
 }
+
+/**
+ * DOES A COMMIT WAIT FOR A NIGHTLY THAT HAS NOT BEEN RUN? (2026-11-14) — the facts `decideDeploy` was
+ * given, asked one more question. True when `verify` is green, production does not already hold the
+ * commit, and a core or function commit since the last deploy sits in no clean nightly round (or nobody
+ * can say what production holds and no clean nightly contains the commit). The hourly deploy run then
+ * asks for the nightly instead of waiting for 02:17 UTC: on 2026-11-14 the scheduled one began at 08:56
+ * and a merge took about six and a half hours to reach production.
+ */
+export function nightlyNeeded(f) {
+  if (!f.verifyGreen || f.alreadyThere) return false;
+  if (f.deployed === null) return !f.nightlyCoversSha;
+  return f.uncovered.length > 0;
+}
+
+/** Rounds that may run at once (runner capacity: three); the nightly is one of them. */
+export const ROUNDS_AT_ONCE = 3;
+
+/**
+ * Whether the hourly run should dispatch the Nightly round now. Never two nightlies (one running or
+ * queued is enough: the hourly run asks again in an hour), and never a fourth round on the runners.
+ * @param {{needed:boolean, nightlyActive:number, roundsActive:number, nightlyOnSha?:number}} f
+ *        nightlyOnSha: Nightly runs on this very commit, running or finished clean or not (not cancelled)
+ *        nightlyActive: Nightly runs queued or in progress; roundsActive: round.yml runs queued or in progress
+ */
+export function nudgeNightly(f) {
+  if (!f.needed) return { dispatch: false, reason: "no core or function commit is waiting for a nightly" };
+  if (f.nightlyActive > 0) return { dispatch: false, reason: `a nightly round is already running or queued (${f.nightlyActive}); it is not started twice` };
+  if (f.nightlyOnSha > 0) return { dispatch: false, reason: `a nightly round has already run (or is running) on this commit (${f.nightlyOnSha}); a NOT CLEAN one is read by a person, not asked for again every hour` };
+  if (f.nightlyActive + f.roundsActive >= ROUNDS_AT_ONCE) {
+    return { dispatch: false, reason: `${f.roundsActive} round(s) are running or queued, the runners' ${ROUNDS_AT_ONCE}; the next hourly run asks again` };
+  }
+  return { dispatch: true, reason: `a core or function commit waits for a clean nightly and none is running or queued (${f.roundsActive} other round(s) active)` };
+}

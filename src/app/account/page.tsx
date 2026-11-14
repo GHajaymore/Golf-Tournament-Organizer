@@ -6,6 +6,7 @@ import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
 import { Icon } from "@/components/Icon";
 import { DeleteAccount } from "@/components/DeleteAccount";
+import { PushEndpointField } from "@/components/PushEndpointField";
 import { SendResetLink } from "@/components/SendResetLink";
 import { soleOwnedClubs } from "@/lib/services/account-deletion";
 import { staffClubsOf } from "@/lib/services/staff-seen";
@@ -51,6 +52,8 @@ export default async function AccountPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <Lockup size={LOGO_SIZE.md} />
           <form action={signOutAction}>
+            {/* This phone's alerts leave with the person signing out (safety sweep G-4). */}
+            <PushEndpointField />
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 12 }}>
               <Icon name="sign-out" /> Sign out
             </button>
@@ -75,7 +78,8 @@ export default async function AccountPage() {
           <h2 className="card-title" style={{ fontSize: 15 }}>Other devices</h2>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
             Still signed in on a phone you no longer have, or a computer at the club? This signs you out
-            on every device, this one included. Your password stays the same, so you can sign straight back in.
+            on every device, this one included, and turns off your alerts on all of them. Your password stays
+            the same, so you can sign straight back in.
           </p>
           <form action={signOutEverywhereAction}>
             <button type="submit" className="btn btn-secondary">

@@ -1,0 +1,66 @@
+name: Nightly nudge
+
+# START THE NIGHTLY WHEN A MERGE IS WAITING FOR IT (2026-11-14).
+#
+# A core or function commit waits for a clean nightly round before it reaches production
+# (deploy.yml, scripts/qa/deploy-gate.mjs). The nightly is scheduled for 02:17 UTC but on 14 Nov it
+# began at 08:56, and a merge took about six and a half hours to reach production. So, once an hour,
+# this asks the deploy gate's own question (is a core or function commit since the last deploy in no
+# clean nightly?) and, if so, starts the nightly now:
+#
+#   - only when verify is green on main's head and none of those commits is covered;
+#   - never when a Nightly round is already running or queued (it is not started twice; the next
+#     hourly run asks again), and never when that would be the fourth round on the runners
+#     (ROUNDS_AT_ONCE, deploy-rules.mjs `nudgeNightly`);
+#   - idempotent: a second run an hour on finds the first's nightly and does nothing.
+#
+# A FILE OF ITS OWN, not a job in deploy.yml: deploy.yml is CALLED by ci.yml and nightly.yml, and a
+# called workflow may hold no scope its caller does not grant — a job here asking for `actions: write`
+# would stop both callers starting at all (startup_failure, as nightly.yml's own comment tells).
+#
+# THE TOKEN: starting a workflow by `gh workflow run` (workflow_dispatch) with the job's GITHUB_TOKEN
+# needs `actions: write`; that is the one write this file has (WRITE_ALLOWLIST in
+# workflow-permissions.test.ts). A run started by workflow_dispatch through GITHUB_TOKEN IS allowed to
+# start a run — the exception to the rule that events from that token start none. The job holds no
+# secret: it runs the gate read-only (no DEPLOY_WINDOW_TOKEN, so the freeze is "not checked", which
+# this does not use) and never deploys. The nightly it starts deploys what it clears, as ever.
+
+on:
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nudge:
+    name: Start the nightly if a merge waits for it
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+      checks: read
+      deployments: read
+    concurrency:
+      group: nightly-nudge
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The gate reads which commits since the last deploy were core or function.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Ask the gate whether a merge waits for a nightly
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/qa/deploy-gate.mjs --sha="$GITHUB_SHA"
+      - name: Start the nightly if none is running or queued
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/qa/nightly-nudge.mjs --needed=${{ steps.gate.outputs.nightly_needed }}

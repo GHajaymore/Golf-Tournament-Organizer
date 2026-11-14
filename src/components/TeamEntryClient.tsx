@@ -74,7 +74,7 @@ export interface TeamEntryRow {
   netTotal: number;
   played: number;
   /**
-   * The match as the players kept it hole by hole on a round code — "CVC 2 up
+   * The match as the players kept it hole by hole on a round code — "Oaks 2 up
    * with 4 to play" — or "" where nobody has. Said where the strokes would be
    * when there are none, so a match in play does not read "No score yet".
    */
