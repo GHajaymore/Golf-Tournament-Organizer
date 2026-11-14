@@ -87,7 +87,7 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * ("Start my card") when it draws one, otherwise the "My card" tab. The step list says which.
  */
 async function toTheCard(walk: Journey, page: Page) {
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   const onToday = page.locator("main").getByRole("link", { name: /my card/i }).first();
   if (await onToday.isVisible().catch(() => false)) {
     const words = (await onToday.innerText()).replace(/\s+/g, " ").trim();
@@ -106,7 +106,7 @@ async function holesIn(stageId: string, playerId: string): Promise<number> {
 
 /** Hole 1 at par, on the card that is open, and on the server. */
 async function scoreOneHole(walk: Journey, page: Page, stageId: string, playerId: string) {
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   await expect(page.getByText("Hole", { exact: true })).toBeVisible({ timeout: 20_000 });
   const par = page.getByRole("button", { name: /Par$/ }).first();
   await expect(par).toBeEnabled({ timeout: 30_000 });
@@ -231,7 +231,7 @@ test.describe("a player's round, measured", () => {
       const d = await desk.newPage();
       watchPageErrors(d, errors, "organizer");
       await d.goto(`/registration?bust=${Date.now()}`);
-      await d.waitForLoadState("networkidle").catch(() => {});
+      await d.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
       const button = d.getByRole("button", { name: `Player link for ${GUEST}`, exact: true });
       await button.scrollIntoViewIfNeeded();
       if ((await button.getAttribute("aria-expanded")) !== "true") await button.click();
@@ -277,9 +277,13 @@ test.describe("a player's round, measured", () => {
     test.setTimeout(240_000);
     const errors: string[] = [];
     const member = players[2];
+    // The address they type is THIS spec's, not the fixture's format (`makeEvent`'s addresses belong to
+    // rounds-fixture.ts): a change there must not move this journey's characters. 43 characters, with the mark.
+    const email = `${mark}-out@example.invalid`;
+    await prisma.player.update({ where: { id: member.id }, data: { email } });
     // They entered through the sign-up link two weeks ago: an account with a proved address and a password.
-    await prisma.user.create({ data: { email: member.email, name: member.name, password: hashed(PASSWORD), emailVerifiedAt: new Date() } });
-    await prisma.account.create({ data: { eventId, name: member.name, email: member.email, role: "player" } });
+    await prisma.user.create({ data: { email, name: member.name, password: hashed(PASSWORD), emailVerifiedAt: new Date() } });
+    await prisma.account.create({ data: { eventId, name: member.name, email, role: "player" } });
 
     const ctx = await phone(browser, baseURL!, testInfo);
     try {
@@ -294,24 +298,19 @@ test.describe("a player's round, measured", () => {
       walk.note("opens the app's link, signed out: asked to log in");
       const tab = page.getByRole("tab", { name: "Log in", exact: true }).locator("visible=true").first();
       if ((await tab.count()) && (await tab.getAttribute("aria-selected")) !== "true") await walk.press(tab, "the “Log in” tab");
-      await walk.type(visible(page, "#login-email"), member.email, "Email");
+      await walk.type(visible(page, "#login-email"), email, "Email");
       await walk.type(page.getByPlaceholder("Your password").locator("visible=true").first(), PASSWORD, "Password");
       await walk.press(page.getByRole("button", { name: "Log in", exact: true }).locator("visible=true").first(), "“Log in”");
       await page.waitForURL((u) => u.pathname !== "/", { timeout: 30_000 });
-      // The app may pass through another screen on its way to Today (CI, 25a0ffa0: / → /choose → /me, by
-      // itself). That is the app's walk and is counted as a visit; only if it never reaches Today does the
-      // person press the tab. (The first run pressed it too early, while /choose was still moving on.)
-      let reached = true;
+      // The log-in goes to Today by itself, passing through /choose on the way (CI, 25a0ffa0 and
+      // 0a29c5e4: / → /choose → /me). That is the app's walk, counted as a visit. Nothing here presses
+      // anything to help it: a slow runner waits longer, and a log-in that never arrives is a failure.
       try {
-        await page.waitForURL(/\/me$/, { timeout: 15_000 });
+        await page.waitForURL(/\/me$/, { timeout: 45_000 });
       } catch {
-        reached = false;
+        throw new Error(`the log-in never reached Today: it stopped on ${new URL(page.url()).pathname}`);
       }
-      await page.waitForLoadState("networkidle").catch(() => {});
-      if (!reached) {
-        await walk.press(sections(page).getByRole("link", { name: /Today/ }), "the “Today” tab");
-        await page.waitForURL(/\/me$/, { timeout: 30_000 });
-      }
+      await walk.settle();
       await toTheCard(walk, page);
       await scoreOneHole(walk, page, stageId, member.id);
       await seeWhereTheyStand(walk, page, member.name);
@@ -344,13 +343,15 @@ test.describe("a player's round, measured", () => {
         await new Promise((r) => setTimeout(r, 2_000));
         await route.continue().catch(() => {});
       });
-      // The chooser ("Use theirs / Keep mine") must never be shown: nobody else touched this card.
+      // The chooser ("Use theirs / Keep mine") must never be shown: nobody else touched this card. Found by
+      // CardConflict's own two names, so another dialog on the card screen is never counted as it.
+      const chooser = page.getByRole("alertdialog", { name: /^(Holes on this phone were never sent|This card was changed somewhere else)$/ });
       let choosers = 0;
       let watching = true;
       const watch = (async () => {
         let shown = false;
         while (watching) {
-          const now = (await page.getByRole("alertdialog").count().catch(() => 0)) > 0;
+          const now = (await chooser.count().catch(() => 0)) > 0;
           if (now && !shown) choosers += 1;
           shown = now;
           await page.waitForTimeout(150).catch(() => {});
@@ -371,14 +372,9 @@ test.describe("a player's round, measured", () => {
         const strokes = par + rel;
         const box = page.getByLabel(`Strokes on hole ${hole}`, { exact: true });
         // The card moves on by itself after a tap; if it has not, the person presses Next.
-        let onIt = true;
-        try {
-          await expect(box).toBeVisible({ timeout: 3_000 });
-        } catch {
-          onIt = false;
-        }
-        if (!onIt) await walk.press(page.getByRole("group", { name: "Holes" }).getByRole("button", { name: /Next/ }), "“Next”");
-        await expect(box, `the card is not on hole ${hole}`).toBeVisible({ timeout: 10_000 });
+        // A solo card moves on by itself after a tap (HoleByHoleCard's `advanceFrom`): that is the contract,
+        // so nothing here presses Next to help it — a slow runner waits longer, and a card that never moves on fails.
+        await expect(box, hole === 1 ? "the card did not open on hole 1" : `the card did not move on to hole ${hole} by itself after the tap on hole ${hole - 1}`).toBeVisible({ timeout: 30_000 });
         const word = padWord(rel, par);
         if (word) {
           const pad = page.getByRole("button", { name: new RegExp(`^${strokes}\\s*${escape(word)}$`) });

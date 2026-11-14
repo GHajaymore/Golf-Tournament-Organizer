@@ -98,17 +98,17 @@ async function signUpAsClub(walk: Journey, page: Page, email: string) {
   await walk.type(visible(page.getByPlaceholder("Choose a password")), "Seventh-Tee-Box-Moss-41", "Choose a password");
   await walk.press(visible(page.getByText("A golf club or course")), "“A golf club or course”");
   await walk.press(visible(page.getByRole("button", { name: "Create account" })), "“Create account”");
-  await verifyByCode(page, email);
-  walk.alsoPressed({ presses: 1, boxes: 1, chars: 6 }, "typed the 6-character emailed code and pressed “Confirm email”");
+  // The helper types the code and presses Confirm THROUGH the walk, so it counts what the step takes.
+  await verifyByCode(page, email, walk);
   await page.waitForURL(/\/choose/, { timeout: 60_000 });
 }
 
 /** The club is asked for its members before its first tournament, and says so: one member, by the form. */
 async function addFirstMember(walk: Journey, page: Page, mark: string) {
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   await walk.press(visible(page.getByRole("link", { name: /Add your members/ })), "“Add your members”");
   await page.waitForURL(/\/roster/, { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   await walk.press(page.getByRole("button", { name: "Add member" }).first(), "“Add member”");
   await walk.type(page.getByLabel("Name", { exact: true }), "Isla Penhallow", "Name");
   await walk.type(page.getByLabel(/^Email/).first(), `${mark}-member@example.invalid`, "Email");
@@ -125,7 +125,7 @@ async function addFirstMember(walk: Journey, page: Page, mark: string) {
 async function createFirstTournament(walk: Journey, page: Page, names: { tournament: string; club: string }) {
   await walk.press(visible(page.getByRole("link", { name: /Create your first tournament/ })), "“Create your first tournament”");
   await page.waitForURL(/\/choose/, { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   await walk.type(page.getByLabel("Tournament name"), names.tournament, "Tournament name");
   await walk.press(page.getByRole("button", { name: /^A single round/ }), "“A single round”");
   // A club is named once, here, on the way to its first tournament.
@@ -144,20 +144,20 @@ async function createFirstTournament(walk: Journey, page: Page, names: { tournam
 
 /** A console screen, opened from the sidebar as a secretary at a desk opens it. */
 async function fromTheSidebar(walk: Journey, page: Page, href: string) {
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   const link = visible(page.locator(`.app-sidebar a[href="${href}"]`));
   const words = (await link.innerText()).replace(/\s+/g, " ").trim();
   await walk.press(link, `“${words}” in the sidebar`);
   await page.waitForURL((u) => u.pathname === href, { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
 }
 
 /** Entries → Open entries, and the sign-up link read off the screen. */
 async function publishTheLink(walk: Journey, page: Page): Promise<string> {
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   await walk.press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })), "“Entries”");
   await page.waitForURL(/\/registration/, { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await walk.settle();
   await walk.press(page.getByRole("button", { name: /^Open entries/ }), "“Open entries”");
   await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
   // The link panel opens itself a moment after the button turns; read it once it is drawn.
@@ -304,9 +304,7 @@ test("J2: a new club secretary has a first event somebody can PLAY, in under ten
         await walk.press(page.getByRole("button", { name: /^Stroke play round/ }), "“Stroke play round”");
         const format = page.getByLabel("Format for every round added");
         if ((await format.inputValue()) !== "Stroke Play") {
-          await page.waitForTimeout(READ_MS);
-          await format.selectOption("Stroke Play");
-          walk.alsoPressed({ presses: 1 }, "chose “Stroke Play” for the round's format");
+          await walk.choose(format, "Stroke Play", "the round's format");
         }
         await walk.press(page.getByRole("button", { name: /^Add stroke play round/ }), "“Add stroke play round”");
         await expect(page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
@@ -404,7 +402,7 @@ test("J3: a returning secretary copies last event to a working entry link", asyn
     const walk = journey(page, "secretary-copy-last-event");
     walk.start();
     await page.goto("/dashboard");
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await walk.settle();
     walk.note("opens the console's home, signed in");
     const card = page.getByRole("region", { name: "Copy last event" });
     await expect(card).toBeVisible({ timeout: 20_000 });
@@ -414,7 +412,7 @@ test("J3: a returning secretary copies last event to a working entry link", asyn
       .poll(() => prisma.event.count({ where: { organizationId: club.orgId, status: "draft" } }), { timeout: 30_000, message: "the copy was not made" })
       .toBe(1);
     const copy = await prisma.event.findFirstOrThrow({ where: { organizationId: club.orgId, status: "draft" }, select: { id: true, name: true } });
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await walk.settle();
     const link = await publishTheLink(walk, page);
     const token = new URL(link).pathname.split("/").pop();
     expect((await prisma.event.findUniqueOrThrow({ where: { id: copy.id } })).registrationToken, "the link is not the copy's").toBe(token);

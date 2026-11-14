@@ -140,10 +140,11 @@ which honours `JOB_SCREENS` (`/registration`, `/foursomes`, `/stages`, `/entry`,
 **Copy last event** is `cloneEvent` given a first day: `copiedCalendar` moves the entry window and the
 rounds by the same distance against the club's own today, side games come across as games with nobody
 in them (`CLONED_CONTEST_FIELDS` and its two siblings in `clone.ts`), and the copy is made only by the
-club's Commissioner or an Admin (`organizationAccessFor`). **Time to a first event is MEASURED** by
-`e2e/secretary-first-event.spec.ts` — sign up as a club to a working entry link, at a person's pace —
-and held under ten minutes; it prints the seconds, screens, presses and characters. A change that adds
-a screen or a press to that path shows in those figures before it shows in the time.
+club's Commissioner or an Admin (`organizationAccessFor`). **The journeys are MEASURED and RATCHETED**
+(row 0b, 14 Nov): seven walks at a person's pace — sign-up to an entry link, a first event somebody can
+PLAY (held under ten minutes), copy last event, a member's and a guest's first hole, a signed-out member,
+a whole card on one bar — print one `JOURNEY {…}` line each, and fail CI over OR under their ceilings in
+`e2e/journey-budgets.ts`. Read `docs/claude/journeys.md` before touching one or answering a breach.
 
 ## End-to-end means across the board
 
@@ -484,4 +485,5 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | building a sweep/audit, walking screens, browser sessions | `docs/claude/sweeps-and-screen-walks.md` | controls, checks that pass on nothing, which session |
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |
 | the demo club, `isDemo`, `/demo`, the replay cron, anything that counts or messages clubs | `docs/claude/demo-club.md` | an invented club in production; every place it is left out, and the test for each |
+| a journey spec, `e2e/journey*.ts`, a `JOURNEY-BREACH` in CI, a press or screen added to a set-up or player path | `docs/claude/journeys.md` | the seven journeys, what is counted, the ratchet both ways, when a ceiling may be raised |
 | history only | `docs/claude/retired.md` | Paragraphs superseded by a later ruling, kept verbatim with the reason |

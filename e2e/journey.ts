@@ -5,6 +5,7 @@ import { JOURNEY_BUDGETS, type Counted, type Limits } from "./journey-budgets";
 /**
  * A JOURNEY, COUNTED AS A PERSON WALKS IT (work plan row 0b; Ajay, 14 Nov: "simplify the things while
  * setting up or as a player", "but still provide the full richer experience and functionality").
+ * How to read a breach, lower a ceiling, and when one may be raised: `docs/claude/journeys.md`.
  *
  * One counter for every journey spec, so the secretary's first event and a player's first hole are
  * measured the same way and their figures can be set side by side:
@@ -14,33 +15,38 @@ import { JOURNEY_BUDGETS, type Counted, type Limits } from "./journey-budgets";
  *             screen, so a player link's code never reaches the output)
  *   visits    the paths in the order they were stood on — a screen left and come back to is two
  *   returns   visits minus screens: every time the person was sent back to a screen already left
- *   presses   every control the person pressed, through `press` or `key` — and any pressed inside a
- *             helper, added with `alsoPressed`. Clicking into a text box to type is not a press.
+ *   presses   every control the person pressed, through `press` or `key` — a helper that presses on the
+ *             person's behalf is handed the walk and counts through it (`verifyByCode(page, email, walk)`).
+ *             Clicking into a text box to type is not a press.
  *   boxes     every box the person filled: typed into, a date picked, a file chosen
- *   chars     every character typed, through `type` (or `alsoPressed`). The SAME IN EVERY PROJECT: a
- *             spec that puts a per-project mark in what is typed gives it one length (`projectTag`),
- *             so the figure is the person's typing and never the fixture's name.
+ *   chars     every character typed, through `type`. The SAME IN EVERY PROJECT: a spec that puts a
+ *             per-project mark in what is typed gives it one length (`projectTag`), and types text
+ *             its own file owns, so the figure is the person's typing and never another file's format.
  *   seconds   the wall clock from `start()` to `stop()`, at the panel's pace: before every press the
  *             person takes `READ_MS` to read the screen and find the next control, and types at
- *             `TYPE_MS` a character (about 60 words a minute) — a person, not a script.
+ *             `TYPE_MS` a character (about 60 words a minute) — a person, not a script. A wait that is
+ *             only there for the test (`settle`, the network going quiet) is capped at `SETTLE_MS` and
+ *             kept OFF the clock, so a page that polls cannot add a minute and blame a step for it.
  *
  * `report` prints ONE machine-readable line per journey, with its ceiling and target beside it —
  *
  *   JOURNEY {"name":"player-member","project":"phone","screens":3,"visits":3,"returns":0,"presses":3,…}
  *
- * — then the step list, one `JOURNEY-STEP` line per thing done (the screen it was done on, and what was
+ * — then the step list, one `JOURNEY-STEP` line per thing done (when, on which screen, and what was
  * done), so a persona panel can read the walk without opening the spec. Both also go on the test's
  * annotations and as an attachment.
  *
- * THE RATCHET: `ceilingBreaches(f)` lists every figure over the journey's ceiling in
- * `journey-budgets.ts`; each spec asserts that list is empty. A figure UNDER its ceiling is printed
- * (`JOURNEY-UNDER`) so the cut's pull request lowers the ceiling in the same change.
+ * THE RATCHET: `ceilingBreaches(f)` lists every count over its ceiling in `journey-budgets.ts` AND every
+ * count under it (the change that shortens a journey lowers its ceiling in the same pull request, or a
+ * later one could put the step back unseen), and seconds over theirs. Each spec asserts the list is empty.
  */
 
 /** Reading a screen and finding the next control, per press. */
 export const READ_MS = 3_000;
 /** A character typed, at about 60 words a minute. */
 export const TYPE_MS = 200;
+/** The longest a test-only wait (`settle`) may take; it is kept off the clock either way. */
+export const SETTLE_MS = 5_000;
 
 export type JourneyFigures = {
   name: string;
@@ -56,7 +62,7 @@ export type JourneyFigures = {
   route: string[];
 };
 
-export type JourneyStep = { screen: string; did: string };
+export type JourneyStep = { at: number; screen: string; did: string };
 
 const pathOf = (url: string): string => {
   try {
@@ -75,22 +81,44 @@ export function projectTag(project: string): string {
 }
 
 const COUNTED: Counted[] = ["screens", "visits", "returns", "presses", "boxes", "chars", "seconds"];
+const BUDGETS_FILE = "e2e/journey-budgets.ts";
 
-/** Every figure over its ceiling, in words that say what to do; empty when there is no ceiling yet. */
-export function ceilingBreaches(f: JourneyFigures, ceiling: Limits | null = JOURNEY_BUDGETS[f.name]?.ceiling ?? null): string[] {
-  if (!ceiling) return [];
-  return COUNTED.filter((k) => ceiling[k] !== undefined && f[k] > ceiling[k]!).map(
-    (k) =>
-      `${f.name} (${f.project}): ${k} is ${f[k]}, over its ceiling of ${ceiling[k]} — remove a step elsewhere in this journey or lower nothing`,
-  );
-}
-
-/** Every figure under its ceiling: the ceiling comes down in this pull request. */
-export function ceilingSlack(f: JourneyFigures, ceiling: Limits | null = JOURNEY_BUDGETS[f.name]?.ceiling ?? null): string[] {
-  if (!ceiling) return [];
-  return COUNTED.filter((k) => ceiling[k] !== undefined && k !== "seconds" && f[k] < ceiling[k]!).map(
-    (k) => `${f.name} (${f.project}): ${k} is ${f[k]}, under its ceiling of ${ceiling[k]} — lower the ceiling to ${f[k]} in journey-budgets.ts`,
-  );
+/**
+ * Everything that fails the ratchet, in words that say what to do: a count over its ceiling, a count
+ * under it, seconds over theirs, or a journey with no ceiling at all. Empty when the journey is exactly
+ * at its ceilings.
+ */
+export function ceilingBreaches(f: JourneyFigures, ceiling: Limits | undefined = JOURNEY_BUDGETS[f.name]?.ceiling): string[] {
+  const who = `${f.name} (${f.project})`;
+  if (!ceiling) return [`${who}: no ceiling in ${BUDGETS_FILE}. Write this run's figures there as the journey's ceiling.`];
+  const found: string[] = [];
+  for (const k of COUNTED) {
+    const c = ceiling[k];
+    if (c === undefined) continue;
+    const v = f[k];
+    if (k === "seconds") {
+      if (v > c)
+        found.push(
+          `${who}: seconds is ${v}, over its ceiling of ${c} in ${BUDGETS_FILE}. The counted steps did not grow: the app or a ` +
+            `wait got slower. Read the times on the JOURNEY-STEP lines to find the step that took longer, and make it faster. ` +
+            `A ceiling is raised only with a named ruling written beside it in ${BUDGETS_FILE}.`,
+        );
+      continue;
+    }
+    if (v > c)
+      found.push(
+        `${who}: ${k} is ${v}, over its ceiling of ${c} in ${BUDGETS_FILE}. This change added to the journey: take it out. ` +
+          `If the new step is truly needed, remove another of the same kind elsewhere in this journey — a trade within one ` +
+          `figure passes (one press in, one press out); a trade across figures does not (one screen more for two presses fewer ` +
+          `fails). A ceiling is raised only with a named ruling written beside it in ${BUDGETS_FILE}.`,
+      );
+    else if (v < c)
+      found.push(
+        `${who}: ${k} is ${v}, under its ceiling of ${c} in ${BUDGETS_FILE}. This change shortened the journey: lower the ` +
+          `ceiling to ${v} in the same pull request, so the step cannot come back unseen.`,
+      );
+  }
+  return found;
 }
 
 export function journey(page: Page, name: string) {
@@ -100,6 +128,7 @@ export function journey(page: Page, name: string) {
   let typed = 0;
   let boxes = 0;
   let started = 0;
+  let offClock = 0;
   let elapsed = 0;
 
   page.on("framenavigated", (f) => {
@@ -108,6 +137,8 @@ export function journey(page: Page, name: string) {
     if (path && route[route.length - 1] !== path) route.push(path);
   });
   const here = () => pathOf(page.url());
+  const clock = () => (started ? Date.now() - started - offClock : 0);
+  const step = (screen: string, did: string) => steps.push({ at: clock(), screen, did });
   const figures = (project: string): JourneyFigures => {
     const screens = new Set(route).size;
     return {
@@ -128,11 +159,21 @@ export function journey(page: Page, name: string) {
     /** The clock starts. */
     start() {
       started = Date.now();
+      offClock = 0;
     },
-    /** The clock stops; the milliseconds since `start`. */
+    /** The clock stops; the milliseconds since `start`, less the test's own waits. */
     stop(): number {
-      elapsed = Date.now() - started;
+      elapsed = clock();
       return elapsed;
+    },
+    /**
+     * A wait that is only there for the test — the network going quiet before the next look — capped at
+     * `SETTLE_MS` and kept off the clock.
+     */
+    async settle() {
+      const from = Date.now();
+      await page.waitForLoadState("networkidle", { timeout: SETTLE_MS }).catch(() => {});
+      if (started) offClock += Date.now() - from;
     },
     /** A control pressed, after reading the screen. `what` is said in the step list. */
     async press(l: Locator, what: string) {
@@ -141,14 +182,14 @@ export function journey(page: Page, name: string) {
       const at = here();
       await l.click();
       presses += 1;
-      steps.push({ screen: at, did: `pressed ${what}` });
+      step(at, `pressed ${what}`);
     },
     /** A key pressed in a box just typed into (Enter, to go on) — a press, with no screen to read first. */
     async key(l: Locator, key: string, what: string) {
       const at = here();
       await l.press(key);
       presses += 1;
-      steps.push({ screen: at, did: `pressed ${what}` });
+      step(at, `pressed ${what}`);
     },
     /**
      * Text typed into a box, a character at a time. `what` names the box — never the text, which may be
@@ -161,7 +202,7 @@ export function journey(page: Page, name: string) {
       typed += text.length;
       boxes += 1;
       const named = what ?? `the box marked “${(await l.getAttribute("aria-label")) || (await l.getAttribute("placeholder")) || "?"}”`;
-      steps.push({ screen: at, did: `typed ${text.length} characters into ${named}` });
+      step(at, `typed ${text.length} characters into ${named}`);
     },
     /** A date picked (or a file chosen): one box filled, no characters typed, after reading the screen. */
     async pick(l: Locator, fill: (l: Locator) => Promise<void>, what: string) {
@@ -169,18 +210,19 @@ export function journey(page: Page, name: string) {
       const at = here();
       await fill(l);
       boxes += 1;
-      steps.push({ screen: at, did: `picked ${what}` });
+      step(at, `picked ${what}`);
     },
-    /** Presses, boxes and characters a helper made on the person's behalf (an emailed code typed back, its button). */
-    alsoPressed(counts: { presses?: number; boxes?: number; chars?: number }, did: string) {
-      presses += counts.presses ?? 0;
-      boxes += counts.boxes ?? 0;
-      typed += counts.chars ?? 0;
-      steps.push({ screen: here(), did });
+    /** A choice from a list (`<select>`): one press, after reading the screen. */
+    async choose(l: Locator, option: string, what: string) {
+      await page.waitForTimeout(READ_MS);
+      const at = here();
+      await l.selectOption(option);
+      presses += 1;
+      step(at, `chose “${option}” for ${what}`);
     },
     /** Something the person did that is not a press — opened a link from a message, read the screen. */
     note(did: string) {
-      steps.push({ screen: here(), did });
+      step(here(), did);
     },
     get presses() {
       return presses;
@@ -194,19 +236,17 @@ export function journey(page: Page, name: string) {
       const f = figures(testInfo.project.name);
       const budget = JOURNEY_BUDGETS[name];
       const line = `JOURNEY ${JSON.stringify({ ...f, ceiling: budget?.ceiling ?? null, target: budget?.target ?? null })}`;
-      const lines = steps.map((s, i) => `JOURNEY-STEP ${name} ${i + 1}. ${s.screen || "(no page yet)"} — ${s.did}`);
-      const ceilingLines = !budget
-        ? [`JOURNEY-CEILING ${name}: no entry in journey-budgets.ts`]
-        : budget.ceiling
-          ? ceilingSlack(f).map((s) => `JOURNEY-UNDER ${s}`)
-          : [`JOURNEY-CEILING ${name}: not set yet — write this run's figures into journey-budgets.ts`];
+      const lines = steps.map((s, i) => `JOURNEY-STEP ${name} ${i + 1}. at ${(s.at / 1000).toFixed(1)} s · ${s.screen || "(no page yet)"} — ${s.did}`);
+      const breaches = ceilingBreaches(f).map((b) => `JOURNEY-BREACH ${b}`);
       console.log(line);
-      for (const l of [...lines, ...ceilingLines]) console.log(l);
+      for (const l of [...lines, ...breaches]) console.log(l);
       testInfo.annotations.push({ type: "journey", description: JSON.stringify(f) });
-      await testInfo.attach(`journey-${name}.txt`, { body: [line, ...lines, ...ceilingLines].join("\n"), contentType: "text/plain" });
+      await testInfo.attach(`journey-${name}.txt`, { body: [line, ...lines, ...breaches].join("\n"), contentType: "text/plain" });
       return f;
     },
   };
 }
 
 export type Journey = ReturnType<typeof journey>;
+/** What a helper that acts for the person needs of the walk, to count what it does. */
+export type JourneyHands = Pick<Journey, "type" | "press">;
