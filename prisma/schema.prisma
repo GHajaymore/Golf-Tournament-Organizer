@@ -1523,8 +1523,12 @@ model Event {
    * A045). Before 31 Oct a tournament could be stored as `registration` or
    * `ready`; A045 moved each to `draft` and kept its old value here, verbatim,
    * so nothing is lost and a member who could see it still can
-   * (`openToMembers`). "" on every other row, and on every row made since:
-   * nothing in the app writes it. Reversal: status = legacyStatus where it is set.
+   * (`openToMembers`). Any other stray word was mapped to live or completed,
+   * its word kept here too. "" on every other row, and on every row made since:
+   * nothing in the app writes it. Reversal (code rollback FIRST; see the
+   * rollback plan in A045's migration.sql): status = legacyStatus only where
+   * status is still `draft` (a row launched since stays launched), then blank
+   * the rest.
    */
   legacyStatus   String    @default("")
   configUnlocked Boolean   @default(false) // the retired blanket unlock; read as a legacy correction until PR 9

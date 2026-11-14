@@ -25,8 +25,10 @@
 -- (READ COMMITTED), which then skips the row; one that comes second waits for this one and
 -- then writes its own status over 'draft', leaving the old word in "legacyStatus", where it
 -- changes nothing (a launched tournament is open to members anyway). The ADD COLUMN with a
--- constant default is a catalogue change (PostgreSQL 11+): it rewrites no rows and holds its
--- lock only for an instant.
+-- constant default is a catalogue change (PostgreSQL 11+): it rewrites no rows. But the file
+-- runs as ONE transaction, so its ACCESS EXCLUSIVE lock on "Event" (and the CHECK's) is held
+-- until the whole migration commits: every query on "Event" waits for the two UPDATEs and the
+-- CHECK's scan.
 --
 -- Hand-written from `prisma migrate diff --from-schema-datasource ... --to-schema-datamodel
 -- ... --script` (read-only), keeping only this change; no DROP DEFAULT rode along.
