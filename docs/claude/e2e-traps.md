@@ -209,6 +209,6 @@ radio (by role, by `input[type="radio"]`, or by the words of a `.seg-opt` label)
 same on anything made by `.newPage()` — matches two elements and strict mode fails the step, after
 every step before it has passed. It reached CI twice in one night (#1123's owner-finance spec, #1125's
 guest-link spec), each written by an engineer who could not run Playwright. Find a page's refusal by its
-markup — `page.locator('p[role="alert"]')` — or narrow it with `.filter({ hasText })`; inside a card,
+own element and role — `p`, `div` or `span[role="alert"]`, e.g. `page.locator('[role="alert"]:not(#__next-route-announcer__)')` — or better by its text with `.filter({ hasText })`; inside a card,
 section or dialog locator the plain role is fine. `src/lib/__tests__/no-page-wide-alert-locator.test.ts`
 refuses the page-wide form.

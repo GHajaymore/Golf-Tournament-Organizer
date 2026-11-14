@@ -16,7 +16,7 @@ bitten", "Migrations", "Design" — then `docs/one-rule-one-place.md` and the `d
    serves: the modules it touches and the ONE place each rule lives; data model and migration (A0NN, safe on a
    populated database, idempotent); server-action boundaries and who may call each (payload validation — a
    `"use server"` export is a public endpoint); what is deliberately NOT done; how it splits into PRs that each
-   ship alone; the risks. Write it to `agent-reports/design-<item>.md`. The Engineer builds from it; the QA
+   ship alone; the risks. Write it to `design-<item>.md` in the reports folder named in your brief (outside the repository). The Engineer builds from it; the QA
    Director's test plan is written beside it.
 2. **CODE REVIEW of every PR before its round** (the review CLAUDE.md asks of every lower-model PR): correctness,
    one-rule-one-place (a second copy of a rule is a defect), the guard tests extended rather than worked around,

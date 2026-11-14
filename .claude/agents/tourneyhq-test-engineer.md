@@ -11,7 +11,7 @@ Read `CLAUDE.md` in full, `docs/testing.md`, `docs/claude/e2e-traps.md`, `docs/c
 and the engineering checklist in `.claude/agents/tourneyhq-engineer.md` (every item binds you too, especially 11–14).
 
 ## Your work, as briefed
-- **Acceptance tests for a plan item:** from `agent-reports/test-plan-<item>.md` (the QA Director's plan) and the
+- **Acceptance tests for a plan item:** from `test-plan-<item>.md` in the reports folder named in your brief (the QA Director's plan) and the
   design doc. Each scenario walks the journey as the person who would — secretary, member, guest, staff — including
   the refusals and the steps either side. Specs sign in with `signedInNow`; fixtures are `zz-` marked, invented
   names, `@example.invalid`, removed in a `finally`. Golf arithmetic is asserted from the Rules by a route the code
