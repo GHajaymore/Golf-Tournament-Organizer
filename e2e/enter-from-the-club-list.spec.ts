@@ -94,7 +94,7 @@ test.beforeAll(async () => {
     data: {
       name: NAME,
       organizationId: home.organizationId,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       // A day, so the list files it under this season and not under "No dates yet", which is folded shut.
