@@ -9,7 +9,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { sendPushTo } from "@/lib/services/push";
 import { whoKeysForEntry } from "@/lib/domain/messaging";
 import { golfTermsForEvent } from "@/lib/services/organization";
-import { cleanSuspendNote, resumedWords, suspendedWords } from "@/lib/domain/play-status";
+import { cleanSuspendNote, playStatusOf, resumedWords, suspendedWords } from "@/lib/domain/play-status";
 
 /**
  * SUSPEND AND RESUME PLAY for the whole tournament (Rule 5.7).
@@ -84,7 +84,8 @@ export async function currentPlayStatus(): Promise<{ suspended: boolean; note: s
     where: { id: viewer.eventId },
     select: { playSuspendedAt: true, playSuspendedNote: true },
   });
-  return { suspended: !!event?.playSuspendedAt, note: event?.playSuspendedNote ?? "" };
+  // One spelling of "is it suspended", the layout's and the public board's (#1132 review nit).
+  return playStatusOf(event);
 }
 
 export async function suspendPlay(note: string): Promise<{ ok: boolean; error?: string }> {

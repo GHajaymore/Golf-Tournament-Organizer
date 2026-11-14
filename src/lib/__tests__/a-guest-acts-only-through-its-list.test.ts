@@ -22,7 +22,20 @@ import { GUEST_ACTIONS } from "@/lib/domain/player-link";
 const ACTIONS_DIR = join("src", "app", "actions");
 // `getPlayerViewer(` answers for a link as readily as for an account (G1, `currentPlayStatus`).
 // PR 2: messaging asks `messagingContextFor` (through `requireActor`), push asks `pushOwnerNow`.
-const GUEST_DOORS = ["getGuestSession(", "requireScoreEntryForStage(", "guestActorFor(", "getPlayerViewer(", "messagingContextFor(", "requireActor(", "pushOwnerNow("];
+// And every other door that resolves a guest (#1132 review, PE-1): ban the shape, not one spelling.
+const GUEST_DOORS = [
+  "getGuestSession(",
+  "requireScoreEntryForStage(",
+  "guestActorFor(",
+  "getPlayerViewer(",
+  "playerViewSwitch(",
+  "requirePlayerViewer(",
+  "requirePlayingViewer(",
+  "requireAccountViewer(",
+  "messagingContextFor(",
+  "requireActor(",
+  "pushOwnerNow(",
+];
 /** Actions that reach a guest door but are not a GUEST action: the open door itself. */
 const NOT_GUEST_WRITES = new Set(["openPlayerLink"]);
 
@@ -99,6 +112,11 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
     expect(body, "a guest must never be asked by address").not.toContain("byAddress");
     const viewer = readSource("src", "lib", "player-viewer.ts");
     expect(viewer).toMatch(/email: "",/);
+  });
+
+  it("CONTROL: an action that asks a page helper which resolves a guest is seen too (PE-1)", () => {
+    const [fake] = actionsIn("export async function sneakyGuestWrite(id: string) {\n  const s = await getSession();\n  const v = await requirePlayerViewer();\n}\n");
+    expect(reachesAGuestDoor(fake.body)).toBe(true);
   });
 
   it("CONTROL: an action that reaches the guest session off the list is seen", () => {

@@ -21,7 +21,9 @@ const TAG = "ZZ-AUDIT-PUSH";
 type Session = { eventId: string; email: string; name: string; role: string; viewRole: string };
 let session: Session | null = null;
 
-vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
+// The rest of the module kept: since J39/J40 PR 2 the push actions ask the player viewer, which also
+// reads the guest cookie (none here, outside a request) through `verify`.
+vi.mock("@/lib/auth", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/auth")>()), getSession: async () => session }));
 
 const { savePushSubscription, removePushSubscription } = await import("@/app/actions/push");
 
