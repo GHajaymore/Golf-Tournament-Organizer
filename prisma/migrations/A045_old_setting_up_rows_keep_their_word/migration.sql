@@ -64,13 +64,16 @@
 -- "legacyStatus" fails. If A045 FAILS mid-deploy, Prisma records it (P3009) and refuses every
 -- later deploy until `prisma migrate resolve --rolled-back A045_old_setting_up_rows_keep_their_word`
 -- is run against production by the owner; this file is safe to run again, so the re-deploy works.
--- The reversal touches only rows still 'draft': a moved row launched since keeps its status.
+-- The reversal touches only rows still 'draft': a moved row launched since keeps its status, and
+-- its old word (and any mapped stray's) is then blanked, so nothing reads it if the DROP waits.
 -- Rows mapped from another word keep live or completed, which the old code reads the same way.
 --
 -- Reversal (not applied; kept here as the pull request asks):
 --   ALTER TABLE "Event" DROP CONSTRAINT IF EXISTS "Event_status_is_one_the_app_writes";
 --   UPDATE "Event" SET "status" = "legacyStatus", "legacyStatus" = '' WHERE "legacyStatus" <> '' AND "status" = 'draft';
+--   UPDATE "Event" SET "legacyStatus" = '' WHERE "legacyStatus" <> '';
 --   ALTER TABLE "Event" DROP COLUMN "legacyStatus";
+-- (then step 3 above, by hand: the "_prisma_migrations" row named A045_old_setting_up_rows_keep_their_word)
 
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "legacyStatus" TEXT NOT NULL DEFAULT '';
 

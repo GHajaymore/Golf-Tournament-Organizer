@@ -321,7 +321,11 @@ describe("A045, run as written, against a copy of one club holding every old sta
     const before = await snapshot();
     await run(statements());
     const back = reversal();
-    expect(back.map((s) => s.split(/\s+/).slice(0, 3).join(" "))).toEqual(["ALTER TABLE \"Event\"", "UPDATE \"Event\" SET", "ALTER TABLE \"Event\""]);
+    expect(back.map((s) => s.split(/\s+/).slice(0, 3).join(" "))).toEqual(["ALTER TABLE \"Event\"", "UPDATE \"Event\" SET", "UPDATE \"Event\" SET", "ALTER TABLE \"Event\""]);
+    // The status UPDATE spares a launched row; only the blanking after it may match without `draft`.
+    expect(back[1], "the reversal can set a launched tournament back").toMatch(/WHERE "legacyStatus" <> '' AND "status" = 'draft'$/);
+    expect(back[2]).toMatch(/^UPDATE "Event" SET "legacyStatus" = '' WHERE "legacyStatus" <> ''$/);
+    expect(back.join("\n"), "the reversal reaches beyond the Event table").not.toMatch(/_prisma_migrations/);
     await run(back);
     const restored = await snapshot();
     expect(restored, "the reversal did not put every row back exactly").toEqual(before);
@@ -334,7 +338,11 @@ describe("A045, run as written, against a copy of one club holding every old sta
     // Launched after the move: `live`, its old word still in legacyStatus.
     await prisma.$executeRawUnsafe(`UPDATE "${SCRATCH}" SET "status" = 'live' WHERE "id" = $1`, ids["entries-shut"]);
     expect((await snapshot()).get(ids["entries-shut"])).toMatchObject({ status: "live", legacyStatus: "registration" });
-    await run(reversal());
+    const steps = reversal();
+    // Stopped before the DROP: the launched row is live with its word blanked, so nothing reads it.
+    await run(steps.slice(0, -1));
+    expect((await snapshot()).get(ids["entries-shut"])).toMatchObject({ status: "live", legacyStatus: "" });
+    await run(steps.slice(-1));
     const back = await snapshot();
     expect(back.get(ids["entries-shut"])!.status, "the reversal set a launched tournament back to its old word").toBe("live");
     // CONTROL: the moved rows still in setting up DO go back.
