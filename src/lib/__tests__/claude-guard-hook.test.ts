@@ -67,6 +67,42 @@ describe("the hard-rule guard refuses", () => {
   });
 });
 
+describe("waiting on CI (agent standard a: the GitHub API budget is shared)", () => {
+  it.each([
+    "gh run watch",
+    "gh run watch 123456789 --exit-status",
+    "gh pr checks 1127 --watch",
+    "gh pr checks --watch --fail-fast",
+    "gh pr checks 1127 --watch=true",
+    "git push -u origin claude/x && gh pr checks --watch",
+    "GH_TOKEN=x gh run watch 1",
+  ])("is refused in Bash and PowerShell: %s", (command) => {
+    for (const tool of ["Bash", "PowerShell"]) {
+      const r = run(command, { tool });
+      expect(r.code, `${tool}: ${command}`).toBe(2);
+      expect(r.stderr).toContain("standard (a)");
+      expect(r.stderr).toContain("STANDARDS.md");
+    }
+  });
+
+  it.each([
+    "gh run view 123456789 --log-failed",
+    "gh api repos/o/r/commits/abc/check-runs",
+    "gh pr checks 1127",
+    "gh pr view 1127 --json headRefOid",
+    // quoted or heredoc text is text, never a command
+    'git commit --dry-run -m "Never gh run watch; never gh pr checks --watch"',
+    "cat <<'EOF' > /dev/null\ngh run watch 1\ngh pr checks 2 --watch\nEOF",
+    "echo 'gh run watch'",
+  ])("lets through in Bash and PowerShell: %s", (command) => {
+    for (const tool of ["Bash", "PowerShell"]) {
+      const r = run(command, { tool });
+      expect(r.stderr, `${tool}: ${command}`).toBe("");
+      expect(r.code).toBe(0);
+    }
+  });
+});
+
 describe("the hard-rule guard lets through", () => {
   it.each([
     "git add src/lib/a.ts docs/b.md",

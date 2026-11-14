@@ -21,6 +21,9 @@
 //                                     from the main checkout's: every worktree shares the main
 //                                     checkout's node_modules, so it replaces EVERYONE's client
 //   PowerShell writing a source file  "Never rewrite a source file with PowerShell"
+//   gh run watch, gh pr checks --watch
+//                                     Agent standard (a), .claude/agents/STANDARDS.md — never
+//                                     wait on CI; the GitHub API budget is shared
 //   on Windows only: Playwright, next dev/start/build, npm run dev/build/start/test:e2e/
 //   smoke:all/electron:*              Ajay's ruling: no builds, servers or browsers on
 //                                     the desktop; CI and the cloud run them.
@@ -126,6 +129,14 @@ function nativePath(p, platform) {
   return p;
 }
 
+/** The gh command words of a segment (after any FOO=bar prefix), or null when it is not a gh call. */
+function ghCall(words) {
+  let i = 0;
+  while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i++; // GH_TOKEN=x gh ...
+  if (i >= words.length || !/(^|[\\/])gh(\.exe)?$/i.test(words[i])) return null;
+  return words.slice(i + 1);
+}
+
 /** The git subcommand of a segment, its arguments, and any -C directory. */
 function gitCall(words) {
   let i = 0;
@@ -151,6 +162,11 @@ function refuse(reason) {
 const NOT_ON_DESKTOP =
   "Builds, dev servers, Playwright and browsers do not run on Ajay's desktop (his ruling). " +
   "Push a round branch and let CI run it, or run it in a cloud session.";
+
+const NO_CI_WAIT =
+  "Agent standard (a), .claude/agents/STANDARDS.md: never wait on CI and never poll GitHub — no `gh run watch`, no " +
+  "`gh pr checks --watch`, no loops around gh. Every agent shares one GitHub API budget (5,000 an hour). Push, hand back, " +
+  "and let the main session read CI centrally (.qa/reader.txt in the main checkout); read branches with git, not gh.";
 
 /** The main checkout's folder, from any worktree of it; null when dir is not in a repository. */
 function mainCheckout(dir) {
@@ -201,6 +217,13 @@ function checkSegment(words, platform, dir) {
   const joined = words.map((w) => (/\s/.test(w) ? "_" : w)).join(" ");
   const git = gitCall(words);
 
+  const gh = ghCall(words);
+  if (gh) {
+    const plain = gh.filter((a) => !a.startsWith("-"));
+    const watchesRun = plain[0] === "run" && plain[1] === "watch";
+    const watchesChecks = plain[0] === "pr" && plain[1] === "checks" && gh.some((a) => /^--watch(=|$)/.test(a));
+    if (watchesRun || watchesChecks) return refuse(NO_CI_WAIT);
+  }
   if (git?.sub === "stash") {
     return refuse("Hard rule 5: never `git stash` — the working tree and its stash are shared with other sessions. Commit to a WIP branch instead.");
   }

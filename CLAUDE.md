@@ -460,6 +460,7 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | If your task touches… | Read first | What is in it |
 | --- | --- | --- |
 | sign-in, sign-up, sessions, passwords, codes, known devices, launching accounts | `docs/claude/sign-ins.md` | the hold in full; proved address, leaked passwords, new-device codes |
+| starting or briefing any agent | `.claude/agents/STANDARDS.md` | the one standard every agent follows: no waiting on CI, other PRs' files, no real names, short hand-backs |
 | any date, deadline, "today", time zone, E2E_TZ | `docs/claude/club-clock.md` | why the day is the club's; the helpers that must be told it |
 | `src/app/page.tsx`, `src/lib/landing/*`, `/faq`, `/privacy`, `/terms` | `docs/claude/landing-page.md` | its stylesheet, its three rules, the green test, ownership |
 | writing or REPORTING a browser-test result; coverage | `docs/claude/e2e-across-the-board.md` | why a pass count is not a claim; reach instruments; mutation habits |
