@@ -112,6 +112,10 @@ describe("every server action is guarded", () => {
     // turns a script away, and a rate limit on the address before any write —
     // held against real rows in `interest-is-kept-and-copied.audit.test.ts`.
     "interest.ts": ["registerInterest"],
+    // A guest's player link (J39/J40). Forgetting it clears this browser's own cookie and touches no
+    // row. Opening it is its own authorization, like a round code: a 60-bit code looked up by keyed
+    // hash, behind a per-client limit that is never cleared (a-guest-reaches-only-its-entry.audit.test.ts).
+    "player-link.ts": ["openPlayerLink", "forgetThisPhone"],
   };
 
   const GUARDS = [
