@@ -78,7 +78,12 @@ test("a round robin of four sides is drawn as six matches, and is not redrawn ov
     const generate = page.getByRole("button", { name: "Generate matches", exact: true });
     await centre(generate);
     await generate.click();
-    await expect.poll(async () => (await matches()).length, { message: "Generate matches did not make the round robin's six" }).toBe(6);
+    // The action makes the six matches in six NON-transactional creates. In CI 43577082050 (phone) the
+    // earlier Match_eventId_fkey error was this spec's finally dropClub racing those creates (09:04:45.957):
+    // the poll gave up at the default 5 s with three, the test ended, and the teardown removed the event
+    // under the action. Wait for the state itself under a bound that is still a failure (red after 30 s
+    // with the count). The app fix (one transaction) is a separate PR.
+    await expect.poll(async () => (await matches()).length, { message: "Generate matches did not make the round robin's six", timeout: 30_000 }).toBe(6);
 
     // A round robin, by definition: every side meets every other side exactly once…
     const drawn = await matches();

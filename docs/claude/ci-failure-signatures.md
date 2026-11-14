@@ -309,3 +309,42 @@ the image holds neither) and the parts with no browser. What it changes in a log
 - **no `lsof`, no `sudo`** in the image: `round.mjs` stops its server through `scripts/qa/free-port.mjs`
   (reads `/proc`) when `lsof` is missing.
 - Node: the image carries Node 24; `setup-node` still puts the app's 20 (22 for mutation) first on PATH.
+
+## UNEXPLAINED: the click that never returns on Rounds & formats (2026-11-14)
+
+```
+✘ [desktop] › e2e/organizer-rounds-screen.spec.ts:177:5 › a match-play championship in groups, then a knockout (4.2m)
+    Test timeout of 240000ms exceeded.
+    Error: expect(locator).toHaveValue(expected) failed
+    Locator:  getByLabel('Format for every round added')   Expected: "Match Play"   Received: ""
+    > 205 | await expect(...).toHaveValue("Match Play", { timeout: 10_000 });   (the line after the Bracket click)
+```
+
+Desktop Chromium only, twice: runs 41950657167 and 43589900390 (an unrelated branch). The Bracket press
+logs "performing click action" and nothing follows for the rest of the 240 s: no frames, no requests, no
+console lines, and no `SEGV_MAPERR`, "Target crashed" or "Page crashed" in either log. The app's Bracket
+press only calls two setStates, so the source does not explain it. **Cause unknown; do not add a cap that
+fails sooner, and do not edit application code on the strength of it.** (The `Invalid Server Actions
+request` lines in run 43589900390 start at 11:51, four minutes AFTER the test died: the next tests'
+teardown, not this.)
+
+Since 2026-11-14 the spec's Bracket click, and the 10 s `toHaveValue` after it, run under
+`e2e/stalled-click.ts` (always on; nothing is capped, the click and the expect keep their own bounds). If
+either is still pending after 20 s / 15 s the job log gets, once, lines starting `[stalled-click]`, and the
+test gets a text and a PNG attachment (the config also keeps a trace on failure). Read them so:
+
+| The log says | It was |
+| --- | --- |
+| `main thread unresponsive: page.evaluate did not answer in 5 s`, `no screenshot in 6 s` | the renderer hung or spun (a busy loop in the page) |
+| `PAGE CRASHED` | the renderer process died quietly |
+| `native confirm/alert/beforeunload dialog ...` | a dialog stalled the press; it was dismissed |
+| `atCentre=<x> ... (covering it)` or `attached=false` | the target was covered or replaced under the click |
+| `moved=true` | it was animating or re-laying out |
+| `took N ms, started <ISO time>` and nothing else | the click or the expect was slow, not stuck: the ISO times line up with the job log |
+| `pageerror` / `request failed` just before | the app threw, or a request dropped, at the press |
+
+**Quarantine: not yet.** Two occurrences on different branches, and the instrumentation has not yet run in
+CI. If it fails again BEFORE this lands, add the entry to `e2e/quarantine.json` (spec
+`e2e/organizer-rounds-screen.spec.ts`, test "a match-play championship in groups, then a knockout", owner
+Test Engineer, reason "click never returns, cause unexplained; see ci-failure-signatures", expiry at most 7
+days out). Once it lands, a recurrence explains itself and the next engineer fixes what the table says.
