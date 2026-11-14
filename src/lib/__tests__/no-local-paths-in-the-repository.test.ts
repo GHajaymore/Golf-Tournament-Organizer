@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { LOCAL_PATH, findLocalPaths } from "../../../.claude/hooks/guard.mjs";
+import { LOCAL_PATH, findLocalPaths } from "../../../.claude/hooks/local-paths.mjs";
 
 /**
  * Tracked files allowed to hold a local path, each with its reason. Measured on 14 Nov: none needed. An entry
