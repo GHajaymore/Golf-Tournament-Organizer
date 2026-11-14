@@ -62,8 +62,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A knockout/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    // Dashboard today; Entries once #1145 merges (a new tournament opens on Entries).
-    await page.waitForURL(/\/(dashboard|registration)/, { timeout: 60_000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
 
     await open(page, "/event");
     const today = new Date().toISOString().slice(0, 10);
