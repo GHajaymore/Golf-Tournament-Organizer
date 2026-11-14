@@ -26,7 +26,7 @@ import {
  */
 
 const prisma = new PrismaClient();
-type Seeded = Awaited<ReturnType<typeof seedFlightTees>>;
+type Seeded = { eventId: string; stageId: string; tees: Record<string, string>; flights: Record<string, string>; players: Record<string, string> };
 let seeded: Seeded;
 
 /**
@@ -42,7 +42,7 @@ type TeeKey = keyof typeof TEES;
 const flightOf = { champ: "blue", senior: "senior", ladies: "red", open: null } as Record<string, TeeKey | null>;
 
 beforeAll(async () => {
-  seeded = await seedFlightTees();
+  seeded = (await seedFlightTees()) as Seeded;
 });
 afterAll(async () => {
   try {
