@@ -98,6 +98,30 @@ of three at 30/20/10 — where the app played 25/20/15, the four's shares with t
 which is nobody's table. A test that asserts a fact about the Rules is as dated as the day somebody
 last read the Rules; the header of that file says when.
 
+## A player with no handicap index, in a round scored net (2026-11-14)
+
+**Nought is not "no index": nought is a scratch golfer's index.** A member whose roster says "no index"
+(`handicapSource: "none"`) is stored with a handicap of 0, and until lane N's PR B the pricing chain reads
+that 0 (`resolveRoundHandicap`'s `member ?? 0`) and scores the player as scratch in every net, Stableford
+and match round. Nothing said so: the launch dialog, What's next, the doors and the round's own list were
+silent, and Replace on the tee sheet printed "no index (gross only)" over a player being scored off 0.
+
+- A Course Handicap is worked from a Handicap Index (Rules of Handicapping 6.1); with none, the strokes are
+  the Committee's to give in a handicap competition (Rules of Golf 3.3b(4), as worded since 2023). What the
+  committee gives is a **Course Handicap for that round, in whole strokes** (`RoundHandicap.override`), never
+  an index typed onto the player: the roster keeps saying "no index", which is true. The allowance is taken of
+  it and rounded once, as for anybody (6.2a); a higher par's strokes are added after (6.2b).
+- **Who needs strokes is one function**, `needsCommitteeFigure` (`domain/committee-figure.ts`), and one list,
+  `playersNeedingFigure`. Do not ask "no index" and "net" side by side anywhere else:
+  `no-index-is-asked-in-one-place.test.ts` refuses it.
+- **PR A (caught and given)** tells everybody and gives the figure: a band above the rounds on Rounds &
+  formats (staff only; Enter gives and moves on), the launch warning, What's next, the rail's to-do, the
+  notes on Entries and Teams & pairs. Its words say what is true while the chain still scores off 0:
+  "scored as scratch, off 0".
+- **PR B (the sink)** stops the chain pricing a player with no figure, and flips `SINK_LIVE` in the same
+  commit, which turns every sentence to "their cards wait". Until it lands, an organizer who ignores every
+  notice can still score a player off nought, and the list keeps naming them.
+
 ## Tees of a higher par, and who chooses the tees
 
 **A PLAYER ON TEES OF A HIGHER PAR IS GIVEN THE DIFFERENCE.** Rules of
