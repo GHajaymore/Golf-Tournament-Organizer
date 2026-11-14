@@ -22,6 +22,9 @@ import { openSettingsTab } from "./settings-tabs";
  *   Event > Courses             Paste a card > Photograph the card        → "not switched on. Type the card in below" (readCourseCardPhoto)
  *   Event > Courses             Check source on a directory course        → "The course directory didn't answer" (checkCourseAgainstSource)
  *
+ * THE CHECK-SOURCE STEP CALLS THE LIVE OpenGolfAPI ON EVERY RUN (api.opengolfapi.org: unauthenticated,
+ * free, sends only an invented zz id; the answer is the same whether it is down or says 404).
+ *
  * THE PLAN GATE IS OPENED, NOT SKIPPED. Drafting and card reading are off on every plan, so the
  * buttons are greyed or hidden for a club with no exception, and a spec could never press them.
  * The club here has a per-club exception (`Subscription.featureOverrides`, the owner's own
@@ -194,7 +197,7 @@ test("the AI helpers, pressed by an organizer whose club has them: each says in 
     });
 
     // A tournament still being set up: once it is live its rounds are locked and the panel is not drawn.
-    const setup = await makeEvent(club, "Setup Medal", { status: "registration", stages: [{}], players: 2 });
+    const setup = await makeEvent(club, "Setup Medal", { status: "draft", stages: [{}], players: 2 });
     await test.step("Rounds & formats, Work out the rounds: not switched on, and no round is added", async () => {
       await signIn(context, baseURL!, club, setup.event.id);
       await open("/stages");
