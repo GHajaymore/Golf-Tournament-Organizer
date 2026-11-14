@@ -20,7 +20,9 @@ import { GUEST_ACTIONS } from "@/lib/domain/player-link";
  */
 
 const ACTIONS_DIR = join("src", "app", "actions");
-const GUEST_DOORS = ["getGuestSession(", "requireScoreEntryForStage(", "guestActorFor("];
+// `getPlayerViewer(` answers for a link as readily as for an account; `playStatusForScreen(`
+// asks it for the player screen (G1, `currentPlayStatus`).
+const GUEST_DOORS = ["getGuestSession(", "requireScoreEntryForStage(", "guestActorFor(", "getPlayerViewer(", "playStatusForScreen("];
 /** Actions that reach a guest door but are not a GUEST action: the open door itself. */
 const NOT_GUEST_WRITES = new Set(["openPlayerLink"]);
 
@@ -69,6 +71,10 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
       "getGuestSession(": ["src/lib/player-viewer.ts", "src/app/actions/player-link.ts"],
       "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts"],
       "guestViewer(": ["src/lib/player-viewer.ts"],
+      // The player screens' door, and the one resolver the siren's poll asks through (G1: the siren
+      // follows the screen's event; `currentPlayStatus` -> `playStatusForScreen`).
+      // player-viewer.ts DEFINES it (`export async function getPlayerViewer(`).
+      "getPlayerViewer(": ["src/lib/player-viewer.ts", "src/lib/page-helpers.ts", "src/lib/services/play-status-screen.ts"],
     };
     const files = sources("src");
     for (const [call, where] of Object.entries(allowed)) {

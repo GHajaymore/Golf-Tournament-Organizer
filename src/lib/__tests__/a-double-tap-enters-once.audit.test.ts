@@ -81,7 +81,7 @@ beforeAll(async () => {
       data: {
         organizationId: org.id,
         name: `${TAG} tournament ${i}`,
-        status: "registration",
+        status: "draft",
         shape: "single",
         format: "stroke",
         formationRule: "balanced",
@@ -144,7 +144,7 @@ describe("the early answer: already down beats every other refusal", () => {
       data: {
         organizationId: member.organizationId,
         name: `${TAG} tournament phone-later`,
-        status: "registration",
+        status: "draft",
         shape: "single",
         format: "stroke",
         formationRule: "balanced",
