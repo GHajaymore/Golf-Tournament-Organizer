@@ -1117,7 +1117,8 @@ export default async function PlayTodayPage() {
           names what is in it. Nothing in here needs them to act. */}
       {moreParts.length === 0 ? (
         <div style={{ marginTop: 12 }}>
-          <PushToggle />
+          {/* G2: not for a guest until notices by who-key can save it (savePushSubscription refused a link). */}
+          {!session.guest && <PushToggle />}
         </div>
       ) : (
       <details style={{ marginTop: 4 }}>
@@ -1142,8 +1143,8 @@ export default async function PlayTodayPage() {
               group on a published sheet yet, and nothing on the card. */}
           {playWith && <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />}
           {/* Tee-time alerts. Self-hiding where push isn't available, one line
-              once they are on. */}
-          <PushToggle />
+              once they are on. Not for a guest until it can save (G2). */}
+          {!session.guest && <PushToggle />}
         </div>
       </details>
       )}
