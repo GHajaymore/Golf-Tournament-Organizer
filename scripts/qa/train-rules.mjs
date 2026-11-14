@@ -28,6 +28,33 @@ export const TRUSTED_ASSOCIATIONS = ["OWNER", "MEMBER", "COLLABORATOR"];
 /** The branch a train's round runs on (round.yml reads the round number from its last part). */
 export const trainBranch = (n) => `round/train-${n}-1`;
 
+/** The only refs the builder may push, asserted again just before the push (a second guard). */
+export const TRAIN_REF = /^refs\/heads\/round\/train-[0-9]+-1$/;
+
+/**
+ * Whether a change is money or handicap arithmetic, which keeps THREE rounds (`roundPlan` in
+ * layers.mjs, ARITHMETIC_KEEPS_THREE_ROUNDS). A train runs one round, so such a PR never rides one.
+ * @param {{ rounds: number, arithmetic: string[] }} plan
+ */
+export function isArithmetic(plan) {
+  return plan.rounds > 1 && plan.arithmetic.length > 0;
+}
+
+/**
+ * Why a change's own round plan (the same `roundPlan` the Round workflow plans a pushed branch with)
+ * keeps it off a train; null when one round is what it needs.
+ * @param {string} who  "#1129", or "the train"
+ * @param {{ rounds: number, tier: string, arithmetic: string[] }} plan
+ */
+export function planProblem(who, plan) {
+  if (isArithmetic(plan)) {
+    return `${who} is money or handicap arithmetic (${plan.arithmetic.join(", ")}), which keeps three rounds; it is rounded alone through chain.sh, never on a train's one round`;
+  }
+  if (plan.rounds > 1) return `${who} needs ${plan.rounds} rounds; a train runs one`;
+  if (plan.rounds === 0) return `${who} needs no round (${plan.tier}): it merges on CI alone, so it does not ride a train`;
+  return null;
+}
+
 const short = (sha) => String(sha ?? "").slice(0, 8);
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
@@ -58,13 +85,17 @@ export function parsePrList(text) {
  * Why one PR may not ride a train; empty when it may.
  * @param {{ number: number, state: string, baseRefName: string, headSha: string, fetchedSha: string,
  *   verify: string | null, containsMain: boolean, labels: string[], reviewDecision: string | null,
- *   workflowFiles: string[] }} m
+ *   workflowFiles: string[], isCrossRepository: boolean,
+ *   plan: { rounds: number, tier: string, arithmetic: string[] } }} m
  */
 export function memberProblems(m, mainSha) {
   const n = `#${m.number}`;
   const out = [];
   if (m.state !== "OPEN") out.push(`${n} is ${String(m.state).toLowerCase()}, not open`);
   if (m.baseRefName !== "main") out.push(`${n} is for ${m.baseRefName}, not main`);
+  if (m.isCrossRepository) out.push(`${n} comes from a fork; its code would run in a round with this repository's round secrets`);
+  const planned = planProblem(n, m.plan);
+  if (planned) out.push(planned);
   if (!FULL_SHA.test(m.headSha ?? "")) out.push(`${n}: its head could not be read`);
   else if (!m.fetchedSha) out.push(`${n}: its head ${short(m.headSha)} could not be fetched`);
   else if (m.fetchedSha !== m.headSha) out.push(`${n}: its head moved while the train was built (${short(m.headSha)} → ${short(m.fetchedSha)}); ask again`);
@@ -83,17 +114,33 @@ export function memberProblems(m, mainSha) {
  * Why no round may start now (chain.sh's rules, said once): another change's round is running or
  * queued (one change in rounds at a time; several go together only as a train), or an open PR outside
  * the train already has a clean round and merges first, which would move main under this one.
- * @param {{ running: {branch: string, sha: string}[], open: {number: number, headSha: string}[],
- *   cleanShas: string[], memberHeads: string[] }} f
+ *
+ * A TRAIN's clean round ran on its tip, which is no PR's head, so a train is seen through its steps:
+ * `cleanTrains` are the trains whose tip carries `round-verdict` success, and an open PR of one of
+ * them is waiting to merge while its head is still its step's (the same head, or a head that took main
+ * and so has its step's tree). A PR of the train being built is not counted against it.
+ * @param {{ running: {branch: string, sha: string}[], open: {number: number, headSha: string, headTree?: string}[],
+ *   cleanShas: string[], memberHeads: string[], members?: number[],
+ *   cleanTrains?: {train: number | null, steps: {pr: number, head: string, tree: string}[]}[] }} f
  */
-export function roundsProblems({ running, open, cleanShas, memberHeads }) {
+export function roundsProblems({ running, open, cleanShas, memberHeads, members = [], cleanTrains = [] }) {
   const out = [];
   const busy = [...new Set(running.filter((r) => String(r.branch ?? "").startsWith("round/")).map((r) => r.branch))];
   if (busy.length) out.push(`another change is in rounds (${busy.join(", ")}); one change in rounds at a time, so ask again when it ends`);
   const clean = new Set(cleanShas);
   for (const o of open) {
-    if (memberHeads.includes(o.headSha)) continue;
-    if (clean.has(o.headSha)) out.push(`#${o.number}'s head ${short(o.headSha)} already has a clean round and merges first; merge it, bring these up to main, then build the train`);
+    if (memberHeads.includes(o.headSha) || members.includes(o.number)) continue;
+    if (clean.has(o.headSha)) {
+      out.push(`#${o.number}'s head ${short(o.headSha)} already has a clean round and merges first; merge it, bring these up to main, then build the train`);
+      continue;
+    }
+    for (const t of cleanTrains) {
+      const step = t.steps.find((s) => s.pr === o.number && (s.head === o.headSha || (Boolean(o.headTree) && s.tree === o.headTree)));
+      if (step) {
+        out.push(`#${o.number} is in train ${t.train}, whose round is clean and waits to merge; merge that train, bring these up to main, then build this one`);
+        break;
+      }
+    }
   }
   return out;
 }
@@ -221,14 +268,19 @@ export function gateFound(comments, pr, sha) {
  * `tokenPresent` is the merge token (TRAIN_MERGE_TOKEN): a merge made with the workflow's own token
  * pushes to main without starting ci.yml, so nothing would deploy it.
  *
+ * `trainPlan` is `roundPlan` of everything the train changes against its base: money or handicap
+ * arithmetic keeps three rounds, so a train holding it never merges on its one round.
+ *
  * @param {{ tokenPresent: boolean, verdict: {state: string, description: string} | null,
+ *   trainPlan: { rounds: number, arithmetic: string[] },
  *   steps: {k: number, pr: number, tree: string}[],
  *   prs: Record<number, { state: string, headSha: string, headTree: string, verify: string | null, containsMain: boolean, gate: boolean }> }} f
  * @returns {{ action: "off" | "refuse" | "merge" | "done", reason: string, pr?: number, head?: string }}
  */
-export function mergeDecision({ tokenPresent, verdict, steps, prs }) {
+export function mergeDecision({ tokenPresent, verdict, trainPlan, steps, prs }) {
   if (!tokenPresent) return { action: "off", reason: "no merge token (TRAIN_MERGE_TOKEN): a merge with the workflow's own token would not start ci.yml, so nothing would deploy it" };
   if (!steps.length) return { action: "refuse", reason: "the train has no steps" };
+  if (isArithmetic(trainPlan)) return { action: "refuse", reason: `the train holds money or handicap arithmetic (${trainPlan.arithmetic.join(", ")}), which keeps three rounds; one train round does not merge it` };
   if (verdict?.state !== "success") return { action: "refuse", reason: `the train's round is not clean (${verdict ? `${verdict.state}: ${verdict.description}` : "no verdict on its tip"})` };
   const firstOpen = steps.findIndex((s) => prs[s.pr]?.state !== "MERGED");
   if (firstOpen === -1) return { action: "done", reason: "every PR of the train has merged" };

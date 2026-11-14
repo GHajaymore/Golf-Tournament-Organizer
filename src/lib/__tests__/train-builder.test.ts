@@ -13,13 +13,21 @@ import {
   mergeDecision,
   parsePrList,
   parseSteps,
+  planProblem,
   roundsProblems,
   stepMessage,
   stepProblems,
+  TRAIN_REF,
   trainBranch,
   trainSummary,
 } from "../../../scripts/qa/train-rules.mjs";
 import { buildTrain } from "../../../scripts/qa/train-git.mjs";
+import { ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, roundPlan } from "../../../scripts/qa/layers.mjs";
+
+// Plans made by the Round workflow's own planner, never written by hand.
+const ONE_ROUND = roundPlan(["src/components/BracketFlights.tsx"]);
+const MONEY = roundPlan(["src/components/BracketFlights.tsx", "src/lib/domain/money.ts"]);
+const TESTS_ONLY = roundPlan(["src/lib/__tests__/qa-pipeline.test.ts"]);
 
 /**
  * THE TRAIN BUILDER (scripts/qa/train-rules.mjs, train-git.mjs, .github/workflows/train.yml).
@@ -46,7 +54,43 @@ const ready = {
   labels: [] as string[],
   reviewDecision: null as string | null,
   workflowFiles: [] as string[],
+  isCrossRepository: false,
+  plan: ONE_ROUND as { rounds: number; tier: string; arithmetic: string[] },
 };
+
+describe("a train is one round, so it holds only one-round changes (roundPlan, layers.mjs)", () => {
+  it("the planner's own figures are what this rests on (control)", () => {
+    expect(ONE_ROUND.rounds).toBe(1);
+    expect(MONEY.arithmetic).toEqual(["src/lib/domain/money.ts"]);
+    expect(ARITHMETIC).toContain("src/lib/domain/money.ts");
+    expect(TESTS_ONLY.rounds).toBe(0);
+  });
+  it("money or handicap arithmetic keeps three rounds and is refused from a train, by name", () => {
+    expect(MONEY.rounds).toBe(ARITHMETIC_KEEPS_THREE_ROUNDS ? 3 : 1);
+    const p = memberProblems({ ...ready, plan: MONEY }, MAIN);
+    if (ARITHMETIC_KEEPS_THREE_ROUNDS) {
+      expect(p).toEqual([
+        "#7 is money or handicap arithmetic (src/lib/domain/money.ts), which keeps three rounds; it is rounded alone through chain.sh, never on a train's one round",
+      ]);
+    } else {
+      expect(p).toEqual([]);
+    }
+  });
+  it("a change that needs no round merges on CI alone, and a one-round change rides", () => {
+    expect(planProblem("#7", TESTS_ONLY)).toBe("#7 needs no round (tests): it merges on CI alone, so it does not ride a train");
+    expect(planProblem("#7", ONE_ROUND)).toBeNull();
+    expect(planProblem("#7", { rounds: 2, tier: "core", arithmetic: [] })).toBe("#7 needs 2 rounds; a train runs one");
+  });
+  it("a fork's PR does not ride (its code would run with this repository's round secrets)", () => {
+    expect(memberProblems({ ...ready, isCrossRepository: true }, MAIN)[0]).toContain("comes from a fork");
+  });
+  it("only a train's own branch may be pushed", () => {
+    expect(TRAIN_REF.test(`refs/heads/${trainBranch(12)}`)).toBe(true);
+    for (const r of ["refs/heads/main", "refs/heads/round/train-12-2", "refs/heads/round/train-x-1", "refs/heads/round/train-12-1/x", "round/train-12-1"]) {
+      expect(TRAIN_REF.test(r), r).toBe(false);
+    }
+  });
+});
 
 describe("which PRs are asked for", () => {
   it("reads numbers in order, with or without #, commas or spaces", () => {
@@ -105,6 +149,22 @@ describe("no train while another change is in rounds", () => {
     const p = roundsProblems({ ...quiet, open, cleanShas: [A, B] });
     expect(p).toHaveLength(1);
     expect(p[0]).toContain("#5's head bbbbbbbb already has a clean round");
+  });
+  describe("a clean TRAIN waiting to merge is seen through its steps (its round ran on its tip, no PR's head)", () => {
+    const train9 = { train: 9, steps: [{ pr: 5, head: B, tree: "T5" }, { pr: 6, head: C, tree: "T6" }] };
+    const building7 = { ...quiet, members: [7], cleanTrains: [train9] };
+    const said = "#5 is in train 9, whose round is clean and waits to merge; merge that train, bring these up to main, then build this one";
+    it("an open member at its step's head", () => {
+      expect(roundsProblems({ ...building7, open: [{ number: 5, headSha: B }] })).toEqual([said]);
+    });
+    it("an open member that took main (a new head with its step's tree)", () => {
+      expect(roundsProblems({ ...building7, open: [{ number: 5, headSha: A.replace(/a/g, "d"), headTree: "T5" }] })).toEqual([said]);
+    });
+    it("not a member whose head has moved on (the train no longer speaks for it), nor one of the train being built", () => {
+      expect(roundsProblems({ ...building7, open: [{ number: 5, headSha: A.replace(/a/g, "d"), headTree: "other" }] })).toEqual([]);
+      expect(roundsProblems({ ...building7, members: [5, 7], open: [{ number: 5, headSha: B }] })).toEqual([]);
+      expect(roundsProblems({ ...building7, cleanTrains: [], open: [{ number: 5, headSha: B }] })).toEqual([]);
+    });
   });
 });
 
@@ -179,10 +239,15 @@ describe("the merge half: one PR at a time, in order, only the tested state", ()
   const steps = [{ k: 1, pr: 10, tree: "T1" }, { k: 2, pr: 20, tree: "T2" }];
   const open = (headTree: string, more = {}) => ({ state: "OPEN", headSha: A, headTree, verify: "success" as string | null, containsMain: true, gate: true, ...more });
   const clean = { state: "success", description: "CLEAN" };
-  const base = { tokenPresent: true, verdict: clean, steps, prs: { 10: open("T1"), 20: open("X") } };
+  const base = { tokenPresent: true, verdict: clean, trainPlan: ONE_ROUND, steps, prs: { 10: open("T1"), 20: open("X") } };
 
   it("is off without the merge token", () => {
     expect(mergeDecision({ ...base, tokenPresent: false }).action).toBe("off");
+  });
+  it("never merges money or handicap arithmetic on a train's one round", () => {
+    const d = mergeDecision({ ...base, trainPlan: MONEY });
+    expect(d.action).toBe(ARITHMETIC_KEEPS_THREE_ROUNDS ? "refuse" : "merge");
+    if (ARITHMETIC_KEEPS_THREE_ROUNDS) expect(d.reason).toContain("src/lib/domain/money.ts");
   });
   it("merges the first PR when its head is step 1", () => {
     expect(mergeDecision(base)).toMatchObject({ action: "merge", pr: 10, head: A });
@@ -280,6 +345,7 @@ describe("the train, built with git", () => {
     const d = mergeDecision({
       tokenPresent: true,
       verdict: { state: "success", description: "CLEAN" },
+      trainPlan: ONE_ROUND,
       steps: read.steps,
       prs: {
         1: { state: "MERGED", headSha: heads[1], headTree: "", verify: "success", containsMain: true, gate: true },
@@ -314,6 +380,11 @@ describe("train.yml", () => {
     expect(jobs.build).toMatch(/contents: write/);
     expect(jobs.tell).not.toMatch(/contents: write/);
     expect(jobs.merge).not.toMatch(/: write/);
+  });
+  it("no checkout leaves a token in .git/config for a later step", () => {
+    const checkouts = flow.split("- uses: actions/checkout@v4").slice(1).map((c) => c.split("\n      - ")[0]);
+    expect(checkouts).toHaveLength(3);
+    for (const c of checkouts) expect(c).toContain("persist-credentials: false");
   });
   it("the members are told again when a train's round ends", () => {
     expect(flow).toMatch(/workflow_run:\n {4}workflows: \["Round"\]\n {4}types: \[completed\]/);

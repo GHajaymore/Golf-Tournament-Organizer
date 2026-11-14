@@ -25,6 +25,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync, writeFileSync } from "node:fs";
+import { roundPlan } from "./layers.mjs";
 import { buildTrain, changedFiles, gitIn } from "./train-git.mjs";
 import {
   gateFound,
@@ -33,8 +34,10 @@ import {
   MAX_MEMBERS,
   parsePrList,
   parseSteps,
+  planProblem,
   roundsProblems,
   stepProblems,
+  TRAIN_REF,
   trainBranch,
   trainSummary,
 } from "./train-rules.mjs";
@@ -92,6 +95,15 @@ function verdictOn(sha) {
   return all[0] ?? null;
 }
 
+/** The first-parent commits from a tip, newest first, as parseSteps reads them. */
+function commitsFrom(tip) {
+  const log = git("log", "--first-parent", `-n${MAX_MEMBERS}`, "--format=%H%x1f%T%x1f%B%x1e", tip).out;
+  return log.split("\x1e").map((c) => c.trim()).filter(Boolean).map((c) => {
+    const [s, tree, message] = c.split("\x1f");
+    return { sha: s, tree, message: message ?? "" };
+  });
+}
+
 /** A train read back from its branch (or a given tip on it). */
 function readTrain(branch, sha) {
   if (!/^round\/train-\d+-1$/.test(branch)) usage(`not a train's branch: "${branch}"`);
@@ -99,15 +111,28 @@ function readTrain(branch, sha) {
   if (!f.ok) refuse([`${branch} could not be fetched: ${f.err}`]);
   const tip = sha || git("rev-parse", "FETCH_HEAD").out;
   if (!git("cat-file", "-e", `${tip}^{commit}`).ok) refuse([`${tip} is not a commit here`]);
-  const log = git("log", "--first-parent", `-n${MAX_MEMBERS}`, "--format=%H%x1f%T%x1f%B%x1e", tip).out;
-  const commits = log.split("\x1e").map((c) => c.trim()).filter(Boolean).map((c) => {
-    const [s, tree, message] = c.split("\x1f");
-    return { sha: s, tree, message: message ?? "" };
-  });
-  const read = parseSteps(commits);
+  const read = parseSteps(commitsFrom(tip));
   if (read.problems.length) refuse(read.problems.map((p) => `${branch}: ${p}`));
   return { tip, ...read };
 }
+
+/** Every train whose tip carries round-verdict success, read back through its steps. */
+function cleanTrainsNow() {
+  const ls = git("ls-remote", "--heads", "origin", "round/train-*");
+  if (!ls.ok) refuse([`the trains could not be listed: ${ls.err}`]);
+  const out = [];
+  for (const line of ls.out.split(/\r?\n/).filter(Boolean)) {
+    const [tip, ref] = line.split(/\s+/);
+    if (!TRAIN_REF.test(ref) || verdictOn(tip)?.state !== "success") continue;
+    if (!git("fetch", "-q", "origin", ref).ok) continue;
+    const read = parseSteps(commitsFrom(tip));
+    if (!read.problems.length) out.push({ train: read.train, steps: read.steps });
+  }
+  return out;
+}
+
+/** The roundPlan of everything between two commits: the Round workflow's own function. */
+const planBetween = (from, to) => roundPlan(changedFiles(git, from, to));
 
 if (command === "build") {
   const { prs, problems } = parsePrList(value("prs"));
@@ -123,7 +148,7 @@ if (command === "build") {
 
   const members = [];
   for (const pr of prs) {
-    const v = ghJson(["pr", "view", String(pr), "-R", REPO, "--json", "number,state,baseRefName,headRefOid,labels,reviewDecision"]);
+    const v = ghJson(["pr", "view", String(pr), "-R", REPO, "--json", "number,state,baseRefName,headRefOid,labels,reviewDecision,isCrossRepository"]);
     const head = fetchHead(pr);
     const files = head ? changedFiles(git, base, head) : [];
     all.push(
@@ -132,6 +157,9 @@ if (command === "build") {
           number: pr,
           state: v.state,
           baseRefName: v.baseRefName,
+          isCrossRepository: Boolean(v.isCrossRepository),
+          // The same function the Round workflow plans a pushed branch with (layers.mjs).
+          plan: roundPlan(files),
           headSha: v.headRefOid,
           fetchedSha: head,
           verify: verifyOn(v.headRefOid),
@@ -146,13 +174,25 @@ if (command === "build") {
     members.push({ pr, head: v.headRefOid });
   }
   const runs = ghJson(["run", "list", "-R", REPO, "--limit", "100", "--json", "headBranch,headSha,status,conclusion"]) ?? [];
-  const open = (ghJson(["pr", "list", "-R", REPO, "--state", "open", "--limit", "100", "--json", "number,headRefOid"]) ?? []).map((o) => ({ number: o.number, headSha: o.headRefOid }));
+  const open = (ghJson(["pr", "list", "-R", REPO, "--state", "open", "--limit", "100", "--json", "number,headRefOid"]) ?? []).map((o) => ({ number: o.number, headSha: o.headRefOid, headTree: "" }));
+  const cleanTrains = cleanTrainsNow();
+  // An open PR of a clean train whose head is no longer its step's head may have taken main: its tree says.
+  for (const o of open) {
+    if (prs.includes(o.number)) continue;
+    const step = cleanTrains.flatMap((t) => t.steps).find((s) => s.pr === o.number);
+    if (step && step.head !== o.headSha) {
+      const h = fetchHead(o.number);
+      o.headTree = h === o.headSha ? git("rev-parse", `${h}^{tree}`).out : "";
+    }
+  }
   all.push(
     ...roundsProblems({
       running: runs.filter((r) => r.status !== "completed").map((r) => ({ branch: r.headBranch, sha: r.headSha })),
       open,
       cleanShas: runs.filter((r) => String(r.headBranch ?? "").startsWith("round/") && r.conclusion === "success").map((r) => r.headSha),
       memberHeads: members.map((m) => m.head),
+      members: prs,
+      cleanTrains,
     }),
   );
   if (all.length) refuse(all);
@@ -160,6 +200,9 @@ if (command === "build") {
   const built = buildTrain({ repo: process.cwd(), base, train, members });
   if (built.refusal) refuse([built.refusal]);
   const wrong = stepProblems(built.steps);
+  // The whole train, planned as the Round workflow will plan its branch: one round, or no train.
+  const whole = planProblem("the train", planBetween(base, built.steps[built.steps.length - 1].sha));
+  if (whole) wrong.push(whole);
   if (wrong.length) refuse(wrong);
 
   const text = trainSummary({ train, branch, base, steps: built.steps, verdict: null });
@@ -169,7 +212,12 @@ if (command === "build") {
     console.log(`\nDry run: ${branch} would be ${tip}. Nothing was pushed.`);
     process.exit(0);
   }
-  const pushed = git("push", "origin", `${tip}:refs/heads/${branch}`);
+  const ref = `refs/heads/${branch}`;
+  if (!TRAIN_REF.test(ref)) refuse([`refuses to push ${ref}: only refs/heads/round/train-<n>-1`]);
+  // The checkout keeps no credentials (persist-credentials: false); the token rides this one push only.
+  const token = process.env.GH_TOKEN || "";
+  const auth = token ? ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`] : [];
+  const pushed = git(...auth, "push", "origin", `${tip}:${ref}`);
   if (!pushed.ok) refuse([`${branch} could not be pushed: ${pushed.err}`]);
   gh(["workflow", "run", "round.yml", "-R", REPO, "--ref", branch, "-f", "round=1", "-f", "schedule=pr", "-f", "countries=auto", "-f", "crawl=auto", "-f", "target=auto"]);
   console.log(`\nPushed ${branch} at ${tip} and started its round.`);
@@ -212,7 +260,7 @@ if (command === "build") {
     };
   }
   const token = process.env.TRAIN_MERGE_TOKEN || "";
-  const d = mergeDecision({ tokenPresent: Boolean(token), verdict: verdictOn(t.tip), steps: t.steps, prs });
+  const d = mergeDecision({ tokenPresent: Boolean(token), verdict: verdictOn(t.tip), trainPlan: planBetween(t.base ?? base, t.tip), steps: t.steps, prs });
   console.log(`Train ${train}: ${d.action}: ${d.reason}`);
   summary(`### Train ${train}: ${d.action}\n\n${d.reason}`);
   if (d.action === "refuse") process.exit(1);
