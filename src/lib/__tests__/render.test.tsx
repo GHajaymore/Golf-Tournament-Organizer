@@ -2088,13 +2088,13 @@ describe("course library", () => {
 
 describe("event switcher", () => {
   const event = {
-    id: "e1", name: "Ajay More Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
+    id: "e1", name: "Rowan Hale Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
     course: "Bushwood", players: 32, isActive: true, hasAccess: true, isOrganizer: true,
   };
 
   it("renders the list with the active event marked", () => {
     const html = render(<EventSwitcher events={[event]} />);
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
     expect(html).toContain("32");
   });
 
@@ -2102,7 +2102,7 @@ describe("event switcher", () => {
     const html = render(
       <EventSwitcher events={[{ ...event, hasAccess: false, isOrganizer: false, isActive: false }]} />,
     );
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
   });
 
   it("renders with no events", () => {

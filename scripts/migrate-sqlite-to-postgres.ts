@@ -15,7 +15,7 @@
  *   DATABASE_URL="postgresql://..." npx tsx scripts/migrate-sqlite-to-postgres.ts
  *
  *   # copy only specific tournaments (repeatable, case-insensitive substring)
- *   ... --only "Ajay More" --only "Example Club"
+ *   ... --only "Rowan Hale" --only "Example Club"
  *
  * Safety:
  *   - Opens SQLite read-only; the source file is never modified.
