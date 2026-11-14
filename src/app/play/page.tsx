@@ -80,12 +80,14 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         false
       )}
       <SuspensionAlarm screen="play" suspended={status.suspended} />
-      <PlayRound session={session} searchParams={searchParams} />
+      {/* Awaited here rather than drawn as an async child, so the page is one finished tree — as the
+          audit tests that render it (`renderToStaticMarkup(await PlayPage(…))`) need. */}
+      {await playRound({ session, searchParams })}
     </>
   );
 }
 
-async function PlayRound({ session, searchParams }: { session: PlaySession; searchParams: Promise<{ m?: string }> }) {
+async function playRound({ session, searchParams }: { session: PlaySession; searchParams: Promise<{ m?: string }> }) {
   /**
    * EVERY MATCH THIS PLAYER HAS IN THE ROUND, not an arbitrary one.
    *
