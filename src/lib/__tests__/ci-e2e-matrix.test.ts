@@ -150,7 +150,13 @@ describe("every viewport CI claims to test is actually tested", () => {
   it("does not let verify pass unless every shard and the shard cover succeeded", () => {
     const code = yamlCode(WORKFLOW);
     const verify = code.slice(code.indexOf("\n  verify:"), code.indexOf("\n  deploy:"));
-    expect(verify, "verify no longer needs every e2e shard and the cover").toMatch(/needs:\s*\[unit, build, e2e-build, e2e, e2e-cover\]/);
+    expect(verify, "verify no longer needs every e2e shard and the cover").toMatch(/needs:\s*\[unit, build, e2e-build, e2e, e2e-cover, e2e-webkit-door\]/);
+    // The WebKit front door (2026-11-14): its own job, the iPhone profile, plain http, the spec that signs out.
+    const door = code.slice(code.indexOf("\n  e2e-webkit-door:"), code.indexOf("\n  verify:"));
+    expect(door, "the WebKit front-door job is gone").toContain("E2E_ENGINE: webkit");
+    expect(door).toContain('E2E_PLAIN_HTTP: "1"');
+    expect(door).toContain("playwright test --project=phone e2e/front-door.spec.ts");
+    expect(door).toMatch(/needs:\s*e2e-build\b/);
     // Runs on a red need, and fails on anything but success: a skipped required check reads as passing.
     expect(verify).toMatch(/if:\s*\$\{\{\s*!cancelled\(\)\s*\}\}/);
     expect(verify).toContain('all(.[]; .result == "success")');

@@ -7,7 +7,7 @@ import { ABROAD, ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, CRAWL_PARTS, SCHEDUL
 import { ACCOUNT_JOBS, RESERVED, countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
 import { activeEntries, quarantineProblems, quarantinedBy, readQuarantine } from "../../../scripts/qa/quarantine.mjs";
 import { infraReason } from "../../../scripts/qa/infra.mjs";
-import { cleanNightlyShas, commitsWaiting, decideDeploy, mustSucceed, nightlyWait } from "../../../scripts/qa/deploy-rules.mjs";
+import { ROUNDS_AT_ONCE, cleanNightlyShas, commitsWaiting, decideDeploy, mustSucceed, nightlyNeeded, nightlyWait, nudgeNightly } from "../../../scripts/qa/deploy-rules.mjs";
 import { AREAS } from "../../../scripts/qa/specs-by-area.mjs";
 
 /**
@@ -493,5 +493,49 @@ describe("the deploy gate (item C)", () => {
     }
     // The runner never holds production database credentials: no database URL anywhere in the deploy.
     expect(deploy).not.toMatch(/DATABASE_URL/);
+  });
+});
+
+/**
+ * THE HOURLY NUDGE OF THE NIGHTLY (2026-11-14). The scheduled nightly began at 08:56 UTC on 14 Nov and a
+ * merge waited about six and a half hours. A merge that waits for a nightly nobody has run now starts it
+ * (nightly-nudge.yml, scripts/qa/nightly-nudge.mjs), once, within capacity.
+ */
+describe("the nightly is started when a merge waits for it", () => {
+  const base = { verifyGreen: true, alreadyThere: false, deployed: "d".repeat(40), uncovered: [{ sha: "a".repeat(40) }], nightlyCoversSha: false };
+
+  it("is needed only for a green commit, not yet in production, with an uncovered core or function commit", () => {
+    expect(nightlyNeeded(base)).toBe(true);
+    expect(nightlyNeeded({ ...base, uncovered: [] })).toBe(false); // every core commit is in a clean nightly
+    expect(nightlyNeeded({ ...base, verifyGreen: false })).toBe(false); // a nightly on a red commit is wasted
+    expect(nightlyNeeded({ ...base, alreadyThere: true })).toBe(false);
+  });
+
+  it("when nobody can say what production holds, is needed until a clean nightly contains the commit", () => {
+    expect(nightlyNeeded({ ...base, deployed: null, uncovered: [] })).toBe(true);
+    expect(nightlyNeeded({ ...base, deployed: null, uncovered: [], nightlyCoversSha: true })).toBe(false);
+  });
+
+  it("never starts a second nightly, and never a fourth round", () => {
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: 0 }).dispatch).toBe(true);
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: ROUNDS_AT_ONCE - 1 }).dispatch).toBe(true);
+    expect(nudgeNightly({ needed: true, nightlyActive: 1, roundsActive: 0 }).dispatch, "a nightly is running or queued").toBe(false);
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: ROUNDS_AT_ONCE }).dispatch, "three rounds on the runners").toBe(false);
+    expect(nudgeNightly({ needed: false, nightlyActive: 0, roundsActive: 0 }).dispatch).toBe(false);
+  });
+
+  it("is wired: the gate says it, its own workflow holds the one write and dispatches only what the script decides", () => {
+    expect(readVerbatim("scripts/qa/deploy-gate.mjs")).toContain("nightly_needed=");
+    const wf = readVerbatim(".github/workflows/nightly-nudge.yml").replace(/\r\n/g, "\n");
+    expect(wf).toContain("node scripts/qa/deploy-gate.mjs");
+    expect(wf).toContain("node scripts/qa/nightly-nudge.mjs --needed=${{ steps.gate.outputs.nightly_needed }}");
+    expect(wf).toMatch(/permissions:\n {6}contents: read\n {6}actions: write\n/);
+    expect(wf, "this job must hold no secret").not.toMatch(/secrets\./);
+    // deploy.yml is called by workflows that grant no actions scope: it must not ask for one.
+    expect(readVerbatim(".github/workflows/deploy.yml")).not.toMatch(/actions:\s*write/);
+    // The script starts the nightly in one place, and only on the decision.
+    const script = readSource("scripts/qa/nightly-nudge.mjs");
+    expect(script.match(/"workflow", "run"/g)?.length).toBe(1);
+    expect(script).toContain("verdict.dispatch");
   });
 });
