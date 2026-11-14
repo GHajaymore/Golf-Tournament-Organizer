@@ -120,6 +120,9 @@ describe("every server action is guarded", () => {
 
   const GUARDS = [
     "getSession",
+    // The player screens' viewer: an account's session, or a live guest pass re-read from the
+    // database (J39/J40). Null for anybody else, and every reader asks only the viewer's own event.
+    "getPlayerViewer",
     "requireEvent",
     "requireAdminEvent",
     "requireStaffEvent",

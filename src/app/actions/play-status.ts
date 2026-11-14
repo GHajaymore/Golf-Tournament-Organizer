@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { getPlayerViewer } from "@/lib/player-viewer";
 import { archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -61,15 +62,24 @@ async function tellTheField(
 }
 
 /**
- * Whether play is suspended in the caller's tournament, for the alarm on an
- * open player screen (`SuspensionAlarm`). Any signed-in member may ask: it is
- * the same fact the banner on their screen already shows.
+ * Whether play is suspended in the tournament of the PLAYER SCREEN the alarm
+ * sits on (`SuspensionAlarm`, mounted by the player layout). Anybody that
+ * screen is for may ask: it is the same fact the banner already shows.
+ *
+ * ASKED OF THE PLAYER VIEWER, NEVER OF `getSession()` (J39/J40 PR 2, G1; Rule
+ * 5.7, a safety notice). The layout draws the banner from the viewer's event,
+ * so the poll must ask the same one: a guest's link has no session at all, and
+ * asking `getSession()` read "not suspended" every 20 seconds, so a guest whose
+ * screen was open when play stopped heard nothing; a member viewing through a
+ * link for another club's outing was asked about their own club's event. One
+ * resolver for the banner and the siren (`getPlayerViewer`), so they cannot
+ * disagree. On GUEST_ACTIONS.
  */
 export async function currentPlayStatus(): Promise<{ suspended: boolean; note: string }> {
-  const session = await getSession();
-  if (!session?.eventId) return { suspended: false, note: "" };
+  const viewer = await getPlayerViewer();
+  if (!viewer?.eventId) return { suspended: false, note: "" };
   const event = await prisma.event.findUnique({
-    where: { id: session.eventId },
+    where: { id: viewer.eventId },
     select: { playSuspendedAt: true, playSuspendedNote: true },
   });
   return { suspended: !!event?.playSuspendedAt, note: event?.playSuspendedNote ?? "" };
