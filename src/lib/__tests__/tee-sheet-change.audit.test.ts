@@ -36,7 +36,8 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock("@/lib/services/push", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/services/push")>()),
-  sendPushToEmails: async (emails: string[]) => void pushed.emails.push(...emails),
+  // Who-keys since J39/J40 PR 2; these fixture entries are accounts, so each key is an email.
+  sendPushTo: async (keys: string[]) => void pushed.emails.push(...keys),
 }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";

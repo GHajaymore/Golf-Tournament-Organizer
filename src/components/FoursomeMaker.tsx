@@ -67,6 +67,7 @@ export function FoursomeMaker({
   stageId = "",
   savedAt = "",
   published = false,
+  noticesOff = "",
   rounds = [],
   activeRoundId = "",
   rosterSize = 0,
@@ -132,6 +133,8 @@ export function FoursomeMaker({
   /** When a sheet was last saved for this round, ISO. Empty = never. */
   savedAt?: string;
   published?: boolean;
+  /** "N players have notices off. Tell them in person." — said beside Publish, "" when everybody can be reached (J39/J40 PR 2). */
+  noticesOff?: string;
   /** Every round the field plays, so a sheet can be drawn ahead or reopened. */
   rounds?: Array<{ id: string; label: string }>;
   activeRoundId?: string;
@@ -814,6 +817,11 @@ export function FoursomeMaker({
             <span style={{ flex: 1, minWidth: 220 }}>
               <Icon name="megaphone" style={{ marginRight: 6 }} />
               This shows the draw to every player. Publish the tee sheet?
+              {noticesOff && (
+                <span data-testid="notices-off" className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 4 }}>
+                  {noticesOff}
+                </span>
+              )}
             </span>
             <button
               type="button"
@@ -884,6 +892,11 @@ export function FoursomeMaker({
               <span style={{ flex: 1, minWidth: 220 }}>
                 <Icon name="megaphone" style={{ marginRight: 6 }} />
                 This shows the sheet below to every player, as it is. Publish it?
+                {noticesOff && (
+                  <span data-testid="notices-off" className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 4 }}>
+                    {noticesOff}
+                  </span>
+                )}
               </span>
               <button
                 type="button"

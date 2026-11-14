@@ -21,7 +21,8 @@ import { GUEST_ACTIONS } from "@/lib/domain/player-link";
 
 const ACTIONS_DIR = join("src", "app", "actions");
 // `getPlayerViewer(` answers for a link as readily as for an account (G1, `currentPlayStatus`).
-const GUEST_DOORS = ["getGuestSession(", "requireScoreEntryForStage(", "guestActorFor(", "getPlayerViewer("];
+// PR 2: messaging asks `messagingContextFor` (through `requireActor`), push asks `pushOwnerNow`.
+const GUEST_DOORS = ["getGuestSession(", "requireScoreEntryForStage(", "guestActorFor(", "getPlayerViewer(", "messagingContextFor(", "requireActor(", "pushOwnerNow("];
 /** Actions that reach a guest door but are not a GUEST action: the open door itself. */
 const NOT_GUEST_WRITES = new Set(["openPlayerLink"]);
 
@@ -68,12 +69,14 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
     const allowed: Record<string, string[]> = {
       // guest-auth.ts DEFINES it (`getGuestSession = cache(`), so is not a caller.
       "getGuestSession(": ["src/lib/player-viewer.ts", "src/app/actions/player-link.ts"],
-      "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts"],
+      "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts", "src/lib/messaging-viewer.ts"],
       "guestViewer(": ["src/lib/player-viewer.ts"],
       // The player screens' door, and the one action that asks it (G1: the siren follows the screen's event).
       // player-viewer.ts DEFINES it (`export async function getPlayerViewer(`).
       // and the installed app's start (G3), which only redirects.
-      "getPlayerViewer(": ["src/lib/player-viewer.ts", "src/lib/page-helpers.ts", "src/app/actions/play-status.ts", "src/app/start/page.tsx"],
+      "getPlayerViewer(": ["src/lib/player-viewer.ts", "src/lib/page-helpers.ts", "src/app/actions/play-status.ts", "src/app/start/page.tsx", "src/lib/messaging-viewer.ts", "src/app/actions/push.ts"],
+      // The messaging resolver is asked by the messaging actions only (PR 2).
+      "messagingContextFor(": ["src/lib/messaging-viewer.ts", "src/app/actions/messaging.ts"],
     };
     const files = sources("src");
     for (const [call, where] of Object.entries(allowed)) {

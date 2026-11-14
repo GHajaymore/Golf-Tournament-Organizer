@@ -71,7 +71,8 @@ export type RateLimitKind =
   | "join-request"
   | "interest"
   | "course-search"
-  | "course-search-staff";
+  | "course-search-staff"
+  | "guest-post";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -229,6 +230,10 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * it. Searching and importing both draw on it — see `directoryBudget`.
    */
   "course-search-staff": { limit: 120, windowMs: 60 * MINUTE },
+  /** A guest's posts through a player link (J39/J40 PR 2; S8), keyed on the PASS, never cleared:
+   *  a forwarded link must not flood the round's thread. Twenty in fifteen minutes is more than a
+   *  person writes between shots; the organizer can also Mute or Turn off the link. */
+  "guest-post": { limit: 20, windowMs: 15 * MINUTE },
 };
 
 /**
@@ -429,6 +434,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many registration attempts. Wait ${wait} and try again.`;
     case "join-request":
       return `Too many requests to join. Wait ${wait} and try again.`;
+    case "guest-post":
+      return `Too many messages just now. Wait ${wait} and try again.`;
     case "interest":
       return `We already have your note — thank you. To add anything, wait ${wait} or write to inquiries@tourneyhq.club.`;
   }

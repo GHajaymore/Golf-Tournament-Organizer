@@ -1,6 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requirePlayerViewer } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
 import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
@@ -21,23 +21,26 @@ export const metadata = screenMetadata("/me/messages");
  * flight, round, four and match and never the organizers' thread.
  */
 export default async function PlayMessagesPage() {
-  const session = await requirePlayerViewer();
-  // A guest's messages come with the design's PR 2 (messaging by who-key): Today until then.
-  if (session.guest) redirect("/me");
-  if (!session.eventId) redirect("/choose");
+  // An account, or a guest's player link (J39/J40 PR 2): the screen's own viewer. A waiting guest
+  // is sent to Today (S5, SF-3), and gets no messaging context below either.
+  const session = await requirePlayingViewer();
+  if (!session.eventId) redirect(session.guest ? "/me" : "/choose");
 
-  const ctx = await membershipFor(session.eventId, session.email, session.role);
-  if (!ctx) redirect("/choose");
+  const ctx = await membershipFor(session, session.eventId);
+  if (!ctx) redirect(session.guest ? "/me" : "/choose");
 
   const [threads, composable, people, optedOut, rosterRow] = await Promise.all([
     threadsFor(ctx),
     composableScopes(ctx),
     messageableField(ctx),
     messagesOptOutFor(ctx),
-    prisma.member.findFirst({
-      where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
-      select: { smsOptIn: true },
-    }),
+    // Texting is an account's (no phone for a guest, ruled 7 Nov).
+    ctx.guest
+      ? null
+      : prisma.member.findFirst({
+          where: { organizationId: ctx.organizationId, email: { equals: ctx.whoKey, mode: "insensitive" } },
+          select: { smsOptIn: true },
+        }),
   ]);
 
   const isStaff = session.role === "admin" || session.role === "assistant";
@@ -46,7 +49,7 @@ export default async function PlayMessagesPage() {
     <div>
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "0 0 4px" }}>Messages</h1>
       <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--color-neutral-400)" }}>
-        Message your group, flight, match or anyone in the field.
+        {ctx.guest ? "Message your group, your round and the organizers." : "Message your group, flight, match or anyone in the field."}
       </p>
       <MessagesClient
         threads={threads}
@@ -56,6 +59,9 @@ export default async function PlayMessagesPage() {
         optedOut={optedOut}
         smsOptIn={rosterRow?.smsOptIn ?? false}
         organizer={(await golfTermsForEvent(session.eventId)).organizer}
+        surface="player"
+        guest={ctx.guest}
+        deskKey={ctx.playerId ? `desk:${ctx.playerId}` : ""}
       />
     </div>
   );

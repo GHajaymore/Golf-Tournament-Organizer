@@ -1,3 +1,5 @@
+import { isGuest } from "./entry-standing";
+
 /**
  * Who can read which conversation.
  *
@@ -50,7 +52,15 @@ export type ScopeKind =
   /** The two sides of one match. */
   | "match"
   /** An explicit conversation between named people. */
-  | "direct";
+  | "direct"
+  /**
+   * One player and the people running the event: "Message the organizer"
+   * (J39/J40 PR 2, design §4.1), `desk:<playerId>`. Derived, never stored: the
+   * player reads their own, and every organizer and assistant of the event
+   * reads each one, so it does not go stale when staff change, and no staff
+   * identity (an email) is ever named to the player.
+   */
+  | "desk";
 
 export const SCOPE_KINDS: ScopeKind[] = [
   "club",
@@ -63,6 +73,7 @@ export const SCOPE_KINDS: ScopeKind[] = [
   "foursome",
   "match",
   "direct",
+  "desk",
 ];
 
 /**
@@ -85,6 +96,44 @@ export function parseScopeKey(key: ScopeKey): { kind: ScopeKind; id: string } | 
   const kind = key.slice(0, at) as ScopeKind;
   if (!SCOPE_KINDS.includes(kind)) return null;
   return { kind, id: key.slice(at + 1) };
+}
+
+/**
+ * THE WHO-KEY (J39/J40 PR 2, design §0). Every person in messaging is named by
+ * one string: an account's lower-cased email (exactly what the columns held
+ * before), or `guest:<playerId>` for a guest's player link, who has no email.
+ * No `@`, so it can never equal an address; no `|`, so a direct scope
+ * (`directKeyFor`) stays parseable. Only ever made from the viewer or from an
+ * entry (`whoKeysForEntry`), never taken from the wire.
+ */
+export const GUEST_KEY_PREFIX = "guest:";
+
+export function guestWhoKey(playerId: string): string {
+  return `${GUEST_KEY_PREFIX}${playerId}`;
+}
+
+export function isGuestKey(key: string): boolean {
+  return typeof key === "string" && key.startsWith(GUEST_KEY_PREFIX);
+}
+
+/** The entry a guest key names, or null. */
+export function playerOfGuestKey(key: string): string | null {
+  return isGuestKey(key) ? key.slice(GUEST_KEY_PREFIX.length) || null : null;
+}
+
+/**
+ * THE KEYS THAT REACH ONE ENTRY: the one answer notices, direct threads, the
+ * picker and the notices-off count all ask. Its email if it has one; its guest
+ * key if it is a guest (a guest entry an organizer gave an email is reached at
+ * both); nothing for a member with no email (D12: no account and no link; they
+ * score from the cart QR).
+ */
+export function whoKeysForEntry(entry: { id: string; email?: string | null; standing?: string | null }): string[] {
+  const keys: string[] = [];
+  const email = (entry.email ?? "").trim().toLowerCase();
+  if (email) keys.push(email);
+  if (isGuest(entry)) keys.push(guestWhoKey(entry.id));
+  return keys;
 }
 
 /**
@@ -121,8 +170,16 @@ export function threadInOutwardKey(key: ScopeKey): string | null {
  * comes from the caller — that is the point.
  */
 export interface MembershipContext {
-  /** Lower-cased. Email is identity throughout this app. */
-  email: string;
+  /**
+   * Who this is in messaging: an account's lower-cased email, or
+   * `guest:<playerId>` for a guest's link (`guestWhoKey`). From the viewer,
+   * never from an argument.
+   */
+  whoKey: string;
+  /** A guest's player link: never the club's threads, never a direct-start door (D7). */
+  guest: boolean;
+  /** The organizer muted this guest in messages (S8): they may still write to the organizers. */
+  muted: boolean;
   role: "admin" | "assistant" | "player";
   organizationId: string;
   eventId: string;
@@ -180,6 +237,8 @@ export interface MembershipContext {
     groupIds: string[];
     stageIds: string[];
     teamIds: string[];
+    /** Every entry of this event, for the organizers' desk threads (`desk:<id>`). */
+    playerIds: string[];
   };
 }
 
@@ -207,7 +266,10 @@ export function visibleScopes(ctx: MembershipContext): ScopeKey[] {
   // Club-wide reaches people who are on the roster but not in this
   // tournament — which is most of a club most of the time, and the whole
   // reason a club-level conversation is different from an event-level one.
-  if (ctx.onRoster || ctx.role !== "player") keys.push(scopeKey("club"));
+  //
+  // NEVER A GUEST (J39/J40 PR 2): being in the field makes `onRoster` true,
+  // and a guest's link is one event, not the club's chatter.
+  if (!ctx.guest && (ctx.onRoster || ctx.role !== "player")) keys.push(scopeKey("club"));
 
   // Being in the field is what admits someone to the tournament's own
   // conversations. Staff are admitted because they run it.
@@ -233,6 +295,8 @@ export function visibleScopes(ctx: MembershipContext): ScopeKey[] {
   for (const id of ctx.foursomeIds) keys.push(scopeKey("foursome", id));
   for (const id of ctx.matchIds) keys.push(scopeKey("match", id));
   for (const id of ctx.directThreadIds) keys.push(scopeKey("direct", id));
+  // Message the organizer: a player in the field reads their own desk.
+  if (ctx.playerId) keys.push(scopeKey("desk", ctx.playerId));
 
   /**
    * And, for staff, every flight, round and team they may broadcast to.
@@ -249,6 +313,8 @@ export function visibleScopes(ctx: MembershipContext): ScopeKey[] {
     for (const id of ctx.staffScopes.groupIds) keys.push(scopeKey("flight", id));
     for (const id of ctx.staffScopes.stageIds) keys.push(scopeKey("round", id));
     for (const id of ctx.staffScopes.teamIds) keys.push(scopeKey("team", id));
+    // Every player's desk: whoever is on duty answers ("the organizer" is a role, not a person).
+    for (const id of ctx.staffScopes.playerIds) keys.push(scopeKey("desk", id));
   }
 
   // Deduplicated because a playing organizer reaches their own flight by both
@@ -281,6 +347,8 @@ export function canPostToScope(ctx: MembershipContext, key: ScopeKey): boolean {
   if (!canReadScope(ctx, key)) return false;
   const parsed = parseScopeKey(key);
   if (!parsed) return false;
+  // A guest the organizer muted (S8) may still write to the organizers, and nowhere else.
+  if (ctx.muted && parsed.kind !== "desk") return false;
   // The three broadcast scopes. A field of 120 all able to reply to a club
   // announcement is a broadcast storm, not a conversation — and "players only"
   // is an announcement to the field for the same reason event-wide is.
@@ -319,6 +387,7 @@ export const SCOPE_LABEL: Record<ScopeKind, string> = {
   foursome: "Your group",
   match: "Your match",
   direct: "Direct message",
+  desk: "The organizers",
 };
 
 /**
@@ -401,13 +470,13 @@ export function cleanMessageBody(raw: string): CleanMessage {
  * posting is seeing.
  */
 export function unreadCount(
-  messages: { createdAt: number; authorEmail: string }[],
-  readerEmail: string,
+  messages: { createdAt: number; authorKey: string }[],
+  readerKey: string,
   lastReadAt: number | null,
 ): number {
-  const me = readerEmail.trim().toLowerCase();
+  const me = readerKey.trim().toLowerCase();
   return messages.filter(
-    (m) => m.authorEmail.trim().toLowerCase() !== me && m.createdAt > (lastReadAt ?? 0),
+    (m) => m.authorKey.trim().toLowerCase() !== me && m.createdAt > (lastReadAt ?? 0),
   ).length;
 }
 
@@ -418,7 +487,8 @@ export function unreadCount(
  * whoever opens it first — otherwise "Rita messages Sam" and "Sam messages
  * Rita" become two threads that each show half the conversation.
  */
-export function directKeyFor(emails: string[]): string {
-  const unique = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+export function directKeyFor(whoKeys: string[]): string {
+  // Who-keys: emails and `guest:<playerId>` alike (a cuid is already lower-case).
+  const unique = [...new Set(whoKeys.map((e) => e.trim().toLowerCase()).filter(Boolean))];
   return unique.sort().join("|");
 }

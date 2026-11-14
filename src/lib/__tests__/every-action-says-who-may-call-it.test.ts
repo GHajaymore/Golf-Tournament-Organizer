@@ -95,11 +95,12 @@ const WHO: Record<string, string> = {
   deleteMyAccount: "themselves", signOutEverywhereAction: "themselves", leaveOrganization: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",
-  savePushSubscription: "themselves", removePushSubscription: "themselves",
+  // player viewer since J39/J40 PR 2: an account, or a guest's link, through the screen's viewer.
+  savePushSubscription: "player viewer", removePushSubscription: "player viewer", pushIsOnHere: "player viewer",
   // player viewer: whoever the player screen is for, an account or a guest's link (G1, Rule 5.7).
   currentPlayStatus: "player viewer",
-  setMyMessagesOptOut: "themselves", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
-  readThread: "themselves", sendMessage: "themselves", markThreadRead: "themselves", startDirectThread: "themselves",
+  setMyMessagesOptOut: "player viewer", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
+  readThread: "player viewer", sendMessage: "player viewer", markThreadRead: "player viewer", startDirectThread: "themselves",
   createMatch: "themselves", createEvent: "themselves", createEventFromAnswers: "themselves",keepRound: "themselves",
   searchCourseDirectory: "themselves", importCourseFromDirectory: "themselves", readCourseCardPhoto: "themselves",
   setMatchCourse: "themselves", nameMatchVenue: "themselves", setPlayerTee: "themselves", draftMessage: "themselves",
@@ -144,7 +145,7 @@ const NEEDS: Record<string, string[]> = {
   organizer: ['role !== "admin"', 'role === "admin"', "isStaff", "requireMembership("],
   "the business": ["isOwner("],
   "guest link": ["getGuestSession("],
-  "player viewer": ["getPlayerViewer("],
+  "player viewer": ["getPlayerViewer(", "requireActor(", "pushOwnerNow("],
 };
 
 interface Action {

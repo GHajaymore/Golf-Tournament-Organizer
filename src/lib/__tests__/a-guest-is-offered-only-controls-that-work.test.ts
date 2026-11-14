@@ -13,10 +13,15 @@ import { readSource } from "./source";
 const today = readSource("src", "app", "(player)", "me", "page.tsx");
 const pushActions = readSource("src", "app", "actions", "push.ts");
 const saveBody = pushActions.slice(pushActions.indexOf("export async function savePushSubscription("));
-const saveAdmitsAGuest = saveBody.slice(0, saveBody.indexOf("\nexport ") > 0 ? saveBody.indexOf("\nexport ") : undefined).includes("getPlayerViewer(");
+const saveAdmitsAGuest = saveBody.slice(0, saveBody.indexOf("\nexport ") > 0 ? saveBody.indexOf("\nexport ") : undefined).match(/getPlayerViewer\(|pushOwnerNow\(/) !== null;
 
 describe("the tee-time alerts toggle on a guest's Today", () => {
   const toggles = today.match(/[^\n]*<PushToggle\b[^\n]*/g) ?? [];
+
+  it("the save admits the guest viewer (J39/J40 PR 2), so a guest may be shown it", () => {
+    expect(saveAdmitsAGuest).toBe(true);
+    expect(pushActions).toMatch(/async function pushOwnerNow\(\)[^]*?await getPlayerViewer\(\)/);
+  });
 
   it("Today draws the toggle", () => {
     expect(toggles.length).toBeGreaterThan(0);

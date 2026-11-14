@@ -1772,12 +1772,39 @@ model PlayerPass {
   /// PR 3: an optional address the guest proved, for a lost link only. Never Player.email.
   recoveryEmail           String    @default("")
   recoveryEmailVerifiedAt DateTime?
+  /// PR 2: the guest's own "turn off direct messages" (D7's switch). An account's lives on Member.
+  messagesOptOut Boolean   @default(false)
+  /// PR 2 (S8): the organizer's Mute. The pass stays live; the guest may still write to the organizers.
+  mutedAt        DateTime?
+  mutedBy        String    @default("")
 
   player  Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
   event   Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   devices PlayerPassDevice[]
+  pushes  PlayerPassPush[]
 
   @@index([eventId])
+}
+
+/**
+ * A browser a GUEST turned notices on in (J39/J40 PR 2). Bound to the pass's
+ * VERSION: New link, Turn off and the entry ending all stop it at once, because
+ * every send asks `livePass(passId, passVersion)`; and it cascades with the
+ * pass. Apart from `PushSubscription` (an account's, `endpoint @unique`), so a
+ * guest's subscribe on a browser that also holds an account never overwrites it.
+ */
+model PlayerPassPush {
+  id          String   @id @default(cuid())
+  passId      String
+  passVersion Int
+  endpoint    String
+  p256dh      String
+  auth        String
+  createdAt   DateTime @default(now())
+
+  pass PlayerPass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@unique([passId, endpoint])
 }
 
 /**
@@ -3366,7 +3393,8 @@ model Thread {
    */
   scopeKey       String
   title          String   @default("")
-  createdByEmail String   @default("")
+  /// Who started it: an account's lower-cased email, or `guest:<playerId>` for a guest's link (the who-key, J39/J40 PR 2). The column keeps its old name: no SQL.
+  createdByKey   String   @default("") @map("createdByEmail")
   createdByName  String   @default("")
   createdAt      DateTime @default(now())
   /**
@@ -3393,7 +3421,8 @@ model Thread {
 model Message {
   id          String    @id @default(cuid())
   threadId    String
-  authorEmail String
+  /// The who-key of who wrote it (an email, or `guest:<playerId>`). Column name unchanged (@map, no SQL).
+  authorKey   String    @map("authorEmail")
   authorName  String    @default("")
   body        String
   createdAt   DateTime  @default(now())
@@ -3417,12 +3446,13 @@ model Message {
 model ThreadParticipant {
   id       String @id @default(cuid())
   threadId String
-  email    String
+  /// The who-key (an email, or `guest:<playerId>`). Column and index names unchanged (@map, no SQL).
+  whoKey   String @map("email")
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  @@unique([threadId, email])
-  @@index([email])
+  @@unique([threadId, whoKey], map: "ThreadParticipant_threadId_email_key")
+  @@index([whoKey], map: "ThreadParticipant_email_idx")
 }
 
 /**
@@ -3433,13 +3463,14 @@ model ThreadParticipant {
 model ThreadRead {
   id         String   @id @default(cuid())
   threadId   String
-  email      String
+  /// The who-key (an email, or `guest:<playerId>`). Column and index names unchanged (@map, no SQL).
+  whoKey     String   @map("email")
   lastReadAt DateTime @default(now())
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  @@unique([threadId, email])
-  @@index([email])
+  @@unique([threadId, whoKey], map: "ThreadRead_threadId_email_key")
+  @@index([whoKey], map: "ThreadRead_email_idx")
 }
 
 /**

@@ -50,8 +50,10 @@ export async function deleteAccountAndAccess(userId: string, email: string): Pro
         if (blocked.length) return blocked;
         await tx.account.deleteMany({ where: byEmail });
         await tx.pushSubscription.deleteMany({ where: byEmail });
-        await tx.threadRead.deleteMany({ where: byEmail });
-        await tx.threadParticipant.deleteMany({ where: byEmail });
+        // The who-key of an account IS its email (J39/J40 PR 2): the same rows, under the renamed field.
+        const byWhoKey = { whoKey: { equals: email, mode: "insensitive" as const } };
+        await tx.threadRead.deleteMany({ where: byWhoKey });
+        await tx.threadParticipant.deleteMany({ where: byWhoKey });
         await tx.user.delete({ where: { id: userId } });
         return [];
       },

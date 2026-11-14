@@ -6,7 +6,7 @@ import { clientGuessGate } from "@/lib/rate-limit";
 import { RATE_LIMITS, windowFor } from "@/lib/domain/rate-limit";
 import { clientAddress } from "@/lib/client-address";
 import { PLAYER_LINK_WORDS, normaliseLinkCode, passStatusWords, readHandOver, suggestsNewLink } from "@/lib/domain/player-link";
-import { ensurePass, passForCode, passStatusFor, recordOpen, revokePass, rotatePass } from "@/lib/services/player-link";
+import { ensurePass, mutePass, passForCode, passStatusFor, recordOpen, revokePass, rotatePass } from "@/lib/services/player-link";
 import { choosePlayerViewCookie, clearGuestCookie, getGuestSession, setGuestCookie } from "@/lib/guest-auth";
 import { deviceValueHere } from "@/lib/services/known-device";
 import { logAudit } from "@/lib/services/action-shared";
@@ -123,7 +123,7 @@ export async function choosePlayerView(view: unknown): Promise<{ ok: boolean }> 
 /* ───────────────────────── the organizer's panel ───────────────────────── */
 
 export type LinkStatusResult =
-  | { ok: true; status: string; made: boolean; revoked: boolean; suggestNew: boolean }
+  | { ok: true; status: string; made: boolean; revoked: boolean; suggestNew: boolean; muted: boolean }
   | { ok: false; error: string };
 
 /** The panel's status line. Never the code. */
@@ -131,7 +131,31 @@ export async function playerLinkStatus(playerId: unknown): Promise<LinkStatusRes
   const session = await requireStaffSession();
   const status = await passStatusFor(session.eventId, asId(playerId));
   if (!status) return { ok: false, error: PLAYER_LINK_WORDS.membersHaveEmail };
-  return { ok: true, status: passStatusWords(status), made: status.made, revoked: status.revoked, suggestNew: suggestsNewLink(status) };
+  return {
+    ok: true,
+    status: passStatusWords(status),
+    made: status.made,
+    revoked: status.revoked,
+    suggestNew: suggestsNewLink(status),
+    muted: !!status.muted,
+  };
+}
+
+/**
+ * MUTE IN MESSAGES (J39/J40 PR 2, S8): the guest's posts to the round, group
+ * and other threads are refused in words; Message the organizer stays open, and
+ * the link, the card and Today are untouched. Staff of the event only, resolved
+ * inside it as a guest entry; allowed in a lapsed club's archive, like Turn off
+ * (SF-5). On the record by who, never by a code.
+ */
+export async function muteGuestInMessages(playerId: unknown, muted: unknown): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireStaffSession({ evenArchived: true });
+  const id = asId(playerId);
+  const on = muted === true;
+  const done = await mutePass(session.eventId, id, on, session.name);
+  if (!done) return { ok: false, error: "Make this guest's link first: there is nothing to mute yet." };
+  await logAudit(session.eventId, on ? "player-link.muted" : "player-link.unmuted", `${id} ${on ? "muted" : "unmuted"} in messages by ${session.name}`);
+  return { ok: true };
 }
 
 export type ShowLinkResult = { ok: true; code: string } | { ok: false; error: string };

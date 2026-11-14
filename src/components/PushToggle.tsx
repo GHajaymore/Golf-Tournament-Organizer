@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
-import { getVapidPublicKey, savePushSubscription, removePushSubscription } from "@/app/actions/push";
+import { getVapidPublicKey, savePushSubscription, removePushSubscription, pushIsOnHere } from "@/app/actions/push";
 
 /**
  * Turn on tee-time alerts — the opt-in for web push.
@@ -51,7 +51,10 @@ export function PushToggle() {
       if (!reg) return void (!cancelled && setState("unavailable"));
       if (Notification.permission === "denied") return void (!cancelled && setState("blocked"));
       const sub = await reg.pushManager.getSubscription().catch(() => null);
-      if (!cancelled) setState(sub ? "on" : "off");
+      // Asked of the SERVER for the person this screen is for (J39/J40 PR 2): one browser can be on
+      // for an account and off for the guest link it also holds, and a link replaced by New link is off.
+      const on = sub ? await pushIsOnHere(sub.endpoint).catch(() => false) : false;
+      if (!cancelled) setState(on ? "on" : "off");
     })();
     return () => {
       cancelled = true;
@@ -102,10 +105,9 @@ export function PushToggle() {
     try {
       const reg = await navigator.serviceWorker.getRegistration();
       const sub = await reg?.pushManager.getSubscription();
-      if (sub) {
-        await removePushSubscription(sub.endpoint);
-        await sub.unsubscribe().catch(() => {});
-      }
+      // Only this person's row goes. The browser's own subscription is left alone: the same browser may
+      // hold an account and a guest link, and the other one's notices must not stop with this press.
+      if (sub) await removePushSubscription(sub.endpoint);
       setState("off");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't turn off alerts.");

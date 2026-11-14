@@ -6,7 +6,8 @@ import { getPlayerViewer } from "@/lib/player-viewer";
 import { archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
-import { sendPushToEmails } from "@/lib/services/push";
+import { sendPushTo } from "@/lib/services/push";
+import { whoKeysForEntry } from "@/lib/domain/messaging";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { cleanSuspendNote, resumedWords, suspendedWords } from "@/lib/domain/play-status";
 
@@ -15,11 +16,12 @@ import { cleanSuspendNote, resumedWords, suspendedWords } from "@/lib/domain/pla
  *
  * Staff only: stopping a field is the committee's call. Deliberately NOT behind
  * the setup lock — a live tournament is exactly when this is needed. Every
- * confirmed player with an address is pushed, and every player screen and the
+ * confirmed player who turned notices on is pushed — a guest's link too, by its
+ * who-key (J39/J40 PR 2) — and every player screen and the
  * public board carry the banner until play resumes.
  *
  * The push never decides anything: the suspension is already true in the
- * database when it is sent, and `sendPushToEmails` never throws.
+ * database when it is sent, and `sendPushTo` never throws.
  */
 async function requireStaffEvent(): Promise<string> {
   const session = await getSession();
@@ -50,10 +52,10 @@ async function tellTheField(
 ) {
   const players = await prisma.player.findMany({
     where: { eventId, status: "confirmed" },
-    select: { email: true },
+    select: { id: true, email: true, standing: true },
   });
-  await sendPushToEmails(
-    players.map((p) => p.email ?? ""),
+  await sendPushTo(
+    players.flatMap((p) => whoKeysForEntry(p)),
     // One tag for both, so "resumed" replaces "suspended" on a lock screen
     // rather than stacking under it.
     { title: words.title, body: `${words.body} · ${eventName}`, url: "/me", tag: `play-${eventId}`, urgent },
