@@ -57,8 +57,8 @@ export interface MatchKeeperProps {
  * it saves (`saveHoles`, `saveResult`) and what comes after (`next`).
  *
  * Side A is the match's A side in draw order, whoever holds the phone
- * (`matchCardFor`), and every answer names who won the hole — "CVC won",
- * "Rakesh & Snehal won" — never "Us" or "Me" (`matchSideLabels`). The card
+ * (`matchCardFor`), and every answer names who won the hole — "Oaks won",
+ * "Sam & Alex won" — never "Us" or "Me" (`matchSideLabels`). The card
  * never turns round, so what is tapped is what is stored: no flip on the way
  * in or out.
  */
@@ -199,7 +199,7 @@ export function MatchKeeper(props: MatchKeeperProps) {
    * and the tally. Names alone were not enough: the card still turned round to
    * face whichever name was tapped, and a scorer pressed the PLACE their own
    * side's button had been (2026-11-04). Now it never turns, and a cup's
-   * answers are its teams — "CVC won · Halved · CDG won" (`matchSideLabels`).
+   * answers are its teams — "Oaks won · Halved · Pines won" (`matchSideLabels`).
    */
   const [sideA, sideB] = matchSideLabels(m);
   const marks = sideMarks(sideA, sideB);

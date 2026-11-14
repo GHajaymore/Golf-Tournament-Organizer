@@ -5,7 +5,7 @@ import { isManualFormat, needsTeams, boardKind } from "@/lib/formats";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundIsStroke } from "@/lib/stage-types";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
@@ -47,12 +47,12 @@ export const metadata = screenMetadata("/me/card");
  * screen stops nobody from calling the action.
  */
 export default async function PlayCardPage() {
-  const session = await requireSession();
+  const session = await requirePlayingViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 
   const settings = settingsOf(state.event);
-  const me = await meFor(state, session.email);
+  const me = await meFor(state, session);
   // The club's mark for the head of the card. Same reader every other card in
   // the app uses, so no two of them can disagree about the club's name.
   const brand = await cardBrand(session.eventId);
@@ -70,7 +70,7 @@ export default async function PlayCardPage() {
      * were on the list. Same fault as Today's, on the screen they would open
      * next. See `isWaiting`.
      */
-    const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
+    const myRow = session.guest ? null : ((await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null);
     const isStaff = session.role === "admin" || session.role === "assistant";
     const onTheList = isWaiting(myRow, isStaff);
     return (

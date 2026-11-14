@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayerViewer, guestIsWaiting } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { cardStanding } from "@/lib/domain/card-approval";
@@ -9,6 +9,10 @@ import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
 import { PushToggle } from "@/components/PushToggle";
 import { meFor } from "@/lib/services/me";
+import { openedElsewhereSince } from "@/lib/services/player-link";
+import { deviceValueHere } from "@/lib/services/known-device";
+import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { Icon } from "@/components/Icon";
@@ -92,10 +96,13 @@ function initialsOf(name: string): string {
 }
 
 export default async function PlayTodayPage() {
-  const session = await requireSession();
+  const session = await requirePlayerViewer();
+  // A waiting guest: the layout draws the waiting card, and this page renders
+  // nothing of its own, so no request for it carries the event's board (SF-3).
+  if (guestIsWaiting(session)) return null;
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const me = await meFor(state, session.email);
+  const me = await meFor(state, session);
   const availability = await availabilityFor(state, session.email);
   const announcements = await announcementsFor(session.eventId);
   // The club's own golf words — organizer or organiser (`golf-terms.ts`).
@@ -105,8 +112,11 @@ export default async function PlayTodayPage() {
    * reads, memoised for the request — so "watching" and the way in agree with
    * the header and with the list.
    */
-  const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
+  const myRow = session.guest ? null : ((await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null);
   const isStaff = session.role === "admin" || session.role === "assistant";
+  // The other phone's notice, for a guest's link only (design §2.7): the day, the club's way.
+  const elsewhereAt = session.guest ? await openedElsewhereSince(session.guest.passId, await deviceValueHere(false)) : null;
+  const elsewhere = elsewhereAt ? (await dayAtClubForEvent(session.eventId))(elsewhereAt) : "";
   // Only a casual round has an expiry to keep; asked only then.
   const keepRefusal = hoursLeft(state.event) === null ? null : await casualKeepRefusalFor(state.event.id);
   /**
@@ -443,6 +453,19 @@ export default async function PlayTodayPage() {
 
   return (
     <div>
+      {/* A GUEST'S PLAYER LINK (J39/J40): no switcher strip above, so the event is
+          named here; and when the link was opened on another phone or browser
+          after this one, this one is told (design §2.7). */}
+      {session.guest && (
+        <div className="page-kicker" data-testid="guest-event" style={{ marginBottom: 6 }}>
+          {state.event.name}
+        </div>
+      )}
+      {elsewhere && (
+        <p role="status" className="card" style={{ fontSize: 13, margin: "0 0 12px", padding: "10px 12px" }}>
+          <Icon name="info" /> {PLAYER_LINK_WORDS.otherPhone(elsewhere)}
+        </p>
+      )}
       {/* THE ROUND, NOT THE TOURNAMENT AGAIN (2026-09-19). The tournament's
           full name is in the switcher strip directly above, so repeating it as
           this heading put it on the screen twice before anything the player

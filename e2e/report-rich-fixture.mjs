@@ -511,7 +511,7 @@ export async function seedRich(mark) {
     // The club's next tournament, taking entries — "What's next".
     await prisma.event.create({
       data: eventData(mark, org, "Autumn Foursomes", {
-        status: "registration",
+        status: "draft",
         completedAt: null,
         registrationOpen: true,
         regDeadline: dayOffset(6),
