@@ -32,12 +32,13 @@ export function PlayStatusFrame({ children }: { children: React.ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let last = Date.now();
+    let last = 0;
     const ask = () => {
       if (document.visibilityState !== "visible") return;
-      // Back in view and the timer in the same second: one request, not two.
-      if (Date.now() - last < 2_000) return;
-      last = Date.now();
+      // Back in view and focused in the same moment: one request, not two.
+      const now = Date.now();
+      if (now - last < 2_000) return;
+      last = now;
       router.refresh();
     };
     const timer = window.setInterval(ask, PLAY_STATUS_REFRESH_MS);
