@@ -87,8 +87,13 @@ describe("a status move is asked of the machine", () => {
     const back = ask(st, "live", "draft");
     expect(back.kind === "refuse" && back.error).toMatch(/can’t go back to setting up/);
     const draft = tournamentStatus(FAMILY_FIXTURES.stroke());
-    const between = ask(draft, "draft", "registration");
-    expect(between.kind === "refuse" && between.error).toMatch(/one Setting up step/);
+    const again = ask(draft, "draft", "draft");
+    expect(again.kind === "refuse" && again.error).toMatch(/one Setting up step/);
+    // The old ladder's two later words are not statuses since A045 (state machine PR 8): a request
+    // for one is refused as an unknown word, never written.
+    for (const old of ["registration", "ready"]) {
+      expect(ask(draft, "draft", old), old).toEqual({ kind: "refuse", error: "That is not a tournament status." });
+    }
   });
 
   it("every refusal the actions now return says what to do next, and a launched tournament is not launched again", () => {

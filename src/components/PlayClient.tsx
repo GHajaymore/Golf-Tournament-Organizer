@@ -636,7 +636,7 @@ function PlayScreens(props: Props) {
    * ONE CONFIRMATION, ONCE PER PHONE (2026-11-04).
    *
    * A group tapped is said back in full before anything is kept — "You're
-   * keeping Group 3: Rakesh & Snehal v Subhas & Prashant · 12:54 off the 10th"
+   * keeping Group 3: Sam & Alex v Jo & Max · 12:54 off the 10th"
    * — because the cup's wrong card began with one wrong tap and nothing after it
    * said whose match it was. Asked once: the phone remembers the group it
    * confirmed for the round, and the same group tapped again goes straight

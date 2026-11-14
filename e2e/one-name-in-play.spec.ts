@@ -50,7 +50,7 @@ test("a name in play is the club's once: create, copy, rename and reopen are ref
     // Calendar dates only, and no typed label: the year on the list is `tellApart`'s, not the row's own.
     const dated = (day: string) => ({ startOn: day, endOn: day, dates: "" });
     const last = await makeEvent(club, "Spring Medal", { status: "completed", configUnlocked: true, stages: [{}], players: 0, event: dated("2025-04-12") });
-    const now = await makeEvent(club, "Spring Medal", { status: "registration", configUnlocked: true, stages: [{}], players: 0, event: dated("2026-04-11") });
+    const now = await makeEvent(club, "Spring Medal", { status: "draft", configUnlocked: true, stages: [{}], players: 0, event: dated("2026-04-11") });
     const held = now.event.name;
     await signIn(context, baseURL!, club, now.event.id);
     const spring = () => prisma.event.count({ where: { organizationId: club.orgId, name: { equals: held, mode: "insensitive" } } });

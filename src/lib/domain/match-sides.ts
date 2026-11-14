@@ -15,8 +15,8 @@ import { distinctLabels } from "@/lib/format";
  *   - side A is the match's A side in DRAW ORDER (`match.teamAId` / `playerAId`),
  *     whoever is holding the phone; nothing on the card asks who that is;
  *   - the answers carry NAMES, never "me", "us" or "them": a team cup's two
- *     teams ("CVC won · Halved · CDG won"), otherwise the players — a pair as
- *     "Rakesh & Snehal", a single as one first name — widened only where two
+ *     teams ("Oaks won · Halved · Pines won"), otherwise the players — a pair as
+ *     "Sam & Alex", a single as one first name — widened only where two
  *     clash (`distinctLabels`).
  */
 export interface MatchSides {
@@ -47,7 +47,7 @@ export function matchSideLabels(m: MatchSides): [string, string] {
   return [short.slice(0, a.length).join(" & "), short.slice(a.length).join(" & ")];
 }
 
-/** The answer that gives a hole, or the match, to one side: "CVC won", "Rakesh & Snehal won". */
+/** The answer that gives a hole, or the match, to one side: "Oaks won", "Sam & Alex won". */
 export function wonBy(label: string): string {
   return `${label} won`;
 }
@@ -56,8 +56,8 @@ export function wonBy(label: string): string {
  * The letter or two marking each side's holes on the card's strip of hole
  * numbers, so the strip reads in sunlight without knowing which tint is whose.
  * It said W and L — won and lost from the holder's side — which is a card that
- * turns round. Now the winner's initials: "CVC" v "CDG" is CV / CD, a pair
- * "Rakesh & Snehal" is RS; never the same mark for both sides.
+ * turns round. Now the winner's initials: "Cedars" v "Cypress" is CE / CY, a pair
+ * "Sam & Alex" is SA; never the same mark for both sides.
  */
 export function sideMarks(a: string, b: string): [string, string] {
   const words = (s: string) => s.split(/\s+/).filter((w) => w !== "" && w !== "&");
