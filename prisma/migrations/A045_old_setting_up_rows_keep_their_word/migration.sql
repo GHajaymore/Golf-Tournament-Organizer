@@ -34,17 +34,42 @@
 -- AND THE DATABASE REFUSES ANY OTHER STATUS FROM HERE (QA Director's test plan, risk 1). From
 -- this PR `isLaunched` is "not `draft`", so a row written in an old word by a missed fixture, a
 -- script or a raw insert would read as LAUNCHED: setup locked, no Launch button, open to members.
--- "Event_status_is_one_the_app_writes" refuses the WRITER, so that row cannot exist. It is added
--- AFTER the move and GUARDED, like A036: only where no row holds any other status, so a database
--- with a status nobody expected (an "active" from an old fixture) is never failed mid-deploy —
--- there it is left out with a NOTICE, the moved rows are moved all the same, and the app's own
--- refusal (`statusMove`) still stands. Ops counts production's statuses before the merge; once a
--- stray is resolved, run this file again by hand (`prisma db execute --file`): every part of it
--- is safe to run twice.
+-- "Event_status_is_one_the_app_writes" refuses the WRITER, so that row cannot exist.
+--
+-- ANY OTHER WORD IS MAPPED FIRST, SO THE DEPLOY CANNOT FAIL ON ONE (Ajay, 14 Nov: everything in
+-- production is test data, so the only real risk here is a deploy that fails partway, P3009).
+-- Before the CHECK, every row whose status is not draft, live or completed (an "active" from an
+-- old fixture, a "complete", a word in capitals or with a space) is mapped by ONE rule:
+--   * it becomes what the code before this migration READ it as. `isLaunched` was "not draft,
+--     registration or ready" and `isFinished` was "exactly completed", so any other word read as
+--     launched and unfinished: LIVE;
+--   * EXCEPT where 'live' would put it into the A036 name index ("Event_name_in_play_key": one
+--     club, one normalised name, status draft/registration/ready/live, shape not match) beside a
+--     row already there, or beside an earlier stray (lower id) of the same name. That row becomes
+--     COMPLETED instead: also launched, outside the index, so the unique index can never refuse
+--     this UPDATE. The CASE reads the table as it was before the statement, so it is decided the
+--     same way however the rows are visited;
+--   * its old word is kept verbatim in "legacyStatus", so nothing is lost.
+-- After that no row holds another status, so the CHECK always goes on. It is still GUARDED, like
+-- A036 (a NOTICE, never a failed deploy) in case a row appears between the two statements. With
+-- this rule no production status count is needed before the merge.
+--
+-- ROLLBACK, IN THIS ORDER. (1) Roll the CODE back first (Vercel instant rollback to the previous
+-- production deployment); that is the default rollback and usually all of it: the old code runs
+-- on the new schema (the column has a default; the old code writes no status the CHECK refuses).
+-- The new code would read a restored 'registration' as LAUNCHED, so never run SQL first. (2) Only
+-- to give members back the moved rows under the old code, run the reversal below with the
+-- owner's tools (never from a runner). (3) After its DROP COLUMN, delete A045's row from
+-- "_prisma_migrations", or the next deploy of main skips A045 and every query selecting
+-- "legacyStatus" fails. If A045 FAILS mid-deploy, Prisma records it (P3009) and refuses every
+-- later deploy until `prisma migrate resolve --rolled-back A045_old_setting_up_rows_keep_their_word`
+-- is run against production by the owner; this file is safe to run again, so the re-deploy works.
+-- The reversal touches only rows still 'draft': a moved row launched since keeps its status.
+-- Rows mapped from another word keep live or completed, which the old code reads the same way.
 --
 -- Reversal (not applied; kept here as the pull request asks):
 --   ALTER TABLE "Event" DROP CONSTRAINT IF EXISTS "Event_status_is_one_the_app_writes";
---   UPDATE "Event" SET "status" = "legacyStatus", "legacyStatus" = '' WHERE "legacyStatus" <> '';
+--   UPDATE "Event" SET "status" = "legacyStatus", "legacyStatus" = '' WHERE "legacyStatus" <> '' AND "status" = 'draft';
 --   ALTER TABLE "Event" DROP COLUMN "legacyStatus";
 
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "legacyStatus" TEXT NOT NULL DEFAULT '';
@@ -52,6 +77,24 @@ ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "legacyStatus" TEXT NOT NULL DEFAUL
 UPDATE "Event"
    SET "legacyStatus" = "status", "status" = 'draft'
  WHERE "status" IN ('registration', 'ready');
+
+-- Any other word: LIVE (what the old code read it as), or COMPLETED where live would share a name
+-- in play with another row of its club (see "ANY OTHER WORD" above). Old word kept verbatim.
+UPDATE "Event" AS e
+   SET "legacyStatus" = e."status",
+       "status" = CASE
+         WHEN e."shape" <> 'match' AND EXISTS (
+           SELECT 1 FROM "Event" AS o
+            WHERE o."id" <> e."id"
+              AND o."organizationId" = e."organizationId"
+              AND o."shape" <> 'match'
+              AND lower(btrim(regexp_replace(o."name", '\s+', ' ', 'g'))) = lower(btrim(regexp_replace(e."name", '\s+', ' ', 'g')))
+              AND (o."status" IN ('draft', 'registration', 'ready', 'live')
+                   OR (o."status" NOT IN ('draft', 'live', 'completed') AND o."id" COLLATE "C" < e."id" COLLATE "C"))
+         ) THEN 'completed'
+         ELSE 'live'
+       END
+ WHERE e."status" NOT IN ('draft', 'live', 'completed');
 
 DO $$
 BEGIN

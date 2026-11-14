@@ -368,6 +368,8 @@ export const FULL_ONLY = [
   "e2e/net-without-tees-says-so.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  // State machine PR 8 (J14): a row A045 moved keeps what members saw, launches like any other, and is copied without its old word.
+  "e2e/old-setting-up-rows-keep-their-word.spec.ts",
   "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",

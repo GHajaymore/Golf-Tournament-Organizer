@@ -26,8 +26,11 @@ import { isLaunched, openToMembers } from "@/lib/domain/lifecycle-state";
  *     equals `openToMembers` on the moved row, row by row;
  *   - after it, the table refuses any status but draft, live and completed (S4) — and without
  *     the CHECK the same write goes in and reads as LAUNCHED;
- *   - a table holding a status nobody expected is not failed: rows moved, CHECK left out;
- *   - a second run changes nothing; the reversal kept in its comment puts every row back;
+ *   - a table holding a status nobody expected is not failed: each such row becomes `live`
+ *     (what the old code read it as), or `completed` where `live` would share a name in play,
+ *     its word kept, and the CHECK still goes on (Ajay, 14 Nov: the risk is a failed deploy);
+ *   - a second run changes nothing; the reversal kept in its comment puts every row back, and
+ *     leaves a moved row that has since been LAUNCHED launched;
  *   - a row a launch is writing at that moment is left to the launch (the re-check).
  */
 
@@ -184,13 +187,16 @@ afterAll(async () => {
 });
 
 describe("A045, run as written, against a copy of one club holding every old status", () => {
-  it("is three statements: the column if missing, an UPDATE naming the status alone, and the guarded CHECK", () => {
-    const [add, update, guard, ...rest] = statements();
+  it("is four statements: the column if missing, an UPDATE naming the status alone, the other words mapped, and the guarded CHECK", () => {
+    const [add, update, others, guard, ...rest] = statements();
     expect(rest, "the migration holds more than the statements this test runs").toEqual([]);
     expect(add).toMatch(/^ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "legacyStatus" TEXT NOT NULL DEFAULT ''$/);
     expect(update).toMatch(/^UPDATE "Event"/);
     expect(update, "the UPDATE reaches another column").not.toMatch(/playerCountMode/);
     expect(update).toMatch(/WHERE "status" IN \('registration', 'ready'\)$/);
+    expect(others).toMatch(/^UPDATE "Event" AS e/);
+    expect(others, "the mapping reaches another column").not.toMatch(/playerCountMode|registrationOpen|registrationToken/);
+    expect(others).toMatch(/WHERE e\."status" NOT IN \('draft', 'live', 'completed'\)$/);
     expect(guard).toMatch(/^DO \$\$/);
     expect(guard).toContain(`CHECK ("status" IN ('draft', 'live', 'completed'))`);
   });
@@ -244,14 +250,61 @@ describe("A045, run as written, against a copy of one club holding every old sta
     for (const good of ["live", "completed", "draft"]) expect(await write(good, "draft-shut"), good).toBe("taken");
   });
 
-  it("never fails a table holding a status nobody expected: the rows are moved and the CHECK left out", async () => {
-    await freshScratch({ ...Object.fromEntries(SEEDS.map((s) => [s.key, s.status])), live: "active" });
+  it("never fails a table holding a status nobody expected: each such row becomes live, its word kept, and the CHECK still goes on", async () => {
+    // Words the app never wrote, as a fixture, a script or a hand might have left them.
+    const strays: Record<string, string> = { live: "active", completed: "complete", "draft-open": "LIVE " };
+    await freshScratch({ ...Object.fromEntries(SEEDS.map((s) => [s.key, s.status])), ...strays });
+    const before = await snapshot();
+    // Read back, not assumed: the strays really are in the copy.
+    for (const [key, word] of Object.entries(strays)) expect(before.get(ids[key])!.status).toBe(word);
+
     await run(statements());
     const after = await snapshot();
-    expect(await hasCheck(), "the CHECK went on over a stray status").toBe(false);
-    expect(after.get(ids.live)!.status, "the stray row was rewritten").toBe("active");
-    expect([...after.values()].filter((r) => r.status === "registration" || r.status === "ready")).toEqual([]);
+
+    expect(await hasCheck(), "the CHECK was left out: a stray status still blocks it").toBe(true);
+    for (const [key, word] of Object.entries(strays)) {
+      const was = before.get(ids[key])!;
+      // The old code read every one of these as launched and unfinished (isLaunched: not on the
+      // three-word pre-launch list; isFinished: exactly "completed"), so: live, word kept.
+      expect(after.get(ids[key]), `${key} ("${word}")`).toEqual({ ...was, status: "live", legacyStatus: word });
+    }
+    expect([...after.values()].filter((r) => !["draft", "live", "completed"].includes(r.status))).toEqual([]);
     expect(after.get(ids["ready-open"])).toMatchObject({ status: "draft", legacyStatus: "ready" });
+    // And the table now refuses the stray word it was handed.
+    expect(await write("active", "draft-shut")).toMatch(new RegExp(CHECK_NAME));
+  });
+
+  it("makes a stray that would share a name in play completed, so the A036 name index cannot refuse the deploy", async () => {
+    // One stray named like a draft of its club; two strays named like each other.
+    const strays: Record<string, string> = { live: "active", completed: "active", "draft-open": "started" };
+    const [first, second] = ["completed", "draft-open"].sort((a, b) => (ids[a] < ids[b] ? -1 : 1));
+    async function shaped() {
+      await freshScratch({ ...Object.fromEntries(SEEDS.map((s) => [s.key, s.status])), ...strays });
+      await prisma.$executeRawUnsafe(`UPDATE "${SCRATCH}" SET "name" = $1 WHERE "id" = $2`, `${TAG}   DRAFT-SHUT`, ids.live);
+      await prisma.$executeRawUnsafe(`UPDATE "${SCRATCH}" SET "name" = $1 WHERE "id" IN ($2, $3)`, `${TAG} twin`, ids[first], ids[second]);
+      // A036's index, as written, on the copy.
+      await prisma.$executeRawUnsafe(
+        `CREATE UNIQUE INDEX "${SCRATCH}_name_in_play" ON "${SCRATCH}" ("organizationId", lower(btrim(regexp_replace("name", '\\s+', ' ', 'g')))) WHERE "status" IN ('draft', 'registration', 'ready', 'live') AND "shape" <> 'match'`,
+      );
+    }
+    const [add, update] = statements();
+
+    // CONTROL: the plain rule (every stray to live) is refused by the index on this very table —
+    // the deploy that fails partway.
+    await shaped();
+    await run([add, update]);
+    await expect(
+      prisma.$executeRawUnsafe(`UPDATE "${SCRATCH}" SET "status" = 'live' WHERE "status" NOT IN ('draft', 'live', 'completed')`),
+    ).rejects.toThrow(/unique|duplicate|23505/i);
+
+    await shaped();
+    const before = await snapshot();
+    await run(statements());
+    const after = await snapshot();
+    expect(await hasCheck()).toBe(true);
+    expect(after.get(ids.live), "a stray beside a draft of its name").toEqual({ ...before.get(ids.live)!, status: "completed", legacyStatus: "active" });
+    expect(after.get(ids[first]), "the earlier of two strays of one name").toEqual({ ...before.get(ids[first])!, status: "live", legacyStatus: strays[first] });
+    expect(after.get(ids[second]), "the later of two strays of one name").toEqual({ ...before.get(ids[second])!, status: "completed", legacyStatus: strays[second] });
   });
 
   it("is safe to run twice: the second run changes nothing and adds no second CHECK", async () => {
@@ -273,6 +326,20 @@ describe("A045, run as written, against a copy of one club holding every old sta
     const restored = await snapshot();
     expect(restored, "the reversal did not put every row back exactly").toEqual(before);
     expect(await hasCheck()).toBe(false);
+  });
+
+  it("never un-launches: a moved row launched since the migration stays live through the reversal", async () => {
+    await freshScratch();
+    await run(statements());
+    // Launched after the move: `live`, its old word still in legacyStatus.
+    await prisma.$executeRawUnsafe(`UPDATE "${SCRATCH}" SET "status" = 'live' WHERE "id" = $1`, ids["entries-shut"]);
+    expect((await snapshot()).get(ids["entries-shut"])).toMatchObject({ status: "live", legacyStatus: "registration" });
+    await run(reversal());
+    const back = await snapshot();
+    expect(back.get(ids["entries-shut"])!.status, "the reversal set a launched tournament back to its old word").toBe("live");
+    // CONTROL: the moved rows still in setting up DO go back.
+    expect(back.get(ids["ready-open"])!.status).toBe("ready");
+    expect(back.get(ids["entries-open"])!.status).toBe("registration");
   });
 
   it("leaves a row to a launch that is writing it at that moment (the re-check, READ COMMITTED)", async () => {

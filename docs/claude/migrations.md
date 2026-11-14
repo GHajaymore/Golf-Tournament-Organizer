@@ -60,9 +60,14 @@ with `select indexname from pg_indexes where indexname = 'Event_name_in_play_key
 `draft`, keeping the old word in `Event.legacyStatus` (read by `openToMembers`), and then adds
 `Event_status_is_one_the_app_writes`: `CHECK ("status" IN ('draft', 'live', 'completed'))`. From then on
 `isLaunched` is "not `draft`", so a row written in any other word would read as LAUNCHED; the CHECK
-refuses the writer. It is not in `schema.prisma` (a comment beside `status` says so), and it is GUARDED
-like A036 — added only where no row holds another status, a NOTICE otherwise, every statement safe to
-run twice. So a fixture, seed or audit test that writes an invented status (`"active"`, `"complete"`
+refuses the writer. It is not in `schema.prisma` (a comment beside `status` says so). So that the deploy
+cannot fail on a word nobody expected (Ajay, 14 Nov: the only real risk is a deploy that fails partway,
+P3009), every other status is first MAPPED by one written rule: `live` (what the old code read any such
+word as), or `completed` where `live` would share a name in play under A036's index; the word is kept
+in `legacyStatus`. The CHECK is still GUARDED like A036 (a NOTICE, never a failure), and every
+statement is safe to run twice. Rollback is the CODE first, then the reversal in the file's comment
+(it touches only rows still `draft`), then deleting A045's `_prisma_migrations` row; a failed apply is
+`prisma migrate resolve --rolled-back` by the owner. So a fixture, seed or audit test that writes an invented status (`"active"`, `"complete"`
 were found in twelve audit files and moved to `"live"`) now fails at the insert, loudly. Check it with
 `select pg_get_constraintdef(oid) from pg_constraint where conname = 'Event_status_is_one_the_app_writes'`.
 The proof is `a-legacy-row-keeps-its-word.audit.test.ts`, which runs the file's own text against a
