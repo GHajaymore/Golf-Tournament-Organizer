@@ -6,3 +6,6 @@ scripts/**/*.mjs text eol=lf
 scripts/**/*.js text eol=lf
 # The workflows too: qa-pipeline.test.ts reads deploy.yml's steps split on "\n".
 .github/**/*.yml text eol=lf
+# The guard hook too: no-local-paths-in-the-repository.test.ts imports it, and the same "#!" line
+# failed to load from a CRLF checkout (14 Nov).
+.claude/hooks/*.mjs text eol=lf
