@@ -15,6 +15,7 @@ export const WRITE_ALLOWLIST: Record<string, string> = {
   "nightly.yml: deployments": "after a clean verdict it calls deploy.yml, which records the deployment",
   "weekly.yml: statuses": "the round it calls posts its verdict on the tested commit (reader.mjs --post)",
   "round.yml: statuses": "the verdict job says the verdict on the commit it tested (last step)",
+  "nightly-nudge.yml: actions": "starts the Nightly round (gh workflow run) when a merge waits for it; the job holds no secret",
   "round-waiter.yml: actions": "re-runs a round the machine did not finish (gh run rerun)",
   "train.yml: contents": "the build job pushes the train to round/train-<n>-1 (scripts/qa/train.mjs pushes no other ref)",
   "train.yml: actions": "the build job starts round.yml on the train (a push made with the job's own token starts no workflow)",
