@@ -2,14 +2,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { getPlayerViewer } from "@/lib/player-viewer";
 import { archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { sendPushTo } from "@/lib/services/push";
 import { whoKeysForEntry } from "@/lib/domain/messaging";
 import { golfTermsForEvent } from "@/lib/services/organization";
-import { cleanSuspendNote, playStatusOf, resumedWords, suspendedWords } from "@/lib/domain/play-status";
+import { cleanSuspendNote, playScreenOf, resumedWords, suspendedWords } from "@/lib/domain/play-status";
+import { playStatusForScreen } from "@/lib/services/play-status-screen";
 
 /**
  * SUSPEND AND RESUME PLAY for the whole tournament (Rule 5.7).
@@ -59,33 +59,34 @@ async function tellTheField(
     // One tag for both, so "resumed" replaces "suspended" on a lock screen
     // rather than stacking under it.
     { title: words.title, body: `${words.body} · ${eventName}`, url: "/me", tag: `play-${eventId}`, urgent },
-    { eventId },
+    // Both "stop now" and "play on" are about this minute: sent at high urgency
+    // so a dozing phone wakes for them, and held by the push service for hours,
+    // not weeks: through a dead spot, never into tomorrow (safety sweep G-5).
+    { eventId, delivery: "play-status" },
   );
 }
 
 /**
- * Whether play is suspended in the tournament of the PLAYER SCREEN the alarm
- * sits on (`SuspensionAlarm`, mounted by the player layout). Anybody that
- * screen is for may ask: it is the same fact the banner already shows.
+ * Whether play is suspended in the round of the screen the alarm sits on
+ * (`SuspensionAlarm`): the player app, or a round code's `/play`. Whoever that
+ * screen is for may ask: it is the same fact the banner on it already shows,
+ * and it is decided in one place (`playStatusForScreen`), from the caller's
+ * own cookie. `screen` arrives from the client and can only choose which of
+ * the caller's own two cookies is read; it never names an event.
  *
- * ASKED OF THE PLAYER VIEWER, NEVER OF `getSession()` (J39/J40 PR 2, G1; Rule
- * 5.7, a safety notice). The layout draws the banner from the viewer's event,
- * so the poll must ask the same one: a guest's link has no session at all, and
- * asking `getSession()` read "not suspended" every 20 seconds, so a guest whose
- * screen was open when play stopped heard nothing; a member viewing through a
- * link for another club's outing was asked about their own club's event. One
- * resolver for the banner and the siren (`getPlayerViewer`), so they cannot
- * disagree. On GUEST_ACTIONS.
+ * THE PLAYER APP IS ASKED OF THE PLAYER VIEWER, NEVER OF `getSession()`
+ * (J39/J40 PR 2, G1; Rule 5.7, a safety notice). The layout draws the banner
+ * from the viewer's event, so the poll must ask the same one: a guest's link
+ * has no session at all, and asking `getSession()` read "not suspended" every
+ * 20 seconds, so a guest whose screen was open when play stopped heard
+ * nothing; a member viewing through a link for another club's outing was asked
+ * about their own club's event. `playStatusForScreen` resolves "player"
+ * through `getPlayerViewer`, so banner and siren cannot disagree. On
+ * GUEST_ACTIONS.
  */
-export async function currentPlayStatus(): Promise<{ suspended: boolean; note: string }> {
-  const viewer = await getPlayerViewer();
-  if (!viewer?.eventId) return { suspended: false, note: "" };
-  const event = await prisma.event.findUnique({
-    where: { id: viewer.eventId },
-    select: { playSuspendedAt: true, playSuspendedNote: true },
-  });
-  // One spelling of "is it suspended", the layout's and the public board's (#1132 review nit).
-  return playStatusOf(event);
+export async function currentPlayStatus(screen?: unknown): Promise<{ suspended: boolean; note: string }> {
+  const { suspended, note } = await playStatusForScreen(playScreenOf(screen));
+  return { suspended, note };
 }
 
 export async function suspendPlay(note: string): Promise<{ ok: boolean; error?: string }> {

@@ -43,7 +43,7 @@ beforeAll(async () => {
       address: "",
       regDeadline: "",
       capacity: 0,
-      status: "active",
+      status: "live",
       shape: "series",
       formationRule: "manual",
       shareToken: `${TAG}-${org.id}`,

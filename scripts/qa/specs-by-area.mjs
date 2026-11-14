@@ -367,11 +367,15 @@ export const FULL_ONLY = [
   "e2e/match-kept-by.spec.ts",
   "e2e/match-play-rules.spec.ts",
   "e2e/match-results.spec.ts",
+  // A member scores from the cart sign signed out, with or without an email on the list (J39/J40: the guest link must not change it).
+  "e2e/members-still-score-from-the-qr.spec.ts",
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
   "e2e/net-without-tees-says-so.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  // State machine PR 8 (J14): a row A045 moved keeps what members saw, launches like any other, and is copied without its old word.
+  "e2e/old-setting-up-rows-keep-their-word.spec.ts",
   "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",
@@ -385,6 +389,9 @@ export const FULL_ONLY = [
   // The round-code holder's board (2026-11-05): all three visibility settings; /live stays the privacy line.
   "e2e/play-board.spec.ts",
   "e2e/play-suspended.spec.ts",
+  // Work plan row 0b (14 Nov): a member's and a guest's first hole, MEASURED — screens, presses, characters, seconds
+  // (one JOURNEY line each). Shared ground: sign-in, the player link, the card and the board at once.
+  "e2e/player-journey.spec.ts",
   "e2e/pot-on-the-scores.spec.ts",
   "e2e/prizes.spec.ts",
   "e2e/roster-handicap-and-field.spec.ts",
@@ -437,7 +444,11 @@ export const FULL_ONLY = [
   "e2e/status-stroke.spec.ts",
   "e2e/status-team-cup.spec.ts",
   "e2e/status-team-match-result-line.spec.ts",
+  // The reach gap (2026-11-13): the buttons that ask an outside service (Stripe, a model, a course directory), pressed where a person
+  // would, and a member's tee-time alerts turned on and off. Shared ground: plan, announcements, scoring, courses and Today at once.
+  "e2e/switched-off-services-answer-in-words.spec.ts",
   "e2e/team-cup.spec.ts",
+  "e2e/tee-time-alerts.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",
   "e2e/the-bot-check-cannot-shut-the-door.spec.ts",

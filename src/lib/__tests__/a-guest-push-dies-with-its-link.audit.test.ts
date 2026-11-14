@@ -12,12 +12,12 @@ import { PrismaClient } from "@prisma/client";
  * after the organizer pressed New link. The send is proved through the real
  * sender with `web-push` stubbed (never a test-only door in the app).
  *
- *   A10 on: a row at the current version; `pushIsOnHere` says on; the send
+ *   A10 on: a row at the current version; the toggle says on; the send
  *       reaches it. New link: skipped AND deleted. Turn off, withdrawal: the
  *       same. The new phone turns notices on at the new version and is reached.
  *   A11 one browser, two identities: the account's `PushSubscription` and the
  *       guest's `PlayerPassPush` on the SAME endpoint both survive, and
- *       `pushIsOnHere` answers per viewer.
+ *       the toggle answers per viewer (`pushFingerprintsForViewer`).
  *   SEC-1 (#1133 review) "Forget me on this phone" changes no version, so it
  *       deletes the held pass's row for this endpoint itself; nobody else's.
  *   SEC-2 (#1133 review) Turn off is about the PHONE: every identity's row on
@@ -59,9 +59,11 @@ process.env.VAPID_PRIVATE_KEY = "zz-private";
 import { createSession } from "@/lib/auth";
 import { ensurePass, rotatePass, revokePass } from "@/lib/services/player-link";
 import { getGuestSession, setGuestCookie } from "@/lib/guest-auth";
-import { savePushSubscription, removePushSubscription, pushIsOnHere } from "@/app/actions/push";
+import { savePushSubscription, removePushSubscription } from "@/app/actions/push";
 import { forgetThisPhone } from "@/app/actions/player-link";
-import { sendPushTo, noticesOffAmong } from "@/lib/services/push";
+import { sendPushTo, noticesOffAmong, pushFingerprintsForViewer } from "@/lib/services/push";
+import { getPlayerViewer } from "@/lib/player-viewer";
+import { endpointFingerprint, pushToggleState } from "@/lib/domain/push-device";
 import { guestWhoKey } from "@/lib/domain/messaging";
 
 const prisma = new PrismaClient();
@@ -82,6 +84,11 @@ let memberUser = "";
 async function holdLink(playerId: string) {
   const pass = await prisma.playerPass.findUniqueOrThrow({ where: { playerId }, select: { id: true, version: true } });
   await setGuestCookie(pass.id, pass.version);
+}
+/** What the alerts toggle on Today says for this browser's endpoint: the screen's own route (`PushToggle`). */
+async function onHere(endpoint: string): Promise<boolean> {
+  const mine = await pushFingerprintsForViewer(await getPlayerViewer());
+  return pushToggleState({ browserFingerprint: await endpointFingerprint(endpoint), mine }) === "on";
 }
 const endpointsSent = () => sent.map((s) => s.endpoint);
 const push = (keys: string[]) => sendPushTo(keys, { title: "zz Tee time", body: "8:10", url: "/me", tag: "zz" }, { eventId });
@@ -142,11 +149,11 @@ describe("a guest's notices die with their link", () => {
 
   it("A10: on at the current version, reached; New link skips AND deletes it; the new phone is reached at the new version", async () => {
     await holdLink(guest);
-    expect(await pushIsOnHere(PHONE_A), "before: off").toBe(false);
+    expect(await onHere(PHONE_A), "before: off").toBe(false);
     expect((await savePushSubscription({ endpoint: PHONE_A, keys: KEYS })).ok).toBe(true);
     const row = await prisma.playerPassPush.findFirstOrThrow({ where: { endpoint: PHONE_A } });
     expect(row.passVersion).toBe(1);
-    expect(await pushIsOnHere(PHONE_A)).toBe(true);
+    expect(await onHere(PHONE_A)).toBe(true);
     await push([guestWhoKey(guest)]);
     expect(endpointsSent()).toEqual([PHONE_A]);
     // New link: the forwarded phone is out.
@@ -195,14 +202,14 @@ describe("a guest's notices die with their link", () => {
     expect((await savePushSubscription({ endpoint: SHARED, keys: KEYS })).ok).toBe(true);
     jar.clear();
     await holdLink(guest);
-    expect(await pushIsOnHere(SHARED), "the account's row is not the guest's").toBe(false);
+    expect(await onHere(SHARED), "the account's row is not the guest's").toBe(false);
     expect((await savePushSubscription({ endpoint: SHARED, keys: KEYS })).ok).toBe(true);
     expect(await prisma.pushSubscription.count({ where: { endpoint: SHARED, email: MEMBER } }), "the guest's subscribe overwrote the account's").toBe(1);
     expect(await prisma.playerPassPush.count({ where: { endpoint: SHARED } })).toBe(1);
-    expect(await pushIsOnHere(SHARED)).toBe(true);
+    expect(await onHere(SHARED)).toBe(true);
     jar.clear();
     expect(await createSession(memberUser)).toBe(true);
-    expect(await pushIsOnHere(SHARED)).toBe(true);
+    expect(await onHere(SHARED)).toBe(true);
   });
 
   it("SEC-1 (#1133 review): Forget me on this phone removes the held pass's row for THIS endpoint, and only it", async () => {

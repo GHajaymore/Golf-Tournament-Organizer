@@ -115,7 +115,7 @@ export async function seedClubhouse(mark) {
     const live = await tournament("live", { title: "Autumn Medal", status: "live", visibility: "public", cards: true, dates: "" }, FIELD);
     const entries = await tournament(
       "entries",
-      { title: "Winter Stableford", status: "registration", visibility: "public", registrationOpen: true, regDeadline: dayOffset(9), capacity: 40, playedOn: dayOffset(14) },
+      { title: "Winter Stableford", status: "draft", visibility: "public", registrationOpen: true, regDeadline: dayOffset(9), capacity: 40, playedOn: dayOffset(14) },
       ["Early Entrant Example"],
     );
     const finished = await tournament(

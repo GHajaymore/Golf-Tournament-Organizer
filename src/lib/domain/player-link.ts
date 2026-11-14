@@ -196,7 +196,6 @@ export const GUEST_ACTIONS = [
   "setMyMessagesOptOut",
   "savePushSubscription",
   "removePushSubscription",
-  "pushIsOnHere",
 ] as const;
 
 /** What a guest viewer carries: one pass, one entry, one event. Never taken from an argument. */

@@ -112,24 +112,10 @@ export async function removePushSubscription(endpoint: string): Promise<PushActi
   return { ok: true };
 }
 
-/**
- * WHETHER THIS BROWSER'S NOTICES ARE ON FOR THE PERSON THIS SCREEN IS FOR
- * (J39/J40 PR 2). The toggle asks the SERVER, not only
- * `pushManager.getSubscription()`: one browser can be on for an account and
- * off for the guest link it also holds, and a guest's row from before a New
- * link is not on. Only ever about the caller's own rows.
+/*
+ * WHETHER THIS BROWSER'S NOTICES ARE ON for the person this screen is for is
+ * not an action: the toggle is drawn on the server for the player viewer, with
+ * that viewer's own devices as fingerprints (`PushToggle`,
+ * `pushFingerprintsForViewer`), and the browser compares its own subscription
+ * with them (`pushToggleState`). One rule for an account and a guest's link.
  */
-export async function pushIsOnHere(endpoint: string): Promise<boolean> {
-  const owner = await pushOwnerNow();
-  const at = pushEndpoint(endpoint);
-  if (!owner || !at) return false;
-  if (owner.guest) {
-    const row = await prisma.playerPassPush.findFirst({
-      where: { passId: owner.guest.passId, endpoint: at, passVersion: owner.guest.version },
-      select: { id: true },
-    });
-    return !!row;
-  }
-  const row = await prisma.pushSubscription.findFirst({ where: { endpoint: at, email: owner.email.trim().toLowerCase() }, select: { id: true } });
-  return !!row;
-}

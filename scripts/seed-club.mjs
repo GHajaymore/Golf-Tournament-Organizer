@@ -2147,7 +2147,7 @@ export async function seed() {
      * a fixture where the one player is confirmed in the one tournament.
      */
     const captains = await makeEvent("captains", "Captain’s Day — Open Entry", {
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       dates: dayOffset(28),
@@ -2167,7 +2167,7 @@ export async function seed() {
     await enter(captains, Array.from({ length: 18 }, (_, i) => i + 6));
 
     const scramble = await makeEvent("scramble", "Autumn Am-Am Scramble — Waiting List", {
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       sideStyle: "teams",
@@ -2222,7 +2222,7 @@ export async function seed() {
      * `/entry` 500; nobody had walked the player.
      */
     const meeting = await makeEvent("meeting", "Spring Meeting — Format To Follow", {
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       dates: dayOffset(60),

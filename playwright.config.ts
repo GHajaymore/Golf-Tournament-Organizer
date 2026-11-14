@@ -303,10 +303,18 @@ export default defineConfig({
       // NO MAIL LEAVES FROM A TEST SERVER: an empty key beats any in .env, so the sender answers "not configured"
       // (the owner-console spec presses Send on the early list and expects exactly that).
       RESEND_API_KEY: "",
+      // NO MODEL IS ASKED FROM A TEST SERVER, and a key in a developer's .env must not spend their money:
+      // an empty key beats it, so every AI action answers "not switched on" — which is what
+      // e2e/switched-off-services-answer-in-words.spec.ts reads on the screen that pressed it.
+      ANTHROPIC_API_KEY: "",
+      // Nor a course-directory key, nor a push private key, from a developer's .env: an empty value beats it.
+      GOLFCOURSE_API_KEY: "",
+      VAPID_PRIVATE_KEY: "",
       // A public key that lets the tee-time alerts card go as far as the server: the card is drawn
-      // either way, and a press asks the server for this key first (e2e/a-guest-in-messages.spec.ts
-      // presses Turn on as a guest). Public by design, and only the public half: with no private key
-      // nothing is ever sent. The same key #1129 gives its member spec.
+      // either way, and a press asks the server for this key first (e2e/tee-time-alerts.spec.ts as a
+      // member, e2e/a-guest-in-messages.spec.ts as a guest).
+      // This is the widely published web-push EXAMPLE pair (its private half is public too): a demo
+      // key, never to be copied into a real environment. With the private key blanked, nothing is sent.
       VAPID_PUBLIC_KEY: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",
     },
   },

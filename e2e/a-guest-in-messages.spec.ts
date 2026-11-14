@@ -11,12 +11,12 @@ import { watchPageErrors } from "./page-errors";
  * mutes the guest from the Player link panel; the guest's next round post is refused in words
  * while the desk stays open. Then the guest's notices, pressed by the guest: Turn on files a row on
  * the PASS at its current version (never an account's); the toggle asks the SERVER whether this
- * browser is on for this guest (`pushIsOnHere`); Turn off stops this phone; and "Forget me on this
+ * browser is on for this guest (`PushToggle`, drawn for the viewer); Turn off stops this phone; and "Forget me on this
  * phone" stops its notices too while the link stays live (#1133 review, SEC-1).
  * Read back from the database at each step.
  *
  * Actions pressed: sendMessage, readThread, markThreadRead (as the guest and the organizer),
- * muteGuestInMessages (organizer), getVapidPublicKey, savePushSubscription, pushIsOnHere,
+ * muteGuestInMessages (organizer), getVapidPublicKey, savePushSubscription,
  * removePushSubscription and forgetThisPhone (guest), and PR 1's showPlayerLink and openPlayerLink
  * to get there.
  *
@@ -40,7 +40,7 @@ const ENDPOINT = `https://push.example.invalid/${MARK}`;
 async function guestContext(browser: Browser, baseURL: string, testInfo: TestInfo): Promise<BrowserContext> {
   const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, serviceWorkers: "block", storageState: { cookies: [], origins: [] } });
   // The browser's push machinery, stubbed IN THE PAGE: a registration whose subscription is this
-  // endpoint, and permission granted. Whether it is ON is the server's answer (`pushIsOnHere`).
+  // endpoint, and permission granted. Whether it is ON is the server's answer (the toggle is drawn with this guest's own devices).
   await ctx.addInitScript((endpoint: string) => {
     const sub = { endpoint, toJSON: () => ({ keys: { p256dh: "zz-p256dh", auth: "zz-auth" } }), unsubscribe: async () => true };
     const reg = { pushManager: { getSubscription: async () => sub, subscribe: async () => sub } };
@@ -178,7 +178,7 @@ test.describe("a guest in messages and notices", () => {
       await expect(g.getByText("Tee-time alerts are on.")).toBeVisible({ timeout: 20_000 });
       await expect.poll(guestRows, { timeout: 20_000 }).toBe(1);
       expect(await prisma.pushSubscription.count({ where: { endpoint: ENDPOINT } }), "a guest's Turn on filed an account's row").toBe(0);
-      // A reload asks the SERVER (`pushIsOnHere`), and it says on.
+      // A reload asks the SERVER (the toggle is drawn for the viewer), and it says on.
       await today();
       await expect(g.getByText("Tee-time alerts are on.")).toBeVisible({ timeout: 20_000 });
 

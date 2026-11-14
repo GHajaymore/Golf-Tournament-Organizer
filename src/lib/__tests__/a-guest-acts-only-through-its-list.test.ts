@@ -20,7 +20,8 @@ import { GUEST_ACTIONS } from "@/lib/domain/player-link";
  */
 
 const ACTIONS_DIR = join("src", "app", "actions");
-// `getPlayerViewer(` answers for a link as readily as for an account (G1, `currentPlayStatus`).
+// `getPlayerViewer(` answers for a link as readily as for an account; `playStatusForScreen(`
+// asks it for the player screen (G1, `currentPlayStatus`).
 // PR 2: messaging asks `messagingContextFor` (through `requireActor`), push asks `pushOwnerNow`.
 // And every other door that resolves a guest (#1132 review, PE-1): ban the shape, not one spelling.
 const GUEST_DOORS = [
@@ -28,6 +29,7 @@ const GUEST_DOORS = [
   "requireScoreEntryForStage(",
   "guestActorFor(",
   "getPlayerViewer(",
+  "playStatusForScreen(",
   "playerViewSwitch(",
   "requirePlayerViewer(",
   "requirePlayingViewer(",
@@ -84,10 +86,20 @@ describe("a guest acts only through GUEST_ACTIONS", () => {
       "getGuestSession(": ["src/lib/player-viewer.ts", "src/app/actions/player-link.ts"],
       "guestActorFor(": ["src/lib/player-viewer.ts", "src/app/actions/tournament.ts", "src/lib/messaging-viewer.ts"],
       "guestViewer(": ["src/lib/player-viewer.ts"],
-      // The player screens' door, and the one action that asks it (G1: the siren follows the screen's event).
+      // The player screens' door, and the one resolver the siren's poll asks through (G1: the siren
+      // follows the screen's event; `currentPlayStatus` -> `playStatusForScreen`).
       // player-viewer.ts DEFINES it (`export async function getPlayerViewer(`).
-      // and the installed app's start (G3), which only redirects.
-      "getPlayerViewer(": ["src/lib/player-viewer.ts", "src/lib/page-helpers.ts", "src/app/actions/play-status.ts", "src/app/start/page.tsx", "src/lib/messaging-viewer.ts", "src/app/actions/push.ts"],
+      // and the installed app's start (G3), which only redirects; the messaging and push owners (PR 2),
+      // and the alerts toggle, which asks whose devices are on for the person the screen is for.
+      "getPlayerViewer(": [
+        "src/lib/player-viewer.ts",
+        "src/lib/page-helpers.ts",
+        "src/lib/services/play-status-screen.ts",
+        "src/app/start/page.tsx",
+        "src/lib/messaging-viewer.ts",
+        "src/app/actions/push.ts",
+        "src/components/PushToggle.tsx",
+      ],
       // The messaging resolver is asked by the messaging actions only (PR 2).
       "messagingContextFor(": ["src/lib/messaging-viewer.ts", "src/app/actions/messaging.ts"],
     };
