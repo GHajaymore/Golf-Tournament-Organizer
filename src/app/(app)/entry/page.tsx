@@ -59,6 +59,8 @@ import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
 import { resolveMatch, matchIsOver } from "@/lib/domain/match";
 import { ConfirmMatchResult, ReopenMatchResult } from "@/components/ConfirmMatchResult";
+import { scoreEntryTies, thirdPlaceCard } from "@/lib/domain/knockout-ties";
+import { bracketDraws } from "@/lib/domain/my-tie";
 
 export const metadata = screenMetadata("/entry");
 
@@ -834,6 +836,30 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
    * refused (round G594-1, 10 Nov). Staff only: nobody else is shown the box.
    */
   const teeDoors = isStaff ? await roundRefusalsFor(session.eventId, { kind: "round-tees" }) : new Map<string, string>();
+  /**
+   * THE KNOCKOUT AS A LIST OF TIES, for staff (cut 3, 2026-11-14): reported ties
+   * first, then ties to play, then decided ones, every flight included
+   * (`bracketDraws`). Read once; the knockout round below carries it.
+   */
+  const knockoutTies =
+    isStaff && rrStages.some((s) => isKnockoutRound(s.type))
+      ? await (async () => {
+          const [reports, results] = await Promise.all([
+            prisma.bracketReport.findMany({
+              where: { eventId: session.eventId },
+              orderBy: { createdAt: "asc" },
+              select: { key: true, winnerId: true, result: true, reportedBy: true },
+            }),
+            prisma.bracketWinner.findMany({ where: { eventId: session.eventId }, select: { key: true, result: true } }),
+          ]);
+          const nameById = new Map(state.players.map((p) => [p.id, p.name]));
+          return {
+            ...scoreEntryTies(bracketDraws(state.brackets), reports, Object.fromEntries(results.map((r) => [r.key, r.result]))),
+            // The play-off for third, its own card in the list: the refusal that names it links there.
+            thirdPlace: thirdPlaceCard(state.matches, (id) => nameById.get(id) ?? "A player no longer in the field"),
+          };
+        })()
+      : undefined;
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage) => {
       const holeCount = holesPlayed(stage.holes);
@@ -1045,6 +1071,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         cup: stage.type === TEAM_SESSION,
         // The knockout is recorded on the Bracket, and the screen says so.
         bracket: isKnockoutRound(stage.type),
+        ties: isKnockoutRound(stage.type) ? knockoutTies : undefined,
         matches: stageMatches,
         netMode,
         scoreInput: stage.scoreInput,
