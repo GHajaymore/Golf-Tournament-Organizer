@@ -144,7 +144,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Type a name under **Create a new tournament**.",
           "Choose **How is it played?** — a single round, a series of rounds, or a knockout.",
           "Choose **Start from**: a template, or one of your past tournaments to copy (settings carry over, scores never do). Choosing a past tournament asks for its **First day** (and **Last day**), exactly as **Copy last event** below does, and the entry window and rounds move with it.",
-          "Press [[Create tournament]], then [[Manage]] to open it.",
+          "Press [[Create tournament]]. A new tournament opens on [[Entries]], ready for [[Open entries]]; the dashboard is one press away in the menu. A copy opens on the dashboard.",
         ],
       },
       { kind: "h", text: "Copy last event" },

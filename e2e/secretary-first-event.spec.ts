@@ -151,13 +151,11 @@ test("a new club secretary has a tournament with a working entry link in under t
       await type(page.getByLabel(/Who.s running this\?/), club);
       await press(page.getByRole("radiogroup", { name: "What kind of outfit runs it" }).getByText(/club/i).first());
       await press(page.getByRole("button", { name: "Create tournament" }));
-      await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+      // The create ends where entries are opened (journey budgets, cut B): no Home, no "Entries" press.
+      await page.waitForURL(/\/registration/, { timeout: 60_000 });
     });
 
     await test.step("publishes the sign-up link", async () => {
-      await page.waitForLoadState("networkidle").catch(() => {});
-      await press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })));
-      await page.waitForURL(/\/registration/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
       await press(page.getByRole("button", { name: /^Open entries/ }));
       await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });

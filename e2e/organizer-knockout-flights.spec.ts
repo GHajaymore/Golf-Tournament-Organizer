@@ -100,7 +100,8 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A knockout/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
 
     await open(page, "/event");
     const today = new Date().toISOString().slice(0, 10);

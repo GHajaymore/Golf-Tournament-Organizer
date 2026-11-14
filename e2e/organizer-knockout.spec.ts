@@ -93,7 +93,8 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A knockout/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("the date", async () => {
