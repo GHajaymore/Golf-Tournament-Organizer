@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { readSource } from "./source";
 import { deviceFrom, endpointFingerprint, pushToggleState, pushUnavailableWords } from "@/lib/domain/push-device";
 import { PushUnavailableNote } from "@/components/PushToggleClient";
+import { PLAYER_HELP_TOPICS } from "@/lib/player-help";
 
 /**
  * THE ALERTS TOGGLE TELLS THE TRUTH, ON A SHARED PHONE AND ON AN IPHONE
@@ -93,18 +94,42 @@ describe("on an iPhone (G-3)", () => {
     expect(deviceFrom({ userAgent: ANDROID_CHROME }, false).iOS).toBe(false);
   });
 
-  it("in Safari, says alerts cannot reach it, what still works, and how to get them", () => {
+  it("in the browser, says alerts cannot reach it, what still works, and how to get them", () => {
     const w = pushUnavailableWords({ iOS: true, installed: false });
-    expect(w, "an iPhone in Safari is told nothing").not.toBeNull();
+    expect(w, "an iPhone in the browser is told nothing").not.toBeNull();
     const all = [w!.title, ...w!.lines].join(" ");
-    expect(all).toMatch(/can't reach this iPhone/);
-    expect(all, "does not say what still works").toMatch(/siren sounds if play is suspended/);
+    expect(all).toMatch(/can't reach this iPhone from the browser/);
+    expect(all, "does not say what still works").toMatch(/Keep this page on screen\. It turns red if play stops\./);
+    expect(all, "does not say a pocketed phone hears nothing").toMatch(/A locked phone, or one in your pocket, is not told\./);
     expect(all, "does not say how to get alerts").toMatch(/Add to Home Screen/);
   });
 
-  it("on the Home Screen but too old, says to update", () => {
+  it("promises nothing an iPhone does not keep: no siren on silent, no buzz, no 'open' tab", () => {
+    for (const installed of [false, true]) {
+      const all = [pushUnavailableWords({ iOS: true, installed })!.title, ...pushUnavailableWords({ iOS: true, installed })!.lines].join(" ");
+      expect(all, "promises a siren a phone on silent may not make").not.toMatch(/siren|sound/i);
+      expect(all, "promises a buzz iOS gives a page none of").not.toMatch(/buzz|vibrat/i);
+      expect(all, "'open' reads as a tab behind a locked screen").not.toMatch(/page open|app open/i);
+      expect(all, "Chrome on an iPhone is not Safari").not.toMatch(/in Safari\./);
+    }
+  });
+
+  it("the player's Help says the same: a pocket with alerts off is not told, and how to turn them on", () => {
+    const topic = PLAYER_HELP_TOPICS.find((t) => t.id === "suspended");
+    expect(topic, "the Help has no topic on play suspended").toBeTruthy();
+    const all = topic!.steps.join(" ");
+    expect(all).toMatch(/Phone in your pocket with alerts off\? You are not told\./);
+    expect(all).toMatch(/open Today and find Get tee-time alerts/);
+    expect(all).toMatch(/Tap Turn on/);
+    expect(all, "the Help promises a siren on every phone").not.toMatch(/With the app open, a siren/);
+    expect(all, "the siren is said for Android only").toMatch(/On Android, a siren sounds/);
+  });
+
+  it("on the Home Screen but too old, says to update, and that a pocket is not told", () => {
     const w = pushUnavailableWords({ iOS: true, installed: true });
-    expect([w!.title, ...w!.lines].join(" ")).toMatch(/iOS 16\.4/);
+    const all = [w!.title, ...w!.lines].join(" ");
+    expect(all).toMatch(/iOS 16\.4/);
+    expect(all).toMatch(/is not told/);
   });
 
   it("CONTROL: elsewhere there is nothing useful to say, so nothing is said", () => {
@@ -124,7 +149,7 @@ describe("on an iPhone (G-3)", () => {
   it("the note is drawn, and the toggle draws it where it used to draw nothing", () => {
     const html = renderToStaticMarkup(<PushUnavailableNote words={pushUnavailableWords({ iOS: true, installed: false })!} />);
     expect(html).toContain('role="note"');
-    expect(html).toContain("Alerts can&#x27;t reach this iPhone in Safari.");
+    expect(html).toContain("Alerts can&#x27;t reach this iPhone from the browser.");
     expect(html).toContain("Add to Home Screen");
     const client = readSource("src", "components", "PushToggleClient.tsx");
     expect(client, "the toggle vanishes on an iPhone again").toMatch(/state === "unavailable" && why\) return <PushUnavailableNote/);

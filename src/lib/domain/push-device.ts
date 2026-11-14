@@ -51,21 +51,26 @@ export function deviceFrom(nav: { userAgent: string; platform?: string; maxTouch
  */
 export function pushUnavailableWords(device: ThisDevice): { title: string; lines: string[] } | null {
   if (!device.iOS) return null;
-  const stillWorks = "With this page open, a siren sounds if play is suspended.";
+  /**
+   * What still works, promised no further than an iPhone keeps it (the
+   * Tournament Director's review of #1134): the screen turning red. Not the
+   * siren — a page's sound follows the ring/silent switch, and most golfers
+   * play with the phone on silent — and not a buzz, which iOS gives a page
+   * none of. "On screen", not "open": a tab open behind a locked screen is
+   * told nothing.
+   */
+  const stillWorks = "Keep this page on screen. It turns red if play stops.";
+  const notTold = "A locked phone, or one in your pocket, is not told.";
   if (device.installed) {
     // On the Home Screen already, so the iPhone is older than iOS 16.4, the first that allows it.
     return {
       title: "Alerts can't reach this iPhone yet.",
-      lines: [stillWorks, "Alerts need iOS 16.4 or later. Update in Settings, General, Software Update."],
+      lines: [stillWorks, notTold, "Alerts need iOS 16.4 or later. Update in Settings, General, Software Update."],
     };
   }
+  // "From the browser", not "in Safari": Chrome on an iPhone is the same WebKit, and the same answer.
   return {
-    title: "Alerts can't reach this iPhone in Safari.",
-    lines: [
-      stillWorks,
-      "Alerts on a locked phone need TourneyHQ on your Home Screen.",
-      "In Safari, tap Share, then Add to Home Screen.",
-      "Open TourneyHQ from there and turn alerts on.",
-    ],
+    title: "Alerts can't reach this iPhone from the browser.",
+    lines: [stillWorks, notTold, "To be told: tap Share, then Add to Home Screen.", "Open TourneyHQ from there and turn alerts on."],
   };
 }

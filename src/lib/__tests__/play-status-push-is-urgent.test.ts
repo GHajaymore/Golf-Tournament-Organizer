@@ -7,9 +7,12 @@ import { readSource } from "./source";
  * `sendPushToEmails` passed no options, so web-push sent every notice at
  * Urgency normal with a four-week TTL. On Android a normal push is low
  * priority to a dozing phone, so "play is suspended" could arrive late; and a
- * phone that was off all afternoon could be told "stop now" the next morning.
+ * phone that was off for weeks could still be told "stop now".
  *
- *   play suspended / resumed   Urgency high, a TTL of minutes
+ *   play suspended / resumed   Urgency high, a TTL of hours (two to four):
+ *                              long enough for a player in a dead spot
+ *                              through a 45–90 minute lightning hold (the
+ *                              Tournament Director's review of #1134)
  *   everything else            exactly as before: no options at all
  */
 
@@ -43,12 +46,12 @@ const payload = { title: "Play is suspended", body: "Stop now.", tag: "play-x", 
 describe("how a push is carried", () => {
   beforeEach(() => void sent.splice(0));
 
-  it("a suspension or resumption goes at high urgency and lives minutes, not weeks", async () => {
+  it("a suspension or resumption goes at high urgency and lives hours, not weeks", async () => {
     await sendPushToEmails(["zz@example.invalid"], payload, { eventId: "e1", delivery: "play-status" });
     expect(sent).toHaveLength(1);
     expect(sent[0].options, "the push service was not asked to hurry a safety notice").toEqual({ urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS });
-    expect(PLAY_STATUS_TTL_SECONDS).toBeGreaterThanOrEqual(5 * 60);
-    expect(PLAY_STATUS_TTL_SECONDS, "a TTL of hours delivers yesterday's 'stop now'").toBeLessThanOrEqual(60 * 60);
+    expect(PLAY_STATUS_TTL_SECONDS, "a player in a dead spot through a lightning hold never hears it").toBeGreaterThanOrEqual(2 * 60 * 60);
+    expect(PLAY_STATUS_TTL_SECONDS, "a life past the round is no longer news about it").toBeLessThanOrEqual(4 * 60 * 60);
   });
 
   it("CONTROL: everything else is sent exactly as before, with no options", async () => {

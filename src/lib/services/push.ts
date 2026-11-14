@@ -66,13 +66,20 @@ export interface PushPayload {
  *                  (normal urgency; held for a phone that is off for weeks)
  *   "play-status"  play suspended, and play resumed (Rule 5.7): HIGH urgency, so
  *                  Android's push service wakes a dozing phone for it rather
- *                  than batching it, and a SHORT life, so a phone that was off
- *                  all afternoon is not told "stop now" the next morning
+ *                  than batching it, and a life of hours rather than weeks:
+ *                  long enough for a dead spot through a lightning hold
  */
 export type PushDelivery = "ordinary" | "play-status";
 
-/** Half an hour: long enough to cover a dead spot on the back nine, short of being news from yesterday. */
-export const PLAY_STATUS_TTL_SECONDS = 30 * 60;
+/**
+ * Three hours (the Tournament Director's review of #1134). A lightning hold
+ * commonly lasts 45–90 minutes, and a player on a no-signal hole when the
+ * hooter goes must still be told when the phone finds signal — half an hour
+ * dropped exactly that push. "Yesterday's stop now" cannot arrive: suspend and
+ * resume share one tag (`play-<event>`) and the same life, and resume is sent
+ * later, so a queued suspension is always followed and replaced by its resume.
+ */
+export const PLAY_STATUS_TTL_SECONDS = 3 * 60 * 60;
 
 export function sendOptionsFor(delivery: PushDelivery): { urgency: "high"; TTL: number } | undefined {
   return delivery === "play-status" ? { urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS } : undefined;

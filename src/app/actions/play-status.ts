@@ -58,8 +58,8 @@ async function tellTheField(
     // rather than stacking under it.
     { title: words.title, body: `${words.body} · ${eventName}`, url: "/me", tag: `play-${eventId}`, urgent },
     // Both "stop now" and "play on" are about this minute: sent at high urgency
-    // so a dozing phone wakes for them, and dropped by the push service within
-    // minutes rather than delivered stale the next morning (safety sweep G-5).
+    // so a dozing phone wakes for them, and held by the push service for hours,
+    // not weeks: through a dead spot, never into tomorrow (safety sweep G-5).
     { eventId, delivery: "play-status" },
   );
 }
