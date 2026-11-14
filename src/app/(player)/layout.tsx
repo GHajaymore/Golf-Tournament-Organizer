@@ -118,7 +118,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   const gateEvent = session.eventId
     ? await prisma.event.findUnique({
         where: { id: session.eventId },
-        select: { name: true, status: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
+        select: { name: true, status: true, legacyStatus: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
       })
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;

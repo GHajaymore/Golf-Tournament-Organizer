@@ -4,12 +4,11 @@ import type { PlayerStats } from "./domain";
  * EventContextBar (server) — kept in a plain module so both can import it
  * without crossing a "use client" boundary for a non-component value. */
 export const STATUS_META: Record<string, { label: string; tag: string }> = {
-  // ONE STEP BEFORE LAUNCH (Ajay, 2026-10-31, gap G1): the three stored values
-  // read as one. Whether entries are open is the sign-up link's own answer
+  // ONE STEP BEFORE LAUNCH (Ajay, 2026-10-31, gap G1), stored as `draft` alone
+  // since A045 moved the two older words off every row (state machine PR 8).
+  // Whether entries are open is the sign-up link's own answer
   // (`registrationStatus`), never this chip.
   draft: { label: "Setting up", tag: "tag-neutral" },
-  registration: { label: "Setting up", tag: "tag-neutral" },
-  ready: { label: "Setting up", tag: "tag-neutral" },
   live: { label: "Live", tag: "tag-accent-2" },
   completed: { label: "Completed", tag: "tag-neutral" },
 };
