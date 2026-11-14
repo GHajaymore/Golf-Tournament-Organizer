@@ -115,7 +115,6 @@ describe("the hard-rule guard lets through", () => {
     "git status && git log --oneline -3",
     "git push -u origin claude/guard-hooks",
     "git push origin HEAD:refs/heads/claude/round-notes",
-    "npx prisma migrate dev --create-only --name x",
     "npx vitest run src/lib/__tests__/x.test.ts",
     "npx tsc --noEmit",
     // the rules quoted inside text are text, not commands
@@ -389,17 +388,62 @@ describe("migrations reach the shared development database only from the main ch
     "npm run db:push",
     "env DATABASE_URL=x npx prisma migrate deploy",
     "bash -c 'npx prisma migrate deploy'",
+    // a versioned package spec is the same command (PE re-review of #1127)
+    "npx prisma@6.19.3 migrate deploy",
+    "npx prisma@latest db push",
+    "npx prisma@6.19.3 migrate dev --name x",
   ];
 
   beforeAll(() => {
     main = mkdtempSync(path.join(tmpdir(), "zz-guard-db-"));
     tree = `${main}-tree`;
     outside = mkdtempSync(path.join(tmpdir(), "zz-guard-db-out-"));
-    g(main, "init", "-q");
-    writeFileSync(path.join(main, "seed.txt"), "zz\n");
-    g(main, "add", "seed.txt");
+    // A trunk not called main, so only the origin/main ref set below says what main holds.
+    g(main, "init", "-q", "-b", "zz-trunk");
+    mkdirSync(path.join(main, "prisma", "migrations", "A001_zz_seed"), { recursive: true });
+    writeFileSync(path.join(main, "prisma", "migrations", "A001_zz_seed", "migration.sql"), "-- zz\n");
+    g(main, "add", "prisma/migrations/A001_zz_seed/migration.sql");
     g(main, "commit", "-q", "-m", "seed");
+    g(main, "update-ref", "refs/remotes/origin/main", "HEAD");
     g(main, "worktree", "add", "-q", "-b", "zz-db-branch", tree);
+  });
+
+  describe("migrate dev --create-only, which applies pending migrations before it drafts", () => {
+    const branchMigration = () => path.join(tree, "prisma", "migrations", "A002_zz_branch");
+
+    it("is let through while the worktree holds only main's migrations", () => {
+      const r = run("npx prisma migrate dev --create-only --name a002_x", { cwd: tree });
+      expect(r.stderr).toBe("");
+      expect(r.code).toBe(0);
+    });
+
+    it("is refused once the worktree holds a migration origin/main lacks, naming it and the way to draft", () => {
+      mkdirSync(branchMigration(), { recursive: true });
+      try {
+        for (const command of ["npx prisma migrate dev --create-only --name a003_x", "npx prisma@6.19.3 migrate dev --name a003_x --create-only"]) {
+          const r = run(command, { cwd: tree });
+          expect(r.code, command).toBe(2);
+          expect(r.stderr).toContain("Shared development database rule");
+          expect(r.stderr).toContain("A002_zz_branch");
+          expect(r.stderr).toContain("prisma migrate diff");
+        }
+        // the main checkout is where applying is allowed
+        expect(run("npx prisma migrate dev --create-only --name a003_x", { cwd: main }).code).toBe(0);
+      } finally {
+        rmSync(branchMigration(), { recursive: true, force: true });
+      }
+    });
+
+    it("is refused when there is no origin/main to compare with", () => {
+      g(main, "update-ref", "-d", "refs/remotes/origin/main");
+      try {
+        const r = run("npx prisma migrate dev --create-only", { cwd: tree });
+        expect(r.code).toBe(2);
+        expect(r.stderr).toContain("no origin/main");
+      } finally {
+        g(main, "update-ref", "refs/remotes/origin/main", "HEAD");
+      }
+    });
   });
   afterAll(() => {
     rmSync(tree, { recursive: true, force: true });
@@ -438,6 +482,7 @@ describe("migrations reach the shared development database only from the main ch
     "npx prisma migrate dev --name a046_x --create-only",
     "npx prisma generate",
     "npx prisma migrate status",
+    "npx prisma@6.19.3 migrate status",
     "npx prisma validate",
     'git commit --dry-run -m "never prisma migrate deploy or prisma db push from a worktree"',
     "cat <<'EOF' > /dev/null\nnpx prisma migrate deploy\nEOF",

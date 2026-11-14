@@ -63,5 +63,8 @@ refuses such a commit, and `src/lib/__tests__/no-local-paths-in-the-repository.t
 **l. A branch's migration never touches the shared development database.** Write it with
 `prisma migrate dev --create-only`; never `migrate deploy`, `migrate dev`, `migrate resolve` or `db push` from a worktree.
 It is proved on CI's fresh database and applied to the development database from the main checkout after it merges.
+`--create-only` still APPLIES every pending migration before drafting, so once your worktree holds a migration
+origin/main lacks, draft the next with `prisma migrate diff --from-schema-datamodel <schema as of your last migration>
+--to-schema-datamodel prisma/schema.prisma --script` (no database) into `prisma/migrations/A0NN_<name>/migration.sql`.
 *Why:* on 14 Nov two branches' migrations applied from worktrees broke 56 audit files for everyone on main's code.
 *Enforced:* the guard refuses those commands anywhere but the main checkout.

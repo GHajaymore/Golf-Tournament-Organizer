@@ -41,7 +41,7 @@
 // src/lib/__tests__/claude-guard-hook.test.ts.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 // No "#!" line in that module, so vitest can import it from a CRLF checkout (no-local-paths-in-the-repository.test.ts).
@@ -358,6 +358,53 @@ export function sharedDatabaseRefusal(dir) {
   );
 }
 
+/**
+ * `prisma migrate dev --create-only` still APPLIES every pending migration before it drafts the next one (Prisma 6).
+ * From a worktree whose prisma/migrations holds a folder origin/main lacks, that is a branch's migration reaching the
+ * shared development database (PE re-review of #1127). Refused there; draft with `prisma migrate diff` instead.
+ */
+export function draftAppliesPendingRefusal(dir) {
+  const main = mainCheckout(dir);
+  let top = null;
+  try {
+    top = git(dir, ["rev-parse", "--show-toplevel"]).trim();
+  } catch {
+    return null; // outside a repository there is no branch migration to apply
+  }
+  if (main && path.resolve(top) === path.resolve(main)) return null;
+  const folders = (root) =>
+    existsSync(root) ? readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name) : [];
+  const mine = folders(path.join(top, "prisma", "migrations"));
+  if (!mine.length) return null;
+  let theirs = null;
+  for (const ref of ["origin/main", "main"]) {
+    try {
+      theirs = git(top, ["ls-tree", "--name-only", `${ref}:prisma/migrations`]).split("\n").map((s) => s.trim()).filter(Boolean);
+      break;
+    } catch {
+      // try the next reference
+    }
+  }
+  const DRAFT =
+    "Draft it without a database instead: `npx prisma migrate diff --from-schema-datamodel <the schema as of your last " +
+    "migration> --to-schema-datamodel prisma/schema.prisma --script`, into prisma/migrations/A0NN_<name>/migration.sql.";
+  if (theirs === null) {
+    return refuse(
+      "Shared development database rule: `prisma migrate dev --create-only` applies every pending migration before drafting, and " +
+        "this worktree has no origin/main to compare its migrations with, so the hook refuses rather than guess. " +
+        DRAFT,
+    );
+  }
+  const ahead = mine.filter((m) => !theirs.includes(m));
+  if (!ahead.length) return null;
+  return refuse(
+    "Shared development database rule: `prisma migrate dev --create-only` APPLIES every pending migration before it drafts, " +
+      `and this worktree holds ${ahead.length === 1 ? "a migration" : "migrations"} origin/main lacks (${ahead.join(", ")}), so it ` +
+      "would put a branch's migration into the one development database every worktree shares. " +
+      DRAFT,
+  );
+}
+
 function checkSegment(words, platform, dir, who = {}) {
   // A word holding spaces came from quotes (a message, a title): text, not part of the command.
   const joined = words.map((w) => (/\s/.test(w) ? "_" : w)).join(" ");
@@ -401,15 +448,22 @@ function checkSegment(words, platform, dir, who = {}) {
     const hit = mainSessionRefusal(onlyMain, at, who);
     if (hit) return hit;
   }
-  if (/\bprisma (migrate reset|db push\b.*--(force-reset|accept-data-loss))/.test(joined) || /\bnpm (run )?db:reset\b/.test(joined)) {
+  if (/\bprisma(@\S*)? (migrate reset|db push\b.*--(force-reset|accept-data-loss))/.test(joined) || /\bnpm (run )?db:reset\b/.test(joined)) {
     return refuse("Hard rule 6: never drop or reset the development database. If Prisma asks for a reset, fix the drift by hand (docs/claude/migrations.md).");
   }
+  // `prisma@6.19.3 migrate deploy` (a versioned package spec) is the same command.
+  const migrateDev = /\bprisma(@\S*)? migrate dev\b/.test(joined);
+  const createOnly = migrateDev && /(^| )--create-only\b/.test(joined);
   const appliesMigrations =
-    /\bprisma (migrate (deploy|resolve)|db push)\b/.test(joined) ||
-    (/\bprisma migrate dev\b/.test(joined) && !/(^| )--create-only\b/.test(joined)) ||
+    /\bprisma(@\S*)? (migrate (deploy|resolve)|db push)\b/.test(joined) ||
+    (migrateDev && !createOnly) ||
     /\bnpm (run )?db:push\b/.test(joined);
   if (appliesMigrations) {
     const hit = sharedDatabaseRefusal(dir);
+    if (hit) return hit;
+  }
+  if (createOnly) {
+    const hit = draftAppliesPendingRefusal(dir);
     if (hit) return hit;
   }
   if (dir && (/\bprisma generate\b/.test(joined) || /\bnpm (run )?db:generate\b/.test(joined))) {
