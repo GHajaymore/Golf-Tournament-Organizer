@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { landingSettled } from "./landing-settled";
 import { verifyByCode } from "./verify-by-code";
+import { journey, READ_MS } from "./journey";
 
 /**
  * TIME TO A FIRST EVENT, MEASURED (the panel's item 4, approved by Ajay,
@@ -39,10 +40,9 @@ import { verifyByCode } from "./verify-by-code";
  */
 
 const LIMIT_MS = 10 * 60_000;
-/** Reading a screen and finding the next control, per press. */
-const READ_MS = 3_000;
-/** A character typed, at about 60 words a minute. */
-const TYPE_MS = 200;
+// The pace (`READ_MS` a screen, `TYPE_MS` a character) and the counting are `e2e/journey.ts`'s, shared
+// with the player's journeys (`player-journey.spec.ts`), so every journey is measured one way and
+// prints one `JOURNEY {…}` line and its step list.
 
 const prisma = new PrismaClient();
 const stem = (project: string) => `zz-sechome-first-${project}`;
@@ -79,26 +79,11 @@ test("a new club secretary has a tournament with a working entry link in under t
   watchPageErrors(page, errors, "secretary");
   await teardown(mark);
 
-  // The figures, counted as the secretary goes.
-  let presses = 0;
-  let typed = 0;
-  const screens: string[] = [];
-  page.on("framenavigated", (f) => {
-    if (f !== page.mainFrame()) return;
-    const path = new URL(f.url()).pathname;
-    if (screens[screens.length - 1] !== path) screens.push(path);
-  });
-  const press = async (l: Locator) => {
-    await page.waitForTimeout(READ_MS);
-    await l.scrollIntoViewIfNeeded();
-    await l.click();
-    presses += 1;
-  };
-  const type = async (l: Locator, text: string) => {
-    await l.click();
-    await l.pressSequentially(text, { delay: TYPE_MS });
-    typed += text.length;
-  };
+  // The figures, counted as the secretary goes (e2e/journey.ts), with the step list beside them.
+  const walk = journey(page, "secretary-first-event");
+  const press = (l: Locator, what: string) => walk.press(l, what);
+  // A box with no `what` is named in the step list by its own label or placeholder.
+  const type = (l: Locator, text: string, what?: string) => walk.type(l, text, what);
   const visible = (l: Locator) => l.locator("visible=true").first();
 
   const club = `${mark} Golf Club`;
@@ -108,63 +93,64 @@ test("a new club secretary has a tournament with a working entry link in under t
   let elapsed = 0;
   const visitor = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
   try {
-    const started = Date.now();
+    walk.start();
 
     await test.step("signs up, as a golf club", async () => {
       await page.goto("/");
       await landingSettled(page);
-      await press(page.getByRole("tab", { name: "Sign up", exact: true }));
-      await type(visible(page.getByPlaceholder("Full name")), "Rowan Fairlie");
+      walk.note("opens the front door");
+      await press(page.getByRole("tab", { name: "Sign up", exact: true }), "the “Sign up” tab");
+      await type(visible(page.getByPlaceholder("Full name")), "Rowan Fairlie", "Full name");
       await type(visible(page.getByPlaceholder("you@email.com")), email);
       // A test value for this app only, generated here — see CLAUDE.md on fixtures.
-      await type(visible(page.getByPlaceholder("Choose a password")), "Seventh-Tee-Box-Moss-41");
-      await press(visible(page.getByText("A golf club or course")));
-      await press(visible(page.getByRole("button", { name: "Create account" })));
+      await type(visible(page.getByPlaceholder("Choose a password")), "Seventh-Tee-Box-Moss-41", "Choose a password");
+      await press(visible(page.getByText("A golf club or course")), "“A golf club or course”");
+      await press(visible(page.getByRole("button", { name: "Create account" })), "“Create account”");
       await verifyByCode(page, email);
-      presses += 1; // "Confirm email", pressed inside the helper
-      typed += 6;
+      walk.alsoPressed({ presses: 1, chars: 6 }, "typed the 6-character emailed code and pressed “Confirm email”");
       await page.waitForURL(/\/choose/, { timeout: 60_000 });
     });
 
     await test.step("adds the club's first member", async () => {
       // The club is asked for its members before its first tournament, and says so.
       await page.waitForLoadState("networkidle").catch(() => {});
-      await press(visible(page.getByRole("link", { name: /Add your members/ })));
+      await press(visible(page.getByRole("link", { name: /Add your members/ })), "“Add your members”");
       await page.waitForURL(/\/roster/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
       const add = page.getByRole("button", { name: "Add member" }).first();
-      await press(add);
-      await type(page.getByLabel("Name", { exact: true }), "Isla Penhallow");
-      await type(page.getByLabel(/^Email/).first(), `${mark}-member@example.invalid`);
-      await type(page.getByLabel("Handicap index"), "14.2");
-      await press(page.getByRole("button", { name: "Add member" }).last());
+      await press(add, "“Add member”");
+      await type(page.getByLabel("Name", { exact: true }), "Isla Penhallow", "Name");
+      await type(page.getByLabel(/^Email/).first(), `${mark}-member@example.invalid`, "Email");
+      await type(page.getByLabel("Handicap index"), "14.2", "Handicap index");
+      await press(page.getByRole("button", { name: "Add member" }).last(), "“Add member”, to save the member");
       await expect(page.locator("main")).toContainText("Isla Penhallow", { timeout: 20_000 });
     });
 
     await test.step("names the club and its first tournament", async () => {
-      await press(visible(page.getByRole("link", { name: /Create your first tournament/ })));
+      await press(visible(page.getByRole("link", { name: /Create your first tournament/ })), "“Create your first tournament”");
       await page.waitForURL(/\/choose/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
-      await type(page.getByLabel("Tournament name"), tournament);
-      await press(page.getByRole("button", { name: /^A single round/ }));
+      await type(page.getByLabel("Tournament name"), tournament, "Tournament name");
+      await press(page.getByRole("button", { name: /^A single round/ }), "“A single round”");
       // A club is named once, here, on the way to its first tournament.
-      await type(page.getByLabel(/Who.s running this\?/), club);
-      await press(page.getByRole("radiogroup", { name: "What kind of outfit runs it" }).getByText(/club/i).first());
-      await press(page.getByRole("button", { name: "Create tournament" }));
+      await type(page.getByLabel(/Who.s running this\?/), club, "“Who's running this?”");
+      await press(page.getByRole("radiogroup", { name: "What kind of outfit runs it" }).getByText(/club/i).first(), "“club”, for what kind of outfit runs it");
+      await press(page.getByRole("button", { name: "Create tournament" }), "“Create tournament”");
       await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
     });
 
     await test.step("publishes the sign-up link", async () => {
       await page.waitForLoadState("networkidle").catch(() => {});
-      await press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })));
+      await press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })), "“Entries”");
       await page.waitForURL(/\/registration/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
-      await press(page.getByRole("button", { name: /^Open entries/ }));
+      await press(page.getByRole("button", { name: /^Open entries/ }), "“Open entries”");
       await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
       // The link panel opens itself a moment after the button turns; read it once it is drawn.
       const readLink = () => page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
       await expect.poll(readLink, { timeout: 20_000, message: "no sign-up link is shown" }).toMatch(/\/register\//);
       link = await readLink();
+      walk.note("reads the sign-up link off the screen, to send it to the members");
     });
 
     await test.step("the link works: a member opens it and is shown the entry form", async () => {
@@ -173,7 +159,8 @@ test("a new club secretary has a tournament with a working entry link in under t
       await member.goto(new URL(link).pathname);
       await expect(member.locator("body")).toContainText(tournament);
       await expect(member.getByRole("button", { name: "Register" })).toBeVisible();
-      elapsed = Date.now() - started;
+      elapsed = walk.stop();
+      walk.note("the link, opened by a member on another phone, shows the entry form with the tournament's name");
 
       // Beyond the clock: it takes an entry, too.
       await member.getByLabel("Your name").fill("Corin Ashdown-Vale");
@@ -187,12 +174,17 @@ test("a new club secretary has a tournament with a working entry link in under t
       await expect(member.getByRole("heading", { name: "You're in!" })).toBeVisible({ timeout: 20_000 });
     });
 
-    const figures = `${Math.round(elapsed / 1000)}s at the panel's pace · ${new Set(screens).size} screens (${screens.join(" → ")}) · ${presses} presses · ${typed} characters typed`;
+    // One machine-readable line — JOURNEY {"name":"secretary-first-event",…} — and the step list.
+    const f = await walk.report(testInfo);
+    const figures = `${f.seconds}s at the panel's pace · ${f.screens} screens (${f.route.join(" → ")}) · ${f.presses} presses · ${f.chars} characters typed`;
     console.log(`[time-to-first-event] ${testInfo.project.name}: ${figures}`);
     testInfo.annotations.push({ type: "time to first event", description: figures });
     expect(elapsed, `time to a first event with a working entry link: ${figures}`).toBeLessThan(LIMIT_MS);
     // CONTROL: the clock measured the walk, not nothing — the pace alone is a minute and more.
-    expect(elapsed, "the clock stopped before the walk was done").toBeGreaterThan(presses * READ_MS);
+    expect(elapsed, "the clock stopped before the walk was done").toBeGreaterThan(f.presses * READ_MS);
+    // ── BUDGET (work plan row 0b, step 3) ──────────────────────────────────────────────────────────
+    // Not set yet: this journey is MEASURED only. Once CI's JOURNEY lines have given the figures, the
+    // screens, presses and characters this walk may take are asserted here, from `f`.
   } finally {
     await visitor.close();
     await teardown(mark);
