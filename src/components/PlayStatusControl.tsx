@@ -84,7 +84,7 @@ export function PlayStatusControl({
               sticky band — does not grow and push the screen down when it does. */}
           <strong style={{ color: "var(--color-danger)", display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 6 }}>
             <Icon name="warning" /> Play is suspended
-            <span style={{ whiteSpace: "nowrap", minWidth: "16ch" }}>{at ? ` since ${at}` : ""}</span>
+            <span style={{ whiteSpace: "nowrap", minWidth: "16ch" }}>{at ? ` since ${at}` : "\u00a0"}</span>
           </strong>
           <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
             {note ? `${note}. ` : ""}Every player has been told to stop, on their phone and on the public board.

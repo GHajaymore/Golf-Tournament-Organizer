@@ -207,7 +207,8 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     };
     // With play on, Suspend play is an ordinary row: no sticky band holds the top of every live
     // screen and pushes its controls down behind the tab bar (#1149's CI: Confirm result on Score
-    // entry, phone). Scrolled down the sheet, the first press below brings it back into view.
+    // entry, phone). Scrolled down the sheet, a person scrolls back up to it; the press below
+    // reaches it only because Playwright scrolls it into view first, not because the app does.
     await expect(suspendButton).toBeVisible();
     await expect(page.locator(".console-play-status"), "with play on, a sticky band holds the top of the tee sheet").toHaveCount(0);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -242,8 +243,18 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     // ── a screen with a sticky header of its own: stacked under the banner, never covered ─
     await page.goto(`/event?bust=${Date.now()}`);
     await expect(banner).toBeVisible({ timeout: 20_000 });
+    // While SUSPENDED the band is sticky: scrolled down, it is still in view, held right under the top bar.
+    // `toBeVisible` alone passes with `position: sticky` deleted, so where it sits is measured.
+    const bandAt = page.locator(".console-play-status");
+    const topBar = await boxOf("the phone's top bar", page.locator(".m-topbar"));
+    const bandAtRest = await boxOf("the Suspend play banner, before scrolling", bandAt);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    expect(await page.evaluate(() => window.scrollY), "CONTROL: Tournament details did not scroll, so its strip never had to stick").toBeGreaterThan(0);
+    const scrolledBy = await page.evaluate(() => window.scrollY);
+    expect(scrolledBy, "CONTROL: Tournament details did not scroll, so its strip never had to stick").toBeGreaterThan(0);
+    expect(scrolledBy, "CONTROL: not scrolled past where the banner sits, so it never had to stick").toBeGreaterThan(bandAtRest.y - (topBar.y + topBar.height) + 1);
+    await expect(bandAt, `scrolled ${scrolledBy}px down, the Suspend play banner is out of view: it is not sticky`).toBeInViewport();
+    const stuck = await boxOf("the Suspend play banner, scrolled", bandAt);
+    expect(Math.abs(stuck.y - (topBar.y + topBar.height)), "scrolled down, the Suspend play banner is not held right under the top bar").toBeLessThanOrEqual(1);
     // The strip's own heading, so no larger card around it is measured instead.
     const strip = page.locator(".card-kicker", { hasText: "On this page" }).first();
     await expect(strip, "CONTROL: Tournament details has no On this page strip to stack").toHaveCount(1);

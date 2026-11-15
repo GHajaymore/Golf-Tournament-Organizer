@@ -170,7 +170,8 @@ describe("one mount: the console's shell", () => {
     expect(frame).toMatch(/\}, \[suspended\]\);/);
     // The banner's time arrives after hydration into room kept for it, so the band does not grow then.
     const control = readSource("src/components/PlayStatusControl.tsx");
-    expect(control).toMatch(/<span style=\{\{ whiteSpace: "nowrap", minWidth: "16ch" \}\}>\{at \? ` since \$\{at\}` : ""\}<\/span>/);
+    expect(control).toMatch(/<span style=\{\{ whiteSpace: "nowrap", minWidth: "16ch" \}\}>\{at \? ` since \$\{at\}` : "\\u00a0"\}<\/span>/);
+    // Not empty while it waits: an empty span that wraps to its own line has no height, then grows one.
   });
 
   it("anything scrolled into view on a phone stops above the fixed tab bar, before hydration and on every console screen (#1149 CI, phone)", () => {
