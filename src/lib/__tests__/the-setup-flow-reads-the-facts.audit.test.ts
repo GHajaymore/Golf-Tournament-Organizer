@@ -248,15 +248,21 @@ describe("the setup flow and the launch gate, worked by hand", () => {
     expect((await launchDialog(ids["round-robin-no-flights"])).refusal).toMatch(/Make flights on Flights/);
   });
 
-  it("a four-ball with two players on no side: Sides opens before Flights; a side exists, so launch is not refused", async () => {
+  it("a four-ball with two players on no side: Sides opens before Flights, and launch is refused until they are on one (P1)", async () => {
     expect(await read("four-ball")).toEqual({
       steps: "event+ stages+ registration+ teams- grouping- money+",
       current: "teams",
       complete: false,
       readyToLaunch: false,
-      refused: false,
+      // PR 9a: was false — the old flow refused only "no sides at all". The machine's gate (the
+      // one the action and the dialog both ask) refuses a team round with a player on no side:
+      // that player cannot be scored (Golf Pro, 8.2; P1, pinned in tournament-status.test.ts).
+      refused: true,
       stepsOpen: 2,
     });
+    expect((await launchDialog(ids["four-ball"])).refusal).toBe(
+      "2 players are not on a side, so their team rounds cannot be scored. Put them on one on Teams & pairs, then launch.",
+    );
   });
 
   it("a cup with one player on neither team: the Teams step, no Flights step", async () => {
