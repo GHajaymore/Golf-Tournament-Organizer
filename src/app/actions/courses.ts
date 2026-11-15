@@ -622,11 +622,11 @@ export async function setStageCourse(
    * the match's — an id off the wire is an arbitrary row, and unscoped it would
    * price the round off another club's slope and rating.
    */
-  const roundTee = teeAfterVenue({ courseId: stage.courseId, teeId: stage.teeId }, { courseId, teeId });
-  if (roundTee && teeId !== undefined) {
-    const owned = await prisma.tee.findFirst({ where: { id: roundTee, courseId: courseId ?? "" }, select: { id: true } });
+  if (courseId && teeId) {
+    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId }, select: { id: true } });
     if (!owned) return { ok: false, error: "Those tees aren't on that course." };
   }
+  const roundTee = teeAfterVenue({ courseId: stage.courseId, teeId: stage.teeId }, { courseId, teeId });
   const changed =
     (courseId ?? null) !== (stage.courseId ?? null) ||
     roundTee !== (stage.teeId ?? null) ||
