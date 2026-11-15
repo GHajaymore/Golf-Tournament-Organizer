@@ -222,6 +222,15 @@ describe("the spec's measurements cannot pass on nothing (Security re-review)", 
 });
 
 describe("who the alarm will miss, on the confirm (F-2)", () => {
+  it("the shell wires the names from #1133's one reader into the control", () => {
+    const status = readSource("src/components/ConsolePlayStatus.tsx");
+    expect(status).toMatch(/noticesOffPlayerIds\(eventId/);
+    expect(status).toMatch(/<PlayStatusControl[^>]*alertsOff=\{alertsOff\}/);
+    expect(readSource("src/app/(app)/layout.tsx")).toMatch(/<ConsolePlayStatus eventId=\{session\.eventId\}/);
+    // One routing: the count beside Publish is the length of the same list.
+    expect(readSource("src/lib/services/push.ts")).toMatch(/\(await noticesOffPlayerIds\(eventId, playerIds\)\)\.length/);
+  });
+
   it("names them, in the player's word for the switch", () => {
     expect(alertsOffWords(["Wren Calloway"])).toBe(
       "1 player has alerts off and will not be buzzed: Wren Calloway. Tell them another way, or sound the horn.",

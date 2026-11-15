@@ -334,13 +334,22 @@ export async function sendPushTo(
  * entries, whatever ids are passed.
  */
 export async function noticesOffAmong(eventId: string, playerIds: string[]): Promise<number> {
-  if (playerIds.length === 0) return 0;
+  return (await noticesOffPlayerIds(eventId, playerIds)).length;
+}
+
+/**
+ * WHICH of those entries a push cannot reach: the ids behind
+ * `noticesOffAmong`'s count, from the one routing, so the count beside Publish
+ * and the names on the suspend confirm can never disagree.
+ */
+export async function noticesOffPlayerIds(eventId: string, playerIds: string[]): Promise<string[]> {
+  if (playerIds.length === 0) return [];
   const players = await prisma.player.findMany({
     where: { eventId, id: { in: playerIds } },
     select: { id: true, email: true, standing: true },
   });
-  const keysOf = players.map((p) => whoKeysForEntry(p));
-  const { accounts, guests } = await routesFor(keysOf.flat());
+  const keysOf = players.map((p) => ({ id: p.id, keys: whoKeysForEntry(p) }));
+  const { accounts, guests } = await routesFor(keysOf.flatMap((k) => k.keys));
   const reached = new Set([...accounts.map((a) => a.key.trim().toLowerCase()), ...guests.map((g) => g.key)]);
-  return keysOf.filter((keys) => !keys.some((k) => reached.has(k))).length;
+  return keysOf.filter((k) => !k.keys.some((key) => reached.has(key))).map((k) => k.id);
 }

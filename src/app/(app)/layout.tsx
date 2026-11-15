@@ -353,7 +353,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               {paymentDue} <Link href="/organization#plan">Go to Your plan</Link>
             </p>
           )}
-          <ConsolePlayStatus viewRole={session.viewRole} step={told?.status.step ?? null} event={event} />
+          <ConsolePlayStatus eventId={session.eventId} viewRole={session.viewRole} step={told?.status.step ?? null} event={event} />
           {casualShell && <BackToTheRound />}
           <LifecycleStepper track={track} preview={!LIFECYCLE_STEPPER_ON} />
           {/* A club with no time zone takes this organizer's, once. Only for
