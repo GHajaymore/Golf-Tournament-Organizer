@@ -366,11 +366,29 @@ describe("agreement over generated tournaments", () => {
 describe("the switch", () => {
   it("is off until Ajay's OK; ?stepper=1 previews it, and nothing else does", () => {
     expect(LIFECYCLE_STEPPER_ON).toBe(false);
-    expect(stepperShown("?stepper=1")).toBe(true);
-    expect(stepperShown("?view=timeline&stepper=1")).toBe(true);
-    expect(stepperShown("")).toBe(false);
-    expect(stepperShown("?view=timeline")).toBe(false);
-    expect(stepperShown("?stepper=0")).toBe(false);
+    const anybody = { owner: false };
+    expect(stepperShown("?stepper=1", anybody, "preview")).toBe(true);
+    expect(stepperShown("?view=timeline&stepper=1", anybody, "preview")).toBe(true);
+    expect(stepperShown("?stepper=1", anybody, undefined)).toBe(true);
+    expect(stepperShown("", anybody, "preview")).toBe(false);
+    expect(stepperShown("?view=timeline", anybody, "preview")).toBe(false);
+    expect(stepperShown("?stepper=0", anybody, "preview")).toBe(false);
+  });
+
+  it("in production the preview is an owner's only: anybody else adding ?stepper=1 sees today's console (Ajay, 14 Nov: no partial previews)", () => {
+    // A pilot club's staff member, running a real event, adds the query: nothing changes.
+    expect(stepperShown("?stepper=1", { owner: false }, "production")).toBe(false);
+    expect(stepperShown("?stepper=1&build=1", { owner: false }, "production")).toBe(false);
+    // CONTROL: the same query for an owner in production draws it, so the refusal is the owner gate's…
+    expect(stepperShown("?stepper=1", { owner: true }, "production")).toBe(true);
+    // …and an owner without the query sees today's console too.
+    expect(stepperShown("", { owner: true }, "production")).toBe(false);
+  });
+
+  it("the layout asks the owner gate for the stepper and for the redesign's screens", () => {
+    const layout = readSource("src/app/(app)/layout.tsx");
+    expect(layout).toMatch(/stepperShown\(asked\.get\("x-search"\) \?\? "", \{ owner: isOwner\(session\.email\) \}\)/);
+    expect(layout).toMatch(/mergesShown\(asked\.get\("x-search"\) \?\? "", \{ owner: isOwner\(session\.email\) \}\)/);
   });
 
   it("is open on the dashboard always, on Tournament details only while setting up, folded elsewhere", () => {

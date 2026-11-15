@@ -290,27 +290,32 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/** The switches that read the server's environment: called from a server file, never a client one. */
+const SERVER_SWITCHES = /\b(mergesShown|stepperShown)\(/;
+const DEFINED_IN = ["src/lib/domain/console-merges.ts", "src/lib/domain/lifecycle-track.ts"];
+
 /**
- * Why a file may not call `mergesShown(`: it is a client file, or code a client file can import. Server
- * files are the route files and services under `src/app` and `src/lib/services` that do not say
- * "use client". The definition itself is allowed.
+ * Why a file may not call `mergesShown(` or `stepperShown(`: it is a client file, or code a client
+ * file can import. Server files are the route files and services under `src/app` and
+ * `src/lib/services` that do not say "use client". The definitions themselves are allowed.
  */
 function clientCallRefusal(file: string, src: string): string | null {
   const name = file.replace(/\\/g, "/");
-  if (!/\bmergesShown\(/.test(src)) return null;
-  if (name.endsWith("src/lib/domain/console-merges.ts")) return null;
-  if (/^\s*["']use client["']/m.test(src)) return `${name}: a client file calls mergesShown`;
+  const call = SERVER_SWITCHES.exec(src);
+  if (!call) return null;
+  if (DEFINED_IN.some((d) => name.endsWith(d))) return null;
+  if (/^\s*["']use client["']/m.test(src)) return `${name}: a client file calls ${call[1]}`;
   if (!/^src\/(app|lib\/services)\//.test(name)) return `${name}: not a server file (src/app or src/lib/services)`;
   return null;
 }
 
-describe("mergesShown is called on the server only (review item 6)", () => {
+describe("the switches are called on the server only (review item 6; the stepper's owner gate)", () => {
   it("every caller under src is a server file", () => {
     const callers: string[] = [];
     const refused: string[] = [];
     for (const file of sourceFiles("src")) {
       const src = readSource(file);
-      if (!/\bmergesShown\(/.test(src)) continue;
+      if (!SERVER_SWITCHES.test(src)) continue;
       callers.push(file.replace(/\\/g, "/"));
       const why = clientCallRefusal(file, src);
       if (why) refused.push(why);
@@ -320,8 +325,10 @@ describe("mergesShown is called on the server only (review item 6)", () => {
     expect(callers).toContain("src/app/(app)/layout.tsx");
   });
 
-  it("CONTROL: a client component, or a shared lib file, calling it is refused", () => {
+  it("CONTROL: a client component, or a shared lib file, calling either is refused", () => {
     expect(clientCallRefusal("src/components/ZzMenu.tsx", '"use client";\nconst m = mergesShown("", { owner: false });')).toBe("src/components/ZzMenu.tsx: a client file calls mergesShown");
+    expect(clientCallRefusal("src/components/ZzBar.tsx", '"use client";\nconst s = stepperShown("", { owner: false });')).toBe("src/components/ZzBar.tsx: a client file calls stepperShown");
+    expect(clientCallRefusal("src/app/(app)/zz/page.tsx", "stepperShown(q, v);")).toBeNull();
     expect(clientCallRefusal("src/lib/zz-nav.ts", 'const m = mergesShown("", { owner: false });')).toBe("src/lib/zz-nav.ts: not a server file (src/app or src/lib/services)");
     expect(clientCallRefusal("src/app/(app)/zz/ZzClient.tsx", "'use client'\nmergesShown(q, v);")).toBe("src/app/(app)/zz/ZzClient.tsx: a client file calls mergesShown");
     expect(clientCallRefusal("src/app/(app)/zz/page.tsx", "mergesShown(q, v);")).toBeNull();

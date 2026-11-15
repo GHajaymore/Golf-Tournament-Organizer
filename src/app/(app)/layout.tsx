@@ -175,7 +175,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    */
   const asked = await headers();
   const track =
-    event && roundState && told && stepperShown(asked.get("x-search") ?? "")
+    event && roundState && told && stepperShown(asked.get("x-search") ?? "", { owner: isOwner(session.email) })
       ? lifecycleTrack(told.status, await openTournamentJob(event.id, roundState.today))
       : null;
   const boardRound = roundState?.boardStage ?? null;
