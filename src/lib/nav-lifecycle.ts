@@ -1,5 +1,5 @@
 import type { LifecycleTrack, PhaseKey } from "./domain/lifecycle-track";
-import { NO_MERGES, relocate, type MergeKey, type Move } from "./domain/console-merges";
+import { NO_MERGES, relocate, type ScreenKey, type Move } from "./domain/console-merges";
 import { bySetupOrder } from "./domain/setup-flow";
 import type { NavItem, NavSection } from "./nav";
 import type { Role } from "./roles";
@@ -33,31 +33,34 @@ import type { Role } from "./roles";
  * Shown only where the stepper is (`stepperShown`): with the switch off the menu is `navForRole`'s,
  * untouched. A casual round and a club with no tournament have no track, so they keep theirs too.
  *
- * STEP 3's MERGES (`domain/console-merges.ts`) reach the menu in two ways, and only while one is
- * shown (`mergesShown`; nothing is, without `?stepper=1&build=1` while every merge is building):
+ * THE REDESIGN'S SCREENS (`domain/console-merges.ts`) reach the menu in two ways, and only while one
+ * is shown (`mergesShown`; nothing is, without `?stepper=1&build=1` while every screen is building):
  *
- *   grouping   an entry beneath one place WITHOUT a merge sits beneath another WITH it — given once
- *              here, both ways (the design, §7.2). Only these two are given yet; the money and
- *              courses entries and the cup's new place are added by the PRs that build them:
- *              the Bracket under Leaderboard with the boards merge, the event's helpers named
- *              "Helpers" under Club settings with the staff merge
- *   doors      every entry's address goes through `relocate()`. An entry marked `stays` is
+ *   grouping   an entry beneath one place WITHOUT a screen sits beneath another WITH it — given
+ *              once here, both ways (step 3 design, §7.2): the Bracket under Leaderboard with the
+ *              leaderboard, the cup under Players as "Cup teams" with Players, the event's helpers
+ *              named "Helpers" under Club settings with Club settings
+ *   doors      every entry's address goes through `relocate()`, with the job the entry stands for
+ *              where it has one (Money & payouts is Prizes' payout). An entry marked `stays` is
  *              re-pointed (the door is kept, one press as today, and opens the new room); any other
  *              entry whose door has moved is RETIRED, because the room it leads to is in the menu
- *              already. While no room is built (`MOVES` is empty) no door moves.
+ *              already. Which doors move is `MOVES`, never this file.
+ *
+ * A screen PR changes its key's state in `console-merges.ts`, not this file. This file changes again
+ * only where a screen's PR finds a grouping the design did not give here, and at retirement (R17).
  */
 
-/** A screen grouped beneath a place: its `NAV` key, or that with how a merge changes it. */
+/** A screen grouped beneath a place: its `NAV` key, or that with how a new screen changes it. */
 type Beneath =
   | string
   | {
       screen: string;
-      /** Drawn here only while this merge shows. */
-      with?: MergeKey;
-      /** Drawn here only while this merge does not show (it is drawn elsewhere with it). */
-      without?: MergeKey;
-      /** Its name while this merge shows. */
-      renamed?: { by: MergeKey; label: string };
+      /** Drawn here only while this screen shows. */
+      with?: ScreenKey;
+      /** Drawn here only while this screen does not show (it is drawn elsewhere with it). */
+      without?: ScreenKey;
+      /** Its name while this screen shows. */
+      renamed?: { by: ScreenKey; label: string };
       /** A door that is kept when its room moves: re-pointed by `relocate()`, never retired. */
       stays?: boolean;
     };
@@ -81,6 +84,8 @@ interface Place {
   setupOrder?: boolean;
   /** A door kept when its room moves (see `Beneath`). */
   stays?: boolean;
+  /** The job this entry stands for, when its screen holds several (`relocate()` moves only that one). */
+  job?: string;
 }
 
 /** Above the event: used in every phase (the review, decision 5). */
@@ -98,17 +103,33 @@ const PLACES: Record<PhaseKey, readonly Place[]> = {
     { screen: "event", label: "Event details" },
     { screen: "stages" },
     // The field's three screens are one area (the `field`, `flights` and `sides` lock scopes).
-    { screen: "registration", id: "players", label: "Players", under: ["registration", "teams", "grouping"], setupOrder: true },
+    // With the new Players the cup's teams are its tab, "Cup teams" (step 3 §2.4), beneath it here.
+    {
+      screen: "registration",
+      id: "players",
+      label: "Players",
+      // Its name ("Cup teams", step 3 §1) is the Players PR's to give: a player who reads the cup's
+      // board on a blind event still opens it here, so the name must fit both.
+      under: ["registration", "teams", "grouping", { screen: "cup", with: "players" }],
+      setupOrder: true,
+    },
     { screen: "prizes", label: "Prizes & side games" },
   ],
   // One question — who plays with whom, when — still asked on four screens until they are one.
-  draw: [{ screen: "foursomes", label: "Tee times & draw", under: ["print", { screen: "bracket", without: "boards" }, "cup", "week"] }],
-  // With the boards merge the bracket is a view of the board: its door stays one press, beneath it.
-  day: [{ screen: "entry" }, { screen: "leaderboard", under: [{ screen: "bracket", with: "boards", stays: true }] }],
+  draw: [
+    {
+      screen: "foursomes",
+      label: "Tee times & draw",
+      under: ["print", { screen: "bracket", without: "leaderboard" }, { screen: "cup", without: "players" }, "week"],
+    },
+  ],
+  // With the new Leaderboard the bracket is a view of the board: its door stays one press, beneath it.
+  day: [{ screen: "entry" }, { screen: "leaderboard", under: [{ screen: "bracket", with: "leaderboard", stays: true }] }],
   after: [
     { screen: "reports", label: "Results" },
     // Paying out is done on Prizes today; a group's own games are beside it.
-    { screen: "prizes", id: "money", label: "Money & payouts", icon: "ph ph-hand-coins", under: ["group-games"] },
+    // With Winners & money shown it opens that room, and the groups' games are a section of it.
+    { screen: "prizes", id: "money", label: "Money & payouts", icon: "ph ph-hand-coins", under: ["group-games"], job: "payout", stays: true },
   ],
 };
 
@@ -120,7 +141,7 @@ const CLUB: readonly Place[] = [
   { screen: "series", label: "Seasons & honours" },
   // With the staff merge an event's helpers are a section of Club settings: the door keeps one press,
   // named for the job (`navForRole` draws `access` only with an event open).
-  { screen: "organization", under: [{ screen: "access", renamed: { by: "staff", label: "Helpers" }, stays: true }] },
+  { screen: "organization", under: [{ screen: "access", renamed: { by: "clubSettings", label: "Helpers" }, stays: true }] },
 ];
 
 const HELP: readonly Place[] = [{ screen: "guide-steps", label: "Guide & rules", under: ["guide", "rules"] }, { screen: "me" }];
@@ -138,7 +159,7 @@ export const UNPLACED_SECTION = "More";
  */
 export type LifecycleNavOptions = { roundName?: string } & (
   | { merges?: undefined }
-  | { merges: ReadonlySet<MergeKey>; role: Role; /** Tests only: a table other than `MOVES`. */ moves?: readonly Move[] }
+  | { merges: ReadonlySet<ScreenKey>; role: Role; /** Tests only: a table other than `MOVES`. */ moves?: readonly Move[] }
 );
 
 export function lifecycleNav(
@@ -149,16 +170,18 @@ export function lifecycleNav(
   const merges = opts.merges ?? NO_MERGES;
   const shown = new Map<string, NavItem>();
   for (const s of sections) for (const i of s.items) shown.set(i.key, i);
+  /** The screens `navForRole` gave this person: a door never moves into a room withheld from them. */
+  const mayOpen: ReadonlySet<string> = new Set(shown.keys());
   const placed = new Set<string>();
-  const take = (key: string): NavItem | null => {
+  const take =(key: string): NavItem | null => {
     const item = shown.get(key);
     if (item) placed.add(key);
     return item ?? null;
   };
   /** The entry with its door relocated; `null` when the door has moved and the entry is retired. */
-  const door = (item: NavItem, stays: boolean | undefined): NavItem | null => {
+  const door = (item: NavItem, stays: boolean | undefined, job?: string): NavItem | null => {
     if (opts.merges === undefined || merges.size === 0) return item;
-    const href = relocate({ href: item.href, role: opts.role }, merges, opts.moves);
+    const href = relocate({ href: item.href, role: opts.role, job, screens: mayOpen }, merges, opts.moves);
     if (href === item.href) return item;
     return stays ? { ...item, href } : null;
   };
@@ -181,7 +204,7 @@ export function lifecycleNav(
       const under = p.setupOrder ? bySetupOrder(listed) : listed;
       // Its own screen is not this person's to open: what is beneath it stands on its own.
       if (!own) return under;
-      const head = door({ ...own, key: p.id ?? own.key, label: p.label ?? own.label, href: p.href ?? own.href, icon: p.icon ?? own.icon }, p.stays);
+      const head = door({ ...own, key: p.id ?? own.key, label: p.label ?? own.label, href: p.href ?? own.href, icon: p.icon ?? own.icon }, p.stays, p.job);
       if (!head) return under;
       return under.length > 0 ? [{ ...head, children: under }] : [head];
     });

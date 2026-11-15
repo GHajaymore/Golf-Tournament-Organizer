@@ -142,32 +142,37 @@ test("with the switch on the menu is the stepper's four stops, and every old des
 
     // …and every one of them OPENS for this organizer, on the screen it opened before: asked of the
     // server with the switch off and on (a bounce to another screen would answer 200 too, so the
-    // address it lands on is read as well). And with step 3's merges shown (`&build=1` while they are
-    // building): where `relocate()` sends that door — today's screen while no room is built.
+    // address it lands on is read as well). R0 builds no redirect, so with the redesign's screens
+    // shown (`&build=1` while they are building) an old address still opens its own screen.
     for (const href of before) {
       const off = await page.request.get(href);
       for (const query of ["stepper=1", "stepper=1&build=1"]) {
-        const shown = mergesShown(`?${query}`);
         const on = await page.request.get(`${href}?${query}`);
         const landed = new URL(on.url()).pathname;
-        const moved = relocate({ href, role: "admin" }, shown);
         expect(on.status(), `${href}?${query} did not open`).toBe(200);
-        expect(landed, `${href} lands somewhere else with ?${query}`).toBe(moved === href ? new URL(off.url()).pathname : new URL(moved, off.url()).pathname);
+        expect(landed, `${href} lands somewhere else with ?${query}`).toBe(new URL(off.url()).pathname);
         expect(landed, `${href} bounced to the sign-in or the chooser`).not.toMatch(/^\/(sign-in|login|choose)/);
       }
     }
+    // As shipped the preview's query alone shows no new screen, so no door moves.
+    expect(mergesShown("?stepper=1", { owner: false }).size, "a redesigned screen shows without &build=1").toBe(0);
 
-    // STEP 3's MENU (merges shown): the event's helpers are "Helpers" beneath Club settings, one press,
-    // opening where `relocate()` sends today's Staff & helpers.
+    // THE REDESIGN'S MENU (`&build=1`): every old door is still one press away, where `relocate()` sends it.
+    const building = mergesShown("?stepper=1&build=1", { owner: false });
     await page.goto("/dashboard?stepper=1&build=1");
     menu = await menuOf(page);
+    const buildPaths = new Set((await linksOf(menu)).map((h) => new URL(h, "http://zz.invalid").pathname));
+    const unreached = before.filter((h) => !buildPaths.has(new URL(relocate({ href: h, role: "admin" }, building), "http://zz.invalid").pathname));
+    expect(unreached, "old doors the redesign's menu does not reach").toEqual([]);
+    // The event's helpers are "Helpers" beneath Club settings, one press, opening Club settings' Staff & access.
     await expect(menu.getByRole("link", { name: "Staff & helpers", exact: true })).toHaveCount(0);
     const helpers = menu.getByRole("link", { name: "Helpers", exact: true });
     await expect(helpers).toBeVisible();
     await expect(helpers).toHaveAttribute("data-nav-beneath", "");
-    expect(plain((await helpers.getAttribute("href")) ?? "")).toBe(relocate({ href: "/access", role: "admin" }, mergesShown("?stepper=1&build=1")));
+    expect(plain((await helpers.getAttribute("href")) ?? "")).toBe(relocate({ href: "/access", role: "admin" }, building));
+    expect(relocate({ href: "/access", role: "admin" }, building)).toBe("/organization#access");
     await helpers.click();
-    await expect(page).toHaveURL(/\/access\?stepper=1$/);
+    await expect(page).toHaveURL(/\/organization\?stepper=1#access$/);
     menu = await menuOf(page);
 
     // PRESSED: a screen that moved beneath another entry opens, is marked as here, and the preview stays on.
@@ -231,16 +236,18 @@ test("a knockout's second stop reads Draw, with its bracket beneath Tee times & 
     await menu.getByRole("link", { name: "Bracket", exact: true }).click();
     await expect(page).toHaveURL(/\/bracket\?stepper=1$/);
 
-    // STEP 3's MENU (merges shown): the Bracket is beneath Leaderboard in the Play stop, not beneath
-    // Tee times & draw — one press, as today, opening where `relocate()` sends the old door.
+    // THE REDESIGN'S MENU (`&build=1`): the Bracket is beneath Leaderboard in the Play stop, not beneath
+    // Tee times & draw — one press, as today, opening the board's Bracket view (`relocate()`).
+    const building = mergesShown("?stepper=1&build=1", { owner: false });
     await page.goto("/dashboard?stepper=1&build=1");
     menu = await menuOf(page);
     await expect(menu.locator('[data-nav-stop="draw"]').getByRole("link", { name: "Bracket", exact: true })).toHaveCount(0);
     const bracket = menu.locator('[data-nav-stop="day"]').getByRole("link", { name: "Bracket", exact: true });
     await expect(bracket).toBeVisible();
-    expect(plain((await bracket.getAttribute("href")) ?? "")).toBe(relocate({ href: "/bracket", role: "admin" }, mergesShown("?stepper=1&build=1")));
+    expect(plain((await bracket.getAttribute("href")) ?? "")).toBe(relocate({ href: "/bracket", role: "admin" }, building));
+    expect(relocate({ href: "/bracket", role: "admin" }, building)).toBe("/leaderboard?view=bracket");
     await bracket.click();
-    await expect(page).toHaveURL(/\/bracket\?stepper=1$/);
+    await expect(page).toHaveURL(/\/leaderboard\?view=bracket&stepper=1$/);
 
     expect(errors).toEqual([]);
   } finally {
