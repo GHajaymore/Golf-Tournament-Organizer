@@ -1,7 +1,7 @@
 /**
  * The unit suite as the MUTATION run sees it (`npm run mutation`, Stryker).
  *
- * The whole of `vitest.config.ts`, less ten files that cannot pass under (four below, six more at the end)
+ * The whole of `vitest.config.ts`, less eleven files that cannot pass under (four below, seven more at the end)
  * Stryker — measured 2026-10-23: the first two by running the suite inside an
  * instrumented sandbox (570 files, these the only failures), the third by
  * Stryker's own first run:
@@ -47,6 +47,12 @@ export const CANNOT_RUN_IN_THE_SANDBOX = [
   "src/lib/__tests__/build-retries-only-the-font-fetch.test.ts",
   "src/lib/__tests__/client-manifest-check.test.ts",
   "src/lib/__tests__/react-hydration-replay-backport.test.ts",
+  // Added 2026-11-15. Like no-secret-is-committed, it asks git which files are tracked, and the
+  // sandbox is not a repository: `git ls-files` there answers nothing, so its own control ("the
+  // sweep reads the repository") fails and aborts Stryker's dry run. The nightlies of 15 Nov
+  // (both on 69d4e840) were NOT CLEAN on exactly that, holding the deploy. It tests the
+  // repository's files, not any module under mutation, so leaving it out can kill no mutant falsely.
+  "src/lib/__tests__/no-local-paths-in-the-repository.test.ts",
 ];
 
 /** A test file whose every call is held to a deadline (`src/lib/__tests__/ends-within.ts`). */
