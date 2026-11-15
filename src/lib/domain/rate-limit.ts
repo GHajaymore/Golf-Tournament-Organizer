@@ -64,6 +64,7 @@ export type RateLimitKind =
   | "player-link-client"
   | "player-link-alarm"
   | "player-link-slow"
+  | "link-slips"
   | "discount-check"
   | "register-token"
   | "register-email"
@@ -149,6 +150,10 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  against the usual eighty (security review SF-2: one a minute was sixty, barely slower). A
    *  guest with the right link still opens it (a success gives its attempt back). */
   "player-link-slow": { limit: 3, windowMs: 15 * MINUTE },
+  /** PLAYER LINK SLIPS printed (J39/J40 PR 3): six presses an hour per staff member per event. A
+   *  sheet holds every guest's link at once, so a bulk print is budgeted and on the record by name;
+   *  a morning reprints new slips two or three times at most. Keyed on the staff user + the event. */
+  "link-slips": { limit: 6, windowMs: 60 * MINUTE },
   /** Discount codes, tried at sign-up or on a club's plan panel. A code is
    *  eight characters from 31, so this is not about guessing one — it is about
    *  a script trying to, and ten typos in fifteen minutes is a person who
@@ -415,6 +420,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     case "player-link-alarm":
     case "player-link-slow":
       return `Too many link attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
+    case "link-slips":
+      return `You have printed slips several times this hour. Wait ${wait}, or show one guest's link from their row on Entries.`;
     case "round-code":
     case "round-code-client":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;

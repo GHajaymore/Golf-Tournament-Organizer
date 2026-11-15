@@ -152,3 +152,13 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
   any identity's (`silenceEndpoint`; SEC-2), and unsubscribes the browser. The organizer can Mute a
   guest in messages (the link stays live). The installed app starts at `/start`: an account goes home, a
   live link to Today, anybody else to `/p` with "Have an account? Sign in".
+- **Slips (PR 3, 2026-11-14):** the Print kit prints one slip per CONFIRMED guest (`slipsFor`,
+  `domain/player-link-slips.ts`, which asks `passRefusal`), the guest's one link made on first use exactly as
+  Show QR makes it. The codes leave the server only as the answer to a staff press (`printPlayerLinkSlips`,
+  budgeted `link-slips`, 6 an hour per staff member per event, audited by who and how many, never a code); the
+  page renders counts only and the sheet is dropped after printing. `PlayerPass.slipPrintedVersion` says a
+  printed slip went stale on New link; `newPlayerLinksFor` rotates a lost sheet in one press. No shared print
+  (tee sheet, signs, cards, posters) builds a link (`a-player-link-is-never-on-a-shared-print.test.ts`).
+  Today names who the link is for ("Not you? Hand this back to the desk."). Guest self-entry, the typed entry
+  code (`Event.registrationCode`, `guestEntryOpen`: columns in A047, unused until PR 3B) and the stand-in's
+  link are not built yet.
