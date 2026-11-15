@@ -11,6 +11,7 @@ import { Icon } from "./Icon";
 import { CopyDayFields } from "./CopyDayFields";
 import { ORG_KINDS, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
+import { landingAfterCreate } from "@/lib/domain/after-create";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
 
 /**
@@ -217,7 +218,7 @@ export function CreateFirstTournament({
     startTransition(async () => {
       if (copyFrom) {
         const copied = await cloneEvent(copyFrom.id, name, { startOn, endOn });
-        if (copied?.ok) router.push("/dashboard");
+        if (copied?.ok) router.push(landingAfterCreate("copied"));
         else setRefusal(copied?.error ?? "That could not be copied.");
         return;
       }
@@ -248,7 +249,7 @@ export function CreateFirstTournament({
       );
       if (!res?.ok) setRefusal(res?.error ?? "That could not be created.");
       if (res?.clubExists) setSameName(true);
-      if (res?.ok) router.push("/dashboard");
+      if (res?.ok) router.push(landingAfterCreate("created"));
       // The outfit may have just been named and given its kind on the way to
       // a refusal (a society's members list comes first): refresh, so the
       // screen shows the setup it is now waiting on.

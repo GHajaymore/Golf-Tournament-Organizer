@@ -2452,33 +2452,33 @@ export async function seed() {
         eventId: null,
         scopeKey: "club:",
         title: `${MARK} Course news`,
-        createdByEmail: organizer.email,
+        createdByKey: organizer.email,
         createdByName: organizer.name,
       },
     });
     await prisma.threadParticipant.createMany({
       data: [
-        { threadId: clubThread.id, email: organizer.email },
-        { threadId: clubThread.id, email: player.email },
+        { threadId: clubThread.id, whoKey: organizer.email },
+        { threadId: clubThread.id, whoKey: player.email },
       ],
     });
     await prisma.message.createMany({
       data: [
         {
           threadId: clubThread.id,
-          authorEmail: organizer.email,
+          authorKey: organizer.email,
           authorName: organizer.name,
           body: "Greens are being hollow-tined on Monday and Tuesday. Temporary greens on the 4th and the 13th.",
         },
         {
           threadId: clubThread.id,
-          authorEmail: player.email,
+          authorKey: player.email,
           authorName: player.name,
           body: "Is the Thursday league still on that week?",
         },
         {
           threadId: clubThread.id,
-          authorEmail: organizer.email,
+          authorKey: organizer.email,
           authorName: organizer.name,
           body: "It is — the two temporaries are both par 3s, so the card stands.",
         },
@@ -2491,20 +2491,20 @@ export async function seed() {
         eventId: medal.id,
         scopeKey: "event:",
         title: `${MARK} Medal day`,
-        createdByEmail: organizer.email,
+        createdByKey: organizer.email,
         createdByName: organizer.name,
       },
     });
     await prisma.threadParticipant.createMany({
       data: [
-        { threadId: medalThread.id, email: organizer.email },
-        { threadId: medalThread.id, email: player.email },
+        { threadId: medalThread.id, whoKey: organizer.email },
+        { threadId: medalThread.id, whoKey: player.email },
       ],
     });
     await prisma.message.create({
       data: {
         threadId: medalThread.id,
-        authorEmail: organizer.email,
+        authorKey: organizer.email,
         authorName: organizer.name,
         body: "First tee at 08:10. Please return your card to the shop, signed by your marker.",
       },
