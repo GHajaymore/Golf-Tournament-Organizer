@@ -48,7 +48,7 @@ const session = { email: EMAIL, name: `${TAG} staff`, eventId: "", role: "assist
 vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: async () => {} }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { setStageCourse } = await import("@/app/actions/courses");
+const { setStageCourse, setEventCourses } = await import("@/app/actions/courses");
 const { loadEventState } = await import("@/lib/services/tournament");
 
 const eighteen = (n: number) => JSON.stringify(Array.from({ length: 18 }, () => n));
@@ -237,6 +237,18 @@ describe("choosing Which nine keeps the round's tees, at all three of the organi
     expect((await round())?.teeId).toBe(tee.Blue);
   });
 
+  it("Same as the tournament on Rounds & formats, where the tournament is at this course, keeps them too", async () => {
+    // What Rounds & formats sends for "Same as the tournament": no course of its own, the nine.
+    // The course PLAYED is unchanged (the tournament is at home), so the tees stay (Fable, #1159:
+    // the stored column moved from home to null, and A went from 12 to 10).
+    expect(await setStageCourse(stageId, null, "front")).toEqual({ ok: true });
+    expect(await round()).toEqual({ nine: "front", teeId: tee.Blue, courseId: null });
+    expect(await priced()).toEqual(byTheRules((p) => p.on));
+    // And back to naming the course: still the same course, still Blue.
+    expect(await setStageCourse(stageId, homeId, "front")).toEqual({ ok: true });
+    expect((await round())?.teeId).toBe(tee.Blue);
+  });
+
   it("CONTROL: choosing the tournament's tees on Score entry (null) still clears the round's", async () => {
     expect(await setStageCourse(stageId, homeId, undefined, true, null)).toEqual({ ok: true });
     expect((await round())?.teeId).toBeNull();
@@ -257,5 +269,29 @@ describe("choosing Which nine keeps the round's tees, at all three of the organi
       error: "Those tees aren't on that course.",
     });
     expect((await round())?.courseId).toBe(awayId);
+  });
+});
+
+describe("taking a course off the tournament takes its tees off the rounds and matches on it", () => {
+  it("setEventCourses clears the round's and the match's set with their course", async () => {
+    // Fixture, read back: the round and a match at the away course, both off its Gold.
+    const gold = await prisma.tee.findFirstOrThrow({ where: { courseId: awayId }, select: { id: true } });
+    await prisma.stage.update({ where: { id: stageId }, data: { courseId: awayId, teeId: gold.id } });
+    const flight = await prisma.group.findFirstOrThrow({ where: { eventId }, select: { id: true } });
+    const match = await prisma.match.create({
+      data: { eventId, stageId, groupId: flight.id, round: 1, playerAId: player.A, playerBId: player.B, holes: "[]", courseId: awayId, teeId: gold.id },
+    });
+    expect(await prisma.eventCourse.count({ where: { eventId, courseId: awayId } }), "the away course is not a venue").toBe(1);
+    session.role = "admin";
+    try {
+      expect(await setEventCourses([homeId])).toEqual({ ok: true });
+    } finally {
+      session.role = "assistant";
+    }
+    expect(await round(), "the round kept a set from the course taken off").toMatchObject({ courseId: null, teeId: null });
+    expect(await prisma.match.findUniqueOrThrow({ where: { id: match.id }, select: { courseId: true, teeId: true } }), "the match kept a set from the course taken off").toEqual({
+      courseId: null,
+      teeId: null,
+    });
   });
 });

@@ -362,6 +362,33 @@ describe("a match's tees go with its course", () => {
     expect(await strokes()).toBe(OFF_AWAY);
   });
 
+  /**
+   * AND WITH A TOURNAMENT AT A HOME COURSE OF ITS OWN (Fable's review of #1159): the round is
+   * then at the ridge, off the tournament's White (71.2 / 126: 18.4 x 126/113 - 0.8 = 19.72 -> 20),
+   * and a match moved away with no set named fell to the ROUND's map — 20, a set on a course the
+   * match is not at, where the away Gold gives 17. The case above cannot see it: with no
+   * tournament course the round lands on "any set", which happened to be the Gold.
+   */
+  it("moved away from a tournament at a home course, it is priced off the away course, not the home White", async () => {
+    const OFF_HOME_WHITE = halfUp(ch1130(184, 712, 126, 72), 1130);
+    expect(OFF_HOME_WHITE).toBe(20);
+    const white = await prisma.tee.create({ data: { courseId: ridgeId, name: "White", courseRating: 71.2, slopeRating: 126, par: 72, position: 1 } });
+    await prisma.event.update({ where: { id: eventId }, data: { courseId: ridgeId, defaultTeeId: white.id } });
+    try {
+      await namedAtTheRidge();
+      await signIn("meddler");
+      expect(await setMatchCourse(myMatchId, awayCourseId)).toEqual({ ok: true });
+      expect(await row()).toEqual({ courseId: awayCourseId, teeId: null });
+      const state = await loadEventState(eventId);
+      // CONTROL: the round itself is at the ridge, off the tournament's White.
+      expect(state!.strokeHandicapFor(player.meddler, stageId)).toBe(OFF_HOME_WHITE);
+      expect(state!.matchHandicapFor(player.meddler, myMatchId), "a match at the away course priced off the home set").toBe(OFF_AWAY);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { courseId: null, defaultTeeId: null } });
+      await prisma.tee.delete({ where: { id: white.id } });
+    }
+  });
+
   it("the open-course edge: venue put back to Not set, the old set no longer prices it", async () => {
     // No event course, no round course: the round prices off the tournament's
     // own set, here the away Gold. A match that still held the ridge's Blue

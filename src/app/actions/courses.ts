@@ -498,14 +498,16 @@ export async function setEventCourses(courseIds: string[]): Promise<CourseResult
   await prisma.$transaction(async (tx) => {
     // Rounds and matches pointing at a course that's no longer on the event
     // fall back to inheriting rather than keeping a venue the organizer just
-    // said isn't in use.
+    // said isn't in use — and their tees go with the course, as `teeAfterVenue`
+    // says for every other venue write: a set left behind belongs to a course
+    // the round is no longer at.
     await tx.stage.updateMany({
       where: { eventId, courseId: { notIn: [...keep] } },
-      data: { courseId: null },
+      data: { courseId: null, teeId: null },
     });
     await tx.match.updateMany({
       where: { eventId, courseId: { notIn: [...keep] } },
-      data: { courseId: null },
+      data: { courseId: null, teeId: null },
     });
     await tx.eventCourse.deleteMany({ where: { eventId, courseId: { notIn: [...keep] } } });
     for (const id of keep) {
@@ -621,12 +623,22 @@ export async function setStageCourse(
    * Named: scoped to the course being set, exactly as `nameMatchVenue` scopes
    * the match's — an id off the wire is an arbitrary row, and unscoped it would
    * price the round off another club's slope and rating.
+   *
+   * Asked of the course PLAYED, not the column stored: a round with no course
+   * of its own is played at the tournament's (every reader resolves its set
+   * there, `loadEventState`'s `s.courseId ?? event.courseId`). So "Same as the
+   * tournament" on Rounds & formats, which stores null, is no change of course
+   * when the tournament is at the course the round was already on, and the
+   * tees chosen on Score entry stay (Fable's review of #1159: 12 became 10).
    */
-  if (courseId && teeId) {
-    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId }, select: { id: true } });
+  const home = (await prisma.event.findUnique({ where: { id: eventId }, select: { courseId: true } }))?.courseId ?? null;
+  const playedNow = stage.courseId ?? home;
+  const playedNext = courseId ?? home;
+  if (playedNext && teeId) {
+    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId: playedNext }, select: { id: true } });
     if (!owned) return { ok: false, error: "Those tees aren't on that course." };
   }
-  const roundTee = teeAfterVenue({ courseId: stage.courseId, teeId: stage.teeId }, { courseId, teeId });
+  const roundTee = teeAfterVenue({ courseId: playedNow, teeId: stage.teeId }, { courseId: playedNext, teeId });
   const changed =
     (courseId ?? null) !== (stage.courseId ?? null) ||
     roundTee !== (stage.teeId ?? null) ||
