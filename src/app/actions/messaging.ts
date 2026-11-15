@@ -4,6 +4,8 @@ import { getSession } from "@/lib/auth";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/domain/money-format";
+import { messagingContextFor, type MessagingActor, type MessagingTarget } from "@/lib/messaging-viewer";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   membershipFor,
   threadView,
@@ -37,13 +39,32 @@ import {
  * a display setting; who you are in a conversation is not.
  */
 
+/**
+ * THE ACCOUNT'S OWN MEMBERSHIP, for the doors only an account has: starting a
+ * direct thread (D7: a guest's link starts none), the staff broadcasts and the
+ * texting consent. A guest's link is never asked here.
+ */
 async function requireMembership() {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
-  const ctx = await membershipFor(session.eventId, session.email, session.role);
+  const ctx = await membershipFor(session, session.eventId);
   if (!ctx) throw new Error("No tournament");
   return { session, ctx };
 }
+
+/**
+ * WHOEVER SPEAKS FOR THIS TARGET: an account, or a guest's player link for the
+ * target's own event (`messagingContextFor`, J39/J40 PR 2; the SF-1/D-1
+ * lesson). The read/post/mark-read doors ask this, never `getSession()` alone.
+ */
+async function requireActor(target: MessagingTarget): Promise<MessagingActor> {
+  const actor = await messagingContextFor(target);
+  if (!actor) throw new Error("Not authenticated");
+  return actor;
+}
+
+/** Bounded at the boundary: a `"use server"` export is called with whatever the caller likes. */
+const asText = (v: unknown, max: number): string => (typeof v === "string" && v.length <= max ? v : "");
 
 /**
  * Nothing is posted in a lapsed club's read-only archive (2026-10-21) — the
@@ -59,24 +80,37 @@ async function archivedFor(session: { eventId: string; role: string }): Promise<
  * those apart would confirm a thread exists to somebody not entitled to know.
  */
 export async function readThread(threadId: string): Promise<ThreadView | null> {
-  const { ctx } = await requireMembership();
-  return threadView(ctx, threadId);
+  const id = asText(threadId, 64);
+  if (!id) return null;
+  const { ctx } = await requireActor({ threadId: id });
+  return threadView(ctx, id);
 }
 
-/** Post to a scope, creating its conversation on the first message. */
+/**
+ * Post to a scope, creating its conversation on the first message. A guest's
+ * posts are held to a budget on their pass (`guest-post`, S8), never cleared.
+ */
 export async function sendMessage(scope: string, body: string): Promise<PostResult> {
-  const { session, ctx } = await requireMembership();
-  const archived = await archivedFor(session);
+  const key = asText(scope, 512);
+  if (!key) return { ok: false, error: "Unknown conversation." };
+  const actor = await requireActor({ scope: key });
+  const archived = await archivedFor(actor);
   if (archived) return { ok: false, error: archived };
-  const res = await postToScope(ctx, scope, body, session.name);
+  if (actor.guest) {
+    const budget = await checkRateLimit("guest-post", actor.guest.passId);
+    if (!budget.allowed) return { ok: false, error: budget.message };
+  }
+  const res = await postToScope(actor.ctx, key, asText(body, 20_000), actor.name);
   if (res.ok) revalidatePath("/", "layout");
   return res;
 }
 
 /** Move the caller's read watermark. No-op for a thread they cannot see. */
 export async function markThreadRead(threadId: string): Promise<void> {
-  const { ctx } = await requireMembership();
-  await markReadService(ctx, threadId);
+  const id = asText(threadId, 64);
+  if (!id) return;
+  const { ctx } = await requireActor({ threadId: id });
+  await markReadService(ctx, id);
   revalidatePath("/", "layout");
 }
 
@@ -119,14 +153,17 @@ export async function broadcastToScope(scope: string, body: string): Promise<Pos
 /**
  * Turn direct messages on or off for the caller.
  *
- * Takes no id — the row is found by the caller's own email and their own club,
- * so there is nothing here to point at somebody else. Returns false when they
- * have no roster row to carry the preference, which the screen reports rather
- * than silently pretending to have saved.
+ * Takes no id — the row is the caller's own: an account's roster row by its
+ * own email and club, a guest's pass (J39/J40 PR 2). `from` says which screen
+ * pressed, so a browser holding both an account and a link sets the one that
+ * screen was drawn for; it picks between the caller's own two credentials,
+ * never anybody else's. Returns false when an account has no roster row to
+ * carry the preference, which the screen reports rather than silently
+ * pretending to have saved.
  */
-export async function setMyMessagesOptOut(optOut: boolean): Promise<{ ok: boolean; error?: string }> {
-  const { ctx } = await requireMembership();
-  const saved = await setMessagesOptOut(ctx, optOut);
+export async function setMyMessagesOptOut(optOut: boolean, from?: "player" | "console"): Promise<{ ok: boolean; error?: string }> {
+  const { ctx } = await requireActor({ surface: from === "player" ? "player" : "console" });
+  const saved = await setMessagesOptOut(ctx, optOut === true);
   if (!saved) return { ok: false, error: "You're not on the club roster yet, so there's nothing to save this against." };
   revalidatePath("/", "layout");
   return { ok: true };
@@ -188,7 +225,7 @@ export async function setMySmsOptIn(optIn: boolean): Promise<{ ok: boolean; erro
   const { ctx } = await requireMembership();
   const now = new Date();
   const res = await prisma.member.updateMany({
-    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+    where: { organizationId: ctx.organizationId, email: { equals: ctx.whoKey, mode: "insensitive" } },
     data: optIn ? { smsOptIn: true, smsOptInAt: now } : { smsOptIn: false, smsOptOutAt: now },
   });
   if (res.count === 0) {
