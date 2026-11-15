@@ -7,7 +7,7 @@ import { PrismaClient } from "@prisma/client";
  * technical design, 15 Nov 2026).
  *
  * THE RULES, not the code. A cut is a term of the competition the Committee
- * sets (Committee Procedures 5A(6)): the field of the later round is the top N
+ * sets (Committee Procedures, Section 5A): the field of the later round is the top N
  * and ties on the total of the rounds completed when the cut is made. A round
  * abandoned and struck from the competition (rained off, never played) does
  * not strike the cut with it: the cut is then taken on the rounds that WERE
@@ -57,7 +57,7 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";
-import { setRoundClosed, removeStage } from "@/app/actions/tournament";
+import { setRoundClosed, removeStage, setStageCut, openCorrection } from "@/app/actions/tournament";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { loadEventState } from "@/lib/services/tournament";
 
@@ -212,6 +212,29 @@ describe("a cut after a round that is removed", () => {
   it("and the cut is made on the round that was completed: the same nine, and nobody else, may play Round 3", async () => {
     expect(await holders(removed), "nobody was given a Round 3 card: the cut was never made").toEqual(THROUGH);
     expect(await field(removed), "Round 3 is open to all twenty while the rules sheet says top 8").toEqual(THROUGH);
+  });
+
+  /**
+   * THE SAME CUT LEFT OWING THROUGH ANOTHER DOOR (the Rules review of #1162,
+   * G3b): the committee closes Round 1 and only then sets "top 8 and ties" on
+   * the round after it. The term is the Committee's to set (Committee
+   * Procedures 5A), the round it is taken on is over, and the press that would
+   * have made it is in the past. Same field, same nine.
+   */
+  it("a cut switched on after the round before it was closed is made there and then", async () => {
+    const late = await build("cut-set-late", false);
+    await prisma.stage.update({ where: { id: late.r3 }, data: { cutEnabled: false } });
+    await asAdminOf(late.eventId);
+    expect(await setRoundClosed(late.r1, true)).toEqual({ ok: true });
+    expect(await holders(late), "a round with no cut was given a field").toEqual([]);
+
+    // The cut is locked at launch; the way through is the one the refusal
+    // names, a committee correction on the rounds (Rule 20.2d).
+    expect((await setStageCut(late.r3, true, "count", 8, 50)).error).toMatch(/Make a committee correction to change the cut/);
+    expect(await openCorrection("rounds", "The cut was left off the rules sheet in error")).toEqual({ ok: true });
+    expect(await setStageCut(late.r3, true, "count", 8, 50)).toEqual({ ok: true });
+    expect(await holders(late), "the cut was set and never made").toEqual(THROUGH);
+    expect(await field(late)).toEqual(THROUGH);
   });
 
   it("and the board says who missed it", async () => {

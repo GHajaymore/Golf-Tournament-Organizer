@@ -98,6 +98,7 @@ import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domai
 import { holesPlayed, type CourseHandicaps } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
+import { holesToComplete } from "../domain/completed-round";
 import { isMatch, reviewsScores } from "../tournament-shape";
 import { flightLabel } from "../domain/flight-label";
 import { cardsOnBoard, heldFromBoard, onBoard } from "../domain/board-hold";
@@ -2273,7 +2274,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * multiplier, and a single round is unchanged.
    */
   const isSeason = strokeRounds.length > 1;
-  const activeRoundId = isSeason ? null : (strokeUnitStage?.id ?? null);
+  /**
+   * AND A ROUND THE COMMITTEE HAS CLOSED IS NOT IN FLIGHT (15 Nov 2026). The
+   * live normalisation compares players who are different distances round; in
+   * a closed round nobody is still out, and a hole not played scores no points
+   * (Rule 21.1c). Left "in flight", twelve pars for 24 points read level with
+   * eighteen for 36 and above eighteen for 34: points per hole played, which is
+   * not the competition (Rule 21.1a, the most points wins). Closed, every card
+   * is charged the whole round and the order is the points
+   * (`a-short-card-is-judged-by-its-own-format.audit.test.ts`).
+   */
+  const activeRoundId = isSeason || strokeUnitStage?.closedAt ? null : (strokeUnitStage?.id ?? null);
   const levelRounds = strokeRounds.map((s) => ({ id: s.id, holes: holesPlayed(s.holes) }));
   const levelHoles = (a: StrokeAgg): number => chargedHoles(a, levelRounds, activeRoundId);
 
@@ -2315,12 +2326,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * Against ONE round's length, though a round robin files several cards
    * under one round: fewer holes than a single card owes is short whatever
    * else is true, and a match that stopped early is `stoppedShort`'s to judge.
+   *
+   * ONLY A ROUND OF INDIVIDUAL STROKE PLAY OWES EVERY HOLE (`holesToComplete`,
+   * the one answer). A four-ball partner who picked up has completed the round
+   * (Rule 23.2b), and the first cut of this asked eighteen holes of them too:
+   * closing a four-ball round took the place of every partner with a blank
+   * hole (`a-short-card-is-judged-by-its-own-format.audit.test.ts`).
    */
-  const roundLength = new Map(levelRounds.map((r) => [r.id, r.holes]));
+  const holesOwedIn = new Map(strokeRounds.map((s) => [s.id, holesToComplete(s)]));
   const missedClosedRoundId = (a: StrokeAgg): string | null =>
     stableford
       ? null
-      : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) < (roundLength.get(id) ?? 0)) ?? null);
+      : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) < (holesOwedIn.get(id) ?? 1)) ?? null);
   const missedAClosedRound = (a: StrokeAgg): boolean => missedClosedRoundId(a) !== null;
   /**
    * The closed round to NAME, whatever the board ranks on (2026-10-08, grid

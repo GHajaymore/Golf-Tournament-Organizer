@@ -29,7 +29,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount, roundRobinCutAfter } from "@/lib/services/regroup";
-import { applyStrokeCut, applyCutLeftOwing, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
+import { applyStrokeCut, applyCutLeftOwing, applyCutOwedInto, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds, myPlayerIdsFor } from "@/lib/services/me";
@@ -2364,6 +2364,10 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
       cutPercent: Math.min(100, Math.max(1, Math.round(percent))),
     },
   });
+  // A cut set on a round whose round before is ALREADY closed (a committee
+  // correction after Round 1): closing is what makes a cut, and that press is
+  // in the past, so it is made now or never (`applyCutOwedInto`).
+  if (enabled) await applyCutOwedInto(eventId, stageId);
   await refresh();
   return { ok: true };
 }

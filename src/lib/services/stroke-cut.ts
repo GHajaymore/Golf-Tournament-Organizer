@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { loadEventState, settingsOf } from "./tournament";
 import { allowsAutoConfirm } from "../tournament-settings";
-import { cutBlockers, cutBlockedSentence, cutRuleOf, cutHasBeenMade } from "../domain/cut-ready";
+import { cutBlockers, cutBlockedSentence, cutRuleOf, cutHasBeenMade, cutFeederOf } from "../domain/cut-ready";
 import {
   strokeCutOutcome,
   cutLineRows,
@@ -341,22 +341,40 @@ export async function applyStrokeCut(eventId: string, feederId: string): Promise
  * offered Round 3 under a rules sheet saying "top 8"
  * (`a-cut-after-a-removed-round-is-still-made.audit.test.ts`).
  *
- * So `removeStage` calls this once the round is gone, with the position it
- * held: where the next playing round is cut into, its cut has never been made
- * and the round now before it is closed, the cut is made as closing that round
- * would have made it. Through `applyStrokeCut`, so on the same cards, the same
- * tie rule and the same refusal: a cut it would not make at a close (a card
- * not approved, a tie the committee must settle) it does not make here either.
+ * The same cut is left owing through a second door: the committee closes
+ * Round 1 and only then, by a committee correction, sets the cut on the round
+ * after it (`setStageCut`).
+ *
+ * So ONE function, asked by both doors once their change is written: where
+ * `stageId` is cut into, its cut has never been made, and the round the cut
+ * is taken on (`cutFeederOf`, the one reading of which round that is) is
+ * closed, the cut is made as closing that round would have made it. Through
+ * `applyStrokeCut`, so on the same cards, the same tie rule and the same
+ * refusal: a cut it would not make at a close (a card not approved, a tie the
+ * committee must settle) it does not make here either. A cut already made is
+ * left as it was told to the field.
+ */
+export async function applyCutOwedInto(eventId: string, stageId: string): Promise<{ through: number } | null> {
+  const all = await prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: STAGE_SELECT });
+  const next = all.find((s) => s.id === stageId);
+  if (!next || !next.cutEnabled || next.cutMadeAt) return null;
+  const from = cutFeederOf(all, next.id);
+  if (!from || from.kind !== "card" || !from.feeder.closedAt) return null;
+  return applyStrokeCut(eventId, from.feeder.id);
+}
+
+/**
+ * The first door: `removeStage`, once the round is gone, with the position it
+ * held. The round that followed it is the one whose cut may now be owing.
  */
 export async function applyCutLeftOwing(eventId: string, removedPosition: number): Promise<{ through: number } | null> {
-  const rounds = (
-    await prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: STAGE_SELECT })
-  ).filter((s) => isPlayingRound(s.type));
-  const i = rounds.findIndex((s) => s.position > removedPosition);
-  const next = rounds[i];
-  const feeder = i > 0 ? rounds[i - 1] : undefined;
-  if (!next || !feeder || !next.cutEnabled || next.cutMadeAt || !feeder.closedAt) return null;
-  return applyStrokeCut(eventId, feeder.id);
+  const next = await prisma.stage.findMany({
+    where: { eventId, position: { gt: removedPosition } },
+    orderBy: { position: "asc" },
+    select: { id: true, type: true },
+  });
+  const after = next.find((s) => isPlayingRound(s.type));
+  return after ? applyCutOwedInto(eventId, after.id) : null;
 }
 
 /**
