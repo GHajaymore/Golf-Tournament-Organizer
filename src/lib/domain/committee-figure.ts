@@ -33,6 +33,7 @@
 
 import { hasIndex, parseStrokesInput } from "./handicap-label";
 import { isNetBasis } from "./match-entry";
+import { potMembership, type PotDecision, type PotEntryMode } from "./pot-entry";
 
 /**
  * WHETHER THE PRICING CHAIN STOPS AT A PLAYER WITH NO FIGURE. False in PR A: the chain still reads the
@@ -44,11 +45,28 @@ export const SINK_LIVE: boolean = false;
 export const NEEDS_STROKES_ANCHOR = "needs-strokes";
 
 /**
+ * WHAT THE RULE ASKS OF THE ROUND, FOR THIS PLAYER: how the round is scored, and whether this player is in a
+ * NET SIDE GAME in it (review of #1144, C2). A gross round is not the end of it: a skins pot is net by
+ * default (`SkinsPot.net`) and low net is net on any round, and both price the player through the same chain
+ * as the board (`skins-pot.ts`, `expenses.ts` via `strokeHandicapFor`). So a player with no index in a net
+ * pot on a gross round was scored off the stored 0 for money, with nothing said anywhere.
+ *
+ * `netGame` is REQUIRED, so the compiler lists every caller; `netSideGamePlayers` below is how a caller
+ * fills it. (A Nassau or a match bet rides on the round's own match, which is net only in a round scored
+ * net: `isNetBasis` already covers it.)
+ */
+export interface RoundAsked {
+  scoringBasis: string;
+  /** This player is in a net side game in this round (a net skins pot, low net). */
+  netGame: boolean;
+}
+
+/**
  * THE RULE. True when this player, in this round, has nothing a net score can be worked from and the
  * committee has not given them strokes:
  *
- *   - the round is scored net (`isNetBasis`: net, both, Stableford, a match with strokes) — a gross
- *     round asks nothing of anybody;
+ *   - the round counts their strokes: it is scored net (`isNetBasis`: net, both, Stableford, a match with
+ *     strokes), or they are in a net side game in it (`netGame`) — otherwise a gross round asks nothing;
  *   - the player has no handicap index (`hasIndex`);
  *   - and the round holds no figure for them: no committee figure (`override`) and nothing frozen. A
  *     round already played keeps what it was played off, as every frozen round does.
@@ -56,11 +74,30 @@ export const NEEDS_STROKES_ANCHOR = "needs-strokes";
  * Every argument is required, so the compiler lists every caller the day the rule grows.
  */
 export function needsCommitteeFigure(
-  round: { scoringBasis: string },
+  round: RoundAsked,
   player: { handicapSource: string | null },
   row: { override: number | null; frozen: number | null } | null,
 ): boolean {
-  return isNetBasis(round.scoringBasis) && !hasIndex(player) && row?.override == null && row?.frozen == null;
+  return (isNetBasis(round.scoringBasis) || round.netGame) && !hasIndex(player) && row?.override == null && row?.frozen == null;
+}
+
+/**
+ * WHO IS IN A NET SIDE GAME IN ONE ROUND — what fills `RoundAsked.netGame`. Every net game the round holds
+ * (`net` true: a net skins pot, a low-net game), each with its entry mode, its audience (the field, or one
+ * fourball's: `potAudience`) and the rows recorded against it, read through the one rule of who is in a pot
+ * (`potMembership`). A pending ask counts as in (it is priced the moment it is paid), an excluded row never.
+ * Asked BEFORE play, so an opt-out pot counts everybody in its audience who has not said otherwise.
+ */
+export function netSideGamePlayers(
+  games: readonly { net: boolean; mode: PotEntryMode; audience: string[]; decisions: PotDecision[] }[],
+): Set<string> {
+  const inGame = new Set<string>();
+  for (const g of games) {
+    if (!g.net) continue;
+    const m = potMembership(g.mode, g.audience, g.decisions);
+    for (const id of [...m.entrants, ...m.pending]) inGame.add(id);
+  }
+  return inGame;
 }
 
 /**
@@ -71,20 +108,21 @@ export function needsCommitteeFigure(
  * and a frozen one. The way on is a staff correction with a reason (`mayCorrectStrokes`).
  */
 export function scoredAsScratch(
-  round: { scoringBasis: string },
+  round: RoundAsked,
   player: { handicapSource: string | null },
   row: { override: number | null; frozen: number | null } | null,
 ): boolean {
-  return isNetBasis(round.scoringBasis) && !hasIndex(player) && row?.override == null && row?.frozen != null;
+  return (isNetBasis(round.scoringBasis) || round.netGame) && !hasIndex(player) && row?.override == null && row?.frozen != null;
 }
 
 /**
  * WHOSE STROKES A STAFF CORRECTION MAY SET ONCE A CARD IS IN (the panel's §12.2): only a player with no
- * index in a round scored net — the one figure the Rules make the Committee's own arithmetic (Rules of
- * Golf 3.3b(4)). Everybody else's frozen handicap keeps the existing rule.
+ * index in a round that counts their strokes (scored net, or a net side game they are in) — the one figure
+ * the Rules make the Committee's own arithmetic (Rules of Golf 3.3b(4)). Everybody else's frozen handicap
+ * keeps the existing rule.
  */
-export function mayCorrectStrokes(round: { scoringBasis: string }, player: { handicapSource: string | null }): boolean {
-  return isNetBasis(round.scoringBasis) && !hasIndex(player);
+export function mayCorrectStrokes(round: RoundAsked, player: { handicapSource: string | null }): boolean {
+  return (isNetBasis(round.scoringBasis) || round.netGame) && !hasIndex(player);
 }
 
 /**
@@ -97,13 +135,17 @@ export interface NeedsStrokes {
   players: number;
   /** The rounds' labels, in play order. */
   rounds: string[];
+  /** Of those, the rounds scored GROSS, asked only for a net side game in them (C2): "scored net" is false of them. */
+  sideGameRounds: string[];
 }
 
-export function needsStrokesFact(rounds: readonly { label: string; players: readonly { id: string }[] }[]): NeedsStrokes | null {
+export function needsStrokesFact(
+  rounds: readonly { label: string; sideGame: boolean; players: readonly { id: string }[] }[],
+): NeedsStrokes | null {
   const asking = rounds.filter((r) => r.players.length > 0);
   if (asking.length === 0) return null;
   const who = new Set(asking.flatMap((r) => r.players.map((p) => p.id)));
-  return { players: who.size, rounds: asking.map((r) => r.label) };
+  return { players: who.size, rounds: asking.map((r) => r.label), sideGameRounds: asking.filter((r) => r.sideGame).map((r) => r.label) };
 }
 
 /** "3 players", "1 player". */
@@ -144,15 +186,25 @@ function untilSaid(sinkLive: boolean, who: "you" | "the organizer"): string {
 export function needsFigureSaid(args: {
   count: number;
   rounds: readonly string[];
+  /** Of `rounds`, those scored gross and asked only for a net side game (`NeedsStrokes.sideGameRounds`). */
+  sideGameRounds: readonly string[];
   canGive: boolean;
   sinkLive: boolean;
 }): { text: string; link: boolean } {
-  const { count, rounds, canGive, sinkLive } = args;
+  const { count, rounds, sideGameRounds, canGive, sinkLive } = args;
   const have = count === 1 ? "has" : "have";
   const is = rounds.length === 1 ? "is" : "are";
-  const text =
-    `${players(count)} ${have} no handicap index and ${roundsSaid(rounds)} ${is} scored net. ` +
-    untilSaid(sinkLive, canGive ? "you" : "the organizer");
+  // "Round 1 is scored net" is false of a gross round with a net pot in it, so that round is named for
+  // what is true of it: the side game is net.
+  const sideOnly = sideGameRounds.length > 0 && sideGameRounds.length === rounds.length;
+  const play = count === 1 ? "plays" : "play";
+  const why =
+    sideGameRounds.length === 0
+      ? `${roundsSaid(rounds)} ${is} scored net`
+      : sideOnly
+        ? `${play} a net side game in ${roundsSaid(rounds)}`
+        : `${play} net in ${roundsSaid(rounds)}`;
+  const text = `${players(count)} ${have} no handicap index and ${why}. ` + untilSaid(sinkLive, canGive ? "you" : "the organizer");
   return { text, link: canGive };
 }
 
@@ -190,6 +242,11 @@ export function bandHeadingSaid(count: number, round: string): string {
  */
 export function bandLeadSaid(basis: string, sinkLive: boolean): string {
   return `They have no handicap index, and this round is scored ${basis}. You decide how many strokes. ${untilSaid(sinkLive, "you")}`;
+}
+
+/** The band's lead for a round scored gross, asked only because they play a net side game in it (C2). */
+export function bandSideGameLeadSaid(sinkLive: boolean): string {
+  return `They have no handicap index, and they play a net side game in this round (a net skins pot or low net). You decide how many strokes. ${untilSaid(sinkLive, "you")}`;
 }
 
 /** When the band has nobody left: said, then the band goes. */

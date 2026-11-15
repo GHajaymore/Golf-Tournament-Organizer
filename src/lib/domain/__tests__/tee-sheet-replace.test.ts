@@ -8,6 +8,8 @@ import {
   handicapUsedWords,
   NO_FIGURE,
   NO_FIGURE_CARDS_IN,
+  NO_FIGURE_SIDE_GAME,
+  NO_FIGURE_SIDE_GAME_CARDS_IN,
   pairNameAfter,
   readReplaceReason,
   replaceAuditLine,
@@ -49,6 +51,7 @@ const world: ReplaceWorld = {
   flights: {},
   sameFlight: false,
   scoringBasis: "gross",
+  inNetGame: [],
   figures: {},
   handicapsFixed: false,
 };
@@ -186,6 +189,18 @@ describe("a member with no index steps into a round scored net only with the com
   it("gross: no index is allowed, and said as gross only", () => {
     expect(candidateWhy(i, "a", world)).toBeNull();
     expect(handicapUsedWords(i.index, null)).toBe("no index (gross only)");
+  });
+
+  it("gross, but I plays a net side game in it (review of #1144, C2): asked like a net round, in words true of a gross one", () => {
+    const pot: ReplaceWorld = { ...world, inNetGame: ["i"] };
+    expect(candidateWhy(i, "a", pot)).toBe(NO_FIGURE_SIDE_GAME);
+    expect(NO_FIGURE_SIDE_GAME).not.toContain("scored net");
+    expect(candidateWhy(i, "a", { ...pot, handicapsFixed: true })).toBe(NO_FIGURE_SIDE_GAME_CARDS_IN);
+    expect(candidateWhy(i, "a", { ...pot, figures: { i: 14 } }), "given strokes: choosable").toBeNull();
+    // Somebody else's net pot does not hold I up.
+    expect(candidateWhy(i, "a", { ...world, inNetGame: ["k"] })).toBeNull();
+    // A round scored net says it is scored net, pot or not.
+    expect(candidateWhy(i, "a", { ...pot, scoringBasis: "net" })).toBe(NO_FIGURE);
   });
 
   it("a member WITH an index is not touched by it, net or gross", () => {

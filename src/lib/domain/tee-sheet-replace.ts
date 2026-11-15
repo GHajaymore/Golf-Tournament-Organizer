@@ -93,6 +93,8 @@ export interface ReplaceWorld {
   sameFlight: boolean;
   /** How the round is scored — what `needsCommitteeFigure` asks of the round. */
   scoringBasis: string;
+  /** Player ids in a net side game in this round (`netSideGamesFor`) — the rule's `netGame`, for a gross round (C2). */
+  inNetGame: string[];
   /** Player id -> the strokes the committee has given them for THIS round (`RoundHandicap.override`). */
   figures: Record<string, number>;
   /** A card is in for this round, so its handicaps are fixed and no figure can be given now (`acceptsHandicapChange`). */
@@ -124,6 +126,11 @@ export const NO_FIGURE =
   "No handicap index, and this round is scored net. Give them strokes at the top of Rounds & formats, then choose them.";
 export const NO_FIGURE_CARDS_IN =
   "No handicap index, and this round is scored net. Its cards are in, so it keeps the handicaps it has: choose somebody with a handicap, or a guest.";
+/** The same two, in a round scored gross where the member plays a net side game (C2): "scored net" is false there. */
+export const NO_FIGURE_SIDE_GAME =
+  "No handicap index, and they play a net side game in this round. Give them strokes at the top of Rounds & formats, then choose them.";
+export const NO_FIGURE_SIDE_GAME_CARDS_IN =
+  "No handicap index, and they play a net side game in this round. Its cards are in, so it keeps the handicaps it has: choose somebody with a handicap, or a guest.";
 
 /** Why one person cannot step into this slot, or null when they can. */
 export function candidateWhy(c: ReplaceCandidate, absenteeId: string, world: ReplaceWorld): string | null {
@@ -144,7 +151,13 @@ export function candidateWhy(c: ReplaceCandidate, absenteeId: string, world: Rep
    * freeze copied the roster's nought for every confirmed player when the first card landed.
    */
   const row = { override: world.figures[c.id] ?? null, frozen: null };
-  if (needsCommitteeFigure({ scoringBasis: world.scoringBasis }, c, row)) return world.handicapsFixed ? NO_FIGURE_CARDS_IN : NO_FIGURE;
+  const netGame = world.inNetGame.includes(c.id);
+  if (needsCommitteeFigure({ scoringBasis: world.scoringBasis, netGame }, c, row)) {
+    // Asked only because of a net side game when the round itself is gross: the words say that.
+    const sideOnly = !needsCommitteeFigure({ scoringBasis: world.scoringBasis, netGame: false }, c, row);
+    if (sideOnly) return world.handicapsFixed ? NO_FIGURE_SIDE_GAME_CARDS_IN : NO_FIGURE_SIDE_GAME;
+    return world.handicapsFixed ? NO_FIGURE_CARDS_IN : NO_FIGURE;
+  }
   return null;
 }
 
@@ -205,7 +218,7 @@ export function pairNameAfter(name: string, before: readonly string[], after: re
  * strokes given for this round where there are some ("14 strokes, given for this round" — that, and not
  * the index, is what the round resolves first; never "the committee's" on a screen, the panel's 12.1), or
  * "no index (gross only)", which `candidateWhy` and `guestFigureRefusal` leave reachable only where it is
- * true: a gross round.
+ * true: a gross round, for a member in no net side game in it (a guest's blank: see `guestFigureRefusal`).
  * `figure` is `ReplaceWorld.figures[id]`, null for none (a guest has none: they are made by the press).
  */
 export function handicapUsedWords(index: string, figure: number | null): string {

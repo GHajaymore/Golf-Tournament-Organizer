@@ -189,7 +189,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Your index is the one your club entered.",
       "A live link to your handicap body is coming.",
       "In a four-ball the board lists each player's own playing handicap.",
-      "No handicap index? In a net round the {organizer} gives you strokes.",
+      "No handicap index? The {organizer} gives you strokes for net play.",
       "Until then you are scored as a scratch golfer (index 0).",
       "Ask them before your net score is final.",
       "The committee may correct a round's allowance after you play.",

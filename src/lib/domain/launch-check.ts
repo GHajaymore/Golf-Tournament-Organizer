@@ -306,7 +306,7 @@ export function unratedTeesTodo(u: UnratedTees | null | undefined): string | nul
  */
 function needsStrokesWarning(n: NeedsStrokes | null | undefined, screen: string): LaunchWarning | null {
   if (!n || n.players === 0) return null;
-  const { text } = needsFigureSaid({ count: n.players, rounds: n.rounds, canGive: true, sinkLive: SINK_LIVE });
+  const { text } = needsFigureSaid({ count: n.players, rounds: n.rounds, sideGameRounds: n.sideGameRounds, canGive: true, sinkLive: SINK_LIVE });
   return { says: text, fix: `${GIVE_STROKES} on ${screen}`, href: "/stages", screen, afterLaunch: "open" };
 }
 

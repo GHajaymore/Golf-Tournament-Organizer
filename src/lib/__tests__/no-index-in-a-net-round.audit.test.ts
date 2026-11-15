@@ -51,6 +51,8 @@ import { loadEventState } from "@/lib/services/tournament";
 import { jobHref } from "@/lib/domain/needs-you-now";
 import { warningText } from "@/lib/domain/launch-check";
 import { clubToday } from "@/lib/domain/club-clock";
+import { skinsPotFor } from "@/lib/services/skins-pot";
+import { teamsForStage } from "@/lib/services/teams";
 
 const prisma = new PrismaClient();
 const TAG = "zz-audit-noindexnet";
@@ -370,6 +372,121 @@ describe("frozen at the scratch figure by the round's first card: still named, a
     const done = await correctRoundStrokes(t.stages[0], t.nox, 14, "late");
     expect(done.ok).toBe(false);
     expect(await prisma.auditLog.count({ where: { eventId: t.eventId, action: "strokes-corrected" } })).toBe(0);
+  });
+});
+
+/**
+ * A GROSS ROUND WITH A NET SIDE GAME IN IT (review of #1144, C2). A skins pot is net by default and low net
+ * is net on any round, and both price the player through the board's chain: so a player with no index in
+ * one was scored off the stored 0 for MONEY while every surface stayed empty, because the rule asked only
+ * the round's basis. Now the rule is told whether this player is in a net side game (`netGame`).
+ */
+describe("a gross round with a net side game asks for the players in that game", () => {
+  it("a net skins pot: its entrant is on the list, in words true of a gross round; a gross pot, or not being in it, asks nothing", async () => {
+    const t = await makeEvent("pot", ["gross"]);
+    const pot = await prisma.skinsPot.create({ data: { eventId: t.eventId, stageId: t.stages[0], net: true, buyInCents: 500 } });
+    // CONTROL: the pot exists and he is not in it.
+    expect(await playersNeedingFigure(t.eventId)).toEqual([]);
+    await prisma.skinsEntry.create({ data: { potId: pot.id, playerId: t.nox } });
+    const list = await playersNeedingFigure(t.eventId);
+    expect(list.map((r) => [r.label, r.sideGame, r.players.map((p) => p.id)])).toEqual([["Round 1", true, [t.nox]]]);
+
+    const says = (await launchCheckFor(t.eventId)).warnings[0]?.says ?? "";
+    expect(says).toBe("1 player has no handicap index and plays a net side game in Round 1. Until you give them strokes they are scored as a scratch golfer (handicap index 0).");
+    expect(says).not.toContain("scored net");
+    await as("admin", t.eventId);
+    const line = (await secretaryHomeFor((await getSession())!)).jobs.find((j) => j.eventId === t.eventId && j.key === "strokes");
+    expect(line?.text).toMatch(/^1 player needs strokes from you for Round 1/);
+
+    // The same pot played gross asks nothing.
+    await prisma.skinsPot.update({ where: { id: pot.id }, data: { net: false } });
+    expect(await playersNeedingFigure(t.eventId)).toEqual([]);
+  });
+
+  it("an opt-out low net: everybody in the field with no index is asked, unless they took themselves out", async () => {
+    const t = await makeEvent("lownet", ["gross"]);
+    const game = await prisma.sideGame.create({ data: { eventId: t.eventId, stageId: t.stages[0], kind: "low-net", buyInCents: 500, entryMode: "opt-out" } });
+    expect((await playersNeedingFigure(t.eventId)).map((r) => r.players.map((p) => p.id))).toEqual([[t.nox]]);
+    await prisma.sideGameEntry.create({ data: { sideGameId: game.id, playerId: t.nox, excluded: true } });
+    expect(await playersNeedingFigure(t.eventId)).toEqual([]);
+    // Low gross is a gross game.
+    await prisma.sideGameEntry.deleteMany({ where: { sideGameId: game.id } });
+    await prisma.sideGame.update({ where: { id: game.id }, data: { kind: "low-gross" } });
+    expect(await playersNeedingFigure(t.eventId)).toEqual([]);
+  });
+
+  /**
+   * THE MONEY PATH PRICES OFF WHAT THE COMMITTEE GIVES, NOT A SILENT 0. Two in a net skins pot, both 5 on
+   * every hole of a par-4 card with stroke index 1 to 18. By the Rule, not the code (6.2a, Appendix C, at
+   * 95%): Ilsa, index 12 on tees with no rating (the index stands as the Course Handicap), 12 × 95 = 1140
+   * hundredths, 11.40 → 11: a stroke on SI 1–11. Okello, before Give, off 0: no strokes, so Ilsa nets 4
+   * against his 5 on SI 1–11 and every skin decided is hers. Given 18: 18 × 95 = 1710, 17.10 → 17, a stroke
+   * on SI 1–17; SI 1–11 halve and carry, SI 12–17 he nets 4 against her 5, SI 18 halves: every skin decided
+   * is his. And the correction reaches the same player once a card is in, on a gross round, for this pot.
+   */
+  it("the pot is decided off the committee's figure once given; before, the list names him — never silent", async () => {
+    const t = await makeEvent("potmoney", ["gross"]);
+    await prisma.event.update({
+      where: { id: t.eventId },
+      data: { customPars: JSON.stringify(new Array(18).fill(4)), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)) },
+    });
+    const pot = await prisma.skinsPot.create({ data: { eventId: t.eventId, stageId: t.stages[0], net: true, buyInCents: 500 } });
+    await prisma.skinsEntry.createMany({ data: [{ potId: pot.id, playerId: t.nox }, { potId: pot.id, playerId: t.indexed }] });
+    const winners = async () => {
+      const view = await skinsPotFor(t.eventId, t.stages[0], true, "full", "");
+      return [...new Set((view?.holes ?? []).map((h) => h.playerId).filter(Boolean))];
+    };
+    // Before any card: named on the list (the money is not silent).
+    expect((await playersNeedingFigure(t.eventId)).map((r) => r.players.map((p) => p.id))).toEqual([[t.nox]]);
+
+    await as("admin", t.eventId);
+    expect(await setRoundHandicapOverride(t.stages[0], t.nox, 18)).toEqual({ ok: true });
+    expect(await playersNeedingFigure(t.eventId)).toEqual([]);
+    for (const id of [t.nox, t.indexed]) {
+      await prisma.scorecard.create({ data: { eventId: t.eventId, stageId: t.stages[0], playerId: id, strokes: JSON.stringify(new Array(18).fill(5)), status: "entered" } });
+    }
+    expect(await winners(), "given 18 at 95% → 17: SI 12–17 are his").toEqual([t.nox]);
+
+    // Take the figure away and the stored 0 decides it — the case the list exists to name.
+    await prisma.roundHandicap.deleteMany({ where: { eventId: t.eventId, playerId: t.nox } });
+    expect(await winners(), "off 0: SI 1–11 are hers").toEqual([t.indexed]);
+    await freezeRoundHandicaps(t.eventId, t.stages[0]);
+    expect((await playersNeedingFigure(t.eventId)).map((r) => r.scratch.map((p) => p.id)), "frozen at nought: still named").toEqual([[t.nox]]);
+    // The staff correction reaches him on a gross round, for the pot he plays.
+    expect(await correctRoundStrokes(t.stages[0], t.nox, 18, "Card shown at the desk")).toEqual({ ok: true });
+    expect(await winners()).toEqual([t.nox]);
+    // And a player in no net game on a gross round is still refused it.
+    await prisma.skinsEntry.deleteMany({ where: { potId: pot.id, playerId: t.nox } });
+    expect((await correctRoundStrokes(t.stages[0], t.nox, 10, "card")).ok).toBe(false);
+  });
+});
+
+/**
+ * FOUR-BALL STROKE PLAY AT 85% (Appendix C), through the side reader (`teamsForStage`): each partner's own
+ * ball is priced off the committee's figure like an index-holder's Course Handicap. Worked in hundredths by a
+ * route the code does not take (6.2a, rounded once, a half up): 14 × 85 = 1190 = 11.90 → 12; 10 × 85 = 850
+ * = 8.50 → 9.
+ */
+describe("a four-ball side with no index, given strokes, at 85%", () => {
+  it("14 plays off 12, 10 plays off 9", async () => {
+    const t = await makeEvent("fourball", []);
+    const stage = await prisma.stage.create({
+      data: { eventId: t.eventId, position: 0, type: "Stroke Play Round", format: "Four-Ball", holes: 18, scoringBasis: "net", handicapAllowance: 85, playedOn: clubDayFrom(7) },
+    });
+    const partner = await prisma.player.create({
+      data: { eventId: t.eventId, name: `${TAG} Noindex Nadia`, email: at("nadia"), handicap: 0, handicapSource: "none", seed: 3, status: "confirmed" },
+    });
+    const side = await prisma.team.create({ data: { eventId: t.eventId, stageId: stage.id, name: `${TAG} side`, seed: 1 } });
+    await prisma.teamMember.createMany({ data: [{ teamId: side.id, playerId: t.nox, position: 0 }, { teamId: side.id, playerId: partner.id, position: 1 }] });
+    expect((await playersNeedingFigure(t.eventId)).map((r) => r.players.map((p) => p.id).sort())).toEqual([[t.nox, partner.id].sort()]);
+
+    await as("admin", t.eventId);
+    expect(await setRoundHandicapOverride(stage.id, t.nox, 14)).toEqual({ ok: true });
+    expect(await setRoundHandicapOverride(stage.id, partner.id, 10)).toEqual({ ok: true });
+    const [view] = await teamsForStage(t.eventId, stage.id, "Four-Ball", 85);
+    const off = new Map(view.members.map((m) => [m.playerId, m.playing]));
+    expect([off.get(t.nox), off.get(partner.id)]).toEqual([12, 9]);
+    expect(await playersNeedingFigure(t.eventId)).toEqual([]);
   });
 });
 

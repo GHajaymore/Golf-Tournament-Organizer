@@ -223,6 +223,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
             stageId: r.stageId,
             label: r.label,
             pricing: { format: s.format, type: s.type, scoringBasis: s.scoringBasis, handicapAllowance: s.handicapAllowance },
+            sideGame: r.sideGame,
             // Before the round's first card, Give; after it (frozen at the scratch figure, or a late
             // entrant the next card will freeze), the staff correction with a reason.
             players: [...r.players.map((p) => ({ p, scratch: false })), ...r.scratch.map((p) => ({ p, scratch: true }))].map(({ p, scratch }) => {

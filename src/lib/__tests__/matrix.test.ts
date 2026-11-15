@@ -94,6 +94,7 @@ import { teeSheetChangeAllowed, teeSheetStepOf, toldCount, type TeeSheetChangeAs
 import type { TeeSheet } from "@/lib/domain/tee-sheet";
 import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
 import { formatFitsRound } from "@/lib/domain/round-choices";
+import { needsCommitteeFigure } from "@/lib/domain/committee-figure";
 
 /**
  * The combination sweep.
@@ -1376,6 +1377,51 @@ describe("round handicaps, at every field size and every allowance", () => {
     expect(roundHandicapKey("s1", "p1")).toBe(roundHandicapKey("s1", "p1"));
     expect(roundHandicapKey("s1", "p1")).not.toBe(roundHandicapKey("p1", "s1"));
   });
+});
+
+/**
+ * A PLAYER WITH NO HANDICAP INDEX, swept (lane N, PR A; review of #1144). Every format × stage type ×
+ * scoring basis × "in a net side game" × field size from ONE, with every other player holding no index:
+ *
+ *   1  who is asked: exactly the no-index players, in a round that counts their strokes (any basis but
+ *      gross, or a net side game they are in — a net skins pot or low net on a gross round), and nobody in
+ *      a gross round with no net game. Worked from the basis by name, not through `isNetBasis`.
+ *   2  what a committee's figure prices to: a Course Handicap for the round (Rules of Golf 3.3b(4)), so the
+ *      allowance is taken of it and rounded ONCE, a half up (Rules of Handicapping 6.2a, Appendix C), then
+ *      the strokes for a higher par added (6.2b) — worked in integer hundredths here, a route the code
+ *      does not take: floor((F × A + 50) / 100) + par strokes.
+ */
+describe("a player with no handicap index, at every format, round type, basis and field size", () => {
+  const BASES = ["gross", "net", "both", "stableford"];
+  const FIGURES = [0, 1, 9, 10, 14, 18, 27, 36, 54];
+  for (const n of FIELD_SIZES) {
+    it(`asks for exactly the no-index players, and prices a given figure by the Rule, in a field of ${n}`, () => {
+      const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, handicapSource: i % 2 === 0 ? "none" : "manual" }));
+      const noIndex = players.filter((p) => p.handicapSource === "none").length;
+      for (const format of FORMAT_NAMES) {
+        for (const type of STAGE_TYPES) {
+          for (const scoringBasis of BASES) {
+            for (const netGame of [false, true]) {
+              const at = `${format} / ${type} / ${scoringBasis}${netGame ? " + net side game" : ""}`;
+              const countsStrokes = scoringBasis !== "gross" || netGame;
+              const asked = players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, null)).length;
+              expect(asked, at).toBe(countsStrokes ? noIndex : 0);
+              // Once a figure is given (or frozen), nobody is asked, whatever the cell.
+              expect(players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, { override: 0, frozen: null })).length, at).toBe(0);
+              expect(players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, { override: null, frozen: 0 })).length, at).toBe(0);
+            }
+            const round = { format, type, scoringBasis, handicapAllowance: 0 };
+            const allowance = effectiveAllowance(format, 0, type);
+            const par = parStrokesApply(format, scoringBasis) ? 1 : 0;
+            for (const f of FIGURES) {
+              const byTheRule = Math.floor((f * allowance + 50) / 100) + par;
+              expect(playingHandicapInRound(round, { override: f }, { whole: 0, exact: 0, parStrokes: 1 }), `${format} / ${type} / ${scoringBasis}: given ${f} at ${allowance}%`).toBe(byTheRule);
+            }
+          }
+        }
+      }
+    });
+  }
 });
 
 /**

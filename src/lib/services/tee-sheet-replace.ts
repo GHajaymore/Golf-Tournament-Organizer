@@ -6,6 +6,7 @@ import { acceptsHandicapChange } from "../domain/round-handicap";
 import type { TeeSheet } from "../domain/tee-sheet";
 import type { ReplaceCandidate, ReplaceWorld } from "../domain/tee-sheet-replace";
 import { roundHasReturnedCard } from "./round-handicap";
+import { netSideGamesFor } from "./committee-figure";
 import { sheetFieldFor } from "./sheet-field";
 import { strokeCutField } from "./stroke-cut";
 
@@ -60,6 +61,8 @@ export async function replaceWorldFor(
     prisma.roundHandicap.findMany({ where: { eventId, stageId, override: { not: null } }, select: { playerId: true, override: true } }),
     roundHasReturnedCard(eventId, stageId),
   ]);
+  // Who plays a net side game in this round: the rule asks it of a gross round too (C2).
+  const inNetGame = [...((await netSideGamesFor([eventId], [stageId])).get(stageId) ?? [])];
   const sideOf: Record<string, string> = {};
   for (const t of sides) for (const m of t.members) sideOf[m.playerId] = t.name;
   const flights: Record<string, string> = {};
@@ -77,6 +80,7 @@ export async function replaceWorldFor(
       sameFlight: sides.some((t) => !!t.clubGroupId),
       // No round read means nothing to price, which the rule reads as gross.
       scoringBasis: stage?.scoringBasis ?? "gross",
+      inNetGame,
       figures,
       handicapsFixed: !acceptsHandicapChange(returned),
     },

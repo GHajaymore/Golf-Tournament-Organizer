@@ -6,6 +6,7 @@ import { assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { roundHandicapsFor, roundHasReturnedCard } from "@/lib/services/round-handicap";
+import { netSideGamesFor } from "@/lib/services/committee-figure";
 import { sideNamesOf } from "@/lib/services/side-names";
 import { isFinished } from "@/lib/domain/lifecycle-state";
 import { roundLabel } from "@/lib/domain/round-label";
@@ -35,7 +36,8 @@ import {
  * So this is a committee correction for exactly that player and nobody else:
  *
  *   WHO MAY      staff of the tournament (organizer or assistant organizer), as Give.
- *   WHOM         a confirmed player with no index, in a round scored net (`mayCorrectStrokes`, beside the
+ *   WHOM         a confirmed player with no index, in a round scored net or a net side game they are in
+ *                on a gross round (`mayCorrectStrokes`, beside the
  *                rule), in a round that has a card in — before that, Give is the way (`setRoundHandicapOverride`).
  *   WHAT         whole strokes, 0 to 54 (the band's range), refused otherwise: no rounding at this door.
  *   WHY          a reason is required, and kept: the audit line names the old figure, the new one, who and why.
@@ -95,8 +97,13 @@ export async function correctRoundStrokes(stageId: unknown, playerId: unknown, s
   }
   // A CLOSED ROUND'S RESULTS STAND (re-review R2): a cut or a draw may already have been made from them.
   if (stage.closedAt != null) return { ok: false, error: correctionClosedSaid(label) };
-  if (!mayCorrectStrokes(stage, player)) {
-    return { ok: false, error: `${player.name} has a handicap index, or this round is scored gross: nothing to correct here.` };
+  // A gross round with a net side game this player is in counts their strokes too (C2).
+  const netGame = (await netSideGamesFor([eventId], [stageId])).get(stageId)?.has(playerId) ?? false;
+  if (!mayCorrectStrokes({ scoringBasis: stage.scoringBasis, netGame }, player)) {
+    return {
+      ok: false,
+      error: `${player.name} has a handicap index, or this round is scored gross and they play no net side game in it: nothing to correct here.`,
+    };
   }
   if (!(await roundHasReturnedCard(eventId, stageId))) {
     return { ok: false, error: "No card is in for this round yet. Give the strokes at the top of Rounds & formats." };

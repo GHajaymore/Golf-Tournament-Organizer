@@ -18,6 +18,7 @@ import {
   bandEmptySaid,
   bandHeadingSaid,
   bandLeadSaid,
+  bandSideGameLeadSaid,
   bandStrokes,
   correctedSaid,
   correctionConfirmSaid,
@@ -75,6 +76,8 @@ export interface BandRound {
   label: string;
   /** How the round is priced: the board's own calculation is asked for the "plays off" line. */
   pricing: RoundPricing;
+  /** Scored gross: everybody here plays a net side game in it (`NeedsStrokesRound.sideGame`), so the lead says that. */
+  sideGame: boolean;
   players: BandPlayer[];
 }
 
@@ -213,7 +216,7 @@ export function NeedsStrokesBand({ rounds }: { rounds: BandRound[] }) {
             </h2>
             {giving.length > 0 && (
               <p className="text-muted" style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-                {bandLeadSaid(scoredSaid(r.pricing, allowance), SINK_LIVE)}
+                {r.sideGame ? bandSideGameLeadSaid(SINK_LIVE) : bandLeadSaid(scoredSaid(r.pricing, allowance), SINK_LIVE)}
               </p>
             )}
             {r.players.map((p) => {

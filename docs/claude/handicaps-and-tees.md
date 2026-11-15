@@ -114,6 +114,15 @@ silent, and Replace on the tee sheet printed "no index (gross only)" over a play
 - **Who needs strokes is one function**, `needsCommitteeFigure` (`domain/committee-figure.ts`), and one list,
   `playersNeedingFigure`. Do not ask "no index" and "net" side by side anywhere else:
   `no-index-is-asked-in-one-place.test.ts` refuses it.
+- **A gross round is not the whole question.** A skins pot is net by default (`SkinsPot.net`) and low net is
+  net on any round; both price the player through the board's chain. So the rule takes a REQUIRED `netGame`
+  (this player is in a net side game in the round: `netSideGamesFor`, through `potMembership`), and a
+  no-index player in a net pot on a gross round is asked, listed and correctable like one in a net round.
+  The words never call that round "scored net" ("plays a net side game in Round 1"). A Nassau rides on the
+  round's match, so it is net only in a round scored net.
+- **Every door stores a blank as `"none"`**, and `no-index-every-door.audit.test.ts` presses each one (the
+  organizer's add and CSV, the roster add and CSV, the public form, a member entering themselves with and
+  without a roster row). A door that stores 0 `"manual"` is a scratch golfer nobody declared, on no list.
 - **PR A (caught and given)** tells everybody and gives the figure: a band above the rounds on Rounds &
   formats (staff only; Enter gives and moves on), the launch warning, What's next, the rail's to-do, the
   notes on Entries and Teams & pairs. Its words say what is true while the chain still reads the stored
