@@ -251,7 +251,7 @@ export function CreateFirstTournament({
       if (res?.clubExists) setSameName(true);
       if (res?.ok) router.push(landingAfterCreate("created"));
       // The outfit may have just been named and given its kind on the way to
-      // a refusal (a society's members list comes first): refresh, so the
+      // a refusal (the same name is already here): refresh, so the
       // screen shows the setup it is now waiting on.
       else if (!res?.clubExists && orgName.trim()) router.refresh();
     });
@@ -523,15 +523,13 @@ export function CreateFirstTournament({
                   </label>
                 ))}
               </div>
-              {/* Said BEFORE the click. A club or society adds its members
-                  before its first tournament (the club-first rule), so this
-                  choice leads to that list rather than straight to the
-                  tournament — and a refusal nobody was warned about reads as
-                  the form failing. */}
+              {/* Said BEFORE the click. Event-first (Cut A, 15 Nov 2026): the
+                  members list is never asked for before the tournament. It is
+                  asked for at the draw, and offered on Entries. */}
               {orgProfile(kindChoice, orgCountry, orgNoun).sharedRoster && (
                 <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-                  A {orgProfile(kindChoice, orgCountry, orgNoun).noun} keeps a members list, and adds it before its first
-                  tournament — every field is drawn from it. If yours is empty you&rsquo;ll be asked for it next.
+                  A {orgProfile(kindChoice, orgCountry, orgNoun).noun} keeps a members list. You don&rsquo;t need it yet:
+                  import it on Entries, or when you make the draw.
                 </p>
               )}
             </fieldset>
