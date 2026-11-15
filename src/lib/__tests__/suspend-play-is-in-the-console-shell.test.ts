@@ -107,7 +107,7 @@ describe("one mount: the console's shell", () => {
   it("framed: never on paper, kept in view (sticky under the phone's top bar), kept the server's", () => {
     expect(readSource("src/components/ConsolePlayStatus.tsx")).toMatch(/<PlayStatusFrame since=\{since\}>\s*<PlayStatusControl/);
     const frame = readSource("src/components/PlayStatusFrame.tsx");
-    expect(frame).toMatch(/className="no-print console-play-status"/);
+    expect(frame).toMatch(/className=\{suspended \? "no-print console-play-status" : "no-print"\}/);
     expect(frame, "the frame does not sit under the phone's top bar").toMatch(/querySelector<HTMLElement>\("\.m-topbar"\)/);
     const css = readSource("src/app/globals.css");
     const rule = css.slice(css.indexOf(".console-play-status {"), css.indexOf("}", css.indexOf(".console-play-status {")));
@@ -159,6 +159,28 @@ describe("one mount: the console's shell", () => {
     const css = readSource("src/app/globals.css");
     expect(css).toMatch(/html \{\s*scroll-padding-top: var\(--console-sticky-top, 0px\);\s*\}/);
     expect(readSource("src/components/PlayStatusFrame.tsx")).toMatch(/root\.style\.setProperty\("--console-sticky-top", `\$\{top \+ el\.getBoundingClientRect\(\)\.height\}px`\)/);
+  });
+
+  it("with play on it is no band: an ordinary row, sticky and published only while suspended, decided by the server's answer (#1149 CI, phone)", () => {
+    const frame = readSource("src/components/PlayStatusFrame.tsx");
+    // Decided by `since`, which the server drew with — never by a measurement or a client-only state —
+    // so the server's HTML and the hydrated page have the same box.
+    expect(frame).toMatch(/const suspended = since !== "";/);
+    expect(frame, "the frame publishes the band's edge with play on").toMatch(/if \(!el \|\| !suspended\) return;/);
+    expect(frame).toMatch(/\}, \[suspended\]\);/);
+    // The banner's time arrives after hydration into room kept for it, so the band does not grow then.
+    const control = readSource("src/components/PlayStatusControl.tsx");
+    expect(control).toMatch(/<span style=\{\{ whiteSpace: "nowrap", minWidth: "16ch" \}\}>\{at \? ` since \$\{at\}` : ""\}<\/span>/);
+  });
+
+  it("anything scrolled into view on a phone stops above the fixed tab bar, before hydration and on every console screen (#1149 CI, phone)", () => {
+    const css = readSource("src/app/globals.css");
+    const at = css.indexOf("html:has(.m-tabbar) {");
+    expect(at, "no scroll-padding-bottom for the phone's tab bar").toBeGreaterThan(-1);
+    const rule = css.slice(at, css.indexOf("}", at));
+    expect(rule).toMatch(/scroll-padding-bottom: calc\(80px \+ env\(safe-area-inset-bottom, 0px\)\);/);
+    // Only where the bar is drawn: `.mobile-only` shows at 820px and below.
+    expect(css.slice(css.lastIndexOf("@media", at), at)).toMatch(/^@media \(max-width: 820px\) \{\s*$/);
   });
 
   it("a long confirm stays reachable above the phone's tab bar, and is brought into view when it opens (re-review S1.2)", () => {
@@ -216,7 +238,8 @@ describe("the spec's measurements cannot pass on nothing (Security re-review)", 
     const skips = spec.match(/if \([^)]*(?:Box|box|\.count\(\)|tabs|bar)[^)]*\)\s*(?:\{|expect)/g) ?? [];
     expect(skips, "a measurement is skipped when its subject is missing, and reads as a pass").toEqual([]);
     expect(spec).toMatch(/expect\(at, `CONTROL: \$\{what\} is not on the screen/);
-    expect(spec.match(/await boxOf\(/g)?.length, "every measured element goes through the existence control").toBeGreaterThanOrEqual(6);
+    // Four since #1149's CI fix: with play on there is no sticky Suspend play to measure under the top bar.
+    expect(spec.match(/await boxOf\(/g)?.length, "every measured element goes through the existence control").toBeGreaterThanOrEqual(4);
     expect(spec.match(/toBeGreaterThan\(0\)/g)?.length, "a sticky check on a page that never scrolled proves nothing").toBeGreaterThanOrEqual(2);
   });
 });

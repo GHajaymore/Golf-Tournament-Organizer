@@ -24,7 +24,16 @@ export const PLAY_STATUS_PROBE = "/api/console-play-status";
  * which keeps what is typed and open). A blind refresh every 20 s re-rendered
  * the whole shell — 15–20 queries — all day, for a season-long league.
  *
- * KEPT IN VIEW, AND STACKED, NEVER OVER ANYTHING. Sticky under the phone's top
+ * A BAND ONLY WHILE PLAY IS SUSPENDED (`since` set). With play on, the frame is
+ * an ordinary row at the top of the screen: not sticky, publishing nothing,
+ * so it covers nothing and moves nothing as the page scrolls. As a sticky band
+ * on every live screen it pushed each screen's own controls down into the
+ * strip behind the phone's tab bar, where a press on "Confirm result" on Score
+ * entry met the tab bar instead (#1149's CI, `match-kept-by.spec.ts`, phone).
+ * The class is decided by the server's `since`, so the server's HTML and the
+ * hydrated page draw the same box: nothing jumps when the page comes alive.
+ *
+ * KEPT IN VIEW, AND STACKED, NEVER OVER ANYTHING, while suspended. Sticky under the phone's top
  * bar (its measured height, `--play-status-top`; 0 on a desktop). It publishes
  * where the console's sticky band now ends, `--console-sticky-top` on the
  * document (bar + this frame), and the screens with a sticky header of their
@@ -70,10 +79,12 @@ export function PlayStatusFrame({ since, children }: { since: string; children: 
     // A move between screens asks again at once (`pathname`).
   }, [router, since, pathname]);
 
-  // Measure the bars, and publish where the sticky band ends.
+  const suspended = since !== "";
+
+  // Measure the bars, and publish where the sticky band ends — only while it is one.
   useEffect(() => {
     const el = frame.current;
-    if (!el) return;
+    if (!el || !suspended) return;
     const root = document.documentElement;
     const topBar = document.querySelector<HTMLElement>(".m-topbar");
     const tabBar = document.querySelector<HTMLElement>(".m-tabbar");
@@ -89,12 +100,14 @@ export function PlayStatusFrame({ since, children }: { since: string; children: 
     for (const it of [el, topBar, tabBar]) if (it) watch.observe(it);
     return () => {
       watch.disconnect();
+      el.style.removeProperty("--play-status-top");
+      el.style.removeProperty("--play-status-bottom");
       root.style.removeProperty("--console-sticky-top");
     };
-  }, []);
+  }, [suspended]);
 
   return (
-    <div ref={frame} className="no-print console-play-status">
+    <div ref={frame} className={suspended ? "no-print console-play-status" : "no-print"}>
       {children}
     </div>
   );

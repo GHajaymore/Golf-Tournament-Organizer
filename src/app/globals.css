@@ -601,7 +601,9 @@ body {
   padding: 9px 30px;
 }
 
-/* SUSPEND PLAY IN THE CONSOLE'S SHELL (Rule 5.7; `PlayStatusFrame`). Sticky, so
+/* SUSPEND PLAY IN THE CONSOLE'S SHELL (Rule 5.7; `PlayStatusFrame`). Drawn only
+   WHILE PLAY IS SUSPENDED; with play on, Suspend play is an ordinary row that
+   scrolls away with the page and covers nothing. Sticky, so
    a TD scrolled down a long tee sheet still has it under the thumb; under the
    phone's sticky top bar (`--play-status-top` is that bar's measured height,
    0 on a desktop where the bar is hidden) and beneath it in the stack; on the
@@ -632,6 +634,20 @@ html {
 }
 .console-play-status > * {
   margin-bottom: 0 !important;
+}
+/* AND THE PHONE'S TAB BAR AT THE FOOT (#1149's CI, `match-kept-by.spec.ts` on
+   the phone): the bar is `position: fixed`, so a control scrolled into view
+   "if needed" or to the end of the window landed BEHIND it, and the browser
+   counted it as in view. The scrolled-to box now stops above the bar. Set in
+   CSS, not measured, so it holds before the page is hydrated and on every
+   console screen, not only a live one. 80px is the bar's height at its
+   largest from its own rules (1 border + 6 + a 66px tab + 6), and the inset is
+   the home-indicator strip the bar pays back. Only where the bar is drawn: a
+   casual round has none (`(app)/layout.tsx`), and above 820px it is hidden. */
+@media (max-width: 820px) {
+  html:has(.m-tabbar) {
+    scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 @media (max-width: 820px) {

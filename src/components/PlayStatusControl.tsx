@@ -79,8 +79,12 @@ export function PlayStatusControl({
         style={{ marginBottom: 20, borderColor: "var(--color-danger)", display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}
       >
         <div style={{ minWidth: 0 }}>
-          <strong style={{ color: "var(--color-danger)", display: "flex", alignItems: "center", gap: 6 }}>
-            <Icon name="warning" /> Play is suspended{at ? ` since ${at}` : ""}
+          {/* The time arrives after hydration (the organizer's clock), into room
+              kept for it from the first paint, so the banner — the top of a
+              sticky band — does not grow and push the screen down when it does. */}
+          <strong style={{ color: "var(--color-danger)", display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 6 }}>
+            <Icon name="warning" /> Play is suspended
+            <span style={{ whiteSpace: "nowrap", minWidth: "16ch" }}>{at ? ` since ${at}` : ""}</span>
           </strong>
           <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
             {note ? `${note}. ` : ""}Every player has been told to stop, on their phone and on the public board.

@@ -157,9 +157,10 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
  * sheet and stops play with exactly two presses (the button, then the
  * confirm), the banner and Resume play are on every console screen walked,
  * the dashboard draws ONE control, not two, and resuming is two presses (it
- * confirms: #1149 C3) that leave the organizer where they were. Scrolled down
- * the sheet, the button is still in view (sticky). Each step is read back
- * from the row.
+ * confirms: #1149 C3) that leave the organizer where they were. With play on
+ * it is an ordinary row (no sticky band pushing every live screen's controls
+ * behind the phone's tab bar); once suspended, the banner is sticky. Each step
+ * is read back from the row.
  */
 test("the organizer on a phone suspends play from the tee sheet in two presses, sees it on every console screen, and resumes where they stand", async ({ browser, baseURL }, testInfo) => {
   test.setTimeout(180_000);
@@ -204,13 +205,14 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
       expect(box, `CONTROL: ${what} has no box to measure`).not.toBeNull();
       return box!;
     };
+    // With play on, Suspend play is an ordinary row: no sticky band holds the top of every live
+    // screen and pushes its controls down behind the tab bar (#1149's CI: Confirm result on Score
+    // entry, phone). Scrolled down the sheet, the first press below brings it back into view.
+    await expect(suspendButton).toBeVisible();
+    await expect(page.locator(".console-play-status"), "with play on, a sticky band holds the top of the tee sheet").toHaveCount(0);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const scrolled = await page.evaluate(() => window.scrollY);
-    expect(scrolled, "CONTROL: the tee sheet did not scroll, so a sticky check here proves nothing").toBeGreaterThan(0);
-    await expect(suspendButton, `scrolled ${scrolled}px down the tee sheet, Suspend play is out of view`).toBeInViewport();
-    const bar = await boxOf("the phone's top bar", page.locator(".m-topbar"));
-    const button = await boxOf("Suspend play", suspendButton);
-    expect(button.y, "Suspend play is under the phone's top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+    expect(scrolled, "CONTROL: the tee sheet did not scroll, so the press below is not made from down the sheet").toBeGreaterThan(0);
 
     // ── two presses; the open confirm, scrolled down, is in view and above the tab bar ─
     await press("Suspend play");
