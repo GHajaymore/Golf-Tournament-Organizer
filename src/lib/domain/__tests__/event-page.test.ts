@@ -17,9 +17,9 @@ const played = (f: TournamentFacts) => ({ ...f, rounds: f.rounds.map((r) => ({ .
 
 describe("where the tournament is — the machine's journey", () => {
   it("is before the day until it is launched or a result is in", () => {
-    for (const s of ["draft", "registration", "ready"]) expect(phaseOf(facts({ status: s })), s).toBe("before");
+    expect(phaseOf(facts({ status: "draft" }))).toBe("before");
     // A card typed in before launch is play, as the dashboard says.
-    expect(phaseOf(played(facts({ status: "registration" })))).toBe("during");
+    expect(phaseOf(played(facts({ status: "draft" })))).toBe("during");
     expect(phaseOf(launched(facts()))).toBe("during");
   });
 

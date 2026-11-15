@@ -29,7 +29,7 @@ export interface ReportCardInput {
   margin: string;
   /** One line of the highlights: "Eagle · Bob Example". "" for none. */
   highlight: string;
-  /** A cup: the score, "14½–9½", and the verdict's words, "CDG win the cup". */
+  /** A cup: the score, "14½–9½", and the verdict's words, "Pines win the cup". */
   cup?: { score: string; verdict: string } | null;
 }
 

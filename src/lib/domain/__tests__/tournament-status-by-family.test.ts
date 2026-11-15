@@ -964,7 +964,7 @@ describe("what the next action may and may not offer — swept over every stage 
   for (const { family, stage } of ALL) {
     describe(`${family} · ${stage.name}`, () => {
       const st = tournamentStatus(stage.f);
-      const launched = stage.f.status !== "draft" && stage.f.status !== "registration" && stage.f.status !== "ready";
+      const launched = stage.f.status !== "draft";
       const scored = stage.f.rounds.some((r) => r.hasResult);
 
       it("offers only what the step allows", () => {
@@ -1156,7 +1156,7 @@ describe("the scoring gate — play is refused only before launch, and never onc
   for (const { family, stage } of ALL) {
     it(`${family} · ${stage.name}`, () => {
       const st = tournamentStatus(stage.f);
-      const launched = !["draft", "registration", "ready"].includes(stage.f.status);
+      const launched = stage.f.status !== "draft";
       const scored = stage.f.rounds.some((r) => r.hasResult);
       if (launched || scored) expect(st.refusals.play).toBeNull();
       else expect(st.refusals.play).toMatch(/hasn’t been launched yet/);

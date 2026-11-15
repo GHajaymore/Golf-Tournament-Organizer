@@ -94,7 +94,7 @@ describe("going live is launching, whichever door asks", () => {
   });
 
   it("launches a tournament that can be launched: stamped and locked", async () => {
-    const id = await tournament("ready", "ready", true);
+    const id = await tournament("ready", "draft", true);
     expect(await setEventStatus("live")).toEqual({ ok: true });
     const after = await read(id);
     expect(after?.status).toBe("live");
@@ -156,7 +156,7 @@ describe("a status nobody recognises is refused, not read as draft", () => {
 
 describe("a launched tournament does not go back to setting up", () => {
   for (const from of ["live", "completed"]) {
-    for (const to of ["draft", "registration", "ready"]) {
+    for (const to of ["draft"]) {
       it(`${from} to ${to} is refused, and says what to use instead`, async () => {
         const id = await tournament(`${from}-${to}`, from);
         const res = await setEventStatus(to);
@@ -172,11 +172,16 @@ describe("a launched tournament does not go back to setting up", () => {
     // offers Launch only. A move between them gates nothing, so it is refused
     // and the stored value stays — the refusal is NOT the launched one.
     const id = await tournament("setting-up", "draft");
-    for (const to of ["registration", "ready", "draft"]) {
-      const res = await setEventStatus(to);
-      expect(res.ok, `${to} was written`).toBe(false);
-      expect(res.error ?? "").toMatch(/one Setting up step/);
-      expect(res.error ?? "").not.toMatch(/committee correction/);
+    const res = await setEventStatus("draft");
+    expect(res.ok, "draft was written").toBe(false);
+    expect(res.error ?? "").toMatch(/one Setting up step/);
+    expect(res.error ?? "").not.toMatch(/committee correction/);
+    // The old ladder's two later words are not statuses since A045 (state machine PR 8): refused as
+    // unknown words, and nothing is written.
+    for (const to of ["registration", "ready"]) {
+      const old = await setEventStatus(to);
+      expect(old.ok, `${to} was written`).toBe(false);
+      expect(old.error ?? "").toMatch(/not a tournament status/);
     }
     expect((await read(id))?.status).toBe("draft");
   });

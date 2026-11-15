@@ -54,7 +54,7 @@ test("launch is refused in place for a scramble with no sides, and warns about t
         // "New Tournament" is the placeholder a blank name falls back to: not named yet,
         // which makes the fourth warning, so the dialog folds its third row.
         organizationId: org.id, name: "New Tournament", dates: "Nov 14–15", course: "Home", city: "", address: "", regDeadline: "",
-        status: "ready", shareToken: `zz-launchsetup-${size}-${Date.now()}`, configUnlocked: true,
+        status: "draft", shareToken: `zz-launchsetup-${size}-${Date.now()}`, configUnlocked: true,
         customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
         customYards: JSON.stringify(new Array(18).fill(400)),
       },
@@ -86,7 +86,7 @@ test("launch is refused in place for a scramble with no sides, and warns about t
     const reason = page.locator(`#${await launch.getAttribute("aria-describedby")}`);
     await expect(reason).toContainText(`${NO_SIDES} Make the sides on Teams & pairs, then launch.`);
     await expect(reason.getByRole("link", { name: "Open Teams & pairs" })).toHaveAttribute("href", "/teams");
-    expect(await status(), "refusing changed the tournament").toBe("ready");
+    expect(await status(), "refusing changed the tournament").toBe("draft");
 
     // The sides are made: Launch opens, and the dialog lists what is still open, first.
     for (const [i, pair] of [players.slice(0, 2), players.slice(2)].entries()) {

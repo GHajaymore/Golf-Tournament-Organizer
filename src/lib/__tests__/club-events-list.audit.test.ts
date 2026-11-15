@@ -343,19 +343,24 @@ describe("a tournament being played in DRAFT", () => {
 });
 
 describe("one setting-up step (G1, 2026-10-31)", () => {
-  it("lists one being set up once its link is published; with no link, a legacy registration or ready row stays and a draft does not", async () => {
+  it("lists one being set up once its link is published; with no link, a row A045 moved stays and a draft does not", async () => {
     const org = await prisma.organization.findFirstOrThrow({ where: { events: { some: { id: id.draftEmpty } } }, select: { id: true } });
     const made: string[] = [];
     try {
-      for (const status of ["draft", "registration", "ready"]) {
-        made.push(await makeEvent(org.id, `g1-open-${status}`, { status, registrationOpen: true }));
-        made.push(await makeEvent(org.id, `g1-shut-${status}`, { status, registrationOpen: false }));
+      // Every tournament before launch is stored `draft` since A045 (state machine PR 8); a row that
+      // was stored in one of the old ladder's two later words kept it in `legacyStatus`. Written by
+      // SQL, as A045 wrote it: nothing in the app writes that column.
+      for (const old of ["", "registration", "ready"]) {
+        const open = await makeEvent(org.id, `g1-open-${old || "new"}`, { status: "draft", registrationOpen: true });
+        const shut = await makeEvent(org.id, `g1-shut-${old || "new"}`, { status: "draft", registrationOpen: false });
+        made.push(open, shut);
+        await prisma.$executeRaw`UPDATE "Event" SET "legacyStatus" = ${old} WHERE "id" IN (${open}, ${shut})`;
       }
       const byId = await rows();
       const listed = made.map((m) => byId.has(m));
-      // Nothing members could see before G1 disappears: a stored registration or
-      // ready row keeps its place with no link (QA, 2026-10-31); a draft does not.
-      expect(listed, "open, shut — for draft, registration, ready").toEqual([true, false, true, true, true, true]);
+      // Nothing members could see before G1 disappears: a row that kept an old word keeps its
+      // place with no link (QA, 2026-10-31); a new draft with no link does not.
+      expect(listed, "open, shut — for a new draft, then each old word").toEqual([true, false, true, true, true, true]);
     } finally {
       await prisma.event.deleteMany({ where: { id: { in: made } } });
     }

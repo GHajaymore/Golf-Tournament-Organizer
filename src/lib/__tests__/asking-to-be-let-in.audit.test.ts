@@ -98,7 +98,7 @@ beforeAll(async () => {
       data: {
         organizationId: leagueId,
         name: `${TAG} Week 1`,
-        status: "registration", shape: "series", format: "stroke", formationRule: "balanced",
+        status: "draft", shape: "series", format: "stroke", formationRule: "balanced",
         dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
         shareToken: `${TAG.toLowerCase()}-share-1`,
         registrationToken: `${TAG.toLowerCase()}-reg-1`,

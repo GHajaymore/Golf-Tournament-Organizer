@@ -84,7 +84,7 @@ beforeAll(async () => {
     data: {
       organizationId: orgId,
       name: `${TAG} Spring Medal`,
-      status: "registration", shape: "single", format: "stroke", formationRule: "balanced",
+      status: "draft", shape: "single", format: "stroke", formationRule: "balanced",
       dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
       shareToken: `${TAG}-share`,
       registrationToken: `${TAG}-reg`,

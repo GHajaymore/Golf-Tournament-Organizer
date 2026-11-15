@@ -37,7 +37,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed } from "./deploy-rules.mjs";
+import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed, nightlyNeeded } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
 const args = process.argv.slice(2);
@@ -158,6 +158,7 @@ if (!/^[0-9a-f]{40}$/.test(SHA)) {
 
 let decided;
 let deployed = null;
+let wantsNightly = false;
 try {
   deployed = deployedSha();
   const alreadyThere = Boolean(deployed) && isAncestor(SHA, deployed.sha);
@@ -165,7 +166,7 @@ try {
   const coreCommits = alreadyThere ? [] : waitingCommitsSince(deployed?.sha ?? null, SHA);
   const nightlies = coreCommits.length || !deployed ? cleanNightlies() : [];
   const covered = (c) => nightlies.some((n) => isAncestor(c, n));
-  decided = decideDeploy({
+  const facts = {
     sha: SHA,
     verifyGreen: green,
     deployed: deployed?.sha ?? null,
@@ -175,7 +176,9 @@ try {
     nightlyCoversSha: covered(SHA),
     window: alreadyThere ? { checked: false, frozen: false, reason: "not asked" } : await freeze(),
     overrideFreeze: OVERRIDE,
-  });
+  };
+  decided = decideDeploy(facts);
+  wantsNightly = nightlyNeeded(facts);
 } catch (e) {
   console.error(`DEPLOY GATE: could not ask GitHub or git — nothing deploys — ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
@@ -188,7 +191,7 @@ const lines = [
 ];
 for (const l of lines) console.log(l);
 if (process.env.GITHUB_OUTPUT) {
-  appendFileSync(process.env.GITHUB_OUTPUT, `decision=${decided.decision}\nreason=${decided.reason.replace(/\n/g, " ")}\ndeployed=${deployed?.sha ?? ""}\n`);
+  appendFileSync(process.env.GITHUB_OUTPUT, `decision=${decided.decision}\nreason=${decided.reason.replace(/\n/g, " ")}\ndeployed=${deployed?.sha ?? ""}\nnightly_needed=${wantsNightly}\n`);
 }
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Deploy gate: ${decided.decision}\n\n${lines.map((l) => `- ${l.trim()}`).join("\n")}\n`);

@@ -55,7 +55,7 @@ beforeAll(async () => {
       organizationId: org.id,
       shape: "series",
       format: "match",
-      status: "active",
+      status: "live",
       dates: "",
       course: "",
       city: "",

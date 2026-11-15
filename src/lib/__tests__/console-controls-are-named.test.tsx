@@ -111,7 +111,7 @@ describe("console form controls are named", () => {
         waitlist={[player("p3", "zz-Cleo Green", 20)]}
         pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 2, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 2, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -127,7 +127,7 @@ describe("console form controls are named", () => {
     // A society taking entries before it chooses the format (Ajay, 2026-10-16).
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const ev = {
-      name: "zz-Society Day", capacity: 40, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+      name: "zz-Society Day", capacity: 40, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
       registrationOverride: null, inviteMessage: "", organizationName: "zz-Society",
       dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
       requirePhone: false, registrationToken: "",

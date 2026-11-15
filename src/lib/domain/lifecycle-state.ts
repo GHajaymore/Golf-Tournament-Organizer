@@ -89,8 +89,16 @@ export interface LifecycleWarning {
  * field still cannot see any of this, and the warning below tells them again
  * once a score arrives. Two readers, one definition — a second copy is how the
  * two would come to disagree about what "launched" means.
+ *
+ * ONE WORD SINCE STATE MACHINE PR 8 (J14). It held three — `registration` and
+ * `ready` were steps of the old ladder, read as one Setting-up step since G1
+ * (31 Oct) and written by nothing since #976. Migration A045 moved every row
+ * still holding one to `draft` and kept the old word in `Event.legacyStatus`,
+ * which is where the only difference they still made (members may see it,
+ * `openToMembers`) is read now. `no-tournament-keeps-an-old-word.test.ts`
+ * refuses either word as a tournament's status anywhere in src, scripts or e2e.
  */
-export const PRE_LAUNCH_STATUSES = ["draft", "registration", "ready"];
+export const PRE_LAUNCH_STATUSES = ["draft"];
 const PRE_LAUNCH = PRE_LAUNCH_STATUSES;
 
 /**
@@ -207,7 +215,7 @@ export function configurationLocked(event: { status: string; configUnlocked: boo
  * share a word.
  */
 export function playerAppShut(
-  event: { status: string; accessGated: boolean; registrationOpen: boolean },
+  event: { status: string; accessGated: boolean; registrationOpen: boolean; legacyStatus: string },
   isStaff: boolean,
 ): boolean {
   if (isStaff) return false;
@@ -231,14 +239,19 @@ export function playerAppShut(
  * switch is the PUBLISHED SIGN-UP LINK: from then on there is something true to
  * tell a member. And, so that nothing members could see before G1 disappears
  * (QA with the tournament director, customer success and security, 2026-10-31),
- * a row still STORED as `registration` or `ready` keeps the visibility it had —
- * those two were open to members under the old ladder. New tournaments never
- * reach either value (`statusMove` refuses the move), so going forward the
- * link is the switch. `draft` with no link stays closed, as it always was.
+ * a row that was STORED in one of the old ladder's two later words keeps the
+ * visibility it had — those two were open to members. Migration A045 (state
+ * machine PR 8) moved those rows to `draft` and kept the old word in
+ * `legacyStatus`, so that is what is asked here: any old word at all, because
+ * both were open. Nothing writes `legacyStatus`, so going forward the link is
+ * the switch. `draft` with no link and no old word stays closed, as it always was.
+ *
+ * Asked by TRUTH, not `!== ""`: a client generated before A045 hands back a row
+ * with no such field, and an absent word must read as none — never as "open".
+ * REQUIRED, so the compiler lists every caller that must select it.
  */
-const LEGACY_OPEN_STATUSES = ["registration", "ready"];
-export function openToMembers(event: { status: string; registrationOpen: boolean }): boolean {
-  return isLaunched(event.status) || event.registrationOpen || LEGACY_OPEN_STATUSES.includes(event.status);
+export function openToMembers(event: { status: string; registrationOpen: boolean; legacyStatus: string }): boolean {
+  return isLaunched(event.status) || event.registrationOpen || !!event.legacyStatus;
 }
 
 /**

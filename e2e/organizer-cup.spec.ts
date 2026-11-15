@@ -52,7 +52,8 @@ test("a new organizer sets up a team cup", async ({ page }) => {
     await page.getByRole("button", { name: /^A series of rounds/ }).click();
     await page.getByLabel("Start from").selectOption("team-cup");
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("date and course", async () => {

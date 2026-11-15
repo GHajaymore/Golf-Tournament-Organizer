@@ -30,7 +30,6 @@ export function facts(over: Partial<TournamentFacts> = {}): TournamentFacts {
   return {
     today: "2026-11-03",
     status: "draft",
-    legacyStatus: "",
     configUnlocked: false,
     correction: null,
     shape: "single",

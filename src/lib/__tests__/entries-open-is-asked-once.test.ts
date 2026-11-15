@@ -19,7 +19,7 @@ import { decideIntake } from "../domain/registration-intake";
 const at = (iso: string) => new Date(`${iso}T12:00:00`);
 
 const reg = (over: Partial<RegistrationInput> = {}): RegistrationInput => ({
-  eventStatus: "registration",
+  eventStatus: "draft",
   deadline: "2026-06-14",
   opens: "",
   capacity: 0,

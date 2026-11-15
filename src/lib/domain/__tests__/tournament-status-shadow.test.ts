@@ -260,8 +260,9 @@ const SHAPES: Shape[] = [
   },
   { name: "a confirmed draw before launch", facts: { ...F.stroke(), flightsConfirmed: true } },
   { name: "live and unlocked by the organizer", facts: { ...launched(F.stroke()), configUnlocked: true } },
-  { name: "a legacy 'registration' row", facts: { ...F.stroke(), status: "registration" } },
-  { name: "a legacy 'ready' row", facts: { ...F.stroke(), status: "ready" } },
+  // The two legacy rows (the old ladder's later words) left with A045 (state machine PR 8): it moved
+  // every such row to `draft`, which the first shapes above already cover; no stored status is left
+  // for them to shadow. `a-legacy-row-keeps-its-word.audit.test.ts` proves the move.
   { name: "live and suspended", facts: { ...launched(F.stroke()), playSuspended: true } },
 ];
 

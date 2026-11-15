@@ -28,7 +28,7 @@ describe("the order of the list", () => {
 });
 
 const band = (over: Partial<Parameters<typeof eventBand>[0]> = {}) =>
-  eventBand({ eventStatus: "registration", regState: "open", canEnter: false, entered: false, ...over });
+  eventBand({ eventStatus: "draft", regState: "open", canEnter: false, entered: false, ...over });
 
 describe("the band on a tournament card", () => {
   it("says Finished over everything, entered or not", () => {
@@ -57,7 +57,7 @@ describe("the band on a tournament card", () => {
   it("files each tournament under one When, by its own status", () => {
     expect(whenOf("completed")).toBe("finished");
     expect(whenOf("live")).toBe("now");
-    for (const s of ["draft", "registration"]) expect(whenOf(s)).toBe("upcoming");
+    for (const s of ["draft"]) expect(whenOf(s)).toBe("upcoming");
   });
 
   it("files a live tournament the member is IN under On now", () => {

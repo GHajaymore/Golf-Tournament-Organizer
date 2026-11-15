@@ -68,7 +68,7 @@ async function tournament(name: string, open: boolean, capacity: number) {
     data: {
       organizationId: orgId,
       name: `${TAG} ${name}`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       formationRule: "balanced",

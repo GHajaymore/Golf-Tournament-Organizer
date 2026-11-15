@@ -206,7 +206,7 @@ describe("Members", () => {
     const lee = await entrant("Lee", 18.4);
     const other = await prisma.event.create({
       data: {
-        organizationId: orgId, name: `${TAG} Spring Meeting`, status: "registration", shape: "single", format: "stroke",
+        organizationId: orgId, name: `${TAG} Spring Meeting`, status: "draft", shape: "single", format: "stroke",
         formationRule: "balanced", dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
         shareToken: `idx-o-${Math.random()}`, registrationToken: `r-idx-o-${Math.random()}`,
       },

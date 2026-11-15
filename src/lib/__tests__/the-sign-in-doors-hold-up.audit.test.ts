@@ -98,7 +98,7 @@ beforeAll(async () => {
     data: {
       organizationId: orgId,
       name: `${MARK} Open`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       formationRule: "balanced",
@@ -400,7 +400,7 @@ describe("review fixes (2026-11-13)", () => {
     const wifiToken = randomBytes(6).toString("hex");
     await prisma.event.create({
       data: {
-        organizationId: orgId, name: `${MARK} Wifi Morning`, status: "registration", shape: "single", format: "stroke",
+        organizationId: orgId, name: `${MARK} Wifi Morning`, status: "draft", shape: "single", format: "stroke",
         formationRule: "balanced", dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 200,
         registrationOpen: true, registrationApproval: "auto", registrationToken: wifiToken, shareToken: `${MARK}-wifi`,
       },

@@ -65,7 +65,7 @@ export interface FinalReport {
   teams: [string, string];
   score: [number, number];
   verdict: ReportVerdict;
-  /** "CDG win the cup"; empty while the cup is open. */
+  /** "Pines win the cup"; empty while the cup is open. */
   ribbon: string;
   /** Points to win, and every point in the cup. */
   target: number;

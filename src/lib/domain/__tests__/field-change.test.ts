@@ -36,10 +36,10 @@ import { NO_SHEET } from "../../__tests__/field-doors";
  * regression table copied from the present guard, `configurationLocked`).
  */
 
+// One stored status before launch since A045 (state machine PR 8): the old ladder's two later
+// words are not statuses any more, so they are not stages of this table.
 type Stage =
   | "draft"
-  | "registration"
-  | "ready"
   | "live"
   | "liveWithResult"
   | "completed"
@@ -47,7 +47,7 @@ type Stage =
   | "unlockedWithResult"
   | "fieldCorrection"
   | "flightsCorrection";
-const STAGES: Stage[] = ["draft", "registration", "ready", "live", "liveWithResult", "completed", "unlocked", "unlockedWithResult", "fieldCorrection", "flightsCorrection"];
+const STAGES: Stage[] = ["draft", "live", "liveWithResult", "completed", "unlocked", "unlockedWithResult", "fieldCorrection", "flightsCorrection"];
 
 /** A committee correction open on one scope, after Round 1's first card — the day the way out is needed. */
 const correctionOn = (scope: "field" | "flights") => ({ scope, by: "A. Organizer", reason: "A walk-in after the first card", until: "2026-11-30T05:00:00.000Z" });
@@ -60,8 +60,6 @@ function at(family: Family, stage: Stage): TournamentFacts {
   });
   switch (stage) {
     case "draft":
-    case "registration":
-    case "ready":
       return { ...f, status: stage, configUnlocked: false };
     case "live":
       return launched(f);
@@ -99,7 +97,7 @@ function expected(family: Family, stage: Stage, change: FieldChange): boolean {
    */
   const entering = change === "add" || change === "add-to-flight" || change === "approve";
   if (KNOCKOUTS.includes(family) && WITH_RESULT.includes(stage) && entering) return false;
-  if (stage === "draft" || stage === "registration" || stage === "ready" || stage === "unlocked" || stage === "unlockedWithResult") {
+  if (stage === "draft" || stage === "unlocked" || stage === "unlockedWithResult") {
     return true;
   }
   /**

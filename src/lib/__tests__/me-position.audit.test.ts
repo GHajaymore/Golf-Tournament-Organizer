@@ -38,7 +38,7 @@ async function seedEvent(format: string, eventFormat: "stroke" | "match") {
       address: "",
       regDeadline: "",
       capacity: 0,
-      status: "active",
+      status: "live",
       shape: "series",
       formationRule: "balanced",
       shareToken: `audit-me-${Date.now()}-${Math.random()}`,
