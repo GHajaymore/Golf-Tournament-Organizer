@@ -7,7 +7,6 @@ import {
   threadView,
   postToScope,
   staffBroadcast,
-  openDirectThread,
   openDirectThreadWithPlayers,
   markRead,
   unreadTotal,
@@ -151,7 +150,7 @@ afterAll(async () => {
 });
 
 const ctxFor = (who: string, role: "admin" | "assistant" | "player" = "player") =>
-  membershipFor(eventId, at(who), role);
+  membershipFor({ email: at(who), role }, eventId);
 
 describe("membership is derived from the tournament", () => {
   it("puts a player in their own flight, round, match and four", async () => {
@@ -214,7 +213,7 @@ describe("a thread id from somewhere else", () => {
     // created. That is also why this assertion is on the post and not only on
     // the open — the original version of this test performed the post without
     // checking it, and missed a bug that made every direct message invisible.
-    const opened = await openDirectThread(rita, [at("sam")], "Rita", "just us");
+    const opened = await openDirectThreadWithPlayers(rita, [player.sam], "Rita", "just us");
     expect(opened.ok, opened.error).toBe(true);
 
     const dev = (await ctxFor("dev"))!;
@@ -342,18 +341,20 @@ describe("unread", () => {
 });
 
 describe("direct threads", () => {
-  it("refuses somebody outside the tournament and names them", async () => {
+  it("refuses somebody outside the tournament", async () => {
+    // Since J39/J40 PR 2 no address (or any who-key) reaches the direct-thread door from a caller:
+    // `openDirectThread` is not exported, and the picker's door takes entries of this event only.
     const rita = (await ctxFor("rita"))!;
-    const res = await openDirectThread(rita, ["stranger@example.invalid"], "Rita");
+    const res = await openDirectThreadWithPlayers(rita, ["zz-not-an-entry-here"], "Rita");
     expect(res.ok).toBe(false);
-    expect(res.error).toContain("stranger@example.invalid");
+    expect(res.error).toContain("isn't in this tournament");
   });
 
   it("gives both people the same thread whoever opens it", async () => {
     const rita = (await ctxFor("rita"))!;
     const sam = (await ctxFor("sam"))!;
-    const a = await openDirectThread(rita, [at("sam")], "Rita");
-    const b = await openDirectThread(sam, [at("rita")], "Sam");
+    const a = await openDirectThreadWithPlayers(rita, [player.sam], "Rita");
+    const b = await openDirectThreadWithPlayers(sam, [player.rita], "Sam");
     expect(a.threadId).toBe(b.threadId);
   });
 });
@@ -377,7 +378,7 @@ describe("turning direct messages off", () => {
     });
 
     const rita = (await ctxFor("rita"))!;
-    const res = await openDirectThread(rita, [at("sam")], "Rita", "hello");
+    const res = await openDirectThreadWithPlayers(rita, [player.sam], "Rita", "hello");
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/turned off direct messages/i);
   });
@@ -418,7 +419,7 @@ describe("turning direct messages off", () => {
     // threads. A staff bypass on the private channel would make the setting
     // advisory, which is not what it says on the screen.
     const admin = (await ctxFor("rita", "admin"))!;
-    const res = await openDirectThread(admin, [at("sam")], "Organizer", "quick word");
+    const res = await openDirectThreadWithPlayers(admin, [player.sam], "Organizer", "quick word");
     expect(res.ok).toBe(false);
   });
 
