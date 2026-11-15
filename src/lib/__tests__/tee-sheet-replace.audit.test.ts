@@ -113,7 +113,6 @@ async function makeEvent(name: string, attendanceMode?: string) {
       regDeadline: "",
       shareToken: `${TAG}-${name}-${Date.now()}`,
       status: "live",
-      configUnlocked: false,
       ...(attendanceMode ? { attendanceMode } : {}),
     },
   });

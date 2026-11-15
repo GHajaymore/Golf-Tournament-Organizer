@@ -187,7 +187,6 @@ export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | n
     where: { id: eventId },
     select: {
       status: true,
-      configUnlocked: true,
       correctionScope: true,
       correctionReason: true,
       correctionBy: true,
@@ -227,7 +226,6 @@ export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | n
   }
   return {
     status: event.status,
-    configUnlocked: event.configUnlocked,
     correction: openCorrectionOf(event, new Date()),
     flightsConfirmed: event.flightsConfirmed,
     shape: event.shape,
@@ -275,7 +273,6 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
       customPars: true,
       shape: true,
       status: true,
-      configUnlocked: true,
       // The one open committee correction (PR 5b), read by `openCorrectionOf` while it has not lapsed.
       correctionScope: true,
       correctionReason: true,
@@ -448,7 +445,6 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
     out.set(id, {
       facts: {
         status: event.status,
-        configUnlocked: event.configUnlocked,
         // An instant against an instant: the correction lapses when the club's day ended (`endOfClubDay`).
         correction: openCorrectionOf(event, new Date()),
         shape: event.shape,

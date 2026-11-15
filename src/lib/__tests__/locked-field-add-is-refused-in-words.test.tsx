@@ -80,7 +80,7 @@ const isDisabled = (tag: string) => /\sdisabled=""/.test(tag);
 
 describe("Entries under way in a stroke field: the day-of doors are open", () => {
   const doors = liveDoors("stroke");
-  const underWay = fieldBanner({ status: "live", configUnlocked: false, correction: null, family: "stroke", playedRound: null, flightsConfirmed: false, flights: 0, knockoutDrawn: false, ...NO_SHEET });
+  const underWay = fieldBanner({ status: "live", correction: null, family: "stroke", playedRound: null, flightsConfirmed: false, flights: 0, knockoutDrawn: false, ...NO_SHEET });
 
   it("says it is under way and what is still open, not 'Setup locked'", async () => {
     const html = await reg({ locked: true, doors, underWay });

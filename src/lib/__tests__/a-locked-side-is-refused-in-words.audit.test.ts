@@ -46,6 +46,7 @@ import {
   setStageAllowanceWeights,
 } from "@/app/actions/teams";
 import { applySetupProposal } from "@/app/actions/setup-suggest";
+import { openCorrectionOn, endCorrectionOn } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SM5A";
@@ -70,7 +71,6 @@ beforeAll(async () => {
       // LAUNCHED, and setup not unlocked: the state a press from a stale screen meets.
       status: "live",
       launchedAt: new Date(),
-      configUnlocked: false,
       dates: "",
       course: "",
       city: "",
@@ -204,15 +204,19 @@ describe("on a launched tournament, every structural press on sides and rounds i
     await prisma.stage.deleteMany({ where: { eventId, position: { gt: 1 } } });
   });
 
-  it("THE CONTROL: unlocked on the day, the same presses go through", async () => {
-    await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: true } });
+  it("THE CONTROL: each part opened by a committee correction on the day, the same presses go through", async () => {
+    // PR 9b: the blanket unlock this used is not read. One part at a time: the sides, then the rounds.
     try {
+      await openCorrectionOn(prisma, eventId, "sides");
       expect(await createTeam(`${TAG} spare`, fourBall)).toEqual({ ok: true });
       expect(await addTeamMember(teamId, reserveId)).toEqual({ ok: true });
+      // And the sides' correction is not a blanket: the round's setting is still refused.
+      expect(await setStageCountBest(fourBall, 2, true)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
+      await openCorrectionOn(prisma, eventId, "rounds");
       expect(await setStageCountBest(fourBall, 2, true)).toEqual({ ok: true });
       expect((await prisma.stage.findUniqueOrThrow({ where: { id: fourBall } })).countBest).toBe(2);
     } finally {
-      await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: false } });
+      await endCorrectionOn(prisma, eventId);
     }
   });
 });

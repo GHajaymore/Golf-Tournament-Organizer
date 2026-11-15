@@ -46,7 +46,6 @@ beforeAll(async () => {
       organizationId: org.id,
       name: `${TAG} two rounds`,
       status: "live",
-      configUnlocked: true,
       dates: "",
       course: "Home",
       city: "",

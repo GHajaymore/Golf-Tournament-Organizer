@@ -78,22 +78,13 @@ export function isFinished(status: string): boolean {
   return status === "completed";
 }
 
-/**
- * IS THE CONFIGURATION FROZEN — the composite, which was the one really being
- * copied.
- *
- * `isSetupLocked` in `page-helpers.ts` has said `launched && !configUnlocked`
- * for a long time, and four other places said it again by hand: the roster
- * screen, the roster action, `action-shared`'s guard and `LifecycleBar`. Five
- * copies of one sentence, and `page-helpers` is `server-only` so a client
- * component could not have called it even if somebody had thought to.
- *
- * Here instead, where both halves can reach it. `isSetupLocked` now delegates,
- * so the server-side name keeps working and there is still one answer.
+/*
+ * IS THE CONFIGURATION FROZEN lived here until state machine PR 9b, as
+ * "launched AND not unlocked by the blanket flag". The blanket is retired and its
+ * flag is not read; the one predicate is the machine's `setupLockedByLaunch(status,
+ * family)` in `tournament-status.ts`, which says what the flag used to say for a
+ * casual round: it never locks.
  */
-export function configurationLocked(event: { status: string; configUnlocked: boolean }): boolean {
-  return isLaunched(event.status) && !event.configUnlocked;
-}
 
 /**
  * IS THE PLAYER APP SHUT TO A PLAYER — the other half of what launching means.

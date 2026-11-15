@@ -7935,7 +7935,6 @@ describe("the lifecycle button names the phase, not the link", () => {
       <LifecycleBar
         status={cardFor(status)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
       />,
     );
@@ -8012,7 +8011,6 @@ describe("a Par tournament is offered the upgrade before it is deleted", () => {
       <LifecycleBar
         status={cardFor(status, 3, 8)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
         deletesOnComplete={deletes}
         keepOffer={deletes ? offer : undefined}
@@ -8060,7 +8058,6 @@ describe("a draft that is already being played", () => {
       <LifecycleBar
         status={cardFor(status, played)}
         isAdmin={isAdmin}
-        configUnlocked={false}
         summary={summary}
       />,
     );

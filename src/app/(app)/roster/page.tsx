@@ -58,7 +58,8 @@ export default async function RosterPage() {
     session.eventId
       ? prisma.event.findUnique({
           where: { id: session.eventId },
-          select: { name: true, status: true, configUnlocked: true },
+          // The name only: the status and the retired blanket flag were selected and never read (state machine PR 9b).
+          select: { name: true },
         })
       : null,
   ]);

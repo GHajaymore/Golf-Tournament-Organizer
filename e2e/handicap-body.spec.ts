@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { openSettingsTab } from "./settings-tabs";
+import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
 
 /**
  * A CLUB'S HANDICAP BODY FOLLOWS WHERE THE CLUB IS — ON EVERY SCREEN THAT NAMES IT.
@@ -72,7 +73,7 @@ test("a club's handicap body follows its country on Club settings, Members and E
   const page = await ctx.newPage();
   watchPageErrors(page, errors);
   /** The tournament's setup lock as it was, when the visitor step had to open it. */
-  let unlockedWas: boolean | null = null;
+  let fieldOpened = false;
   try {
     for (const place of PLACES) {
       await test.step(`${place.country || "no country yet"} → ${place.name}`, async () => {
@@ -122,11 +123,11 @@ test("a club's handicap body follows its country on Club settings, Members and E
     await test.step("a US club on GHIN only keeps an England Golf visitor's own index", async () => {
       await prisma.organization.update({ where: { id: clubId }, data: { country: "United States", handicapPolicy: "ghin", handicapAuthorityId: "ghin" } });
       // The fixture's tournament is live with setup locked, and a locked field
-      // takes nobody new ("Setup is locked, so nobody can be added") — so it is
-      // unlocked for this step, as an organizer would, and put back below.
-      const was = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { configUnlocked: true } });
-      unlockedWas = was.configUnlocked;
-      await prisma.event.update({ where: { id: data.eventId }, data: { configUnlocked: true } });
+      // takes nobody new — so the FIELD is opened for this step with a committee
+      // correction, as an organizer would (state machine PR 9b: the blanket
+      // unlock is not read), and closed in `finally`.
+      await openCorrectionFor(prisma, data.eventId, "field");
+      fieldOpened = true;
       await open(page, "/registration");
       const add = page.locator(".card", { has: page.locator(".card-title", { hasText: /^Add someone new$/ }) }).first();
       await add.getByRole("button", { name: "Visitor from another country?" }).click();
@@ -159,7 +160,7 @@ test("a club's handicap body follows its country on Club settings, Members and E
   } finally {
     await prisma.player.deleteMany({ where: { eventId: data.eventId, name: VISITOR } });
     await prisma.member.deleteMany({ where: { organizationId: clubId, name: VISITOR } });
-    if (unlockedWas !== null) await prisma.event.update({ where: { id: data.eventId }, data: { configUnlocked: unlockedWas } });
+    if (fieldOpened) await endCorrectionFor(prisma, data.eventId);
     await ctx.close();
   }
   expect(errors, "a screen threw").toEqual([]);

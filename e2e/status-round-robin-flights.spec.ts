@@ -159,7 +159,7 @@ test("a round robin in flights says the same thing at every stage, and takes a l
     await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
 
     // ── launched, no match played ───────────────────────────────────────────
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date() } });
     await expectTournamentSays(page, {
       chip: "Live",
       lock: "live",

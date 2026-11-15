@@ -173,7 +173,7 @@ beforeAll(async () => {
   }
 
   // G: a casual round — two people on the first tee.
-  const casual = await event(org.id, "casual", { shape: "match", status: "live", configUnlocked: true });
+  const casual = await event(org.id, "casual", { shape: "match", status: "live" });
   await prisma.stage.create({ data: { eventId: casual, position: 0, type: "Single Match Stage", format: "Match Play", holes: 18 } });
   await field(casual, 2);
 }, 120_000);
