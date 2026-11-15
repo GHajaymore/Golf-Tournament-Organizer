@@ -51,8 +51,8 @@ async function accessOf(email: string, userId: string) {
     staff: await prisma.organizationMember.count({ where: { userId } }),
     grants: await prisma.account.count({ where: { email: ci } }),
     pushes: await prisma.pushSubscription.count({ where: { email: ci } }),
-    threadPlaces: await prisma.threadParticipant.count({ where: { email: ci } }),
-    reads: await prisma.threadRead.count({ where: { email: ci } }),
+    threadPlaces: await prisma.threadParticipant.count({ where: { whoKey: ci } }),
+    reads: await prisma.threadRead.count({ where: { whoKey: ci } }),
   };
 }
 
@@ -84,8 +84,8 @@ describe("deleting an account", () => {
       await prisma.pushSubscription.create({
         data: { endpoint: `https://push.example.invalid/${TAG}-${who}-${Date.now()}`, p256dh: "zz", auth: "zz", email: emailFor(who) },
       });
-      await prisma.threadParticipant.create({ data: { threadId: thread.id, email: emailFor(who) } });
-      await prisma.threadRead.create({ data: { threadId: thread.id, email: emailFor(who) } });
+      await prisma.threadParticipant.create({ data: { threadId: thread.id, whoKey: emailFor(who) } });
+      await prisma.threadRead.create({ data: { threadId: thread.id, whoKey: emailFor(who) } });
     }
     // What the CLUB holds about the leaver: a roster entry and a place in the field.
     const member = await prisma.member.create({ data: { organizationId: club.id, name: `${TAG} leaver`, email: emailFor("leaver") } });

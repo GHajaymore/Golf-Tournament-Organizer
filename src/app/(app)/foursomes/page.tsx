@@ -1,3 +1,5 @@
+import { noticesOffAmong } from "@/lib/services/push";
+import { noticesOffWords } from "@/lib/domain/round-moved";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -451,6 +453,8 @@ export default async function FoursomesPage({
         savedGroups={savedSheet?.groups ?? []}
         savedStart={savedSheet?.startType}
         published={stage?.teeSheetPublished ?? false}
+        // Beside Publish (J39/J40 PR 2): how many of this sheet's field a tee-time push cannot reach.
+        noticesOff={noticesOffWords(await noticesOffAmong(session.eventId, field.map((p) => p.id)))}
         rounds={rounds.map((r) => ({
           id: r.id,
           label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn, locale) : ""),

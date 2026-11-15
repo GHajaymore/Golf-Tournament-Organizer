@@ -215,6 +215,7 @@ import { purgeEvent, purgeRound } from "@/lib/services/purge";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
+import { notifyRoundMoved } from "@/lib/services/round-moved-notify";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes, codesOnForAnEntryWithoutEmail } from "@/lib/services/round-codes";
@@ -2269,12 +2270,18 @@ export async function setStagePlayedOn(stageId: string, date: string): Promise<{
    * the save then failed, so a rain-out could not be recorded without first
    * unlocking the whole tournament's setup.
    */
+  // The day it had, read before the write: a MOVE is news to a field that could see it (J39/J40 PR 2).
+  const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
+  const after = cleanIsoDate(date);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { playedOn: cleanIsoDate(date) },
+    data: { playedOn: after },
   });
+  // Push to every entry that can be reached (a guest's link too); never throws. "" when nobody was told.
+  const noticesOff = before ? await notifyRoundMoved({ eventId, stageId, before: before.playedOn ?? "", after }) : "";
   await refresh();
-  return judged?.verdict.ok && judged.verdict.warn === "schedules" ? { ok: true, said: SCHEDULES_WORDS } : { ok: true };
+  const said = [judged?.verdict.ok && judged.verdict.warn === "schedules" ? SCHEDULES_WORDS : "", noticesOff].filter(Boolean).join(" ");
+  return said ? { ok: true, said } : { ok: true };
 }
 
 /**
