@@ -29,7 +29,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount, roundRobinCutAfter } from "@/lib/services/regroup";
-import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
+import { applyStrokeCut, applyCutLeftOwing, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds, myPlayerIdsFor } from "@/lib/services/me";
@@ -3206,7 +3206,7 @@ export async function removeStage(stageId: string, force = false): Promise<{ ok:
   }
 
   // The id is this tournament's own round, or nothing is deleted.
-  const owned = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+  const owned = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, position: true } });
   if (!owned) return { ok: true as const };
 
   const flightsBefore = await flightDefaultFor(eventId);
@@ -3218,7 +3218,12 @@ export async function removeStage(stageId: string, force = false): Promise<{ ok:
    * the round and the person, never a player.
    */
   const words = await roundWordsFor(eventId, stageId);
-  if (await purgeRound(eventId, stageId)) await logAudit(eventId, "Round deleted", words);
+  if (await purgeRound(eventId, stageId)) {
+    await logAudit(eventId, "Round deleted", words);
+    // A cut that followed this round now follows the round before it; if that
+    // round is already closed, nothing else would ever make it (G3).
+    await applyCutLeftOwing(eventId, owned.position);
+  }
   await followFlightDefault(eventId, flightsBefore);
   await refresh();
   return { ok: true as const };

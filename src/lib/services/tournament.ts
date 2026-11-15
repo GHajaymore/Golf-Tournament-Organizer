@@ -2303,9 +2303,24 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * own looser test rather than sharing this one.
    */
   const closedRoundIds = strokeRounds.filter((s) => s.closedAt).map((s) => s.id);
-  /** The first closed round this player has no card for, or null. */
+  /**
+   * The first closed round this player did not COMPLETE, or null: no card for
+   * it, or a card with holes missing (15 Nov 2026, G2). In stroke play every
+   * hole must be holed out (Rule 3.3c), and a closed round is one no more holes
+   * are coming for, so twelve holes of it are no more a round's score than
+   * none. Asking only "are the holes zero" ranked a player four under "thru
+   * 30" first among cards of 36
+   * (`a-short-card-in-a-closed-round-holds-no-place.audit.test.ts`).
+   *
+   * Against ONE round's length, though a round robin files several cards
+   * under one round: fewer holes than a single card owes is short whatever
+   * else is true, and a match that stopped early is `stoppedShort`'s to judge.
+   */
+  const roundLength = new Map(levelRounds.map((r) => [r.id, r.holes]));
   const missedClosedRoundId = (a: StrokeAgg): string | null =>
-    stableford ? null : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0) ?? null);
+    stableford
+      ? null
+      : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) < (roundLength.get(id) ?? 0)) ?? null);
   const missedAClosedRound = (a: StrokeAgg): boolean => missedClosedRoundId(a) !== null;
   /**
    * The closed round to NAME, whatever the board ranks on (2026-10-08, grid

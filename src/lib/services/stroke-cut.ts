@@ -333,6 +333,33 @@ export async function applyStrokeCut(eventId: string, feederId: string): Promise
 }
 
 /**
+ * THE CUT A REMOVED ROUND LEFT OWING (15 Nov 2026, G3). A cut is found by
+ * position and made by the press that closes the round before it. Remove the
+ * round between (Round 2 of three, rained off with no score) and the cut into
+ * Round 3 is now after Round 1; if the committee had already closed Round 1
+ * that press is in the past, nothing else makes a cut, and all twenty were
+ * offered Round 3 under a rules sheet saying "top 8"
+ * (`a-cut-after-a-removed-round-is-still-made.audit.test.ts`).
+ *
+ * So `removeStage` calls this once the round is gone, with the position it
+ * held: where the next playing round is cut into, its cut has never been made
+ * and the round now before it is closed, the cut is made as closing that round
+ * would have made it. Through `applyStrokeCut`, so on the same cards, the same
+ * tie rule and the same refusal: a cut it would not make at a close (a card
+ * not approved, a tie the committee must settle) it does not make here either.
+ */
+export async function applyCutLeftOwing(eventId: string, removedPosition: number): Promise<{ through: number } | null> {
+  const rounds = (
+    await prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: STAGE_SELECT })
+  ).filter((s) => isPlayingRound(s.type));
+  const i = rounds.findIndex((s) => s.position > removedPosition);
+  const next = rounds[i];
+  const feeder = i > 0 ? rounds[i - 1] : undefined;
+  if (!next || !feeder || !next.cutEnabled || next.cutMadeAt || !feeder.closedAt) return null;
+  return applyStrokeCut(eventId, feeder.id);
+}
+
+/**
  * Who may play `stageId`, when its field was decided by an applied stroke cut
  * — the players holding a card for it — or null when the round is open to the
  * whole field (no cut, or the round it is cut from is not closed yet).
