@@ -145,8 +145,15 @@ export function PushToggleClient({
     setBusy(true);
     try {
       const sub = await thisBrowsersSubscription();
+      // THIS PHONE stops (review of #1133, SEC-2): the server removes every row on this endpoint,
+      // whoever's — a previous person's left on a handed-on phone included, an account's or a guest
+      // link's — and then the browser's own subscription goes too, since nothing holds it any more.
       if (sub) {
-        await removePushSubscription(sub.endpoint);
+        const res = await removePushSubscription(sub.endpoint);
+        if (!res.ok) {
+          setError(res.error ?? "Couldn't turn off alerts.");
+          return;
+        }
         await unsubscribeWithinLimit(sub);
       }
       setState("off");

@@ -33,6 +33,8 @@ export const FIELD_ACTIONS = [
   "replaced",
   // A guest's player link (J39/J40): opened on a new phone, handed over, replaced, turned off.
   "player-link.opened", "player-link.handed", "player-link.new", "player-link.off",
+  // PR 2 (S8): a guest muted or unmuted in messages.
+  "player-link.muted", "player-link.unmuted",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];
