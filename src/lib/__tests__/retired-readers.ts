@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import ts from "typescript";
 
 /**
@@ -151,26 +152,106 @@ export function identifiersIn(path: string, text: string, names: readonly string
   return [...found].sort();
 }
 
+/** `import("…")`, the dynamic import call itself. */
+function isImportCall(node: ts.Node): node is ts.CallExpression {
+  return ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword;
+}
+
+/** `await import("…")`, through any parentheses. */
+function isAwaitImport(node: ts.Expression): boolean {
+  let e = node;
+  while (ts.isParenthesizedExpression(e)) e = e.expression;
+  return ts.isAwaitExpression(e) && isImportCall(e.expression);
+}
+
+/** A module specifier as a repository path without its extension, or null for a package. */
+function resolvedModule(fromPath: string, spec: string): string | null {
+  let p: string;
+  if (spec.startsWith("@/")) p = `src/${spec.slice(2)}`;
+  else if (spec.startsWith(".")) p = posix.normalize(posix.join(posix.dirname(fromPath), spec));
+  else return null;
+  return p.replace(/\.(tsx?|m?js)$/, "").replace(/\/index$/, "");
+}
+
+/**
+ * The files that DECLARE and export one of `names` — the modules an `export * from` would
+ * launder a rule out of. The machine is an owner but declares none, so re-exporting it is not.
+ */
+export function homesOf(files: readonly string[], read: (f: string) => string, names: readonly string[]): string[] {
+  return files.filter((f) => {
+    const text = read(f);
+    if (!names.some((n) => text.includes(n))) return false;
+    const sf = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, false, scriptKind(f));
+    return sf.statements.some((s) => {
+      if (!ts.canHaveModifiers(s) || !ts.getModifiers(s)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) return false;
+      if (ts.isVariableStatement(s)) return s.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && names.includes(d.name.text));
+      const name = (s as ts.DeclarationStatement).name;
+      return !!name && ts.isIdentifier(name) && names.includes(name.text);
+    });
+  });
+}
+
 /**
  * The class-B names a file ASKS: imports one (static, renamed, or destructured from an
- * `await import`) or calls one by name. A property of that name on something else
+ * `await import`), calls one by name, RE-EXPORTS one (`export { statusMove as move } from …`),
+ * or reaches one through a whole module — a namespace import (`gate.statusMove`, `gate["…"]`),
+ * a whole-module `await import` (called on the spot, through its binding, or taken apart
+ * later), or the parameter of an `import(…).then`. A property of that name on something else
  * (`flow.launchCheck`) is not asking the rule.
+ *
+ * `homes` are the files that declare the names (`homesOf`): an `export * from` (or
+ * `export * as ns from`) one of them launders every name it holds, and is reported as
+ * `export * from "<specifier>"`.
  */
-export function asksOf(path: string, text: string, names: readonly string[]): string[] {
+export function asksOf(path: string, text: string, names: readonly string[], homes: readonly string[] = []): string[] {
   const wanted = names.filter((n) => text.includes(n));
-  if (wanted.length === 0) return [];
+  const starHomes = new Set(homes.map((h) => h.replace(/\.(tsx?|m?js)$/, "")));
+  if (wanted.length === 0 && !(starHomes.size > 0 && /\bexport\s*\*/.test(text))) return [];
   const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, scriptKind(path));
   const found = new Set<string>();
   const want = (n: string | undefined) => {
     if (n && wanted.includes(n)) found.add(n);
   };
+
+  // First pass: every name bound to a WHOLE module (a namespace).
+  const modules = new Set<string>();
+  const bindModules = (node: ts.Node) => {
+    if (ts.isNamespaceImport(node)) modules.add(node.name.text);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && isAwaitImport(node.initializer)) {
+      modules.add(node.name.text);
+    }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "then" && isImportCall(node.expression.expression)) {
+      const cb = node.arguments[0];
+      const param = cb && (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb)) ? cb.parameters[0] : undefined;
+      if (param && ts.isIdentifier(param.name)) modules.add(param.name.text);
+    }
+    ts.forEachChild(node, bindModules);
+  };
+  bindModules(sf);
+  const isModule = (e: ts.Expression) => (ts.isIdentifier(e) && modules.has(e.text)) || isAwaitImport(e);
+
   const visit = (node: ts.Node) => {
-    if (ts.isImportSpecifier(node)) want((node.propertyName ?? node.name).text);
-    if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent) && fromAwaitImport(node.parent)) {
+    if (ts.isImportSpecifier(node) || ts.isExportSpecifier(node)) want((node.propertyName ?? node.name).text);
+    if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      const decl = node.parent.parent;
+      const fromModule = fromAwaitImport(node.parent) || (ts.isVariableDeclaration(decl) && !!decl.initializer && isModule(decl.initializer));
       const key = node.propertyName ?? node.name;
-      if (ts.isIdentifier(key)) want(key.text);
+      if (fromModule && ts.isIdentifier(key)) want(key.text);
     }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) want(node.expression.text);
+    if (ts.isPropertyAccessExpression(node) && isModule(node.expression)) want(node.name.text);
+    if (ts.isElementAccessExpression(node) && isModule(node.expression) && ts.isStringLiteralLike(node.argumentExpression)) {
+      want(node.argumentExpression.text);
+    }
+    if (
+      ts.isExportDeclaration(node) &&
+      (!node.exportClause || ts.isNamespaceExport(node.exportClause)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      const target = resolvedModule(path, node.moduleSpecifier.text);
+      if (target && starHomes.has(target)) found.add(`export * from "${node.moduleSpecifier.text}"`);
+    }
     ts.forEachChild(node, visit);
   };
   visit(sf);

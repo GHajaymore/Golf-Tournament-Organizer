@@ -10,6 +10,7 @@ import {
   MACHINE_ONLY_EXCEPTIONS,
   OLD_READERS,
   asksOf,
+  homesOf,
   identifiersIn,
 } from "./retired-readers";
 
@@ -33,6 +34,13 @@ import {
  *      round, or a list of them asked `.includes(…)` — three named exceptions, capped.
  *      "registration" and "ready" are PR 8's (`no-tournament-keeps-an-old-word.test.ts`);
  *      "completed" is the one step the stored word decides alone (`isFinished`).
+ *      KNOWN LIMIT: D reads the SPELLING `status` / `eventStatus` beside a word, not the value.
+ *      A regular expression cannot follow one, so these pass it: `const s = event.status;
+ *      if (s === "live")`, `switch (event.status) { case "live": }`, a renamed destructure
+ *      (`const { status: where } = event`), and a named list (`EARLY.includes(event.status)`).
+ *      None exists in src/app, src/components or src/lib (searched at PR 9a); review is the
+ *      wall for them, and `switch (…status) … case "draft"|"live"` joins D as a fourth shape
+ *      with the second half of 9a.
  *
  * Source is read through `readSource` (comments out) or, for class A, by the TypeScript
  * parser, so a comment or a string naming a reader is never a use of it. Each class has a
@@ -65,11 +73,14 @@ export function strays(src: string): string[] {
 
 /* ---------------------------------------------------------------- class B */
 
+/** The owners that declare a class-B name — what an `export * from` would launder one out of. */
+const MACHINE_HOMES = homesOf(MACHINE_OWNERS, readSource, MACHINE_ONLY);
+
 /** The class-B names a file asks that it may not: none for an owner, less its listed exception. */
 export function machineOnlyStrays(path: string, src: string): string[] {
   if (MACHINE_OWNERS.includes(path)) return [];
   const allowed = MACHINE_ONLY_EXCEPTIONS[path]?.names ?? [];
-  return asksOf(path, src, MACHINE_ONLY).filter((n) => !allowed.includes(n));
+  return asksOf(path, src, MACHINE_ONLY, MACHINE_HOMES).filter((n) => !allowed.includes(n));
 }
 
 /* ---------------------------------------------------------------- class D */
@@ -205,6 +216,53 @@ describe("class B — the old modules' live rules are asked only by the machine"
     expect(machineOnlyStrays("src/lib/domain/tournament-name.ts", `import { EVENT_STATUSES } from "./lifecycle-state";`)).toEqual(["EVENT_STATUSES"]);
     // A property of that name on something else is not asking the rule.
     expect(machineOnlyStrays("src/app/zz.ts", `const said = flow.launchCheck.refusal;`)).toEqual([]);
+  });
+
+  /**
+   * CONTROL C4, continued (the Principal Engineer's review of #1156, C1): the shapes that reach a
+   * class-B name WITHOUT naming it in an import specifier or calling it bare. Each was planted
+   * against the first version of `asksOf` and was not seen; a re-export under a new name would
+   * launder the rule for every later importer.
+   */
+  it.each([
+    ["a namespace import, called through", `import * as gate from "../domain/phase-gate";\ngate.statusMove(a, b);`, ["statusMove"]],
+    ["a namespace import, read but not called", `import * as gate from "../domain/lifecycle-state";\nconst all = gate.EVENT_STATUSES;`, ["EVENT_STATUSES"]],
+    ["a namespace import, by element access", `import * as gate from "../domain/phase-gate";\nconst move = gate["statusMove"];`, ["statusMove"]],
+    ["a whole-module await import, called through", `const m = await import("../domain/phase-gate");\nm.playRefusal(f);`, ["playRefusal"]],
+    ["a whole-module await import, taken apart later", `const mod = await import("@/lib/domain/phase-gate");\nconst { statusMove: mv } = mod;`, ["statusMove"]],
+    ["an await import called on the spot", `const verdict = (await import("@/lib/domain/phase-gate")).statusMove(a, b);`, ["statusMove"]],
+    ["an import(...).then with the module as one parameter", `import("../domain/launch-check").then((mod) => mod.launchCheck(f));`, ["launchCheck"]],
+    ["a re-export under a new name", `export { statusMove as move } from "../domain/phase-gate";`, ["statusMove"]],
+    ["a re-export under its own name", `export { statusMove } from "../domain/phase-gate";`, ["statusMove"]],
+    ["export * from an owner, relative", `export * from "../domain/phase-gate";`, [`export * from "../domain/phase-gate"`]],
+    ["export * from an owner, by the @ alias", `export * from "@/lib/domain/lifecycle-state";`, [`export * from "@/lib/domain/lifecycle-state"`]],
+    ["export * as a namespace from an owner", `export * as gate from "../domain/setup-flow";`, [`export * from "../domain/setup-flow"`]],
+  ] as const)("CONTROL C4: %s is seen outside the owners", (_shape, planted, expected) => {
+    expect(machineOnlyStrays("src/lib/services/zz.ts", planted)).toEqual([...expected]);
+    expect(machineOnlyStrays("src/lib/domain/tournament-status.ts", planted)).toEqual([]);
+  });
+
+  it("CONTROL C4: the homes an export * is checked against are the four old modules, not the machine", () => {
+    expect([...MACHINE_HOMES].sort()).toEqual([
+      "src/lib/domain/launch-check.ts",
+      "src/lib/domain/lifecycle-state.ts",
+      "src/lib/domain/phase-gate.ts",
+      "src/lib/domain/setup-flow.ts",
+    ]);
+  });
+
+  it("CONTROL C4: a namespace or a re-export of anything else is not asking a class-B rule", () => {
+    for (const line of [
+      `export * from "../domain/tournament-name";`,
+      `export * from "./format";`,
+      // The machine is an owner but holds no class-B name: re-exporting it launders nothing.
+      `export * from "@/lib/domain/tournament-status";`,
+      `import * as words from "../domain/date-words";\nwords.statusLabel(a);`,
+      `const said = flow.statusMove(a);`,
+      `export { tournamentStatus as status } from "../domain/tournament-status";`,
+    ]) {
+      expect(machineOnlyStrays("src/lib/services/zz.ts", line), line).toEqual([]);
+    }
   });
 
   it("nobody but the machine and the old modules asks them", () => {
