@@ -173,6 +173,10 @@ test("with the switch on the menu is the stepper's four stops, and every old des
     expect(relocate({ href: "/access", role: "admin" }, building)).toBe("/organization#access");
     await helpers.click();
     await expect(page).toHaveURL(/\/organization\?stepper=1#access$/);
+    // Back to the step 2 preview, drawn afresh: the console's layout is not drawn again on a client
+    // press, so the menu above (`&build=1`, where Print kit is retired into Tee times & draw) would
+    // otherwise still be the one on screen.
+    await page.goto("/dashboard?stepper=1");
     menu = await menuOf(page);
 
     // PRESSED: a screen that moved beneath another entry opens, is marked as here, and the preview stays on.
