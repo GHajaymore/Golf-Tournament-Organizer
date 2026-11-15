@@ -5825,7 +5825,7 @@ export async function setEventStatus(
         "round-closed",
         `Completing the tournament closed ${open
           .map((st) => st.description || roundLabel(all, st.id))
-          .join(", ")}. Anybody without a card for a closed round no longer holds a place on a stroke board.`,
+          .join(", ")}. Anybody without a complete card for a closed round no longer holds a place on a stroke board.`,
       );
     }
   }
@@ -8032,7 +8032,7 @@ export async function setRoundClosed(
     eventId,
     "round-closed",
     closed
-      ? `Closed ${which}. Anybody without a card for it no longer holds a place on a stroke board.`
+      ? `Closed ${which}. Anybody without a complete card for it no longer holds a place on a stroke board.`
       : `Re-opened ${which}.`,
   );
   /**
