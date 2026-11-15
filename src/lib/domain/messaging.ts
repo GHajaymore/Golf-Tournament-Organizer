@@ -358,6 +358,22 @@ export function canPostToScope(ctx: MembershipContext, key: ScopeKey): boolean {
   return true;
 }
 
+/** The words a muted guest is given where they cannot post (S8). */
+export const MUTED_WORDS = "Your organizer has turned off your posts here. You can still message the organizer.";
+
+/**
+ * WHY THIS PERSON CANNOT POST HERE, WHEN IT IS THE ORGANIZER'S MUTE (S8, "said,
+ * not only refused"): `MUTED_WORDS` for a muted guest in a conversation they can
+ * read that is not their own desk; "" otherwise. The one answer the send's
+ * refusal, a thread's reply box and the compose card all say, so a muted guest
+ * is never told "announcements only" in a conversation they could post in yesterday.
+ */
+export function mutedWordsFor(ctx: MembershipContext, key: ScopeKey): string {
+  if (!ctx.muted || !canReadScope(ctx, key)) return "";
+  const parsed = parseScopeKey(key);
+  return parsed && parsed.kind !== "desk" ? MUTED_WORDS : "";
+}
+
 /**
  * Whether a person may START a thread in a scope.
  *

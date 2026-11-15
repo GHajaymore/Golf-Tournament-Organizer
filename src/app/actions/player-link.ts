@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { assertEventWritable } from "@/lib/services/club-archive";
 import { clientGuessGate } from "@/lib/rate-limit";
@@ -105,13 +106,21 @@ export async function openPlayerLink(code: unknown): Promise<Opened> {
  * SEC-1): the held pass's push row for this browser's endpoint goes first, as
  * Forget changes no version and the sender would otherwise go on reaching a
  * borrowed phone. The endpoint is the browser's own, sent by the button.
+ *
+ * It ENDS WITH `redirect("/p")`, as Sign out ends with its own, and the client
+ * does not navigate itself (QA finding G638-1 #2). Clearing a cookie in an
+ * action makes Next re-render the page it was pressed on (`/me`), and with no
+ * viewer left `/me` sends the router to the sign-in front door — which, on
+ * WebKit, cancelled the button's own `location.assign("/p")` and left a guest
+ * on an iPhone at the front door. Dropping `revalidatePath` would not have
+ * stopped it (the cookie alone re-renders); redirecting from here renders `/p`
+ * in the action's own answer, so there is one navigation on every engine.
  */
-export async function forgetThisPhone(endpoint?: unknown): Promise<{ ok: true }> {
+export async function forgetThisPhone(endpoint?: unknown): Promise<never> {
   const held = await getGuestSession();
   if (held) await forgetPassHere(held.passId, endpoint);
   await clearGuestCookie();
-  if (held) revalidatePath("/me", "layout");
-  return { ok: true };
+  redirect("/p");
 }
 
 /**

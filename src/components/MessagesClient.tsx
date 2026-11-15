@@ -138,6 +138,22 @@ function FirstUseNotice({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
+/**
+ * Where a conversation's reply box would be, when this reader cannot post in it.
+ * A guest the organizer muted is TOLD so (S8, `mutedWordsFor`), never "announcements
+ * only": the round they wrote in yesterday is no announcement. Exported so a static
+ * render can see it (the thread view itself only draws after a read).
+ */
+export function ReplyClosed({ mutedWords, organizer }: { mutedWords: string; organizer: string }) {
+  return (
+    <div style={{ borderTop: "1px solid var(--color-divider)", padding: "10px 14px" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+        {mutedWords || `This one is announcements only — your ${organizer} posts here.`}
+      </p>
+    </div>
+  );
+}
+
 export function MessagesClient({
   threads,
   composable,
@@ -149,6 +165,7 @@ export function MessagesClient({
   surface = "console",
   guest = false,
   deskKey = "",
+  mutedWords = "",
 }: {
   threads: ThreadListItem[];
   composable: { key: string; label: string; kind: string }[];
@@ -168,6 +185,8 @@ export function MessagesClient({
   guest?: boolean;
   /** This player's own "Message the organizer" scope (`desk:<playerId>`), or "" for staff and spectators. */
   deskKey?: string;
+  /** `MUTED_WORDS` when the organizer muted this guest (S8): said on the compose card; "" otherwise. */
+  mutedWords?: string;
 }) {
   // The club's way of writing a date, from the same context its currency comes from.
   const { locale } = useFormatting();
@@ -372,11 +391,7 @@ export function MessagesClient({
             </button>
           </div>
         ) : (
-          <div style={{ borderTop: "1px solid var(--color-divider)", padding: "10px 14px" }}>
-            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              This one is announcements only — your {organizer} posts here.
-            </p>
-          </div>
+          <ReplyClosed mutedWords={view.mutedWords} organizer={organizer} />
         )}
         {error && (
           <p style={{ color: "var(--color-danger)", fontSize: 13, margin: 0, padding: "0 14px 10px" }}>{error}</p>
@@ -442,6 +457,7 @@ export function MessagesClient({
           people={people}
           isStaff={isStaff}
           initialTarget={composeTarget}
+          mutedWords={mutedWords}
           onOpen={(id) => {
             setComposing(false);
             setOpenId(id);
@@ -645,6 +661,7 @@ export function ComposePanel({
   onOpen,
   isStaff,
   initialTarget = "",
+  mutedWords = "",
 }: {
   composable: { key: string; label: string; kind: string }[];
   /** Who can be messaged: a name, and their entry in this tournament — never an address. */
@@ -653,6 +670,11 @@ export function ComposePanel({
   isStaff: boolean;
   /** The scope to open on (the desk, for "Message the organizer"), when it is one of `composable`. */
   initialTarget?: string;
+  /**
+   * A muted guest (S8): their picker holds only the desk, so the card SAYS why the
+   * round is not there, rather than leaving it to be noticed missing.
+   */
+  mutedWords?: string;
 }) {
   const [body, setBody] = useState("");
   // Opens on THIS TOURNAMENT where that is somewhere the writer may post, not on the first group in
@@ -731,6 +753,11 @@ export function ComposePanel({
 
   return (
     <div className="card elev-sm" style={{ gap: 10, marginBottom: 12 }}>
+      {mutedWords && (
+        <p data-muted-note style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          <Icon name="info" /> {mutedWords}
+        </p>
+      )}
       <span className="card-kicker">Who is this for?</span>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select

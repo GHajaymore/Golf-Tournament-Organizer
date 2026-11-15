@@ -39,6 +39,8 @@ import {
   isGuestKey,
   playerOfGuestKey,
   whoKeysForEntry,
+  mutedWordsFor,
+  MUTED_WORDS,
   type MembershipContext,
   type ScopeKey,
   type ScopeKind,
@@ -47,8 +49,8 @@ import { isGuest } from "@/lib/domain/entry-standing";
 import type { GuestIdentity } from "@/lib/domain/player-link";
 import { myPlayerIdsFor } from "@/lib/services/me";
 
-/** The words a muted guest is given where they tried to post (S8). */
-export const MUTED_WORDS = "Your organizer has turned off your posts here. You can still message the organizer.";
+/** The words a muted guest is given where they tried to post (S8); the rule is `mutedWordsFor`. */
+export { MUTED_WORDS };
 
 /**
  * Reading and writing conversations.
@@ -453,6 +455,8 @@ export interface ThreadView {
   title: string;
   label: string;
   canPost: boolean;
+  /** Said in place of the reply box when the organizer muted this guest (S8); "" otherwise. */
+  mutedWords: string;
   messages: ThreadMessage[];
 }
 
@@ -495,6 +499,7 @@ export async function threadView(ctx: MembershipContext, threadId: string): Prom
     title: titleFor(ctx, kind, thread.scopeKey, thread.title, desks),
     label: scopeLabel(kind, ctx.orgNoun),
     canPost: canPostToScope(ctx, thread.scopeKey),
+    mutedWords: mutedWordsFor(ctx, thread.scopeKey),
     messages: messages.map((m) => ({
       id: m.id,
       authorName: m.authorName,
@@ -541,7 +546,8 @@ export async function postToScope(
   const parsed = parseScopeKey(key);
   if (!parsed) return { ok: false, error: "Unknown conversation." };
   // Said, not only refused (S8): a muted guest can still write to the organizers.
-  if (ctx.muted && parsed.kind !== "desk" && canReadScope(ctx, key)) return { ok: false, error: MUTED_WORDS };
+  const muted = mutedWordsFor(ctx, key);
+  if (muted) return { ok: false, error: muted };
   if (!canPostToScope(ctx, key)) return { ok: false, error: "You can't post there." };
 
   const clean = cleanMessageBody(body);
