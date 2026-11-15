@@ -500,7 +500,8 @@ class ReplaceRefused extends Error {
  * press uses, never deleting), so the field holds the substitute and not both.
  *
  * A GUEST WITH NO FIGURE is refused in a round scored net (`guestFigureRefusal`): the handicap resolver reads
- * the stored number, not "no index", and would play them off nought. The guest's roster row is made inside the
+ * the stored number, not "no index", and would play them off nought. So is a MEMBER WITH NO INDEX, unless the
+ * committee has given them strokes for this round (`candidateWhy`). The guest's roster row is made inside the
  * transaction, and "has this group started" is read again inside it, so a refusal leaves nothing behind.
  */
 export async function replaceInTeeSheet(
@@ -554,8 +555,9 @@ export async function replaceInTeeSheet(
     if (await sidesHavePlay(session.eventId, stageId, groupSides)) return { ok: false, error: STARTED_SIDE };
   }
 
-  // WHO STEPS IN, and the handicap they will play off.
-  let sub: { id: string; name: string; index: string };
+  // WHO STEPS IN, and the handicap they will play off. A member with no index in a round scored net is
+  // refused by `candidateWhy` (`NO_FIGURE`) unless the committee has given them strokes for this round.
+  let sub: { id: string; name: string; index: string; figure: number | null };
   let guestToMake: { name: string; index: number | null } | null = null;
   if (who.kind === "member") {
     if (typeof who.playerId !== "string" || !who.playerId) return { ok: false, error: "Choose who steps in." };
@@ -563,7 +565,7 @@ export async function replaceInTeeSheet(
     if (!picked) return { ok: false, error: "That player isn't in the field." };
     const why = candidateWhy(picked, absenteeId, world);
     if (why) return { ok: false, error: `${picked.name}: ${why}` };
-    sub = { id: picked.id, name: picked.name, index: picked.index };
+    sub = { id: picked.id, name: picked.name, index: picked.index, figure: world.figures[picked.id] ?? null };
   } else {
     const name = String(who.name ?? "").trim();
     const badName = nameRefusal(name, PERSON_NAME_MAX, "Enter the guest’s name.");
@@ -577,7 +579,7 @@ export async function replaceInTeeSheet(
     const needsFigure = guestFigureRefusal(stage.scoringBasis, name, index !== null);
     if (needsFigure) return { ok: false, error: needsFigure };
     guestToMake = { name, index };
-    sub = { id: "", name, index: index === null ? NO_INDEX : indexFigure(index) };
+    sub = { id: "", name, index: index === null ? NO_INDEX : indexFigure(index), figure: null };
   }
 
   const [event, zone, stages] = await Promise.all([
@@ -725,7 +727,7 @@ export async function replaceInTeeSheet(
             round,
             group: final.groupName,
             reason,
-            handicap: handicapUsedWords(sub.index),
+            handicap: handicapUsedWords(sub.index, sub.figure),
             games: voidedGamesWords(voided),
           }),
         },
