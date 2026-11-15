@@ -171,6 +171,8 @@ export async function rotatePass(eventId: string, playerId: string, by: string):
           data: { lookup: lookupOf(code), sealed: sealCode(code, existing.id, version), version, rotatedAt: new Date(), revokedAt: null, revokedBy: "", lastOpenedAt: null },
         }),
         prisma.playerPassDevice.deleteMany({ where: { passId: existing.id } }),
+        // Hygiene (PR 2): the old link's notice rows. The sender's version check is the guard.
+        prisma.playerPassPush.deleteMany({ where: { passId: existing.id } }),
       ]);
       return { ok: true, code };
     } catch (e) {
@@ -186,6 +188,8 @@ export async function revokePass(eventId: string, playerId: string, by: string):
     where: { playerId, eventId, revokedAt: null },
     data: { revokedAt: new Date(), revokedBy: by },
   });
+  // Hygiene (PR 2): its notice rows go with it. The sender's live-pass check is the guard.
+  if (done.count > 0) await prisma.playerPassPush.deleteMany({ where: { pass: { playerId, eventId } } });
   return done.count > 0;
 }
 
@@ -195,16 +199,34 @@ export async function passStatusFor(eventId: string, playerId: string): Promise<
   if (!entry) return null;
   const pass = await prisma.playerPass.findUnique({
     where: { playerId },
-    select: { eventId: true, revokedAt: true, lastOpenedAt: true, _count: { select: { devices: true } } },
+    select: { eventId: true, revokedAt: true, lastOpenedAt: true, mutedAt: true, _count: { select: { devices: true } } },
   });
-  if (!pass || pass.eventId !== eventId) return { made: false, revoked: false, browsers: 0, lastOpened: "" };
+  if (!pass || pass.eventId !== eventId) return { made: false, revoked: false, browsers: 0, lastOpened: "", muted: false };
   const dayOf = await dayAtClubForEvent(eventId);
   return {
     made: true,
     revoked: !!pass.revokedAt,
     browsers: pass._count.devices,
     lastOpened: pass.lastOpenedAt ? dayOf(pass.lastOpenedAt) : "",
+    muted: !!pass.mutedAt,
   };
+}
+
+/**
+ * MUTE IN MESSAGES (J39/J40 PR 2, S8): the organizer's answer to a forwarded
+ * link posting to the field. The pass stays live — the guest keeps their card
+ * and Today, and may still write to the organizers. Resolved inside the event
+ * as one of its GUEST entries (`guestEntry`), like every panel action. False
+ * when there is no such guest, or no link made yet to mute.
+ */
+export async function mutePass(eventId: string, playerId: string, muted: boolean, by: string): Promise<boolean> {
+  const entry = await guestEntry(eventId, playerId);
+  if (!entry) return false;
+  const done = await prisma.playerPass.updateMany({
+    where: { playerId, eventId },
+    data: muted ? { mutedAt: new Date(), mutedBy: by } : { mutedAt: null, mutedBy: "" },
+  });
+  return done.count > 0;
 }
 
 /** What a live pass speaks for: one entry in one event. Nothing else is ever read from a link. */

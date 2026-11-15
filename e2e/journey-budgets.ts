@@ -35,7 +35,9 @@ export const JOURNEY_BUDGETS: Record<string, JourneyBudget> = {
   // was the spec's: "club" is already chosen on /choose from the sign-up), 5 screens over 6 visits (the
   // return is /choose after /roster), 9 boxes, 211 characters, 81–82 s. Seconds: Fable's 120.
   "secretary-first-event": {
-    ceiling: { presses: 12, screens: 5, visits: 6, returns: 1, boxes: 9, chars: 211, seconds: 120 },
+    // Cut B (#1145): the create ends on Entries, so no Home and no "Entries" press: 11 presses, 4 screens,
+    // 5 visits (/ → /choose → /roster → /choose → /registration). Desk-counted; CI prints the measured figure.
+    ceiling: { presses: 11, screens: 4, visits: 5, returns: 1, boxes: 9, chars: 211, seconds: 120 },
     target: { presses: 7, screens: 4, visits: 5, returns: 1, boxes: 9, seconds: 70 },
     by: "cuts A′ (roster opens ready and hands back), B (open entries where create ended), C (the kind asked once), D (the code submits itself), E (a single round already chosen)",
   },
