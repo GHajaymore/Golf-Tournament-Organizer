@@ -45,6 +45,28 @@ export function nightlyWait(files) {
   return null;
 }
 
+/**
+ * GitHub's own hiccups, as the gh CLI words them: a 5xx, a dropped stream, a reset or timed-out connection.
+ * A 4xx, an auth refusal, "not found" and a real answer are NOT here: they are answers and are never asked again.
+ */
+export const TRANSIENT_FAULT = /HTTP 5\d\d|Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|stream error|CANCEL|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset|TLS handshake timeout/i;
+export const RETRY_DELAYS_MS = [5000, 15000, 45000];
+
+/**
+ * Run `attempt()` (a spawnSync-shaped result: status, stdout, stderr) up to four times, waiting `delays` between
+ * attempts, asking again ONLY when it failed with a transient signature. Anything else is returned at once.
+ * `sleep` and `log` are passed in so a test does not wait. The last result is returned either way.
+ */
+export function retryTransient(attempt, { what = "command", sleep, log = () => {}, delays = RETRY_DELAYS_MS } = {}) {
+  let r = attempt();
+  for (let i = 0; i < delays.length && r && r.status !== 0 && TRANSIENT_FAULT.test(`${r.stderr ?? ""}${r.stdout ?? ""}`); i += 1) {
+    log(`retry ${i + 1} of ${delays.length} in ${delays[i] / 1000}s: ${what}: ${String(r.stderr || r.stdout).trim().split(/\r?\n/)[0].slice(0, 120)}`);
+    sleep(delays[i]);
+    r = attempt();
+  }
+  return r;
+}
+
 /** A git or gh result that must have succeeded: anything else THROWS, so the gate exits 1 and nothing ships. */
 export function mustSucceed(result, what) {
   if (!result || result.status !== 0) throw new Error(`${what} failed (exit ${result?.status ?? "none"}): ${String(result?.stderr ?? "").trim().slice(0, 200)}`);
