@@ -18,6 +18,10 @@ import { PrismaClient } from "@prisma/client";
  * `createEvent` against real rows, which is the only place the question is
  * settled.
  *
+ * SINCE CUT A (event-first, Ajay 15 Nov 2026) THE NAME IS THE ONLY ANSWER
+ * OWED, and the create form takes it: the members list is never asked for
+ * before the first event (it is asked for at the draw, offered on Entries).
+ *
  * THE TESTS THAT MATTER ARE THE ONES ASSERTING IT DOES NOT FIRE — an existing
  * club, a one-off outing with friends, a convenience step. A gate that stops
  * somebody's actual golf is a worse failure than the one it was built to
@@ -134,7 +138,8 @@ describe("a brand-new outfit that has not set itself up", () => {
      * disabled control with no reason.
      */
     expect(errorOf(res)).toContain("name your society");
-    expect(errorOf(res)).toContain("add your members");
+    // Event-first (Cut A, Ajay 15 Nov 2026): the members list is never owed before the first event.
+    expect(errorOf(res)).not.toContain("members");
     expect(await eventsIn(orgId), "nothing was created").toBe(0);
   });
 
@@ -143,19 +148,20 @@ describe("a brand-new outfit that has not set itself up", () => {
     expect(errorOf(await createEvent(`${TAG} club medal`, "custom", "single"))).toContain("your club");
   });
 
-  it("still refuses when only the members are missing", async () => {
+  it("never refuses over an empty members list: event-first", async () => {
     /**
-     * The half that cannot be answered on the picker. Naming the club is a
-     * field on the create form — see the next test — but the member list has
-     * its own screen, so this is the case where the organizer really is sent
-     * somewhere before coming back.
+     * EVENT-FIRST (Cut A, Ajay 15 Nov 2026). This used to be "still refuses
+     * when only the members are missing": the member list has its own screen,
+     * so a new society was sent there and back before its first tournament.
+     * The list is now asked for at the draw and offered on Entries, so a named
+     * outfit with nobody on its list creates its first tournament straight away.
      */
-    const orgId = await outfit("community", { unnamed: false });
-    const res = await createEvent(`${TAG} spring meeting`, "custom", "single");
-    expect(res.ok).toBe(false);
-    expect(errorOf(res)).toContain("add your members");
-    expect(errorOf(res), "does not ask for a name it already has").not.toContain("name your society");
-    expect(await eventsIn(orgId)).toBe(0);
+    for (const kind of ["community", "club"]) {
+      const orgId = await outfit(kind, { unnamed: false });
+      const res = await createEvent(`${TAG} spring meeting`, "custom", "single");
+      expect(res.ok, `${kind}: ${errorOf(res)}`).toBe(true);
+      expect(await eventsIn(orgId), kind).toBe(1);
+    }
   });
 
   it("lets the name be answered in the same breath", async () => {

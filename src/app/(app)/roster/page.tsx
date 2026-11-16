@@ -110,8 +110,9 @@ export default async function RosterPage() {
 
   /**
    * THE WAY ON, BEFORE THE FIRST TOURNAMENT (the secretary's home, 2026-10-24).
-   * A new club is sent here to add its members before its first tournament —
-   * and then this screen offered no way back: on a phone, after "Isla added to
+   * A new club used to be sent here to add its members before its first
+   * tournament (no longer: event-first, Cut A, 15 Nov 2026; a club may still
+   * come here first of its own accord) — and then this screen offered no way back: on a phone, after "Isla added to
    * the roster", nothing on the page led anywhere but the Menu. Found by
    * measuring the time to a first event (`e2e/secretary-first-event.spec.ts`).
    * The club's own checklist, the one /choose shows, says what is next.
