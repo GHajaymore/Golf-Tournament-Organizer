@@ -16,7 +16,7 @@ function script(results: R[]) {
   const logs: string[] = [];
   let calls = 0;
   const attempt = () => results[Math.min(calls++, results.length - 1)];
-  return { slept, logs, calls: () => calls, run: () => retryTransient(attempt, { what: "gh x", sleep: (ms: number) => slept.push(ms), log: (m: string) => logs.push(m) }) };
+  return { slept, logs, calls: () => calls, run: () => retryTransient(attempt, { what: "gh x", sleep: (ms: number) => void slept.push(ms), log: (m: string) => void logs.push(m) }) };
 }
 
 describe("deploy gate retries GitHub's transient errors", () => {
