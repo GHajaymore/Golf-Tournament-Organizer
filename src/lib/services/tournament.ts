@@ -1414,9 +1414,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     );
   }
   /**
-   * AND PER MATCH, for the matches that name their own set.
+   * AND PER MATCH, for the matches that name their own set OR their own course.
    *
-   * Only those. In a league with no fixed venue a pair says where they played
+   * The course too (Fable's review of #1159): a match moved to another course
+   * with no set named fell to its ROUND's map, whose set is resolved against the
+   * round's course — so a match at the away course was priced off the home
+   * White, 20 where the away Gold gives 17. It priced right only while a stale
+   * `Match.teeId` kept it in this map by accident; `setMatchCourse` now clears
+   * that, as `teeAfterVenue` says. `services/handicaps.ts` already walked the
+   * match's own course for its reader, so the two now agree.
+   *
+   * Otherwise only those. In a league with no fixed venue a pair says where they played
    * at scoring time and, since `Match.teeId` exists, off which tees — and that
    * is a fact about one pairing, not about the round the other nine matches
    * are also in. A match that names nothing is not in this map at all and
@@ -1424,12 +1432,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * nothing.
    *
    * Built eagerly like the per-round maps, and bounded by the same thing: a
-   * match has to have had a set chosen ON it to appear here, which is a
+   * match has to have had a set or a venue chosen ON it to appear here, which is a
    * deliberate act by a scorer rather than something every row acquires.
    */
   const courseHcpByMatch = new Map<string, CourseHandicaps>();
   for (const m of matches) {
-    if (!m.teeId) continue;
+    if (!m.teeId && !m.courseId) continue;
     const stage = stages.find((s) => s.id === m.stageId);
     const matchTee = teeForPlay(
       tees,

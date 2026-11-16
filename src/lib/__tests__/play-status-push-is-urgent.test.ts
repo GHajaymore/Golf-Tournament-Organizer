@@ -47,7 +47,9 @@ vi.mock("@/lib/services/player-link", () => ({ livePass: async () => ({ id: "zz-
 process.env.VAPID_PUBLIC_KEY = "zz-public";
 process.env.VAPID_PRIVATE_KEY = "zz-private";
 
-const { sendPushTo, sendOptionsFor, PLAY_STATUS_TTL_SECONDS } = await import("@/lib/services/push");
+const { sendPushTo, sendOptionsFor, PLAY_STATUS_TTL_SECONDS, PUSH_SEND_TIMEOUT_MS } = await import("@/lib/services/push");
+/** Every send also carries its time limit (the #1133 security review F-1; `one-dead-push-host-cannot-stall-a-broadcast`). */
+const LIMIT = { timeout: PUSH_SEND_TIMEOUT_MS };
 
 const payload = { title: "Play is suspended", body: "Stop now.", tag: "play-x", urgent: true };
 
@@ -57,7 +59,7 @@ describe("how a push is carried", () => {
   it("a suspension or resumption goes at high urgency and lives hours, not weeks", async () => {
     await sendPushTo(["zz@example.invalid"], payload, { eventId: "e1", delivery: "play-status" });
     expect(sent).toHaveLength(1);
-    expect(sent[0].options, "the push service was not asked to hurry a safety notice").toEqual({ urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS });
+    expect(sent[0].options, "the push service was not asked to hurry a safety notice").toEqual({ urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS, ...LIMIT });
     expect(PLAY_STATUS_TTL_SECONDS, "a player in a dead spot through a lightning hold never hears it").toBeGreaterThanOrEqual(2 * 60 * 60);
     expect(PLAY_STATUS_TTL_SECONDS, "a life past the round is no longer news about it").toBeLessThanOrEqual(4 * 60 * 60);
   });
@@ -66,13 +68,13 @@ describe("how a push is carried", () => {
     const { guestWhoKey } = await import("@/lib/domain/messaging");
     await sendPushTo([guestWhoKey("zz-guest-player")], payload, { eventId: "e1", delivery: "play-status" });
     expect(sent.map((s) => s.endpoint)).toEqual(["https://push.example.invalid/zz-guest"]);
-    expect(sent[0].options, "a guest's phone was told 'stop now' at ordinary urgency").toEqual({ urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS });
+    expect(sent[0].options, "a guest's phone was told 'stop now' at ordinary urgency").toEqual({ urgency: "high", TTL: PLAY_STATUS_TTL_SECONDS, ...LIMIT });
   });
 
-  it("CONTROL: everything else is sent exactly as before, with no options", async () => {
+  it("CONTROL: everything else is sent exactly as before, with no options but the time limit", async () => {
     await sendPushTo(["zz@example.invalid"], { title: "Your tee time is set", body: "08:10" }, { eventId: "e1" });
     expect(sent).toHaveLength(1);
-    expect(sent[0].options).toBeUndefined();
+    expect(sent[0].options, "an ordinary notice gained more than its time limit").toEqual(LIMIT);
     expect(sendOptionsFor("ordinary")).toBeUndefined();
   });
 

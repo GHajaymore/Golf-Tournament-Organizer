@@ -76,6 +76,7 @@ import {
 } from "@/lib/domain/round-handicap";
 import { playingHandicapFrom, courseHandicapMap, teeIdFor, courseHandicapExact, courseHandicap } from "@/lib/domain/handicap";
 import { TEE_POLICY } from "@/lib/tournament-settings";
+import { teeAfterVenue } from "@/lib/domain/venue";
 import {
   effectiveAllowance,
   snakeDraw,
@@ -94,6 +95,7 @@ import { teeSheetChangeAllowed, teeSheetStepOf, toldCount, type TeeSheetChangeAs
 import type { TeeSheet } from "@/lib/domain/tee-sheet";
 import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
 import { formatFitsRound } from "@/lib/domain/round-choices";
+import { needsCommitteeFigure } from "@/lib/domain/committee-figure";
 
 /**
  * The combination sweep.
@@ -1379,6 +1381,51 @@ describe("round handicaps, at every field size and every allowance", () => {
 });
 
 /**
+ * A PLAYER WITH NO HANDICAP INDEX, swept (lane N, PR A; review of #1144). Every format × stage type ×
+ * scoring basis × "in a net side game" × field size from ONE, with every other player holding no index:
+ *
+ *   1  who is asked: exactly the no-index players, in a round that counts their strokes (any basis but
+ *      gross, or a net side game they are in — a net skins pot or low net on a gross round), and nobody in
+ *      a gross round with no net game. Worked from the basis by name, not through `isNetBasis`.
+ *   2  what a committee's figure prices to: a Course Handicap for the round (Rules of Golf 3.3b(4)), so the
+ *      allowance is taken of it and rounded ONCE, a half up (Rules of Handicapping 6.2a, Appendix C), then
+ *      the strokes for a higher par added (6.2b) — worked in integer hundredths here, a route the code
+ *      does not take: floor((F × A + 50) / 100) + par strokes.
+ */
+describe("a player with no handicap index, at every format, round type, basis and field size", () => {
+  const BASES = ["gross", "net", "both", "stableford"];
+  const FIGURES = [0, 1, 9, 10, 14, 18, 27, 36, 54];
+  for (const n of FIELD_SIZES) {
+    it(`asks for exactly the no-index players, and prices a given figure by the Rule, in a field of ${n}`, () => {
+      const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, handicapSource: i % 2 === 0 ? "none" : "manual" }));
+      const noIndex = players.filter((p) => p.handicapSource === "none").length;
+      for (const format of FORMAT_NAMES) {
+        for (const type of STAGE_TYPES) {
+          for (const scoringBasis of BASES) {
+            for (const netGame of [false, true]) {
+              const at = `${format} / ${type} / ${scoringBasis}${netGame ? " + net side game" : ""}`;
+              const countsStrokes = scoringBasis !== "gross" || netGame;
+              const asked = players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, null)).length;
+              expect(asked, at).toBe(countsStrokes ? noIndex : 0);
+              // Once a figure is given (or frozen), nobody is asked, whatever the cell.
+              expect(players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, { override: 0, frozen: null })).length, at).toBe(0);
+              expect(players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, { override: null, frozen: 0 })).length, at).toBe(0);
+            }
+            const round = { format, type, scoringBasis, handicapAllowance: 0 };
+            const allowance = effectiveAllowance(format, 0, type);
+            const par = parStrokesApply(format, scoringBasis) ? 1 : 0;
+            for (const f of FIGURES) {
+              const byTheRule = Math.floor((f * allowance + 50) / 100) + par;
+              expect(playingHandicapInRound(round, { override: f }, { whole: 0, exact: 0, parStrokes: 1 }), `${format} / ${type} / ${scoringBasis}: given ${f} at ${allowance}%`).toBe(byTheRule);
+            }
+          }
+        }
+      }
+    });
+  }
+});
+
+/**
  * Team draws, swept.
  *
  * The sweep checked `needsTeams(format)` returned a BOOLEAN and stopped
@@ -1991,6 +2038,98 @@ describe("tee policy, on every field size", () => {
     expect(teeIdFor("own", "home-blue", null, "home-white", atThisCourse, null)).toBe("home-blue");
     // And the round's own set is taken whether or not the predicate likes it.
     expect(teeIdFor("one", "home-blue", null, "away-red", atThisCourse, null)).toBe("away-red");
+  });
+});
+
+/**
+ * A NINE-HOLE ROUND KEEPS THE COMMITTEE'S TEES WHEN ITS NINE CHANGES — every
+ * field size from ONE × every nine move × every tee policy (QA Director, item 1,
+ * 14 Nov).
+ *
+ * `setStageCourse` wrote `Stage.teeId = null` on every call that did not restate
+ * the tees, so the rounds screen's **Which nine** (course and nine, no tees)
+ * threw away the set chosen on Score entry and the round fell back to the
+ * tournament's. `teeAfterVenue` is now the one rule the action and
+ * `setMatchCourse` ask: a set is kept while the course is the same, cleared when
+ * it changes, set or cleared only when the caller names it.
+ *
+ * The invariant, not the feature: after a nine change, every player plays off
+ * the set the ORGANIZER decided — the round's, unless their flight or they
+ * themselves were put elsewhere and the policy lets that count (`teeIdFor`) —
+ * and their nine-hole Course Handicap is Rule 6.1b's, worked in WHOLE NUMBERS
+ * (an index in tenths, a rating in tenths, everything over 2260: half the index
+ * × slope ÷ 113 + (half the rating − half the par)), sharing neither formula
+ * nor floating point with `domain/handicap.ts`. Front and back price alike: a
+ * set stores its eighteen's rating and a nine is half of it (`nineHoleTee`).
+ */
+describe("a nine-hole round keeps the committee's tees when its nine changes, on every field size, nine and tee policy", () => {
+  /** The round's set (Score entry), the tournament's, one flight's. Ratings in tenths. */
+  const SETS = {
+    blue: { rating10: 734, slope: 135, par: 72 },
+    white: { rating10: 712, slope: 126, par: 72 },
+    red: { rating10: 690, slope: 118, par: 72 },
+  } as const;
+  type SetId = keyof typeof SETS;
+  const RATINGS = new Map(
+    (Object.keys(SETS) as SetId[]).map((id) => [id, { courseRating: SETS[id].rating10 / 10, slopeRating: SETS[id].slope, par: SETS[id].par, courseId: "home" }]),
+  );
+  const ch2260 = (index10: number, id: SetId) => index10 * SETS[id].slope + (SETS[id].rating10 - 10 * SETS[id].par) * 113;
+  /** Rounded once, a half upward (Rule 6.1), in whole numbers — plus handicaps included. */
+  const halfUp = (num: number, den: number) => Math.floor((2 * num + den) / (2 * den));
+  /** Decimal indexes, a plus handicap (+2.4) among them: the axis whole-number fixtures miss. */
+  const index10s = (n: number) => Array.from({ length: n }, (_, i) => (i % 7 === 6 ? -24 : (i % 10) * 43 + 6));
+  /** i % 4: on the round's set; in the red flight; moved to white; both. */
+  const levels = (i: number) => ({ flight: i % 4 === 1 || i % 4 === 3 ? ("red" as const) : null, own: i % 4 >= 2 ? ("white" as const) : null });
+  /** The set each player SHOULD be on, worked from the policy without `teeIdFor`. */
+  const shouldBe = (policy: string, i: number, round: SetId): SetId => {
+    const { flight, own } = levels(i);
+    if (policy === "one") return round;
+    if (policy === "flight") return flight ?? round;
+    return own ?? flight ?? round;
+  };
+  const MOVES: Array<[string, string]> = [["front", "back"], ["back", "front"], ["full", "front"], ["back", "full"]];
+
+  it("one row by hand: index 18.4 off Blue on a nine is 12, off the tournament's White 10", () => {
+    // 9.2 × 135/113 + (36.7 − 36) = 11.69 → 12; 9.2 × 126/113 + (35.6 − 36) = 9.86 → 10.
+    expect(halfUp(ch2260(184, "blue"), 2260)).toBe(12);
+    expect(halfUp(ch2260(184, "white"), 2260)).toBe(10);
+    const one = courseHandicapMap([{ id: "a", handicap: 18.4, teeId: null, flightTeeId: null }], RATINGS, "blue", 9, "own");
+    expect(one.get("a")).toBe(12);
+  });
+
+  for (const n of FIELD_SIZES) {
+    for (const policy of TEE_POLICY) {
+      it(`${n} in the field · ${policy}: every nine move keeps the round on Blue and every player on the organizer's set`, () => {
+        const players = index10s(n).map((index10, i) => ({
+          id: `p${i}`,
+          handicap: index10 / 10,
+          teeId: levels(i).own,
+          flightTeeId: levels(i).flight,
+        }));
+        for (const [from, to] of MOVES) {
+          // Score entry put the round on Blue; the rounds screen now sends the course and the nine.
+          const round = { courseId: "home", teeId: "blue", nine: from };
+          const kept = teeAfterVenue(round, { courseId: "home" });
+          expect(kept, `${from} → ${to} dropped the round's tees`).toBe("blue");
+          const m = courseHandicapMap(players, RATINGS, kept, 9, policy);
+          players.forEach((p, i) => {
+            const want = halfUp(ch2260(index10s(n)[i], shouldBe(policy, i, "blue")), 2260);
+            expect(m.get(p.id), `${p.id} (index ${p.handicap}) after ${from} → ${to}`).toBe(want);
+          });
+        }
+      });
+    }
+  }
+
+  it("the rule's other three answers: a new course clears, a named set sets, a named null clears", () => {
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "away" })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: null, teeId: "blue" }, { courseId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "home", teeId: "white" })).toBe("white");
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "home", teeId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: null }, { courseId: "home" })).toBeNull();
+    // A set named with no course to be on is not stored.
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: null, teeId: "blue" })).toBeNull();
   });
 });
 

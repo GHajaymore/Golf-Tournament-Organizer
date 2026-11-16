@@ -131,7 +131,10 @@ export function playerOfGuestKey(key: string): string | null {
 export function whoKeysForEntry(entry: { id: string; email?: string | null; standing?: string | null }): string[] {
   const keys: string[] = [];
   const email = (entry.email ?? "").trim().toLowerCase();
-  if (email) keys.push(email);
+  // Never a guest key spelled as an email (the #1133 security review F-5): the
+  // email writes refuse one today, and this keeps one club's entry from ever
+  // routing to another club's guest if a write is added that does not.
+  if (email && !isGuestKey(email)) keys.push(email);
   if (isGuest(entry)) keys.push(guestWhoKey(entry.id));
   return keys;
 }
