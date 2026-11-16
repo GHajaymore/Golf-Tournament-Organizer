@@ -290,6 +290,12 @@ function invariants(name: string, t: Facts, today = TODAY) {
   // whenever the home has its launch line.
   const lines = t.status.step === "completed" ? [] : whatsNext({ tournaments: [t], today, locale: "en-GB" });
   const home = t.status.step === "setting-up" && !lines.some((l) => l.key === "launch") ? undefined : lines[0];
+  // The ruling, across every shape: setting up, the button is Launch — unless entries wait for approval, or a tee
+  // sheet is due before the first day (a round that cannot happen). Never a strokes line or anything later.
+  if (t.status.step === "setting-up" && t.status.nextAction?.kind === "launch") {
+    const early = j.key === "tee-sheet" && !!t.nextSheet?.day && !!t.startOn && t.nextSheet.day < t.startOn;
+    expect(j.key === "launch" || j.key === "entries" || early, `${name}: setting up, the button was ${j.key}`).toBe(true);
+  }
   if (home) {
     expect(home.key, `${name}: the home's first line`).toBe(j.key);
     if (j.key !== "launch" && j.key !== "results") expect(home.action, name).toBe(j.action);

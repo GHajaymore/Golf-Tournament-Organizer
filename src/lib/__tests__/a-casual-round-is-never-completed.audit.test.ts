@@ -97,7 +97,7 @@ describe("the public action refuses to complete a casual round, and stores nothi
   });
 
   it("CONTROL: the same press on a tournament of the same round is not refused for being casual", async () => {
-    // A knockout of two, launched: the refusal above is the family's, not the round's or the action's.
+    // A stroke-play tournament, launched: the refusal above is the family's, not the round's or the action's.
     await eventOf("tournament", "stroke", "live");
     const res = await setEventStatus("completed");
     expect(res.error ?? "").not.toBe(CASUAL_IS_NEVER_COMPLETED);
