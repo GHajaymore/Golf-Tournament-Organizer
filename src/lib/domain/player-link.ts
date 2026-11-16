@@ -338,7 +338,9 @@ export const PLAYER_LINK_WORDS = {
   /** PR 2 (S8): quieten a guest's posts without ending the link; the desk stays open. */
   mute: "Mute in messages",
   unmute: "Unmute in messages",
-  mutedSaid: (name: string) => `${firstNameOf(name) || "They"} can't post in the event's threads now. They can still message the organizers.`,
+  /** Says the LINK, no more (the #1133 security review F-4): a mute is on the pass, so it does not
+   *  follow the person to an account they may sign in with after launch. */
+  mutedSaid: (name: string) => `${firstNameOf(name) || "They"} can't post in the event's threads from their player link now. They can still message the organizers.`,
   unmutedSaid: (name: string) => `${firstNameOf(name) || "They"} can post in the event's threads again.`,
   /** The guest's own screens. */
   otherPhone: (day: string) => `Your link was opened on another phone or browser on ${day}. Not you? Ask the organizer for a new link.`,
