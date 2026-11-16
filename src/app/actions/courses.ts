@@ -29,7 +29,7 @@ import {
   type DirectoryHit,
 } from "@/lib/domain/course-directory";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
-import { matchCourse, teeProblems } from "@/lib/domain/venue";
+import { matchCourse, teeAfterVenue, teeProblems } from "@/lib/domain/venue";
 import { libraryOrganizationFor, organizationIdsForPlayer } from "@/lib/services/organization";
 import { addCourseToLibrary } from "@/lib/services/course-library";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -498,14 +498,16 @@ export async function setEventCourses(courseIds: string[]): Promise<CourseResult
   await prisma.$transaction(async (tx) => {
     // Rounds and matches pointing at a course that's no longer on the event
     // fall back to inheriting rather than keeping a venue the organizer just
-    // said isn't in use.
+    // said isn't in use — and their tees go with the course, as `teeAfterVenue`
+    // says for every other venue write: a set left behind belongs to a course
+    // the round is no longer at.
     await tx.stage.updateMany({
       where: { eventId, courseId: { notIn: [...keep] } },
-      data: { courseId: null },
+      data: { courseId: null, teeId: null },
     });
     await tx.match.updateMany({
       where: { eventId, courseId: { notIn: [...keep] } },
-      data: { courseId: null },
+      data: { courseId: null, teeId: null },
     });
     await tx.eventCourse.deleteMany({ where: { eventId, courseId: { notIn: [...keep] } } });
     for (const id of keep) {
@@ -540,13 +542,22 @@ export async function setStageCourse(
   nine?: string,
   force = false,
   /**
-   * The set this round is played from, from the course above.
+   * The set this round is played from, from the course above — and, like the
+   * nine, ONLY when the caller says.
    *
-   * Last and optional so every existing caller is unchanged: a screen that
-   * only sets the venue clears the tee along with it, which is the honest
-   * answer when the course has moved — see the note at the write below.
+   * A string sets it; `null` clears it (Score entry's "the tournament's
+   * tees"). LEFT OUT, the round keeps the set it has while the course stays
+   * the same, and loses it only when the course changes — see the note at the
+   * write below.
+   *
+   * This defaulted to null and was written every time, so the rounds screen's
+   * "Which nine", which sends the course and the nine and has no tees to send,
+   * wiped the tees the organizer had chosen on Score entry. The round then fell
+   * back to the tournament's set: a twilight nine meant off Blue (36.7 / 135 a
+   * nine) priced off White (35.6 / 126), a player of 18.4 given 10 where the
+   * committee's tees give 12 (`a-rounds-tees-survive-its-nine.audit.test.ts`).
    */
-  teeId: string | null = null,
+  teeId?: string | null,
 ): Promise<CourseResult> {
   // Staff, not only the organizer: Ajay's decision of 2026-09-27.
   let gate: { organizationId: string; eventId: string };
@@ -597,9 +608,40 @@ export async function setStageCourse(
    * opens anything: there is nothing left to confirm.
    */
   void force;
+  /**
+   * WHICH SET THIS ROUND IS PLAYED FROM, after this write — `teeAfterVenue`,
+   * the one rule for a round and a match alike.
+   *
+   * Not named: KEPT while the course stays the same — choosing the nine, or
+   * restating the venue, is not a decision about the tees — and CLEARED when
+   * the course changes. A tee belongs to one course, so a `Stage.teeId` left
+   * pointing at the old venue is a set that is not there — `teeForPlay` steps
+   * past it, correctly, which means the round would silently fall back with the
+   * screen still showing an answer. Better to hold nothing than to hold
+   * something untrue.
+   *
+   * Named: scoped to the course being set, exactly as `nameMatchVenue` scopes
+   * the match's — an id off the wire is an arbitrary row, and unscoped it would
+   * price the round off another club's slope and rating.
+   *
+   * Asked of the course PLAYED, not the column stored: a round with no course
+   * of its own is played at the tournament's (every reader resolves its set
+   * there, `loadEventState`'s `s.courseId ?? event.courseId`). So "Same as the
+   * tournament" on Rounds & formats, which stores null, is no change of course
+   * when the tournament is at the course the round was already on, and the
+   * tees chosen on Score entry stay (Fable's review of #1159: 12 became 10).
+   */
+  const home = (await prisma.event.findUnique({ where: { id: eventId }, select: { courseId: true } }))?.courseId ?? null;
+  const playedNow = stage.courseId ?? home;
+  const playedNext = courseId ?? home;
+  if (playedNext && teeId) {
+    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId: playedNext }, select: { id: true } });
+    if (!owned) return { ok: false, error: "Those tees aren't on that course." };
+  }
+  const roundTee = teeAfterVenue({ courseId: playedNow, teeId: stage.teeId }, { courseId: playedNext, teeId });
   const changed =
     (courseId ?? null) !== (stage.courseId ?? null) ||
-    (courseId && teeId ? teeId : null) !== (stage.teeId ?? null) ||
+    roundTee !== (stage.teeId ?? null) ||
     (nine !== undefined && cleanNine(nine) !== stage.nine);
   const refused = changed ? await roundRefusal(eventId, stageId, { kind: "round-tees" }) : null;
   if (refused) return { ok: false, error: refused };
@@ -613,26 +655,6 @@ export async function setStageCourse(
       update: {},
       create: { eventId, courseId },
     });
-  }
-
-  /**
-   * WHICH SET THIS ROUND IS PLAYED FROM, when the caller says.
-   *
-   * Scoped to the course being set, exactly as `nameMatchVenue` scopes the
-   * match's: an id off the wire is an arbitrary row, and unscoped it would
-   * price the round off another club's slope and rating.
-   *
-   * CLEARED when the course changes and the new one is not asked about. A tee
-   * belongs to one course, so a `Stage.teeId` left pointing at the old venue
-   * is a set that is not there — `teeForPlay` steps past it, correctly, which
-   * means the round would silently fall back with the screen still showing an
-   * answer. Better to hold nothing than to hold something untrue.
-   */
-  let roundTee: string | null = null;
-  if (courseId && teeId) {
-    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId }, select: { id: true } });
-    if (!owned) return { ok: false, error: "Those tees aren't on that course." };
-    roundTee = owned.id;
   }
 
   await prisma.stage.update({
@@ -712,9 +734,21 @@ export async function setMatchCourse(
     });
   }
 
+  /**
+   * THE MATCH'S TEES GO WITH ITS COURSE (`teeAfterVenue`, the round's rule).
+   *
+   * This wrote `{ courseId, nine }` and never touched `teeId`, so a match named
+   * at one course off a set there (`nameMatchVenue`) and then moved kept that
+   * set on its row. At the new course `teeForPlay` steps past it, so no wrong
+   * figure followed there — but with no course at all (an open-course event,
+   * the venue put back to "Not set") `teeForPlay` lets every rung through, and
+   * the old course's set would price a match played nowhere in particular
+   * (`match-venue.audit.test.ts`). Kept while the course is the same.
+   */
+  const matchTee = teeAfterVenue({ courseId: match.courseId, teeId: match.teeId }, { courseId });
   await prisma.match.update({
     where: { id: matchId },
-    data: { courseId, nine: cleanNine(nine) },
+    data: { courseId, nine: cleanNine(nine), teeId: matchTee },
   });
   await refresh();
   return { ok: true };

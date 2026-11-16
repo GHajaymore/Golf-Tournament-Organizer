@@ -190,9 +190,10 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    *
    * Matched on email, the same key `myPlayerIds` and `clubEventsFor` use. A
    * member with no roster row yet — somebody who joined the club but has never
-   * entered anything — falls back to the account's own name and a zero
-   * handicap, which is what the organizer's roster screen shows for a new
-   * entrant and is correctable there.
+   * entered anything — falls back to the account's own name and NO handicap
+   * index (a stored 0 marked "none", never a scratch figure), so in a round
+   * scored net the committee is asked for their strokes (`needsCommitteeFigure`)
+   * and the organizer can type the index on the roster.
    *
    * Read before the lock: it touches the member and (below) the tees, not the
    * confirmed count, so it does not belong in the serialised section.
@@ -288,7 +289,11 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
         phone,
         handicap: member?.handicap ?? 0,
         handicapType: member?.handicapType ?? "18",
-        handicapSource: member?.handicapSource ?? "manual",
+        // NO ROSTER ROW, NO INDEX (review of #1144, C1). The stored 0 is a placeholder, not a figure:
+        // "manual" here claimed it as the member's index, so a member who entered themselves was a
+        // scratch golfer in every net round and nothing asked the committee. "none" is how every reader
+        // says "nobody has given a figure" (`hasIndex`, `needsCommitteeFigure`).
+        handicapSource: member ? member.handicapSource : "none",
         gender: member?.gender ?? "",
         // What the club's record holds, as the roster's "Add to field" copies it: this door
         // dropped the home club and the handicap number, so a member who entered themselves

@@ -397,6 +397,7 @@
   "app/actions/card-photo.ts:readGroupCardPhoto": "e2e/switched-off-services-answer-in-words.spec.ts",
   "app/actions/card-photo.ts:readScorecardPhoto": "e2e/switched-off-services-answer-in-words.spec.ts",
   "app/actions/commentary.ts:suggestCommentary": "e2e/switched-off-services-answer-in-words.spec.ts",
+  "app/actions/committee-figure.ts:correctRoundStrokes": "e2e/no-handicap-net-round.spec.ts",
   "app/actions/courses.ts:checkCourseAgainstSource": "e2e/switched-off-services-answer-in-words.spec.ts",
   "app/actions/draft-message.ts:draftMessage": "e2e/switched-off-services-answer-in-words.spec.ts",
   "app/actions/join.ts:dismissNamesakeNotice": "e2e/namesake-notice.spec.ts",
