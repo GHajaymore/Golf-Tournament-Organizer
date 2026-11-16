@@ -183,7 +183,7 @@ test("the secretary records, undoes, approves and changes knockout results on Sc
     family: "ko-ties",
     players: 4,
     saves: true,
-    event: { shape: "knockout", qualifyMode: "overall", qualifyOverall: 4, bracketMode: "single", status: "live", configUnlocked: false },
+    event: { shape: "knockout", qualifyMode: "overall", qualifyOverall: 4, bracketMode: "single", status: "live" },
     rounds: [{ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross" }],
   });
   try {
