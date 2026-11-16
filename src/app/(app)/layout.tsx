@@ -15,6 +15,8 @@ import { EventContextBar } from "@/components/EventContextBar";
 import { BackToTheRound } from "@/components/BackToTheRound";
 import { LifecycleStepper } from "@/components/LifecycleStepper";
 import { LIFECYCLE_STEPPER_ON, lifecycleTrack, stepperShown } from "@/lib/domain/lifecycle-track";
+import { mergesShown } from "@/lib/domain/console-merges";
+import { isOwner } from "@/lib/owner";
 import { headers } from "next/headers";
 import { openTournamentJob } from "@/lib/services/whats-next";
 import { navForRole } from "@/lib/nav";
@@ -173,7 +175,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    */
   const asked = await headers();
   const track =
-    event && roundState && told && stepperShown(asked.get("x-search") ?? "")
+    event && roundState && told && stepperShown(asked.get("x-search") ?? "", { owner: isOwner(session.email) })
       ? lifecycleTrack(told.status, await openTournamentJob(event.id, roundState.today))
       : null;
   const boardRound = roundState?.boardStage ?? null;
@@ -221,8 +223,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * 9 Nov) — the same switch, so nothing changes until Ajay has previewed it. Its sections are the
    * track's own stops; which screens it lists is still `navForRole`'s answer above, rearranged
    * (`lifecycleNav`). No track (the switch off, a casual round, no tournament open): the menu as it was.
+   * The redesign's screens reach it only where one is shown (`mergesShown`: none, without `&build=1`;
+   * a preview in production to an owner only).
    */
-  const sections = track ? lifecycleNav(flatSections, track, { roundName }) : flatSections;
+  const merges = mergesShown(asked.get("x-search") ?? "", { owner: isOwner(session.email) });
+  const sections = track ? lifecycleNav(flatSections, track, { roundName, merges, role: session.viewRole }) : flatSections;
   const menuPreview = track !== null && !LIFECYCLE_STEPPER_ON;
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).

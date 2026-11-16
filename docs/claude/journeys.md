@@ -8,13 +8,15 @@ Ajay, 14 Nov 2026: "I am keep telling to simplify the things while setting up or
 
 | | Name | Walk |
 |---|---|---|
-| J1 | `secretary-first-event` | Sign up as a club → first member → first tournament → entry link, opened by somebody else |
-| J2 | `secretary-playable-event` | J1's sign-up → date and catalogue course → the round → eight members by CSV → launch → tee sheet published → a member sees their tee time on Today. **The ten-minute promise is held here.** |
+| J1 | `secretary-first-event` | Sign up as a club → first tournament, on the screen the code lands on → entry link, opened by somebody else |
+| J2 | `secretary-playable-event` | J1's sign-up and create → eight members by CSV on Entries, where the create lands → date and catalogue course → the round → launch → tee sheet published → a member sees their tee time on Today. **The ten-minute promise is held here.** |
 | J3 | `secretary-copy-last-event` | Copy last event from the home with a new first day → Entries → the new link, opened |
 | J4 | `player-member` | Signed in: Today → card → hole 1 → Board |
 | J4b | `player-member-signed-out` | The app's link on a new browser → log in → Today → card → hole 1 → Board |
 | J5 | `player-card-18` | A realistic 88 on one bar of signal (saves held 2 s), certified, then the final standing; 0 choosers |
 | J6 | `player-guest` | The personal player link → Open my card → Today → card → hole 1 → Board |
+
+**Event-first (Cut A, Ajay 15 Nov 2026).** No journey asks for the members list before the first event. A club is asked for it at the draw (the Tee sheet, when nobody has entered and the club's list is empty: Import members, or Add a player) and offered it on Entries ("Import members", in the "Add from the club roster" card). Whatever is added there lands on Members, so nothing is typed twice. A change that puts a members step back before the first event fails J1 and J2 over their ceilings.
 
 ## What is counted (`e2e/journey.ts`)
 
