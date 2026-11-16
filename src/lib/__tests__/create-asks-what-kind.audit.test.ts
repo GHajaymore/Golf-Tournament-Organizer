@@ -50,18 +50,18 @@ afterAll(async () => {
 });
 
 describe("what kind of outfit runs it", () => {
-  it("a newcomer naming 'X Golf Society' as a society is filed as one — and asked for members first", async () => {
+  it("a newcomer naming 'X Golf Society' as a society is filed as one — and its first tournament is made", async () => {
     const email = newcomer();
     const r = await createEvent(`${TAG} spring`, "custom", "single", `${TAG} Riverside Golf Society`, undefined, true, "community");
     const org = await orgOf(email);
     expect(org.name).toBe(`${TAG} Riverside Golf Society`);
     expect(org.kind).toBe("community");
-    // The club-first rule: a society adds its members before its first
-    // tournament, and says which answer it is waiting for.
-    expect(r.ok).toBe(false);
-    // In its own country's word: a newcomer's outfit has no country yet, and since the country
-    // words (2026-10-24) that is a US one, whose word for a community outfit is "league".
-    expect(r.error).toMatch(/Finish setting up your league first/);
+    // EVENT-FIRST (Cut A, Ajay 15 Nov 2026): the name was the one answer owed, given here, and the
+    // members list is asked for at the draw, never before the first tournament. It was "asked for
+    // members first" until then.
+    expect(r.error ?? "").toBe("");
+    expect(r.ok).toBe(true);
+    expect(await prisma.event.count({ where: { name: `${TAG} spring` } })).toBe(1);
   });
 
   it("CONTROL: a company or one-off day goes straight through", async () => {

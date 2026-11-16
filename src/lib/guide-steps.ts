@@ -55,6 +55,10 @@ export const GUIDE_STEPS: GuideSection[] = [
     part: "Part 1",
     title: "Before your first tournament",
     blocks: [
+      {
+        kind: "p",
+        text: "Straight after you sign up and type back the emailed code, the screen you land on asks for your first tournament: its name, how it's played, and your club's name, set once for every tournament. Press [[Create tournament]] and you are on Entries, ready to open entries. Nothing has to be done first. Your members list is never needed before the first tournament: Entries offers [[Import members]], and the Tee sheet asks for it when you come to make the draw. Club settings and Members can be set up whenever suits you.",
+      },
       { kind: "h", text: "Club settings" },
       { kind: "where", text: "Club → Club settings (or {Community} settings)" },
       {
@@ -85,7 +89,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
           "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
-          "Before the club's first tournament, the list of what is still to set up sits above the members, so once the first one is added **Create your first tournament** is one press away.",
+          "The list is never asked for before your first tournament. Entries offers [[Import members]] in **Add from the club roster**, and when you open the Tee sheet with nobody entered and an empty list it asks for it there: [[Import members]] (a CSV from your club's own system) or [[Add a player]] on Entries. With a list and nobody entered yet, the Tee sheet says to tick who is playing on Entries instead. Members imported either way land here, and anyone you add or import on Entries joins this list too, so nothing is typed twice. Then tick who is playing on Entries.",
           "Each member also has **My season** in the player app, reached from Events: their own tournaments, rounds, places, best scores and prizes this season. Every place is the one that tournament's board gives. A tournament whose standings you have not published shows them no place, and nobody sees another member's season.",
         ],
       },
