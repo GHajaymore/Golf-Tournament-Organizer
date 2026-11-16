@@ -169,4 +169,49 @@ test.describe("no handicap index in a net round", () => {
     expect(line?.detail).toContain("Reason: Handicap card shown at the desk");
     expect(errors).toEqual([]);
   });
+
+  /**
+   * SETTING UP, THE ONE BUTTON IS LAUNCH, even with a net week that has no day yet (QA's NO-GO on #1166,
+   * 16 Nov). A league starting beyond the home's fortnight; week 1 gross and dated, week 2 net and UNDATED,
+   * one player with no index. Before the fix the strokes job for week 2 was due TODAY, outranked a Launch
+   * due on the first day, and the dashboard's one button was Give strokes: no Launch tournament anywhere on
+   * it (the home lists no launch line beyond the fortnight). Its own club, so no other tournament's line
+   * can draw a Launch button for it.
+   */
+  test("setting up with an undated net week: the dashboard's button is Launch tournament", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    const mark = "zz-undatednetlaunch";
+    const errors: string[] = [];
+    await dropClub(mark);
+    const context = await browser.newContext({ ...testInfo.project.use, baseURL, serviceWorkers: "block" });
+    try {
+      const own = await makeClub(mark, { timeZone: ZONE });
+      const first = addDays(dayIn(ZONE), 20);
+      const made = await makeEvent(own, "Thursday League", {
+        status: "draft",
+        configUnlocked: true,
+        stages: [
+          { scoringBasis: "gross", playedOn: first },
+          { scoringBasis: "net", playedOn: "" },
+          { scoringBasis: "gross", playedOn: "" },
+        ],
+        players: 4,
+        event: { dates: "Later", startOn: first, endOn: addDays(first, 21), moneyMode: "none", playKind: "league" },
+      });
+      await prisma.stage.updateMany({ where: { eventId: made.event.id }, data: { teeSheet: JSON.stringify({ groups: [] }) } });
+      await prisma.player.update({ where: { id: made.players[0].id }, data: { handicap: 0, handicapSource: "none" } });
+      await signIn(context, baseURL!, own, made.event.id);
+      const page = await context.newPage();
+      watchPageErrors(page, errors, "secretary");
+      await page.goto(`/dashboard?bust=${Date.now()}`);
+      await expect(
+        page.getByRole("button", { name: "Launch tournament" }).first(),
+        "setting up, the dashboard's one button is not Launch tournament",
+      ).toBeVisible({ timeout: 30_000 });
+      expect(errors).toEqual([]);
+    } finally {
+      await context.close().catch(() => {});
+      await dropClub(mark).catch(() => {});
+    }
+  });
 });
