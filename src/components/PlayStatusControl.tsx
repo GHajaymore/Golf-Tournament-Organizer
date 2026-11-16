@@ -17,6 +17,14 @@ import { formatClock } from "@/lib/domain/locale";
  * tap sends the field back out into the lightning: an accidental suspend is
  * safe, an accidental resume is not.
  *
+ * ON A PHONE, ONE CONTROL, TWO PLACES (B64, Rule 5.7): with play on, the very
+ * same button is drawn compact in the sticky top bar (`.suspend-compact`, CSS
+ * only: fixed over the bar's right end, 44px, never scrolling away), and its
+ * confirm opens as a sheet pinned to the top of the window
+ * (`.suspend-confirm`), so a committee member far down a long screen suspends
+ * in the same two presses and no second copy of the rule exists. Above 820px
+ * both are the ordinary rows they always were.
+ *
  * Drawn on every console screen by the shell (`ConsolePlayStatus`), never by
  * a page. `alertsOff` is the names of the players the alarm will not reach
  * (F-2, from `noticesOffAmong`): said on the confirm, before the press, so the
@@ -117,7 +125,7 @@ export function PlayStatusControl({
 
   if (!open) {
     return (
-      <div style={{ marginBottom: 20 }}>
+      <div className="suspend-compact" style={{ marginBottom: 20 }}>
         <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
           <Icon name="warning" /> Suspend play
         </button>
@@ -127,7 +135,7 @@ export function PlayStatusControl({
 
   return (
     <form
-      className="card"
+      className="card suspend-confirm"
       style={{ marginBottom: 20, display: "grid", gap: 10, borderColor: "var(--color-danger)" }}
       onSubmit={(e) => {
         e.preventDefault();

@@ -196,6 +196,33 @@ describe("one mount: the console's shell", () => {
     expect(control.match(/ref=\{confirmButton\}/g), "Suspend play now and Resume play now are both brought into view").toHaveLength(2);
   });
 
+  it("a phone has Suspend play in its sticky top bar with play on: the same button, pinned by CSS, 44px, tokens only; its confirm a sheet (B64)", () => {
+    const css = readSource("src/app/globals.css");
+    const at = css.indexOf(".suspend-compact {");
+    expect(at, "no compact Suspend play rule").toBeGreaterThan(-1);
+    expect(css.slice(css.lastIndexOf("@media", at), at), "not phone-only").toMatch(/^@media \(max-width: 820px\) \{\s*$/);
+    const rule = css.slice(at, css.indexOf("}", at));
+    expect(rule).toMatch(/position: fixed/);
+    expect(rule, "clear of the notch").toMatch(/safe-area-inset-top/);
+    const target = css.slice(css.indexOf(".suspend-compact .btn.btn {"), css.indexOf("}", css.indexOf(".suspend-compact .btn.btn {")));
+    expect(target).toMatch(/min-height: 44px/);
+    const sheetAt = css.indexOf(".suspend-confirm {");
+    const sheet = css.slice(sheetAt, css.indexOf("}", sheetAt));
+    expect(sheet).toMatch(/position: fixed/);
+    expect(sheet).toMatch(/overflow-y: auto/);
+    // Tokens only, in everything this change drew.
+    const drawn = css.slice(at, css.indexOf(".app-sidebar {", at));
+    expect(drawn, "CONTROL: the slice is the rules and not the rest of the file").toContain(".suspend-confirm {");
+    expect(drawn.length, "CONTROL: the slice ran on past the rules").toBeLessThan(1500);
+    expect(drawn, "a hard-coded colour").not.toMatch(/#[0-9a-fA-F]{3,8}\b|\brgba?\(/);
+    // ONE control: the compact button is the shell's own, not a second component or a second action.
+    const control = readSource("src/components/PlayStatusControl.tsx");
+    expect(control).toMatch(/className="suspend-compact"/);
+    expect(control).toMatch(/className="card suspend-confirm"/);
+    expect(control.match(/run\(\(\) => suspendPlay\(why\)|suspendPlay\(why\)/g), "a second way to suspend").toHaveLength(1);
+    expect(mountsOf("PlayStatusControl")).toEqual(["src/components/ConsolePlayStatus.tsx"]);
+  });
+
   it("Resume confirms, and says the field will be told to play on (#1149 C3)", () => {
     const control = readSource("src/components/PlayStatusControl.tsx");
     // The banner's own button opens the confirm; only "Resume play now" calls the action.

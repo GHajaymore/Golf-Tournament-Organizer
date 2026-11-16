@@ -303,6 +303,65 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
 });
 
 /**
+ * SUSPEND PLAY IS IN THE PHONE'S TOP BAR, FAR DOWN A LONG SCREEN (B64, Rule 5.7).
+ *
+ * With play on, the shell's row scrolls away with the page; on a phone the same
+ * button is pinned over the top bar, so a committee member who has scrolled to
+ * the bottom of a long screen still stops play in two presses without scrolling
+ * back. At 393 wide (a current phone) and 320 (the narrowest).
+ */
+for (const width of [393, 320]) {
+  test(`on a ${width}px phone, scrolled to the bottom of a long screen, Suspend play is still in the top bar and suspends with its confirm`, async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await playOn();
+    const organizer = await browser.newContext({
+      ...testInfo.project.use,
+      baseURL,
+      storageState: ORGANIZER,
+      viewport: { width, height: 740 },
+      hasTouch: true,
+      serviceWorkers: "block",
+    });
+    try {
+      const page = await organizer.newPage();
+      const suspendButton = page.getByRole("button", { name: "Suspend play", exact: true });
+      await page.goto(`/event?bust=${Date.now()}`);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(suspendButton, "Suspend play is not on the screen").toBeVisible({ timeout: 20_000 });
+      // CONTROL: the screen is long, and we really are at its bottom.
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      const scrolled = await page.evaluate(() => window.scrollY);
+      expect(scrolled, "CONTROL: the screen did not scroll, so the button was never off its row").toBeGreaterThan(200);
+      await expect(page.locator(".console-play-status"), "CONTROL: play is on, so no banner is drawn").toHaveCount(0);
+
+      // Still in view, inside the top bar's strip, and a thumb-sized target.
+      await expect(suspendButton, "scrolled to the bottom, Suspend play is out of view").toBeInViewport({ ratio: 1 });
+      const bar = await page.locator(".m-topbar").boundingBox();
+      const box = await suspendButton.boundingBox();
+      expect(bar, "CONTROL: the top bar has no box").not.toBeNull();
+      expect(box, "CONTROL: the button has no box").not.toBeNull();
+      expect(box!.height, "Suspend play is under 44px tall").toBeGreaterThanOrEqual(43.5);
+      expect(box!.y, "Suspend play is not in the top bar").toBeLessThan(bar!.y + bar!.height);
+      expect(box!.x + box!.width, "Suspend play runs off the right edge").toBeLessThanOrEqual(width);
+      expect(box!.x, "Suspend play runs off the left edge").toBeGreaterThanOrEqual(0);
+
+      // Two presses, with the confirm in view, and the row is stamped.
+      await suspendButton.click();
+      const now = page.getByRole("button", { name: "Suspend play now" });
+      await expect(now, "the confirm is out of view").toBeInViewport();
+      await page.getByLabel("Reason (optional)").fill("Lightning in the area");
+      await now.click();
+      await expect(page.getByRole("alert").filter({ hasText: "Play is suspended" })).toBeVisible({ timeout: 20_000 });
+      const stamped = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true } });
+      expect(stamped.playSuspendedAt, "the tournament is not marked suspended").not.toBeNull();
+    } finally {
+      await playOn();
+      await organizer.close();
+    }
+  });
+}
+
+/**
  * A SECOND STAFF DEVICE IS TOLD, WITHOUT A RELOAD (review of #1149, C2).
  *
  * The control lives in the console's LAYOUT, and a layout is not drawn again
