@@ -9,6 +9,7 @@ import { Icon } from "./Icon";
 import { CopyDayFields } from "./CopyDayFields";
 import { useOrgProfile } from "./OrgProfileProvider";
 import { bringIntoView } from "@/lib/bring-into-view";
+import { landingAfterCreate } from "@/lib/domain/after-create";
 
 export interface EventRow {
   id: string;
@@ -447,7 +448,7 @@ export function EventSwitcher({
               // Into the tournament just made — see the note on `openIn`.
               else {
                 setName("");
-                router.push("/dashboard");
+                router.push(landingAfterCreate(copyId ? "copied" : "created"));
               }
             });
           }}

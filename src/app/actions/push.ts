@@ -1,7 +1,8 @@
 "use server";
 import { prisma } from "@/lib/db";
 import { getPlayerViewer, type PlayerViewer } from "@/lib/player-viewer";
-import { pushEndpoint, silenceEndpoint } from "@/lib/services/push";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { fileGuestPush, pushDeviceBudgetKey, pushEndpoint, turnOffHere } from "@/lib/services/push";
 
 /**
  * Opting a device in and out of web-push.
@@ -23,8 +24,9 @@ import { pushEndpoint, silenceEndpoint } from "@/lib/services/push";
  * whole app runs on: a caller may only act on their OWN record. Saving stamps
  * the row with the caller's own identity, taken from the viewer and never from
  * an argument; asking is scoped to it, so nobody can probe somebody else's
- * phone. Turning off is about the PHONE, not the person (review of #1133,
- * SEC-2): it silences every row on the endpoint the caller's own browser holds.
+ * phone; turning off removes the caller's own row only (the #1133 security
+ * review F-3). Both presses are budgeted per identity (`push-device`, F-1), and
+ * a guest's link holds at most `GUEST_PUSH_ROWS` phones.
  */
 
 /* The boundary checks and the owner, above every action so no action's text carries them. */
@@ -65,6 +67,8 @@ export async function savePushSubscription(sub: {
 }): Promise<PushActionResult> {
   const owner = await pushOwnerNow();
   if (!owner) return { ok: false, error: "Not signed in." };
+  const budget = await checkRateLimit("push-device", pushDeviceBudgetKey(owner));
+  if (!budget.allowed) return { ok: false, error: budget.message };
 
   const endpoint = pushEndpoint(sub?.endpoint);
   const p256dh = cleanKey(sub?.keys?.p256dh);
@@ -72,12 +76,7 @@ export async function savePushSubscription(sub: {
   if (!endpoint || !p256dh || !auth) return { ok: false, error: "That isn't a push subscription." };
 
   if (owner.guest) {
-    const { passId, version } = owner.guest;
-    await prisma.playerPassPush.upsert({
-      where: { passId_endpoint: { passId, endpoint } },
-      update: { p256dh, auth, passVersion: version },
-      create: { passId, passVersion: version, endpoint, p256dh, auth },
-    });
+    await fileGuestPush(owner.guest, { endpoint, p256dh, auth });
     return { ok: true };
   }
 
@@ -91,24 +90,24 @@ export async function savePushSubscription(sub: {
 }
 
 /**
- * "Turn off": THIS PHONE stops getting notices (review of #1133, SEC-2).
+ * "Turn off": the caller's own row on this browser's endpoint goes, and only
+ * it (the #1133 security review F-3; `turnOffHere`). Before, every identity's
+ * row on the endpoint went, so any player viewer could delete somebody else's
+ * by naming its endpoint.
  *
- * Every row on this browser's endpoint goes, whoever it belongs to: the
- * caller's own, and a previous person's left behind on a phone that was handed
- * on (sign-out never removed an account's row, and the toggle shows only the
- * caller's own, so that row was otherwise one nobody on the phone could reach).
- * The client then unsubscribes the browser, as before J39/J40 PR 2. A browser
- * holding an account AND a guest link is one phone: Turn off on either stops
- * both, and either can Turn on again for itself.
- *
- * Why this cannot be pointed at somebody else's phone: the endpoint is the push
- * service's unguessable URL for one browser, the server never hands one out,
- * and a caller must still be somebody the player screen is for.
+ * The phone still stops for everybody on it: the client then unsubscribes the
+ * browser, as before J39/J40 PR 2, the push service answers 410 for that
+ * endpoint, and the sender deletes any other row on it at the next notice (a
+ * previous holder's on a handed-on phone included). A browser holding an
+ * account AND a guest link is one phone: Turn off on either stops both, and
+ * either can Turn on again for itself. Budgeted like a save (`push-device`).
  */
 export async function removePushSubscription(endpoint: string): Promise<PushActionResult> {
   const owner = await pushOwnerNow();
   if (!owner) return { ok: false, error: "Not signed in." };
-  await silenceEndpoint(pushEndpoint(endpoint));
+  const budget = await checkRateLimit("push-device", pushDeviceBudgetKey(owner));
+  if (!budget.allowed) return { ok: false, error: budget.message };
+  await turnOffHere(owner, pushEndpoint(endpoint));
   return { ok: true };
 }
 

@@ -334,6 +334,30 @@ export function defaultTeeFor(courseId: string | null, tees: TeeLike[]): TeeLike
   )[0];
 }
 
+/**
+ * THE SET A ROUND OR A MATCH IS PLAYED FROM, ONCE ITS VENUE HAS BEEN WRITTEN.
+ *
+ * A tee belongs to ONE course, so the rule is one sentence: keep the set while
+ * the course stays the same, clear it when the course changes — unless the
+ * caller names the set itself (a string sets it, `null` clears it; the caller
+ * checks a named set is on `next.courseId`).
+ *
+ * Two writers broke it in opposite directions (QA Director, 14 Nov):
+ * `setStageCourse` cleared `Stage.teeId` on EVERY call that did not restate it,
+ * so the rounds screen's **Which nine** — course and nine, no tees — threw away
+ * the set the organizer chose on Score entry, and the round was priced off the
+ * tournament's tees; `setMatchCourse` never touched `Match.teeId`, so a match
+ * moved to another course kept a set from the old one. Both now ask this.
+ */
+export function teeAfterVenue(
+  now: { courseId: string | null; teeId: string | null },
+  next: { courseId: string | null; teeId?: string | null },
+): string | null {
+  if (next.teeId !== undefined) return next.courseId && next.teeId ? next.teeId : null;
+  const sameCourse = (next.courseId ?? null) === (now.courseId ?? null);
+  return sameCourse && next.courseId ? now.teeId ?? null : null;
+}
+
 /** What is wrong with a tee, in the words the person entering it needs. */
 export function teeProblems(tee: { name: string; courseRating: number; slopeRating: number; par: number }): string[] {
   const problems: string[] = [];

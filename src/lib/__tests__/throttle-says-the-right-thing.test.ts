@@ -32,6 +32,7 @@ const ABOUT: Record<RateLimitKind, RegExp> = {
   "course-search": /course search/i,
   "course-search-staff": /course search/i,
   "guest-post": /too many messages/i,
+  "push-device": /alert changes/i,
 };
 
 describe("throttle messages", () => {
