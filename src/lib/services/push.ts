@@ -88,6 +88,39 @@ export function sendOptionsFor(delivery: PushDelivery): { urgency: "high"; TTL: 
 }
 
 /**
+ * HOW LONG ONE SEND MAY TAKE (2026-11-14, the #1133 security review F-1).
+ *
+ * The callers await the sender: publish a tee sheet, move a round, suspend
+ * play. A send with no limit let ONE slow host (a dead push service, or a URL a
+ * link holder filed) hold the organizer's press until the function limit. A
+ * real push service answers in well under a second; three seconds leaves room
+ * for a cold TLS handshake and still bounds the press, and the sends run side
+ * by side, so every real phone is sent to in the same three seconds. The same
+ * idea as the browser's `PUSH_WAIT_MS` (`push-client.ts`): every wait has a
+ * limit, after which the caller goes on. A timed-out send keeps its row (a
+ * slow service is not a gone one) and is logged without its endpoint.
+ */
+export const PUSH_SEND_TIMEOUT_MS = 3000;
+
+/**
+ * HOW MANY PHONES ONE GUEST LINK MAY HOLD (F-1). A forwarded link turned on in
+ * phone after phone, or a script filing URL after URL, would otherwise grow
+ * without end, and every notice is sent to every row. Five is a person's phone,
+ * tablet and a couple of browsers with room to spare; past it the OLDEST row
+ * goes, so the phone turned on most recently is always reached.
+ */
+export const GUEST_PUSH_ROWS = 5;
+
+/**
+ * WHO A PRESS ON THE ALERTS SWITCH IS COUNTED AGAINST (`push-device`, F-1/F-3):
+ * the guest's pass, or the account's address. Never the endpoint (the caller
+ * writes it) and never the client address (a club's one wifi).
+ */
+export function pushDeviceBudgetKey(owner: { email: string; guest: { passId: string } | null }): string {
+  return owner.guest ? `pass:${owner.guest.passId}` : `email:${owner.email.trim().toLowerCase()}`;
+}
+
+/**
  * A PHONE THAT CHANGES HANDS STOPS BEING THE FIRST PERSON'S (2026-11-14,
  * safety sweep G-4; a Security Lead hole as much as a safety one).
  *
@@ -188,21 +221,58 @@ export function pushEndpoint(value: unknown): string {
 }
 
 /**
- * THIS PHONE STOPS (review of #1133, SEC-2): every row that sends to this
- * endpoint, whoever's it is — an account's `PushSubscription`, any pass's
- * `PlayerPassPush`. "Turn off" is a press on a phone, and a phone handed on
- * holds a previous person's row nobody on it can see; before J39/J40 PR 2 the
- * browser's unsubscribe ended those, and this is that, said to the server.
- * An endpoint is the push service's unguessable URL for one browser and the
- * server never hands one out, so knowing it is holding that browser.
+ * A GUEST TURNS ALERTS ON HERE (J39/J40 PR 2; capped by the #1133 security
+ * review F-1): the pass's row for this endpoint, at the pass's current version,
+ * and then only the newest `GUEST_PUSH_ROWS` of the pass's rows are kept. A
+ * refresh of a phone already on counts as its newest, so a phone in use is
+ * never the one that goes.
  */
-export async function silenceEndpoint(endpoint: string): Promise<void> {
+export async function fileGuestPush(
+  guest: { passId: string; version: number },
+  sub: { endpoint: string; p256dh: string; auth: string },
+): Promise<void> {
+  const { passId, version } = guest;
+  const { endpoint, p256dh, auth } = sub;
+  // An instant on one clock for both branches, so "newest" compares like with like.
+  const filedAt = new Date();
+  await prisma.playerPassPush.upsert({
+    where: { passId_endpoint: { passId, endpoint } },
+    update: { p256dh, auth, passVersion: version, createdAt: filedAt },
+    create: { passId, passVersion: version, endpoint, p256dh, auth, createdAt: filedAt },
+  });
+  const beyond = await prisma.playerPassPush.findMany({
+    where: { passId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: GUEST_PUSH_ROWS,
+    select: { id: true },
+  });
+  if (beyond.length) await prisma.playerPassPush.deleteMany({ where: { id: { in: beyond.map((r) => r.id) } } });
+}
+
+/**
+ * "TURN OFF" REMOVES THE CALLER'S OWN ROW ON THIS ENDPOINT, AND ONLY IT
+ * (2026-11-14, the #1133 security review F-3; was `silenceEndpoint`, which
+ * deleted every identity's row on the endpoint).
+ *
+ *   a guest     its pass's row for this endpoint (any version)
+ *   an account  its own address's row for this endpoint
+ *
+ * Nobody's row can be removed by naming its endpoint any more. The phone still
+ * stops: the browser then unsubscribes (`PushToggleClient`), so the push service
+ * answers 410 for the endpoint and the sender deletes any other identity's row
+ * on it at the next notice (a previous holder's on a handed-on phone included;
+ * an account's sign-out already forgets its own row, G-4).
+ */
+export async function turnOffHere(owner: { email: string; guest: { passId: string } | null }, endpoint: unknown): Promise<void> {
   const at = pushEndpoint(endpoint);
   if (!at) return;
-  await prisma.$transaction([
-    prisma.pushSubscription.deleteMany({ where: { endpoint: at } }),
-    prisma.playerPassPush.deleteMany({ where: { endpoint: at } }),
-  ]);
+  if (owner.guest) {
+    await prisma.playerPassPush.deleteMany({ where: { passId: owner.guest.passId, endpoint: at } });
+    return;
+  }
+  const email = owner.email.trim().toLowerCase();
+  if (!email) return;
+  await prisma.pushSubscription.deleteMany({ where: { endpoint: at, email } });
 }
 
 /**
@@ -304,13 +374,30 @@ export async function sendPushTo(
     const deadGuests: string[] = [];
 
     const send = async (s: { endpoint: string; p256dh: string; auth: string }, onGone: () => void) => {
+      // Every send has a limit (F-1): web-push's own socket timeout, and a deadline on the wait itself,
+      // since a host that drips bytes never goes idle. The losing send's rejection is caught and dropped.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const sending = webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        body,
+        { ...options, timeout: PUSH_SEND_TIMEOUT_MS },
+      );
+      const deadline = new Promise<"late">((resolve) => {
+        timer = setTimeout(() => resolve("late"), PUSH_SEND_TIMEOUT_MS);
+      });
       try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body, options);
+        const outcome = await Promise.race([sending.then(() => "sent" as const), deadline]);
+        if (outcome === "late") {
+          sending.catch(() => {});
+          console.error(`[push] send timed out after ${PUSH_SEND_TIMEOUT_MS} ms`);
+        }
       } catch (e) {
         const code = (e as { statusCode?: number })?.statusCode;
         // 404/410: the browser unsubscribed or the push service retired it.
         if (code === 404 || code === 410) onGone();
         else console.error(`[push] send failed (${code ?? "?"}): ${e instanceof Error ? e.message : "unknown"}`);
+      } finally {
+        clearTimeout(timer);
       }
     };
     await Promise.all([

@@ -107,8 +107,24 @@ export async function messagingContextFor(target: MessagingTarget): Promise<Mess
     const guest = await guestActorFor(eventId, account);
     if (guest) return actorOf(guest, eventId);
   }
-  if (!account?.eventId) return null;
-  return actorOf({ ...account, guest: null }, account.eventId);
+  if (account?.eventId) return actorOf({ ...account, guest: null }, account.eventId);
+  return ownLinkActor(eventId, account);
+}
+
+/**
+ * ONE ANSWER FOR "ANOTHER EVENT" AND "MISSING" (2026-11-14, the #1133 security
+ * review F-2). A browser holding only a link, pointed at a target in an event
+ * the link does not speak for, is answered in the link's OWN context, where
+ * that target is simply not visible: exactly what an id that does not exist
+ * gets (it names no event, so the link's own event answers above). Returning
+ * no actor here instead made the action say "Not authenticated", which told
+ * the caller the id was real.
+ */
+async function ownLinkActor(triedEventId: string | null, account: Session | null): Promise<MessagingActor | null> {
+  const own = (await getPlayerViewer())?.eventId;
+  if (!own || own === triedEventId) return null;
+  const guest = await guestActorFor(own, account);
+  return guest ? actorOf(guest, own) : null;
 }
 
 async function actorOf(viewer: PlayerViewer, eventId: string): Promise<MessagingActor | null> {
