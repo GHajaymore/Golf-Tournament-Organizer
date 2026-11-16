@@ -3,12 +3,12 @@ import {
   resultsIn,
   isLaunched,
   isFinished,
-  configurationLocked,
   PRE_LAUNCH_STATUSES,
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
 import { readSource } from "@/lib/__tests__/source";
+import { setupLockedByLaunch, type Family } from "@/lib/domain/tournament-status";
 
 /**
  * WHAT COUNTS AS "SOMEBODY HAS PLAYED".
@@ -76,8 +76,8 @@ describe("what the app says launching does", () => {
 
   it("claims only the two things launchTournament writes", () => {
     /**
-     * `status: "live"`, `launchedAt`, `configUnlocked: false`. The lock is
-     * real — `isSetupLocked` reads exactly that — so it is the half worth
+     * `status: "live"` and `launchedAt`. The lock is real — the machine's
+     * `setupLockedByLaunch` reads the status — so it is the half worth
      * saying, and the only half.
      */
     /**
@@ -93,7 +93,9 @@ describe("what the app says launching does", () => {
     const after = action.indexOf("export async function", from + 1);
     const launch = action.slice(from, after === -1 ? undefined : after);
     expect(launch).toMatch(/status: "live"/);
-    expect(launch).toMatch(/configUnlocked: false/);
+    expect(launch).toMatch(/launchedAt: new Date\(\)/);
+    // The lock is the machine's (`setupLockedByLaunch`), not a flag launch writes (state machine PR 9b).
+    expect(launch).not.toMatch(/configUnlocked/);
     // If a visibility flag is ever written here, this test should fail and the
     // sentence should be rewritten to match it.
     expect(launch).not.toMatch(/leaderboardVisibility/);
@@ -218,20 +220,31 @@ describe("what launched means, asked once", () => {
   });
 });
 
+/**
+ * WHAT LOCKED MEANS, ASKED ONCE — since state machine PR 9b the machine's
+ * `setupLockedByLaunch(status, family)`: launched, and not a casual round
+ * (proposal 8.2, "Casual: locks none"). It was `configurationLocked` here,
+ * launched and not unlocked by the retired blanket flag. The whole table, family
+ * by family and scope by scope, is `scoped-locks.test.ts` (B2).
+ */
 describe("what locked means, asked once", () => {
-  it("is launched and not deliberately unlocked", () => {
-    expect(configurationLocked({ status: "live", configUnlocked: false })).toBe(true);
-    expect(configurationLocked({ status: "completed", configUnlocked: false })).toBe(true);
+  const SETUP_FAMILIES: Family[] = ["stroke", "stableford", "match", "roundRobinFlights", "knockout", "flightedKnockout", "teamCup", "league"];
+
+  it("is launched, for every family but a casual round", () => {
+    for (const family of SETUP_FAMILIES) {
+      expect(setupLockedByLaunch("live", family), family).toBe(true);
+      expect(setupLockedByLaunch("completed", family), family).toBe(true);
+    }
   });
 
-  it("an organizer who unlocked it is not locked", () => {
-    // The escape hatch, and the half a `status` check alone would lose.
-    expect(configurationLocked({ status: "live", configUnlocked: true })).toBe(false);
+  it("a casual round is never locked by launch — the half a status check alone would lose", () => {
+    expect(setupLockedByLaunch("live", "casual")).toBe(false);
+    expect(setupLockedByLaunch("completed", "casual")).toBe(false);
   });
 
   it("a tournament that has not launched is never locked", () => {
     for (const status of PRE_LAUNCH_STATUSES) {
-      expect(configurationLocked({ status, configUnlocked: false }), status).toBe(false);
+      for (const family of [...SETUP_FAMILIES, "casual" as const]) expect(setupLockedByLaunch(status, family), `${status} ${family}`).toBe(false);
     }
   });
 });

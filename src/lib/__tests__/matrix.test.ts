@@ -3191,14 +3191,14 @@ describe("an upstream edit to the field, every family × every step (J12)", () =
     const played = (x: TournamentFacts): TournamentFacts => ({ ...x, rounds: x.rounds.map((r, i) => (i === 0 ? { ...r, hasResult: true } : r)) });
     switch (step) {
       case "before-draw":
-        // A casual round is created live and unlocked; everything else is still being set up.
-        return family === "casual" ? f : { ...f, status: "draft", configUnlocked: false };
+        // A casual round is created live, and never locked (8.2); everything else is still being set up.
+        return family === "casual" ? f : { ...f, status: "draft" };
       case "after-draw":
         return launchedFacts(f);
       case "after-scores":
         return played(launchedFacts(f));
       case "completed":
-        return { ...played(f), status: "completed", configUnlocked: false };
+        return { ...played(f), status: "completed" };
     }
   }
 
@@ -3233,8 +3233,25 @@ describe("an upstream edit to the field, every family × every step (J12)", () =
     }
   };
 
+  /**
+   * A CASUAL ROUND HAS NO LATER STEP (proposal 8.2, "Casual: locks none"; state machine PR 9b).
+   * Launched and played, its field reads as before any draw, and a late entrant is taken. Until 9b
+   * this held only for a row carrying the retired blanket flag; a casual row without it was locked.
+   */
+  it("casual · launched and played · its field never passes the draw", () => {
+    for (const n of [1, 2, 8]) {
+      for (const facts of [factsAt("casual", "after-draw", n, 0), factsAt("casual", "after-scores", n, 0)]) {
+        const field = fieldFactsOf(facts, CLOCK);
+        expect(fieldStepOf(field), `${n} entered`).toBe("before-draw");
+        expect(kind(fieldChangeAllowed(field, "add")), `${n} entered`).toBe("open");
+      }
+    }
+  });
+
   for (const family of FAMILIES) {
     for (const step of STEPS) {
+      // Unreachable for a casual round since PR 9b — asserted just above.
+      if (family === "casual" && (step === "after-draw" || step === "after-scores")) continue;
       for (const n of [1, 2, 3, 8, 28]) {
         const flightCounts = family === "stroke" || family === "stableford" ? [0, Math.min(3, n)] : [Math.min(3, n)];
         for (const flights of flightCounts) {
@@ -3451,12 +3468,13 @@ describe("an upstream edit to a round, every format × stage type × step × fie
       const base = STATUS_FAMILIES[family]();
       const played = { ...launchedFacts(base), rounds: base.rounds.map((r) => ({ ...r, hasResult: true })) };
       for (const [f, refused] of [
-        [{ ...base, status: "draft", configUnlocked: false }, false],
+        [{ ...base, status: "draft" }, false],
         [launchedFacts(base), false],
         [played, false],
         [{ ...played, status: "completed" }, true],
       ] as const) {
-        expect(addRoundLockOf(locksFor(lockFactsOf(f))) !== null, `${family} · ${f.status}`).toBe(refused);
+        // A casual round locks none, completed too (8.2) — as its row's blanket flag kept it until state machine PR 9b.
+        expect(addRoundLockOf(locksFor(lockFactsOf(f))) !== null, `${family} · ${f.status}`).toBe(refused && family !== "casual");
       }
     }
   });
