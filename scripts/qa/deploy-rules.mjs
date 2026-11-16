@@ -57,7 +57,7 @@ export const RETRY_DELAYS_MS = [5000, 15000, 45000];
  * attempts, asking again ONLY when it failed with a transient signature. Anything else is returned at once.
  * `sleep` and `log` are passed in so a test does not wait. The last result is returned either way.
  */
-export function retryTransient(attempt, { what = "command", sleep, log = () => {}, delays = RETRY_DELAYS_MS } = {}) {
+export function retryTransient(attempt, { what = "command", sleep = (_ms) => {}, log = (_message) => {}, delays = RETRY_DELAYS_MS } = {}) {
   let r = attempt();
   for (let i = 0; i < delays.length && r && r.status !== 0 && TRANSIENT_FAULT.test(`${r.stderr ?? ""}${r.stdout ?? ""}`); i += 1) {
     log(`retry ${i + 1} of ${delays.length} in ${delays[i] / 1000}s: ${what}: ${String(r.stderr || r.stdout).trim().split(/\r?\n/)[0].slice(0, 120)}`);
