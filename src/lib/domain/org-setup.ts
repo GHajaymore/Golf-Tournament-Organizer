@@ -487,6 +487,14 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
  * into a sentence. A title does, because a title is already a phrase.
  */
 /**
+ * HOW MANY PEOPLE ARE ENTERED: the field, those awaiting approval and the waitlist.
+ * Withdrawn and disqualified entries are not. The draw asks for members only when this is 0.
+ */
+export function peopleEntered(confirmed: number, awaitingApproval: number, waitlisted: number): number {
+  return confirmed + awaitingApproval + waitlisted;
+}
+
+/**
  * WHETHER THE DRAW ASKS FOR THE CLUB'S MEMBERS (Cut A, 15 Nov 2026).
  *
  * The one place the members list is asked for before anybody has entered: a

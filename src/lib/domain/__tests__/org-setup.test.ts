@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
-import { orgSetupState, membersAsked, SETUP_HREF, type OrgSetupFacts } from "../org-setup";
+import { orgSetupState, membersAsked, peopleEntered, SETUP_HREF, type OrgSetupFacts } from "../org-setup";
 
 /**
  * Every route this app serves, read off the filesystem.
@@ -465,6 +465,13 @@ describe("event-first: no members step before the first event", () => {
     expect(at({ memberCount: 30 })).toBe(false);
     // A one-off outing with friends keeps no shared list, so is never asked for one.
     expect(at({ kind: "personal" })).toBe(false);
+  });
+
+  it("entries awaiting approval or waitlisted count as entered, so an empty list is not asked for", () => {
+    expect(peopleEntered(0, 3, 0)).toBe(3);
+    expect(membersAsked({ kind: "club", memberCount: 0, fieldSize: peopleEntered(0, 3, 0) })).toBe(false);
+    expect(membersAsked({ kind: "club", memberCount: 0, fieldSize: peopleEntered(0, 0, 2) })).toBe(false);
+    expect(membersAsked({ kind: "club", memberCount: 0, fieldSize: peopleEntered(0, 0, 0) })).toBe(true);
   });
 
   it("never waits on a convenience", () => {

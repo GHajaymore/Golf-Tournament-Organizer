@@ -44,7 +44,8 @@ import { parsePinSheet } from "@/lib/domain/pin-sheet";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { RoundDaySetup } from "@/components/RoundDaySetup";
 import { MembersAsk } from "@/components/ImportMembers";
-import { membersAsked } from "@/lib/domain/org-setup";
+import { membersAsked, peopleEntered } from "@/lib/domain/org-setup";
+import { awaitingApproval } from "@/lib/registration";
 import { orgProfile } from "@/lib/domain/org-profile";
 
 export const metadata = screenMetadata("/foursomes");
@@ -351,8 +352,9 @@ export default async function FoursomesPage({
    * the same card stays (so the import's answer is still on screen after it)
    * and says to pick who is playing on Entries instead.
    */
+  const entered = peopleEntered(state.confirmed.length, awaitingApproval(state.players).length, state.waitlist.length);
   const askMembers =
-    isStaff && state.confirmed.length === 0
+    isStaff && entered === 0
       ? await (async () => {
           const org = await prisma.organization.findUnique({
             where: { id: state.event.organizationId },
@@ -362,7 +364,7 @@ export default async function FoursomesPage({
           const profile = orgProfile(org.kind, org.country, org.communityNoun);
           if (!profile.sharedRoster) return null;
           const memberCount = await prisma.member.count({ where: { organizationId: state.event.organizationId, status: "active" } });
-          return { noun: profile.noun, asked: membersAsked({ ...org, memberCount, fieldSize: 0 }), memberCount };
+          return { noun: profile.noun, asked: membersAsked({ ...org, memberCount, fieldSize: entered }), memberCount };
         })()
       : null;
 
