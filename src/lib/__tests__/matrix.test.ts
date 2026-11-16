@@ -76,6 +76,7 @@ import {
 } from "@/lib/domain/round-handicap";
 import { playingHandicapFrom, courseHandicapMap, teeIdFor, courseHandicapExact, courseHandicap } from "@/lib/domain/handicap";
 import { TEE_POLICY } from "@/lib/tournament-settings";
+import { teeAfterVenue } from "@/lib/domain/venue";
 import {
   effectiveAllowance,
   snakeDraw,
@@ -1991,6 +1992,98 @@ describe("tee policy, on every field size", () => {
     expect(teeIdFor("own", "home-blue", null, "home-white", atThisCourse, null)).toBe("home-blue");
     // And the round's own set is taken whether or not the predicate likes it.
     expect(teeIdFor("one", "home-blue", null, "away-red", atThisCourse, null)).toBe("away-red");
+  });
+});
+
+/**
+ * A NINE-HOLE ROUND KEEPS THE COMMITTEE'S TEES WHEN ITS NINE CHANGES — every
+ * field size from ONE × every nine move × every tee policy (QA Director, item 1,
+ * 14 Nov).
+ *
+ * `setStageCourse` wrote `Stage.teeId = null` on every call that did not restate
+ * the tees, so the rounds screen's **Which nine** (course and nine, no tees)
+ * threw away the set chosen on Score entry and the round fell back to the
+ * tournament's. `teeAfterVenue` is now the one rule the action and
+ * `setMatchCourse` ask: a set is kept while the course is the same, cleared when
+ * it changes, set or cleared only when the caller names it.
+ *
+ * The invariant, not the feature: after a nine change, every player plays off
+ * the set the ORGANIZER decided — the round's, unless their flight or they
+ * themselves were put elsewhere and the policy lets that count (`teeIdFor`) —
+ * and their nine-hole Course Handicap is Rule 6.1b's, worked in WHOLE NUMBERS
+ * (an index in tenths, a rating in tenths, everything over 2260: half the index
+ * × slope ÷ 113 + (half the rating − half the par)), sharing neither formula
+ * nor floating point with `domain/handicap.ts`. Front and back price alike: a
+ * set stores its eighteen's rating and a nine is half of it (`nineHoleTee`).
+ */
+describe("a nine-hole round keeps the committee's tees when its nine changes, on every field size, nine and tee policy", () => {
+  /** The round's set (Score entry), the tournament's, one flight's. Ratings in tenths. */
+  const SETS = {
+    blue: { rating10: 734, slope: 135, par: 72 },
+    white: { rating10: 712, slope: 126, par: 72 },
+    red: { rating10: 690, slope: 118, par: 72 },
+  } as const;
+  type SetId = keyof typeof SETS;
+  const RATINGS = new Map(
+    (Object.keys(SETS) as SetId[]).map((id) => [id, { courseRating: SETS[id].rating10 / 10, slopeRating: SETS[id].slope, par: SETS[id].par, courseId: "home" }]),
+  );
+  const ch2260 = (index10: number, id: SetId) => index10 * SETS[id].slope + (SETS[id].rating10 - 10 * SETS[id].par) * 113;
+  /** Rounded once, a half upward (Rule 6.1), in whole numbers — plus handicaps included. */
+  const halfUp = (num: number, den: number) => Math.floor((2 * num + den) / (2 * den));
+  /** Decimal indexes, a plus handicap (+2.4) among them: the axis whole-number fixtures miss. */
+  const index10s = (n: number) => Array.from({ length: n }, (_, i) => (i % 7 === 6 ? -24 : (i % 10) * 43 + 6));
+  /** i % 4: on the round's set; in the red flight; moved to white; both. */
+  const levels = (i: number) => ({ flight: i % 4 === 1 || i % 4 === 3 ? ("red" as const) : null, own: i % 4 >= 2 ? ("white" as const) : null });
+  /** The set each player SHOULD be on, worked from the policy without `teeIdFor`. */
+  const shouldBe = (policy: string, i: number, round: SetId): SetId => {
+    const { flight, own } = levels(i);
+    if (policy === "one") return round;
+    if (policy === "flight") return flight ?? round;
+    return own ?? flight ?? round;
+  };
+  const MOVES: Array<[string, string]> = [["front", "back"], ["back", "front"], ["full", "front"], ["back", "full"]];
+
+  it("one row by hand: index 18.4 off Blue on a nine is 12, off the tournament's White 10", () => {
+    // 9.2 × 135/113 + (36.7 − 36) = 11.69 → 12; 9.2 × 126/113 + (35.6 − 36) = 9.86 → 10.
+    expect(halfUp(ch2260(184, "blue"), 2260)).toBe(12);
+    expect(halfUp(ch2260(184, "white"), 2260)).toBe(10);
+    const one = courseHandicapMap([{ id: "a", handicap: 18.4, teeId: null, flightTeeId: null }], RATINGS, "blue", 9, "own");
+    expect(one.get("a")).toBe(12);
+  });
+
+  for (const n of FIELD_SIZES) {
+    for (const policy of TEE_POLICY) {
+      it(`${n} in the field · ${policy}: every nine move keeps the round on Blue and every player on the organizer's set`, () => {
+        const players = index10s(n).map((index10, i) => ({
+          id: `p${i}`,
+          handicap: index10 / 10,
+          teeId: levels(i).own,
+          flightTeeId: levels(i).flight,
+        }));
+        for (const [from, to] of MOVES) {
+          // Score entry put the round on Blue; the rounds screen now sends the course and the nine.
+          const round = { courseId: "home", teeId: "blue", nine: from };
+          const kept = teeAfterVenue(round, { courseId: "home" });
+          expect(kept, `${from} → ${to} dropped the round's tees`).toBe("blue");
+          const m = courseHandicapMap(players, RATINGS, kept, 9, policy);
+          players.forEach((p, i) => {
+            const want = halfUp(ch2260(index10s(n)[i], shouldBe(policy, i, "blue")), 2260);
+            expect(m.get(p.id), `${p.id} (index ${p.handicap}) after ${from} → ${to}`).toBe(want);
+          });
+        }
+      });
+    }
+  }
+
+  it("the rule's other three answers: a new course clears, a named set sets, a named null clears", () => {
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "away" })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: null, teeId: "blue" }, { courseId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "home", teeId: "white" })).toBe("white");
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "home", teeId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: null }, { courseId: "home" })).toBeNull();
+    // A set named with no course to be on is not stored.
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: null, teeId: "blue" })).toBeNull();
   });
 });
 
