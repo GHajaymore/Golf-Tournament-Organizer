@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { openSettingsTab } from "./settings-tabs";
 import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
+import { isLaunched } from "../src/lib/domain/lifecycle-state";
 
 /**
  * A CLUB'S HANDICAP BODY FOLLOWS WHERE THE CLUB IS — ON EVERY SCREEN THAT NAMES IT.
@@ -128,7 +129,15 @@ test("a club's handicap body follows its country on Club settings, Members and E
       // unlock is not read), and closed in `finally`.
       await openCorrectionFor(prisma, data.eventId, "field");
       fieldOpened = true;
+      // Read from the fixture, not assumed: the premise above is that it is launched.
+      const { status } = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { status: true } });
+      expect(isLaunched(status), `the fixture's tournament is "${status}", not launched: this step's premise is gone`).toBe(true);
       await open(page, "/registration");
+      // A correction OPENS the field; it does not un-launch the tournament. So the screen
+      // says what the field rule says (`fieldBanner`): the field is open for a correction,
+      // and an entry made now is a LATE entry — the press is "Add late entry", never the
+      // before-launch "Add to field" the retired blanket flag used to bring back.
+      await expect(page.getByText("The field is open for a correction", { exact: false }).first()).toBeVisible();
       const add = page.locator(".card", { has: page.locator(".card-title", { hasText: /^Add someone new$/ }) }).first();
       await add.getByRole("button", { name: "Visitor from another country?" }).click();
       // The label is typeset ("Visitor’s", a curly apostrophe), so either is accepted.
@@ -141,7 +150,8 @@ test("a club's handicap body follows its country on Club settings, Members and E
       const mobile = add.getByRole("textbox", { name: /^Mobile/ });
       if (await mobile.isVisible()) await mobile.fill("5550199");
       await add.getByLabel(/^Handicap( index)?$/).fill("12.4");
-      await add.getByRole("button", { name: /Add to field/ }).click();
+      await expect(add.getByRole("button", { name: /Add to field/ }), "a launched tournament's add is a late entry").toHaveCount(0);
+      await add.getByRole("button", { name: /Add late entry/ }).click();
       await expect
         .poll(async () => prisma.member.findFirst({ where: { organizationId: clubId, name: VISITOR }, select: { handicap: true, handicapBodyId: true, handicapSource: true } }), {
           timeout: 20_000,
