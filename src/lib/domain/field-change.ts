@@ -119,7 +119,7 @@ export type FieldChange = (typeof FIELD_CHANGES)[number];
  * THE J12 COLUMN THE FIELD STANDS IN (section 3 of the proposal), for the
  * field and flights rows:
  *
- *   before-draw   nothing is locked: before launch (or a legacy unlock), and —
+ *   before-draw   nothing is locked: before launch, and —
  *                 for a knockout — no knockout result yet;
  *   after-draw    launched, and late entries still open (Round 1's last tee
  *                 time not reached, no card in); for a knockout, launched with
@@ -345,7 +345,7 @@ export function partOf(change: FieldChange, family: Family): FieldPart {
  *      refusal below names, taken);
  *   4. a confirmed draw refuses a move, and a placement where flights make the
  *      pairings;
- *   5. before the draw (not launched, or a legacy unlock) everything else is
+ *   5. before the draw (not launched) everything else is
  *      open — exactly the behaviour before this rule;
  *   6. otherwise the day-of table and the panel's families (header).
  *

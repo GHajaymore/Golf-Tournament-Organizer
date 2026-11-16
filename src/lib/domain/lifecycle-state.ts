@@ -186,7 +186,7 @@ export function openToMembers(event: { status: string; registrationOpen: boolean
  * a full scorecard with "Certify my card" on it.
  *
  * The code agrees with the measurement. `launchTournament` writes
- * `status: "live"`, `launchedAt` and `configUnlocked: false`, and
+ * `status: "live"`, and `launchedAt`, and
  * `PRE_LAUNCH_STATUSES` is read only here and in the setup rail — neither of
  * which gates anything. What a player may see is decided by
  * `canSeeLeaderboard`, which reads `leaderboardVisibility` and nothing else.

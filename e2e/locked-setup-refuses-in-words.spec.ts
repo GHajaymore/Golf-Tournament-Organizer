@@ -158,6 +158,8 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       // the refusal is read for what it is, not for where the page has scrolled to since.
       const said = page.getByText(step.said).first();
       await expect(said, `${step.label}: the refusal was not said`).toBeVisible({ timeout: 20_000 });
+      // Said where the press was: the refusal itself is in the viewport, before the screen moves on.
+      await expect(said, `${step.label}: the refusal was said off screen`).toBeInViewport();
       await expect(page.getByRole("heading", { level: 1, name: step.heading }), `${step.label}: the screen was replaced by an error page`).toBeVisible();
       const banner = page.getByRole("region", { name: "Locked" });
       await expect(banner, `${step.label}: the screen did not catch up with the lock`).toContainText(/locked because the tournament is live\./i, { timeout: 20_000 });

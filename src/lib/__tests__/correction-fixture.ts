@@ -12,7 +12,7 @@ import type { LockScope } from "@/lib/domain/tournament-status";
  * the test says which part it needed, and a press on any other part is still refused.
  *
  * It writes only to a fixture: a tournament whose name carries the `zz` mark (Hard rule 1).
- * `a-committee-correction-fixture.audit.test.ts` holds it to the row the real action writes.
+ * `the-blanket-unlock-is-not-read.audit.test.ts` holds it to the row the real action writes.
  */
 export const FIXTURE_CORRECTION_REASON = "zz fixture: a part opened for this test";
 export const FIXTURE_CORRECTION_BY = "Zz Organizer";
