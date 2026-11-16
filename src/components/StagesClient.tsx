@@ -69,6 +69,7 @@ import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
 import dynamic from "next/dynamic";
 import { PanelLoading, orNeedsSignal } from "./LazyPanel";
 import { RoundAllowance, type RoundAllowanceInfo } from "./RoundAllowance";
+import { NeedsStrokesBand, type BandRound } from "./NeedsStrokesBand";
 import type { RoundHandicapView } from "@/lib/services/round-handicap";
 import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
@@ -3161,7 +3162,13 @@ export function StagesClient({
   linkedRound = null,
   roundFacts = null,
   courseDay = null,
+  strokesBand = [],
 }: {
+  /**
+   * Rounds scored net in which players with no handicap index need strokes (`playersNeedingFigure`), for
+   * the band at the top (`NeedsStrokesBand`). Empty for anybody who may not give strokes.
+   */
+  strokesBand?: BandRound[];
   /** Step 2: each round's golf facts, worked out on the server from what is stored (timeline only). */
   roundFacts?: Record<string, RoundFacts> | null;
   /**
@@ -3365,6 +3372,11 @@ export function StagesClient({
     <div className={timeline ? "rounds-timeline" : undefined} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* STEP 2: the next step, always visible, above the rounds it opens (the brief's rule 3). */}
       {timeline && courseDay && <NeedsYou guide={courseDay} onOpen={(id) => setOpenRound(id)} />}
+      {/* Players with no handicap index in a round scored net, and the box that gives them strokes:
+          above every round, unfolded (lane N). Always mounted, so it outlives the last Give's refresh
+          and says the last confirmation; it draws nothing with nobody to ask and nothing given. Staff
+          only — the page passes nothing to anybody the actions would refuse. */}
+      <NeedsStrokesBand rounds={strokesBand} />
       {playing.length >= 3 && (
         <EveryRound rounds={playing} resultIds={roundsWithResults} onDone={setEveryNote} />
       )}

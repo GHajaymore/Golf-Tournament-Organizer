@@ -8,11 +8,11 @@ import { PrismaClient } from "@prisma/client";
  * The endpoint is a device's own URL, and the whole point of the table is to
  * reach a member on every device they turned alerts on. So the two things that
  * matter are: a save stamps the row with the CALLER's email (lowercased, the
- * identity a send looks up by), and a remove is about the PHONE (#1133 review,
- * SEC-2): Turn off clears every row on that endpoint, a previous holder's
- * included, and no other endpoint. (A remove scoped to the caller never stopped
- * somebody who held the endpoint anyway: a save by endpoint takes the row over.)
- * Against real rows, because both are decisions made from a session and a
+ * identity a send looks up by), and a remove takes the CALLER's own row only
+ * (the #1133 security review F-3; it was every row on the endpoint, SEC-2): the
+ * browser's unsubscribe then stops the phone, and a 410 deletes anybody else's
+ * row at the next send. Both presses are budgeted per person (`push-device`,
+ * F-1). Against real rows, because both are decisions made from a session and a
  * column together.
  *
  *   npx vitest run --config vitest.audit.config.ts
@@ -29,6 +29,10 @@ let session: Session | null = null;
 vi.mock("@/lib/auth", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/auth")>()), getSession: async () => session }));
 
 const { savePushSubscription, removePushSubscription } = await import("@/app/actions/push");
+const { clearRateLimit } = await import("@/lib/rate-limit");
+const { pushDeviceBudgetKey } = await import("@/lib/services/push");
+/** Each test starts with a full budget (the counters outlive a run); the budget test spends it on purpose. */
+const freshBudget = (email: string) => clearRateLimit("push-device", pushDeviceBudgetKey({ email, guest: null }));
 
 const E1 = `https://push.example.invalid/${TAG}-e1`;
 const E2 = `https://push.example.invalid/${TAG}-e2`;
@@ -41,6 +45,8 @@ const rowFor = (endpoint: string) => prisma.pushSubscription.findUnique({ where:
 beforeEach(async () => {
   await prisma.pushSubscription.deleteMany({ where: { endpoint: { contains: TAG } } });
   session = null;
+  await freshBudget(ANN);
+  await freshBudget(BEA);
 });
 
 afterAll(async () => {
@@ -75,16 +81,36 @@ describe("a member's push subscription", () => {
     expect(await rowFor(E1)).toBeNull();
   });
 
-  it("Turn off silences THIS PHONE: the previous holder's row on its endpoint goes too (#1133 review, SEC-2)", async () => {
-    // Ann turned alerts on and handed the phone on without turning them off; Bea now uses it.
+  it("Turn off removes the caller's OWN row only: naming somebody else's endpoint deletes nothing (F-3)", async () => {
+    // Ann's phone has alerts on; Bea, signed in elsewhere, names its endpoint.
     session = sess(ANN);
     await savePushSubscription({ endpoint: E1, keys: { p256dh: "key1", auth: "auth1" } });
     await savePushSubscription({ endpoint: E2, keys: { p256dh: "key1", auth: "auth1" } });
     session = sess(BEA);
     expect((await removePushSubscription(E1)).ok).toBe(true);
-    expect(await rowFor(E1), "a handed-on phone kept buzzing with the previous holder's notices").toBeNull();
-    // Only that endpoint: Ann's other phone is untouched.
+    expect(await rowFor(E1), "a viewer deleted somebody else's row by naming its endpoint").not.toBeNull();
+    // Ann's own Turn off takes her row on that phone, and only that phone's.
+    session = sess(ANN);
+    expect((await removePushSubscription(E1)).ok).toBe(true);
+    expect(await rowFor(E1)).toBeNull();
     expect(await rowFor(E2)).not.toBeNull();
+  });
+
+  it("saving and turning off are budgeted per person: the eleventh press in the window is refused (F-1)", async () => {
+    session = sess(ANN);
+    for (let i = 0; i < 10; i += 1) {
+      const res = i % 2 === 0 ? await savePushSubscription({ endpoint: E1, keys: { p256dh: "k", auth: "a" } }) : await removePushSubscription(E1);
+      expect(res.ok, `press ${i + 1} of 10 was refused`).toBe(true);
+    }
+    const refused = await savePushSubscription({ endpoint: E2, keys: { p256dh: "k", auth: "a" } });
+    expect(refused.ok, "unlimited saves: one holder could file row after row").toBe(false);
+    expect(refused.error).toMatch(/Too many alert changes/);
+    expect(await rowFor(E2)).toBeNull();
+    expect((await removePushSubscription(E1)).ok, "unlimited Turn offs").toBe(false);
+    // Another person's budget is their own.
+    session = sess(BEA);
+    expect((await savePushSubscription({ endpoint: E2, keys: { p256dh: "k", auth: "a" } })).ok).toBe(true);
+    await freshBudget(ANN);
   });
 
   it("refuses save and remove when nobody is signed in", async () => {
