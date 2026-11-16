@@ -285,8 +285,11 @@ function invariants(name: string, t: Facts, today = TODAY) {
   else if (j.action && j.enabled) expect(press, name).toMatchObject({ kind: "link", label: j.action, href: j.href });
   else expect(press.kind, name).toBe("none");
   // And What's next's first line for it, when it has one, is the same job (the home never lists a
-  // completed tournament: `secretaryHomeFor` leaves them out).
-  const home = t.status.step === "completed" ? undefined : whatsNext({ tournaments: [t], today, locale: "en-GB" })[0];
+  // completed tournament: `secretaryHomeFor` leaves them out). Setting up, the button is Launch at once
+  // while the home waits for the fortnight (the Tournament Director, 16 Nov), so there the two agree
+  // whenever the home has its launch line.
+  const lines = t.status.step === "completed" ? [] : whatsNext({ tournaments: [t], today, locale: "en-GB" });
+  const home = t.status.step === "setting-up" && !lines.some((l) => l.key === "launch") ? undefined : lines[0];
   if (home) {
     expect(home.key, `${name}: the home's first line`).toBe(j.key);
     if (j.key !== "launch" && j.key !== "results") expect(home.action, name).toBe(j.action);

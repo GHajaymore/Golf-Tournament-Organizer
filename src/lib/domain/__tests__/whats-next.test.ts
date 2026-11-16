@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { whatsNext, JOB_SCREENS, isJobScreen, LAUNCH_AHEAD_DAYS, TEE_SHEET_AHEAD_DAYS, type TournamentJobFacts } from "../needs-you-now";
-import { addDays } from "../round-dates";
+import { whatsNext, tournamentJob, JOB_SCREENS, isJobScreen, LAUNCH_AHEAD_DAYS, TEE_SHEET_AHEAD_DAYS, type TournamentJobFacts } from "../needs-you-now";
+import { addDays, shortDate } from "../round-dates";
+import { GIVE_STROKES } from "../committee-figure";
 import { tournamentStatus, type TournamentFacts } from "../tournament-status";
 import { FAMILIES, FAMILY_FIXTURES, completed, facts, launched, playedOut, round } from "./tournament-facts-fixtures";
 
@@ -263,6 +264,56 @@ describe("what's next: in the order the jobs fall due", () => {
 
   it("on the same day, the job earlier in a tournament's life comes first", () => {
     expect(keys(quiet({ awaitingApproval: 1, board: board(), ...ended() }))).toEqual(["entries", "cards", "results"]);
+  });
+});
+
+/**
+ * SETTING UP, THE ONE BUTTON IS LAUNCH (the Tournament Director, 16 Nov). Giving strokes to a player with
+ * no index does not hold a launch, and under Rule 3.3b(4) its deadline is the round's first card — so
+ * it stays a line on the home, due on its round's day, and the tournament's button is Launch, inside the
+ * fortnight and beyond it. Before this the strokes line was the button both ways: first on the tie
+ * (strokes ranked before launch) and alone outside the fortnight (the home has no launch line there).
+ */
+describe("setting up, the button is Launch, and Give strokes stays on the home", () => {
+  const medal = (startOn: string) => ({ ...FAMILY_FIXTURES.stroke(), startOn, endOn: startOn });
+  const needing = (dayOf: string) => ({ roundId: "r1", round: "Round 1", day: dayOf, count: 3 });
+  const one = (t: TournamentJobFacts) => tournamentJob(t, TODAY, (iso) => shortDate(iso, LOCALE));
+
+  it("inside the fortnight, Round 1 on the first day: the home lists Launch then strokes, and the button is Launch", () => {
+    const first = addDays(TODAY, 3);
+    const t = quiet({ ...told(medal(first)), strokes: needing(first) });
+    expect(t.status.nextAction?.kind).toBe("launch");
+    expect(keys(t)).toEqual(["launch", "strokes"]);
+    const job = one(t)!;
+    expect(job.key).toBe("launch");
+    expect(job.action).toBe(t.status.nextAction?.label);
+    expect(job.moves).toBe(true);
+  });
+
+  it("beyond the fortnight: the home lists only the strokes line, and the button is still Launch", () => {
+    const first = addDays(TODAY, LAUNCH_AHEAD_DAYS + 16);
+    const t = quiet({ ...told(medal(first)), strokes: needing(first) });
+    expect(jobs(t).map((j) => [j.key, j.action])).toEqual([["strokes", GIVE_STROKES]]);
+    const job = one(t)!;
+    expect(job.key).toBe("launch");
+    expect(job.action).toBe(t.status.nextAction?.label);
+  });
+
+  it("a refused launch is still the button, refused in place with the machine's words", () => {
+    const first = addDays(TODAY, LAUNCH_AHEAD_DAYS + 16);
+    const t = quiet({ ...told({ ...medal(first), confirmed: 0 }), strokes: needing(first) });
+    const job = one(t)!;
+    expect(job.key).toBe("launch");
+    expect(job.enabled).toBe(false);
+    expect(job.disabledBecause).toBe(t.status.nextAction?.disabledBecause);
+  });
+
+  it("CONTROL: once launched, the same strokes line IS the button — the job can be chosen, it is only not chosen over Launch", () => {
+    const first = addDays(TODAY, 3);
+    const t = quiet({ ...told(launched(medal(first))), strokes: needing(first) });
+    const job = one(t)!;
+    expect(job.key).toBe("strokes");
+    expect(job.action).toBe(GIVE_STROKES);
   });
 });
 
