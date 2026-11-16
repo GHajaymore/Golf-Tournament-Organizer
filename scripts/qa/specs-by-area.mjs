@@ -161,6 +161,8 @@ export const AREAS = {
       "e2e/round-allowance.spec.ts",
       "e2e/team-allowance.spec.ts",
       "e2e/round-handicap.spec.ts",
+      // Lane N, PR A: a player with no handicap index in a net round — the note on Entries, the band, Give by keyboard.
+      "e2e/no-handicap-net-round.spec.ts",
       // State machine PR 7b (J12): a round's format, allowance and delete judged by what they would invalidate.
       "e2e/round-changes-after-scores.spec.ts",
       // …and a scored round's tees drawn shut with the reason on Score entry and Tournament details (round G594-1).
@@ -296,6 +298,8 @@ export const AREAS = {
 export const FULL_ONLY = [
   // J39/J40 PR 1: a guest takes full part by a personal player link, no email and no app (access and sign-in: shared ground).
   "e2e/a-guest-takes-full-part.spec.ts",
+  // J39/J40 PR 2: a guest in messages and notices, by who-key (messaging and push: shared ground).
+  "e2e/a-guest-in-messages.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",

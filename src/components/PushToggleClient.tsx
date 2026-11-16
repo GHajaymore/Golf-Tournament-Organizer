@@ -64,6 +64,7 @@ type State = "checking" | "unavailable" | "off" | "on" | "blocked";
 
 export function PushToggleClient({
   mine,
+  guestEvent,
 }: {
   /**
    * Fingerprints of the signed-in person's own devices with alerts on
@@ -71,6 +72,14 @@ export function PushToggleClient({
    * them, never merely that the browser holds one (safety sweep G-4).
    */
   mine: readonly string[];
+  /**
+   * The event a GUEST's link is for, or null for an account (simplicity review
+   * of #1133, findings 3 and 5). A guest's alerts are for that one event, so
+   * the switch names it: one phone holding an account at one club and a link
+   * at another then says whose switch this is. An account's alerts reach every
+   * event of theirs, so its switch names none.
+   */
+  guestEvent: string | null;
 }) {
   const [state, setState] = useState<State>("checking");
   const [busy, setBusy] = useState(false);
@@ -88,7 +97,7 @@ export function PushToggleClient({
         // vanishing (safety sweep G-3).
         const nav = navigator as Navigator & { standalone?: boolean };
         const standalone = typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches;
-        setWhy(pushUnavailableWords(deviceFrom(nav, standalone)));
+        setWhy(pushUnavailableWords(deviceFrom(nav, standalone), { guest: guestEvent !== null }));
         return setState("unavailable");
       }
       // No registered service worker (e.g. the dev server never registers one)
@@ -104,7 +113,7 @@ export function PushToggleClient({
     return () => {
       cancelled = true;
     };
-  }, [mine]);
+  }, [mine, guestEvent]);
 
   const enable = async () => {
     setError("");
@@ -145,8 +154,15 @@ export function PushToggleClient({
     setBusy(true);
     try {
       const sub = await thisBrowsersSubscription();
+      // The server removes the caller's own row on this endpoint (the #1133 security review F-3), then
+      // the browser's own subscription goes: the push service answers 410 for it from then on, so any
+      // other identity's row on this phone is deleted at the next notice. THIS PHONE stops.
       if (sub) {
-        await removePushSubscription(sub.endpoint);
+        const res = await removePushSubscription(sub.endpoint);
+        if (!res.ok) {
+          setError(res.error ?? "Couldn't turn off alerts.");
+          return;
+        }
         await unsubscribeWithinLimit(sub);
       }
       setState("off");
@@ -179,6 +195,7 @@ export function PushToggleClient({
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text-muted)" }}>
         <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
+        {guestEvent && <span>{guestEvent}:</span>}
         <span>Tee-time alerts are on.</span>
         <button
           type="button"
@@ -199,7 +216,7 @@ export function PushToggleClient({
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Get tee-time alerts</span>
         <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.4 }}>
-          When your tee time is posted or changes.
+          {guestEvent ? `For ${guestEvent}, when your tee time is posted or changes.` : "When your tee time is posted or changes."}
         </span>
         {error && (
           <span className="form-error" style={{ fontSize: 13, marginTop: 2 }}>

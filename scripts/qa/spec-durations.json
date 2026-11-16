@@ -4,6 +4,7 @@
   "phone": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.8,
    "e2e/a-guest-takes-full-part.spec.ts": 45,
+   "e2e/a-guest-in-messages.spec.ts": 40,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 1.1,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1.2,
    "e2e/a-new-device-is-confirmed.spec.ts": 9.4,
@@ -160,6 +161,7 @@
    "e2e/round-date-and-viewing-as.spec.ts": 13.9,
    "e2e/round-day.spec.ts": 12.7,
    "e2e/round-handicap.spec.ts": 0,
+   "e2e/no-handicap-net-round.spec.ts": 0,
    "e2e/rounds-and-formats.spec.ts": 28.9,
    "e2e/rounds-panel.spec.ts": 5.9,
    "e2e/rounds-timeline.spec.ts": 1.9,
@@ -218,6 +220,7 @@
   "desktop": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.5,
    "e2e/a-guest-takes-full-part.spec.ts": 45,
+   "e2e/a-guest-in-messages.spec.ts": 40,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 0.8,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1,
    "e2e/a-new-device-is-confirmed.spec.ts": 6.5,
@@ -374,6 +377,7 @@
    "e2e/round-date-and-viewing-as.spec.ts": 12.8,
    "e2e/round-day.spec.ts": 13,
    "e2e/round-handicap.spec.ts": 14.6,
+   "e2e/no-handicap-net-round.spec.ts": 20,
    "e2e/rounds-and-formats.spec.ts": 28.9,
    "e2e/rounds-panel.spec.ts": 6,
    "e2e/rounds-timeline.spec.ts": 2.1,
@@ -432,6 +436,7 @@
   "small-phone": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.8,
    "e2e/a-guest-takes-full-part.spec.ts": 45,
+   "e2e/a-guest-in-messages.spec.ts": 40,
    "e2e/a-lapsed-club-cannot-close-a-round.spec.ts": 1,
    "e2e/a-lapsed-club-is-read-only.spec.ts": 1.2,
    "e2e/a-new-device-is-confirmed.spec.ts": 7.7,
@@ -588,6 +593,7 @@
    "e2e/round-date-and-viewing-as.spec.ts": 0,
    "e2e/round-day.spec.ts": 12.6,
    "e2e/round-handicap.spec.ts": 0,
+   "e2e/no-handicap-net-round.spec.ts": 0,
    "e2e/rounds-and-formats.spec.ts": 0,
    "e2e/rounds-panel.spec.ts": 7.3,
    "e2e/rounds-timeline.spec.ts": 1.8,

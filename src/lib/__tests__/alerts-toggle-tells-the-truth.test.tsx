@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync, readdirSync } from "node:fs";
 import { readSource } from "./source";
-import { deviceFrom, endpointFingerprint, pushToggleState, pushUnavailableWords } from "@/lib/domain/push-device";
+import { deviceFrom, endpointFingerprint, KEEP_YOUR_CODE, pushToggleState, pushUnavailableWords } from "@/lib/domain/push-device";
 import { PushUnavailableNote } from "@/components/PushToggleClient";
 import { PLAYER_HELP_TOPICS } from "@/lib/player-help";
 
@@ -19,6 +19,8 @@ import { PLAYER_HELP_TOPICS } from "@/lib/player-help";
 
 const IPHONE_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 const ANDROID_CHROME = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36";
+/** An account's screen (the words a guest gets as well are tested at the end). */
+const ACCOUNT = { guest: false };
 const MAC_SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
 
 describe("on a phone that changed hands (G-4)", () => {
@@ -51,8 +53,12 @@ describe("on a phone that changed hands (G-4)", () => {
     const client = readSource("src", "components", "PushToggleClient.tsx");
     expect(client, "the toggle no longer asks whose subscription it is").toContain("pushToggleState(");
     expect(client, "the toggle believes the browser again").not.toMatch(/setState\(\s*sub\s*\?\s*"on"/);
+    // The list is the own devices of whoever the player screen is for — an account or a guest's link
+    // (J39/J40 PR 2) — the same viewer Turn on files the row for, never the bare session.
     const server = readSource("src", "components", "PushToggle.tsx");
-    expect(server).toContain("pushFingerprintsFor(session?.email)");
+    expect(server).toContain("pushFingerprintsForViewer(viewer)");
+    expect(server).toContain("const viewer = await getPlayerViewer();");
+    expect(server, "the toggle asks the session, which a guest has none of").not.toContain("getSession(");
   });
 });
 
@@ -95,7 +101,7 @@ describe("on an iPhone (G-3)", () => {
   });
 
   it("in the browser, says alerts cannot reach it, what still works, and how to get them", () => {
-    const w = pushUnavailableWords({ iOS: true, installed: false });
+    const w = pushUnavailableWords({ iOS: true, installed: false }, ACCOUNT);
     expect(w, "an iPhone in the browser is told nothing").not.toBeNull();
     const all = [w!.title, ...w!.lines].join(" ");
     expect(all).toMatch(/can't reach this iPhone from the browser/);
@@ -106,7 +112,7 @@ describe("on an iPhone (G-3)", () => {
 
   it("promises nothing an iPhone does not keep: no siren on silent, no buzz, no 'open' tab", () => {
     for (const installed of [false, true]) {
-      const all = [pushUnavailableWords({ iOS: true, installed })!.title, ...pushUnavailableWords({ iOS: true, installed })!.lines].join(" ");
+      const all = [pushUnavailableWords({ iOS: true, installed }, ACCOUNT)!.title, ...pushUnavailableWords({ iOS: true, installed }, ACCOUNT)!.lines].join(" ");
       expect(all, "promises a siren a phone on silent may not make").not.toMatch(/siren|sound/i);
       expect(all, "promises a buzz iOS gives a page none of").not.toMatch(/buzz|vibrat/i);
       expect(all, "'open' reads as a tab behind a locked screen").not.toMatch(/page open|app open/i);
@@ -126,19 +132,19 @@ describe("on an iPhone (G-3)", () => {
   });
 
   it("on the Home Screen but too old, says to update, and that a pocket is not told", () => {
-    const w = pushUnavailableWords({ iOS: true, installed: true });
+    const w = pushUnavailableWords({ iOS: true, installed: true }, ACCOUNT);
     const all = [w!.title, ...w!.lines].join(" ");
     expect(all).toMatch(/iOS 16\.4/);
     expect(all).toMatch(/is not told/);
   });
 
   it("CONTROL: elsewhere there is nothing useful to say, so nothing is said", () => {
-    expect(pushUnavailableWords({ iOS: false, installed: false })).toBeNull();
+    expect(pushUnavailableWords({ iOS: false, installed: false }, ACCOUNT)).toBeNull();
   });
 
   it("every sentence is under twelve words, as the player app is", () => {
     for (const installed of [false, true]) {
-      const w = pushUnavailableWords({ iOS: true, installed })!;
+      const w = pushUnavailableWords({ iOS: true, installed }, ACCOUNT)!;
       for (const sentence of [w.title, ...w.lines].flatMap((l) => l.split(/(?<=[.!?])\s+/))) {
         const words = sentence.split(" ").filter((x) => /[\p{L}\p{N}]/u.test(x)).length;
         expect(words, sentence).toBeLessThan(12);
@@ -147,12 +153,33 @@ describe("on an iPhone (G-3)", () => {
   });
 
   it("the note is drawn, and the toggle draws it where it used to draw nothing", () => {
-    const html = renderToStaticMarkup(<PushUnavailableNote words={pushUnavailableWords({ iOS: true, installed: false })!} />);
+    const html = renderToStaticMarkup(<PushUnavailableNote words={pushUnavailableWords({ iOS: true, installed: false }, ACCOUNT)!} />);
     expect(html).toContain('role="note"');
     expect(html).toContain("Alerts can&#x27;t reach this iPhone from the browser.");
     expect(html).toContain("Add to Home Screen");
     const client = readSource("src", "components", "PushToggleClient.tsx");
     expect(client, "the toggle vanishes on an iPhone again").toMatch(/state === "unavailable" && why\) return <PushUnavailableNote/);
     expect(client).toContain("setWhy(pushUnavailableWords(deviceFrom(");
+  });
+});
+
+describe("a guest offered Add to Home Screen is told to keep the code (simplicity review of #1133, finding 3)", () => {
+  it("in the browser, a guest is told the Home Screen app asks for the code once; an account is not", () => {
+    const guest = pushUnavailableWords({ iOS: true, installed: false }, { guest: true })!;
+    expect(guest.lines, "a guest adds the app and meets a code box with no code").toContain(KEEP_YOUR_CODE);
+    expect(guest.lines.indexOf(KEEP_YOUR_CODE), "said after Add to Home Screen is offered").toBeGreaterThan(guest.lines.findIndex((l) => /Add to Home Screen/.test(l)));
+    // CONTROL: an account signs in as usual, and a phone already on the Home Screen offers nothing to add.
+    expect(pushUnavailableWords({ iOS: true, installed: false }, ACCOUNT)!.lines).not.toContain(KEEP_YOUR_CODE);
+    expect(pushUnavailableWords({ iOS: true, installed: true }, { guest: true })!.lines).not.toContain(KEEP_YOUR_CODE);
+    for (const sentence of KEEP_YOUR_CODE.split(/(?<=[.!?])\s+/)) expect(sentence.split(" ").length, sentence).toBeLessThan(12);
+  });
+
+  it("the toggle tells the words whose screen it is, and a guest's switch names its event (finding 5)", () => {
+    const client = readSource("src", "components", "PushToggleClient.tsx");
+    expect(client).toContain("{ guest: guestEvent !== null }");
+    expect(client, "a guest's switch does not say which event it is for").toContain("{guestEvent && <span>{guestEvent}:</span>}");
+    expect(client).toContain("For ${guestEvent}, when your tee time is posted or changes.");
+    const server = readSource("src", "components", "PushToggle.tsx");
+    expect(server, "an account's switch named one event, though its alerts reach all of them").toMatch(/guestEvent = viewer\?\.guest\s*\?/);
   });
 });

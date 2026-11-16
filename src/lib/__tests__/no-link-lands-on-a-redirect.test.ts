@@ -78,8 +78,19 @@ function redirectOnlyRoutes(): Array<{ route: string; to: string }> {
   return out;
 }
 
+/**
+ * DISPATCHERS: a route whose whole job is to send each person to THEIR place, so it has no one
+ * screen to point at instead. /start is where an installed app opens (the manifest's start_url,
+ * J39/J40 PR 2, G3): an account goes home, a guest's link to Today, anybody else to /p.
+ */
+const DISPATCHERS = new Set(["/start"]);
+
 describe("no link lands on a route that only redirects", () => {
   const redirects = redirectOnlyRoutes();
+
+  it("CONTROL: a dispatcher is still detected as redirect-only, so its exemption is not vacuous", () => {
+    for (const d of DISPATCHERS) expect(redirects.map((r) => r.route)).toContain(d);
+  });
 
   /**
    * THE CONTROL. If the detector finds nothing the rule below is vacuous and
@@ -100,6 +111,7 @@ describe("no link lands on a route that only redirects", () => {
     const files = walk(SRC).filter((f) => !f.includes("__tests__"));
 
     for (const { route, to } of redirects) {
+      if (DISPATCHERS.has(route)) continue;
       for (const file of files) {
         // The route's own page is allowed to name itself; so is the file that
         // redirects TO it, which cannot happen here but costs nothing to skip.
