@@ -213,29 +213,20 @@ const KNOWN_DEAD: string[] = [
   "lib/services/identity-repair.ts:loadRepair",
   "lib/services/league-nomination.ts:clubsIn",
   "lib/services/tournament.ts:expectedRrTotal",
-  // The state machine, PR 3 of 9 (proposal 3 Nov): the dashboard's status card
-  // read these two until the card read `tournamentStatus(facts)`. They are kept,
-  // uncalled by any screen, as the record `tournament-status-shadow.test.ts`
-  // holds the machine to — "today's readers beside the machine" — and PR 9
-  // deletes the dead twins with the shadow ("a dead twin is a second copy
-  // waiting to be used").
-  "lib/domain/lifecycle-state.ts:lifecycleMismatch",
-  "lib/domain/lifecycle-state.ts:nextLifecycleAction",
-  // PR 4: `launchTournament` asks the machine's `refusals.launch`, whose first
-  // answer is this same flow's verdict. Kept, uncalled by any screen or action,
-  // because three audit tests hold the flow's launch verdict to its facts
-  // through it; PR 9 deletes it with the other dead twins.
-  // `the-actions-ask-the-machine.test.ts` keeps it out of the actions.
-  "lib/services/setup-flow.ts:launchCheckFor",
-  // PR 6: the secretary's home, the player switcher's note, the public event
-  // page and the Tournaments list read the machine's step (`nextAction`,
-  // `tournamentStepsFor`). These three were their own answers; kept, uncalled,
-  // as the shadow test's record of what was asked before, and deleted with the
-  // other dead twins in PR 9. `the-tournament-is-asked-one-way.test.ts` refuses
-  // them to every screen and to the four readers' own files.
-  "lib/domain/lifecycle-state.ts:datesPassedUnlaunched",
-  "lib/domain/lifecycle-state.ts:tournamentPhase",
+  // The state machine's retired readers. PR 9a (14 Nov) DELETED five of them —
+  // `lifecycleMismatch`, `nextLifecycleAction`, `datesPassedUnlaunched`,
+  // `tournamentPhase` and `services/setup-flow.ts:launchCheckFor` — with the
+  // shadow test that was their only reader; `the-tournament-is-asked-one-way.test.ts`
+  // refuses their names anywhere in src, e2e or scripts.
+  //
+  // Left for the second half of 9a, and ONLY because another open pull request
+  // holds the file its deletion must edit: the player switcher's old "Play
+  // complete" (PR 6 moved the note to the machine's step) — its unit test,
+  // `tournament-switcher.test.ts`, is held by #1149. And the setup flow's own
+  // facts read, whose only caller was `launchCheckFor` — `tournament-facts.ts`
+  // is held by #1144 (`setupSideFactsFor` is the live reader).
   "lib/domain/tournament-switcher.ts:playOverOf",
+  "lib/services/tournament-facts.ts:setupFactsFor",
 ];
 
 const dead: Dead[] = [];
