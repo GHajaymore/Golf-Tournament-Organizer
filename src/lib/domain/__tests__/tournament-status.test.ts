@@ -164,6 +164,9 @@ describe("a single match", () => {
     const bare = FAMILY_FIXTURES.match();
     bare.rounds[0] = { ...bare.rounds[0], matches: 0 };
     expect(keyOf(bare)).toBe("stages");
+    // And Launch is refused — there is nothing to play (Golf Pro, 8.2; P2). Pinned here since the
+    // shadow test that held it beside the old flow went with the dead twins (state machine PR 9a).
+    expect(s(bare).refusals.launch).toMatch(/^Round 1 has no match made yet, so there is nothing to score\. Make it on Rounds & formats/);
   });
 
   it("is never held on Flights (8.2: not shown)", () => {
@@ -495,5 +498,41 @@ describe("D7 and D8 — readers on #994, not on main: the machine's answer is pi
     expect(s(f).rounds[0].state).toBe("not-started");
     f.rounds[0] = { ...f.rounds[0], hasResult: true };
     expect(s(f).rounds[0].state).toBe("under-way");
+  });
+});
+
+/**
+ * A PLAYER WITH NO HANDICAP INDEX IN A ROUND SCORED NET (lane N, #1144) is the launch dialog's FIRST row,
+ * in every family that launches, and nothing about the rounds may take it away: not a hold on Rounds &
+ * formats (a course card missing), not a family that draws no such step, not a league's later-weeks row
+ * on the same screen. Worked by hand: one player, Round 1 net — the words every door says (`needsFigureSaid`).
+ * Before state machine PR 9a this row went through the machine's screen filters and vanished whenever the
+ * rounds still held; the reader that showed it (`launchCheckFor`) was one no screen used.
+ */
+describe("no handicap index in a net round: the launch dialog's first row, whatever holds", () => {
+  const SAYS = "1 player has no handicap index and Round 1 is scored net. Until you give them strokes they are scored as a scratch golfer (handicap index 0).";
+  const strokes = { players: 1, rounds: ["Round 1"], sideGameRounds: [] };
+
+  it.each(FAMILIES.filter((fam) => fam !== "casual"))("%s: first, even while a course card is missing", (family) => {
+    const f = { ...FAMILY_FIXTURES[family](), needsStrokes: strokes };
+    const st = s(f);
+    expect(st.warnings[0]).toMatchObject({ says: SAYS, href: "/stages" });
+    const held = s({ ...f, missingCards: [{ stageId: f.rounds[0].id, label: "Round 1", course: "zz-course" }] });
+    expect(held.refusals.launch).not.toBeNull();
+    expect(held.warnings[0]).toMatchObject({ says: SAYS, href: "/stages" });
+    expect(held.warnings.filter((w) => w.says === SAYS)).toHaveLength(1);
+  });
+
+  it("a league keeps it beside its later-weeks row, never reworded as one", () => {
+    const f = { ...FAMILY_FIXTURES.league(), needsStrokes: strokes };
+    f.rounds = f.rounds.map((r, i) => ({ ...r, scheduled: i === 0 }));
+    const st = s(f);
+    expect(st.warnings[0].says).toBe(SAYS);
+    expect(st.warnings.some((w) => w.says.startsWith("Round 2 and Round 3 have no day"))).toBe(true);
+  });
+
+  it("CONTROL: nobody without an index, or launched, and there is no such row", () => {
+    expect(s(FAMILY_FIXTURES.stroke()).warnings.some((w) => w.says.includes("no handicap index"))).toBe(false);
+    expect(s(launched({ ...FAMILY_FIXTURES.stroke(), needsStrokes: strokes })).warnings.some((w) => w.says.includes("no handicap index"))).toBe(false);
   });
 });
