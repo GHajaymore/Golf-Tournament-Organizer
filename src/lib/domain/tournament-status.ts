@@ -32,7 +32,7 @@
 import { isFinished, isLaunched } from "./lifecycle-state";
 import { formatDayAt } from "./locale";
 import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
-import { unratedTeesTodo, type LaunchCheck, type UnratedTees } from "./launch-check";
+import { needsStrokesWarning, unratedTeesTodo, type LaunchCheck, type UnratedTees } from "./launch-check";
 import { SINK_LIVE, needsFigureTodo, type NeedsStrokes } from "./committee-figure";
 import { completingCheckFor, finishRefusal, playRefusal, statusMove } from "./phase-gate";
 import type { BracketView } from "./bracket";
@@ -461,7 +461,6 @@ export function setupFactsOf(f: SetupSideFacts): SetupFacts {
     playingRounds: playing.length,
     missingCards: f.missingCards,
     unratedTees: f.unratedTees ?? null,
-    needsStrokes: f.needsStrokes ?? null,
     straightKnockout: isStraightKnockout(f.rounds),
     moneyAnswered: f.moneyAnswered,
     launched: isLaunched(f.status),
@@ -1136,6 +1135,11 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
   /* warnings: what is open and does not hold */
   const warnings: StatusWarning[] = [];
   if (!launched && todayLaunch) {
+    // Lane N: a player with no handicap index in a round scored net. A wrong result outranks everything
+    // else open, so it is the FIRST row, and it is about a player, not the rounds: no hold on Rounds &
+    // formats, no missing step and no league rewording below may drop it (`needsStrokesWarning`).
+    const strokes = needsStrokesWarning(f.needsStrokes, screenName("/stages"));
+    if (strokes) warnings.push(strokes);
     for (const w of todayLaunch.warnings) {
       // A hold is a refusal, not a warning; and a step not shown warns about nothing.
       if (steps.some((s) => s.holds && s.href === w.href)) continue;
