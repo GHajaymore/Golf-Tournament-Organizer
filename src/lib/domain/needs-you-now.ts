@@ -358,6 +358,7 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
        * the first day has come, an undated round is due today, as before.
        */
       const first = isIso(t.startOn) && t.startOn > today ? t.startOn : today;
+      void first;
       jobs.push({
         ...base,
         key: "strokes",
