@@ -615,8 +615,8 @@ body {
    long confirm's button is. `dvh` where the browser has it, so the cap follows
    a phone's collapsing address bar. */
 .console-play-status {
-  position: static;
-  top: var(--play-status-top, 0px);
+  position: sticky;
+  top: 0;
   z-index: 20;
   background: var(--color-bg);
   padding: 6px 0;
