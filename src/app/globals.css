@@ -602,7 +602,7 @@ body {
 }
 
 /* SUSPEND PLAY IN THE CONSOLE'S SHELL (Rule 5.7; `PlayStatusFrame`). Drawn only
-   WHILE PLAY IS SUSPENDED; with play on, Suspend play is an ordinary row that
+   WHILE PLAY IS SUSPENDED; with play on, above 820px (on a phone see COMPACT SUSPEND PLAY below), Suspend play is an ordinary row that
    scrolls away with the page and covers nothing. Sticky, so
    a TD scrolled down a long tee sheet still has it under the thumb; under the
    phone's sticky top bar (`--play-status-top` is that bar's measured height,
@@ -651,7 +651,7 @@ html {
 }
 
 /* COMPACT SUSPEND PLAY IN THE PHONE'S TOP BAR (B64, Rule 5.7). With play on the
-   frame is an ordinary row that scrolls away; on a phone the idle button is
+   frame is an ordinary row that scrolls away above 820px; on a phone the idle button is
    instead pinned over the right end of the sticky top bar (same element, same
    press, same confirm: no second copy of the rule), so a committee member far
    down a long screen can stop play at once. Tokens only; 44px target; clear of
@@ -678,7 +678,9 @@ html {
     right: calc(8px + env(safe-area-inset-right, 0px));
     z-index: 35;
     margin: 0 !important;
-    max-height: calc(100dvh - 96px - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100vh - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
     overflow-y: auto;
     box-shadow: 0 8px 28px color-mix(in srgb, var(--color-text) 25%, transparent);
   }

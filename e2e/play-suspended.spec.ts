@@ -158,7 +158,7 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
  * confirm), the banner and Resume play are on every console screen walked,
  * the dashboard draws ONE control, not two, and resuming is two presses (it
  * confirms: #1149 C3) that leave the organizer where they were. With play on
- * it is an ordinary row (no sticky band pushing every live screen's controls
+ * above 820px it is an ordinary row (on a phone the button is pinned over the top bar, B64) (no sticky band pushing every live screen's controls
  * behind the phone's tab bar); once suspended, the banner is sticky. Each step
  * is read back from the row.
  */
@@ -205,10 +205,10 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
       expect(box, `CONTROL: ${what} has no box to measure`).not.toBeNull();
       return box!;
     };
-    // With play on, Suspend play is an ordinary row: no sticky band holds the top of every live
+    // With play on above 820px, Suspend play is an ordinary row: no sticky band holds the top of every live
     // screen and pushes its controls down behind the tab bar (#1149's CI: Confirm result on Score
-    // entry, phone). Scrolled down the sheet, a person scrolls back up to it; the press below
-    // reaches it only because Playwright scrolls it into view first, not because the app does.
+    // entry, phone). Scrolled down the sheet, on this phone (B64) the same button is pinned over the top bar, so the press is made from down the sheet;
+    // it is not an ordinary row here.
     await expect(suspendButton).toBeVisible();
     await expect(page.locator(".console-play-status"), "with play on, a sticky band holds the top of the tee sheet").toHaveCount(0);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -341,7 +341,11 @@ for (const width of [393, 320]) {
       expect(bar, "CONTROL: the top bar has no box").not.toBeNull();
       expect(box, "CONTROL: the button has no box").not.toBeNull();
       expect(box!.height, "Suspend play is under 44px tall").toBeGreaterThanOrEqual(43.5);
-      expect(box!.y, "Suspend play is not in the top bar").toBeLessThan(bar!.y + bar!.height);
+      expect(box!.y, "Suspend play starts above the top bar").toBeGreaterThanOrEqual(bar!.y);
+      expect(box!.y + box!.height, "Suspend play hangs below the top bar").toBeLessThanOrEqual(bar!.y + bar!.height + 1);
+      const lockup = await page.locator(".m-topbar > span").first().boundingBox();
+      expect(lockup, "CONTROL: the top bar has no lockup to measure").not.toBeNull();
+      expect(lockup!.x + lockup!.width, "Suspend play covers the TourneyHQ lockup").toBeLessThanOrEqual(box!.x);
       expect(box!.x + box!.width, "Suspend play runs off the right edge").toBeLessThanOrEqual(width);
       expect(box!.x, "Suspend play runs off the left edge").toBeGreaterThanOrEqual(0);
 
@@ -349,9 +353,14 @@ for (const width of [393, 320]) {
       await suspendButton.click();
       const now = page.getByRole("button", { name: "Suspend play now" });
       await expect(now, "the confirm is out of view").toBeInViewport();
+      const tabs = await page.locator(".m-tabbar").boundingBox();
+      const nowBox = await now.boundingBox();
+      expect(tabs && nowBox, "CONTROL: nothing to measure").toBeTruthy();
+      expect(nowBox!.y + nowBox!.height, "Suspend play now sits behind the tab bar").toBeLessThanOrEqual(tabs!.y + 1);
       await page.getByLabel("Reason (optional)").fill("Lightning in the area");
       await now.click();
       await expect(page.getByRole("alert").filter({ hasText: "Play is suspended" })).toBeVisible({ timeout: 20_000 });
+      await expect(suspendButton, "suspended, the compact button is still drawn").toHaveCount(0);
       const stamped = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true } });
       expect(stamped.playSuspendedAt, "the tournament is not marked suspended").not.toBeNull();
     } finally {

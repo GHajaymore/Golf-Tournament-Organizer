@@ -70,6 +70,20 @@ export function PlayStatusControl({
     if (open || resuming) confirmButton.current?.scrollIntoView({ block: "nearest" });
   }, [open, resuming]);
   /**
+   * The suspend confirm is an overlay on a phone (B64): focus moves into it when it opens
+   * (the sheet itself, never the reason input, which would raise the keyboard over a lightning
+   * stop, and never the confirm button, which would make Enter the second press), and back to
+   * Suspend play when it closes. Escape closes it.
+   */
+  const sheet = useRef<HTMLFormElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) sheet.current?.focus({ preventScroll: true });
+    else if (wasOpen.current) trigger.current?.focus({ preventScroll: true });
+    wasOpen.current = open;
+  }, [open]);
+  /**
    * The time on the ORGANIZER'S clock, so only in the browser. Formatted on
    * the server it would be the server's zone (UTC in production) and then a
    * different string after hydration.
@@ -126,7 +140,7 @@ export function PlayStatusControl({
   if (!open) {
     return (
       <div className="suspend-compact" style={{ marginBottom: 20 }}>
-        <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
+        <button ref={trigger} type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
           <Icon name="warning" /> Suspend play
         </button>
       </div>
@@ -135,6 +149,13 @@ export function PlayStatusControl({
 
   return (
     <form
+      ref={sheet}
+      role="alertdialog"
+      aria-labelledby="suspend-confirm-title"
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !pending) setOpen(false);
+      }}
       className="card suspend-confirm"
       style={{ marginBottom: 20, display: "grid", gap: 10, borderColor: "var(--color-danger)" }}
       onSubmit={(e) => {
@@ -142,7 +163,7 @@ export function PlayStatusControl({
         run(() => suspendPlay(why), close);
       }}
     >
-      <strong>Suspend play for the whole field?</strong>
+      <strong id="suspend-confirm-title">Suspend play for the whole field?</strong>
       <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
         Every player gets a notification to stop now, and every screen and the public board say so until you
         resume play.

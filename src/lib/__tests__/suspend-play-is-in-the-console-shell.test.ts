@@ -221,6 +221,13 @@ describe("one mount: the console's shell", () => {
     expect(control).toMatch(/className="card suspend-confirm"/);
     expect(control.match(/run\(\(\) => suspendPlay\(why\)|suspendPlay\(why\)/g), "a second way to suspend").toHaveLength(1);
     expect(mountsOf("PlayStatusControl")).toEqual(["src/components/ConsolePlayStatus.tsx"]);
+    // The sheet's cap has a vh fallback and pays the top inset; the confirm is a labelled alertdialog with Escape and focus.
+    expect(sheet).toMatch(/max-height: calc\(100vh - 96px - env\(safe-area-inset-top, 0px\)/);
+    expect(sheet).toMatch(/max-height: calc\(100dvh - 96px - env\(safe-area-inset-top, 0px\)/);
+    expect(control).toMatch(/role="alertdialog"/);
+    expect(control).toMatch(/aria-labelledby="suspend-confirm-title"/);
+    expect(control).toMatch(/e\.key === "Escape"/);
+    expect(control).toMatch(/trigger\.current\?\.focus/);
   });
 
   it("Resume confirms, and says the field will be told to play on (#1149 C3)", () => {

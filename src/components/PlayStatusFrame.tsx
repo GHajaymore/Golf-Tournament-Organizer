@@ -25,7 +25,7 @@ export const PLAY_STATUS_PROBE = "/api/console-play-status";
  * the whole shell — 15–20 queries — all day, for a season-long league.
  *
  * A BAND ONLY WHILE PLAY IS SUSPENDED (`since` set). With play on, the frame is
- * an ordinary row at the top of the screen: not sticky, publishing nothing,
+ * an ordinary row at the top of the screen (on a phone its idle button is pinned over the top bar by CSS, `.suspend-compact`, B64; the frame itself): not sticky, publishing nothing,
  * so it covers nothing and moves nothing as the page scrolls. As a sticky band
  * on every live screen it pushed each screen's own controls down into the
  * strip behind the phone's tab bar, where a press on "Confirm result" on Score
