@@ -32,7 +32,6 @@
  */
 
 import { launchCheck, type LaunchCheck, type UnratedTees } from "./launch-check";
-import type { NeedsStrokes } from "./committee-figure";
 
 /**
  * ONE ROUND, as the guide has to judge it.
@@ -184,11 +183,6 @@ export interface SetupFacts {
    * for the same reason as `missingCards`; `tournament-facts.ts` builds it.
    */
   unratedTees?: UnratedTees | null;
-  /**
-   * Players with no handicap index in a round scored net who have no strokes yet (`needsStrokesFact`) — a
-   * launch WARNING, never a refusal. Optional for the same reason; `tournament-facts.ts` builds it.
-   */
-  needsStrokes?: NeedsStrokes | null;
   /**
    * The bracket is the tournament's first round, so the whole field is drawn
    * and there is nothing for flights to decide. See the `grouping` step.
@@ -684,7 +678,7 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
   const readyToLaunch = complete && !facts.launched;
   // The launch gate's verdict from these facts and these steps — see launch-check.ts.
   const launch = launchCheck(
-    { ...facts, playingRounds: facts.playingRounds ?? facts.rounds.length, missingCards: facts.missingCards ?? [], unratedTees: facts.unratedTees ?? null, needsStrokes: facts.needsStrokes ?? null },
+    { ...facts, playingRounds: facts.playingRounds ?? facts.rounds.length, missingCards: facts.missingCards ?? [], unratedTees: facts.unratedTees ?? null },
     steps,
     labelFor,
   );

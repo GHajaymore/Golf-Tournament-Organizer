@@ -42,7 +42,8 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 import { createSession, getSession, setActiveEvent } from "@/lib/auth";
 import { applyRoundHandicapToRest, setRoundHandicapOverride } from "@/app/actions/tournament";
 import { needsStrokesNoteFor, playersNeedingFigure } from "@/lib/services/committee-figure";
-import { launchCheckFor } from "@/lib/services/setup-flow";
+import { tournamentStatusNow } from "@/lib/services/tournament-status";
+import { launchDialogOf } from "@/lib/domain/tournament-status";
 import { secretaryHomeFor } from "@/lib/services/whats-next";
 import { freezeRoundHandicaps, roundHandicapsFor } from "@/lib/services/round-handicap";
 import { correctRoundStrokes } from "@/app/actions/committee-figure";
@@ -53,6 +54,18 @@ import { warningText } from "@/lib/domain/launch-check";
 import { clubToday } from "@/lib/domain/club-clock";
 import { skinsPotFor } from "@/lib/services/skins-pot";
 import { teamsForStage } from "@/lib/services/teams";
+
+/**
+ * THE LAUNCH DIALOG, read exactly as the dashboard draws it: `launchDialogOf` on the machine's status
+ * (`tournamentStatusNow`). These cases first asked `launchCheckFor`, a reader no screen used, which state
+ * machine PR 9a deleted — and asked through the machine they caught the dialog dropping this row while
+ * the rounds still lacked a course card (the fixture's rounds have none), which the old reader never did.
+ */
+async function launchDialog(eventId: string) {
+  const read = await tournamentStatusNow(eventId);
+  if (!read) throw new Error(`no status for ${eventId}`);
+  return launchDialogOf(read.status, false);
+}
 
 const prisma = new PrismaClient();
 const TAG = "zz-audit-noindexnet";
@@ -143,7 +156,7 @@ describe("a player with no index in a net round is caught", () => {
       [t.stages[1], "Round 2", [t.nox]],
     ]);
 
-    const launch = await launchCheckFor(t.eventId);
+    const launch = await launchDialog(t.eventId);
     expect(launch.refusal === null || typeof launch.refusal === "string").toBe(true);
     const first = launch.warnings[0];
     expect(first?.says).toBe("1 player has no handicap index and Round 1 and Round 2 are scored net. Until you give them strokes they are scored as a scratch golfer (handicap index 0).");
@@ -190,7 +203,7 @@ describe("Give: the band's write", () => {
 
     // Every surface clears.
     expect(await playersNeedingFigure(t.eventId)).toEqual([]);
-    expect((await launchCheckFor(t.eventId)).warnings.some((w) => w.says.includes("no handicap index"))).toBe(false);
+    expect((await launchDialog(t.eventId)).warnings.some((w) => w.says.includes("no handicap index"))).toBe(false);
     expect(await needsStrokesNoteFor(t.eventId, true)).toBeNull();
   });
 
@@ -233,7 +246,7 @@ describe("on rated tees whose Course Rating is not par, the words stay true", ()
     const nox = (await roundHandicapsFor(t.eventId, t.stages[0])).find((v) => v.playerId === t.nox)!;
     expect([nox.handicap, nox.allowance, nox.playing], "index 0 off 73.4/125, par 71, at 95%").toEqual([2, 95, 2]);
 
-    const says = (await launchCheckFor(t.eventId)).warnings[0]?.says ?? "";
+    const says = (await launchDialog(t.eventId)).warnings[0]?.says ?? "";
     expect(says).toBe("1 player has no handicap index and Round 1 is scored net. Until you give them strokes they are scored as a scratch golfer (handicap index 0).");
     expect(says).not.toContain("off 0");
   });
@@ -391,7 +404,7 @@ describe("a gross round with a net side game asks for the players in that game",
     const list = await playersNeedingFigure(t.eventId);
     expect(list.map((r) => [r.label, r.sideGame, r.players.map((p) => p.id)])).toEqual([["Round 1", true, [t.nox]]]);
 
-    const says = (await launchCheckFor(t.eventId)).warnings[0]?.says ?? "";
+    const says = (await launchDialog(t.eventId)).warnings[0]?.says ?? "";
     expect(says).toBe("1 player has no handicap index and plays a net side game in Round 1. Until you give them strokes they are scored as a scratch golfer (handicap index 0).");
     expect(says).not.toContain("scored net");
     await as("admin", t.eventId);
@@ -494,7 +507,7 @@ describe("a gross-only tournament asks nothing", () => {
   it("no list, no launch warning, no What's next line, no note", async () => {
     const t = await makeEvent("gross", ["gross", "gross"]);
     expect(await playersNeedingFigure(t.eventId)).toEqual([]);
-    expect((await launchCheckFor(t.eventId)).warnings.some((w) => w.says.includes("no handicap index"))).toBe(false);
+    expect((await launchDialog(t.eventId)).warnings.some((w) => w.says.includes("no handicap index"))).toBe(false);
     await as("admin", t.eventId);
     const home = await secretaryHomeFor((await getSession())!);
     expect(home.jobs.filter((j) => j.eventId === t.eventId && j.key === "strokes")).toEqual([]);
