@@ -364,7 +364,7 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
         text: strokesJobSaid(s.count, s.round, dated ? day(s.day) : ""),
         href: "/stages",
         action: GIVE_STROKES,
-        due: dated && s.day > today ? s.day : dated ? today : first,
+        due: dated && s.day > today ? s.day : today,
         roundId: s.roundId,
         hash: NEEDS_STROKES_ANCHOR,
       });
