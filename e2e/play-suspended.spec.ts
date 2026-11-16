@@ -254,7 +254,12 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     expect(scrolledBy, "CONTROL: not scrolled past where the banner sits, so it never had to stick").toBeGreaterThan(bandAtRest.y - (topBar.y + topBar.height) + 1);
     await expect(bandAt, `scrolled ${scrolledBy}px down, the Suspend play banner is out of view: it is not sticky`).toBeInViewport();
     const stuck = await boxOf("the Suspend play banner, scrolled", bandAt);
-    expect(Math.abs(stuck.y - (topBar.y + topBar.height)), "scrolled down, the Suspend play banner is not held right under the top bar").toBeLessThanOrEqual(1);
+    // The bar is measured AGAIN, now, beside the band: WebKit's scroll to the very end of the page
+    // can carry the whole sticky stack ~10px past its resting place (the failure screenshot of round
+    // trainb-1 shows the top bar, the band and the tab bar all 10px up), so the bar's rest position
+    // is not where it is now. What matters is that the band is flush with the bar it sits under.
+    const topBarNow = await boxOf("the phone's top bar, scrolled", page.locator(".m-topbar"));
+    expect(Math.abs(stuck.y - (topBarNow.y + topBarNow.height)), "scrolled down, the Suspend play banner is not held right under the top bar").toBeLessThanOrEqual(1);
     // The strip's own heading, so no larger card around it is measured instead.
     const strip = page.locator(".card-kicker", { hasText: "On this page" }).first();
     await expect(strip, "CONTROL: Tournament details has no On this page strip to stack").toHaveCount(1);
