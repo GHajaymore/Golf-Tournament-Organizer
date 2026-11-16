@@ -308,6 +308,50 @@ describe("setting up, the button is Launch, and Give strokes stays on the home",
     expect(job.disabledBecause).toBe(t.status.nextAction?.disabledBecause);
   });
 
+  /**
+   * AN UNDATED NET ROUND (QA's NO-GO on b9131234, 16 Nov): a round with no day yet was due TODAY, so with
+   * the first day ahead it outranked Launch (due on the first day) and became the setting-up button.
+   * It is due no earlier than the first day now, ties Launch there, and `JOB_ORDER` puts Launch first.
+   */
+  const undated = { roundId: "r2", round: "Round 2", day: "", count: 1 };
+
+  it("an UNDATED net round inside the fortnight: the button is Launch, and the home lists Launch before strokes", () => {
+    const first = addDays(TODAY, 3);
+    const t = quiet({ ...told(medal(first)), strokes: undated });
+    expect(t.status.nextAction?.kind).toBe("launch");
+    expect(keys(t)).toEqual(["launch", "strokes"]);
+    expect(one(t)!.key).toBe("launch");
+    expect(one(t)!.action).toBe(t.status.nextAction?.label);
+  });
+
+  it("an UNDATED net round beyond the fortnight: the home keeps the strokes line, the button is Launch", () => {
+    const first = addDays(TODAY, LAUNCH_AHEAD_DAYS + 16);
+    const t = quiet({ ...told(medal(first)), strokes: undated });
+    expect(jobs(t).map((j) => [j.key, j.action])).toEqual([["strokes", GIVE_STROKES]]);
+    expect(one(t)!.key).toBe("launch");
+  });
+
+  it("a league's later week, net and undated, beyond the fortnight: the button is Launch", () => {
+    const first = addDays(TODAY, LAUNCH_AHEAD_DAYS + 16);
+    const league = { ...FAMILY_FIXTURES.league(), startOn: first, endOn: addDays(first, 21) };
+    const t = quiet({ ...told(league), strokes: { roundId: "w2", round: "Week 2", day: "", count: 1 } });
+    expect(t.status.step).toBe("setting-up");
+    expect(one(t)!.key).toBe("launch");
+  });
+
+  it("an undated net round with no first day either: the button is Launch (both due today, Launch first on the tie)", () => {
+    const t = quiet({ ...told({ ...medal(""), endOn: "" }), strokes: undated });
+    // The home waits for dates before it lists a launch, so it holds the strokes line alone.
+    expect(keys(t)).toEqual(["strokes"]);
+    expect(one(t)!.key).toBe("launch");
+  });
+
+  it("CONTROL: launched, the first day come, an undated net round is due today and IS the button", () => {
+    const t = quiet({ ...told(launched(medal(TODAY))), strokes: undated });
+    expect(jobs(t).find((j) => j.key === "strokes")?.due).toBe(TODAY);
+    expect(one(t)!.key).toBe("strokes");
+  });
+
   it("CONTROL: once launched, the same strokes line IS the button — the job can be chosen, it is only not chosen over Launch", () => {
     const first = addDays(TODAY, 3);
     const t = quiet({ ...told(launched(medal(first))), strokes: needing(first) });

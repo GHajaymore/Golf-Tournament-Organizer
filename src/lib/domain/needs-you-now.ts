@@ -350,13 +350,21 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
     const s = t.strokes;
     if (s && s.count > 0) {
       const dated = isIso(s.day);
+      /**
+       * AN UNDATED ROUND IS NO EARLIER THAN THE TOURNAMENT'S FIRST DAY (QA, 16 Nov). A net round with no
+       * day yet (a league's later week) is due on the first day while that is ahead, never today: due
+       * today it outranked a Launch due on the first day and became the setting-up button, against the
+       * ruling that Launch leads. On the first day the two tie and `JOB_ORDER` puts Launch first; once
+       * the first day has come, an undated round is due today, as before.
+       */
+      const first = isIso(t.startOn) && t.startOn > today ? t.startOn : today;
       jobs.push({
         ...base,
         key: "strokes",
         text: strokesJobSaid(s.count, s.round, dated ? day(s.day) : ""),
         href: "/stages",
         action: GIVE_STROKES,
-        due: dated && s.day > today ? s.day : today,
+        due: dated && s.day > today ? s.day : dated ? today : first,
         roundId: s.roundId,
         hash: NEEDS_STROKES_ANCHOR,
       });
