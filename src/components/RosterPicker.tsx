@@ -9,6 +9,7 @@ import { useGolfTerms } from "./GolfTermsProvider";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+import { ImportMembersButton } from "./ImportMembers";
 
 /**
  * Fill a field from the club roster.
@@ -140,10 +141,13 @@ export function RosterPicker({
       </div>
 
       {candidates.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          The roster is empty. Everyone you add below — or import by CSV — joins it automatically, so next
-          season&rsquo;s field is a few clicks rather than a retype.
-        </p>
+        <>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            The roster is empty. Everyone you add below — or import by CSV — joins it automatically, so next
+            season&rsquo;s field is a few clicks rather than a retype. Or bring in your whole members list now and
+            tick who is playing.
+          </p>
+        </>
       ) : available.length === 0 ? (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Every active member is already in this field.
@@ -248,6 +252,11 @@ export function RosterPicker({
           </button>
         </>
       )}
+
+      {/* Cut A (event-first, 15 Nov 2026): the members list is offered here,
+          never asked for before the first event. Outside the branches above, so
+          its answer stays on screen when the list it fills replaces "empty". */}
+      <ImportMembersButton />
 
       {error && (
         <p className="form-error">
