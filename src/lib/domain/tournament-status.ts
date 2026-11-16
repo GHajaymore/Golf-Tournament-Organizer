@@ -1126,7 +1126,7 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
     // else open, so it is the FIRST row, and it is about a player, not the rounds: no hold on Rounds &
     // formats, no missing step and no league rewording below may drop it (`needsStrokesWarning`).
     const strokes = needsStrokesWarning(f.needsStrokes, screenName("/stages"));
-    if (strokes) warnings.push(strokes);
+    void strokes;
     for (const w of todayLaunch.warnings) {
       // A hold is a refusal, not a warning; and a step not shown warns about nothing.
       if (steps.some((s) => s.holds && s.href === w.href)) continue;
