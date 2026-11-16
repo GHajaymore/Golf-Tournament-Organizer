@@ -376,6 +376,8 @@ export const FULL_ONLY = [
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
   "e2e/net-without-tees-says-so.spec.ts",
+  // Lane N PR A with state machine PR 9a: no handicap index in a net round - the launch dialog names the player first (plain event, league).
+  "e2e/no-index-warning-in-the-launch-dialog.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
   // State machine PR 8 (J14): a row A045 moved keeps what members saw, launches like any other, and is copied without its old word.
