@@ -43,13 +43,26 @@ export function deviceFrom(nav: { userAgent: string; platform?: string; maxTouch
   return { iOS, installed: standaloneDisplay || nav.standalone === true };
 }
 
+/** Said to a guest wherever Add to Home Screen is offered (simplicity review of #1133, finding 3). */
+export const KEEP_YOUR_CODE = "Keep your code. The Home Screen app asks for it once.";
+
 /**
  * Why alerts cannot be turned on here, and what still works — or null where
  * there is nothing useful to tell (a desktop browser without push, a server
  * with push not set up): there the toggle still says nothing. Every sentence
  * is under twelve words, as the player app is (`e2e/player-words.spec.ts`).
  */
-export function pushUnavailableWords(device: ThisDevice): { title: string; lines: string[] } | null {
+export function pushUnavailableWords(
+  device: ThisDevice,
+  /**
+   * Whose screen it is — REQUIRED, so every caller says (2026-11-14, the
+   * simplicity review of #1133, finding 3). A Home Screen app keeps its own
+   * cookies, so a guest who adds it must type their code once there
+   * (`home-screen-start.ts`); they are told so where Add to Home Screen is
+   * offered, before the code is gone. An account signs in as usual.
+   */
+  viewer: { guest: boolean },
+): { title: string; lines: string[] } | null {
   if (!device.iOS) return null;
   /**
    * What still works, promised no further than an iPhone keeps it (the
@@ -71,6 +84,12 @@ export function pushUnavailableWords(device: ThisDevice): { title: string; lines
   // "From the browser", not "in Safari": Chrome on an iPhone is the same WebKit, and the same answer.
   return {
     title: "Alerts can't reach this iPhone from the browser.",
-    lines: [stillWorks, notTold, "To be told: tap Share, then Add to Home Screen.", "Open TourneyHQ from there and turn alerts on."],
+    lines: [
+      stillWorks,
+      notTold,
+      "To be told: tap Share, then Add to Home Screen.",
+      "Open TourneyHQ from there and turn alerts on.",
+      ...(viewer.guest ? [KEEP_YOUR_CODE] : []),
+    ],
   };
 }
