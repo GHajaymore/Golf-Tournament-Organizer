@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
-import { prisma, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { prisma, makeClub, dropClub, makeEvent, signIn, addDays, dayIn } from "./rounds-fixture";
 
 /**
  * A PLAYER WITH NO HANDICAP INDEX IN A NET ROUND: THE LAUNCH DIALOG NAMES THEM FIRST (lane N PR A, #1144;
@@ -28,6 +28,15 @@ import { prisma, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture"
  */
 
 const WALKED = ["desktop"];
+/**
+ * THE DAYS ARE NEAR, ON PURPOSE. The dashboard's one button is the tournament's FIRST job by due day
+ * (`tournamentJob`): "Give strokes" is due on the round's day, Launch on the day the tournament starts, and
+ * Launch counts as a job only inside the fortnight. So it starts in two days and its round is played in
+ * five: Launch comes first and is the button to press.
+ */
+const STARTS = addDays(dayIn(""), 2);
+const PLAYED = addDays(dayIn(""), 5);
+const ENDS = addDays(dayIn(""), 20);
 const SAYS =
   "1 player has no handicap index and Round 1 is scored net. Until you give them strokes they are scored as a scratch golfer (handicap index 0).";
 
@@ -49,7 +58,7 @@ async function ready(
     configUnlocked: true,
     stages,
     players: 4,
-    event: { dates: "Jun 12", moneyMode: "none", ...(opts.league ? { playKind: "league" } : {}) },
+    event: { dates: "Soon", startOn: STARTS, endOn: ENDS, moneyMode: "none", ...(opts.league ? { playKind: "league" } : {}) },
   });
   await prisma.stage.updateMany({ where: { eventId: event.id }, data: { teeSheet: JSON.stringify({ groups: [] }) } });
   if (opts.noIndex) await prisma.player.update({ where: { id: players[0].id }, data: { handicap: 0, handicapSource: "none" } });
@@ -73,7 +82,7 @@ test("a plain net event: the dialog's first row is the player with no index", as
   watchPageErrors(page, errors);
   await dropClub(mark);
   try {
-    const { club, event } = await ready(mark, "Spring Medal", [{ scoringBasis: "net", playedOn: "2099-06-12" }], { noIndex: true });
+    const { club, event } = await ready(mark, "Spring Medal", [{ scoringBasis: "net", playedOn: PLAYED }], { noIndex: true });
     await signIn(context, baseURL!, club, event.id);
     const dialog = await openLaunchDialog(page);
     const first = dialog.getByRole("region", { name: "Still open" }).getByRole("listitem").first();
@@ -98,7 +107,7 @@ test("a league with later weeks undated: the no-index row is first, above the la
       mark,
       "Thursday League",
       [
-        { scoringBasis: "net", playedOn: "2099-06-12" },
+        { scoringBasis: "net", playedOn: PLAYED },
         { scoringBasis: "gross", playedOn: "" },
         { scoringBasis: "gross", playedOn: "" },
       ],
@@ -123,7 +132,7 @@ test("control: everybody has an index, so the dialog draws no such row", async (
   watchPageErrors(page, errors);
   await dropClub(mark);
   try {
-    const { club, event } = await ready(mark, "Spring Medal", [{ scoringBasis: "net", playedOn: "2099-06-12" }], { noIndex: false });
+    const { club, event } = await ready(mark, "Spring Medal", [{ scoringBasis: "net", playedOn: PLAYED }], { noIndex: false });
     await signIn(context, baseURL!, club, event.id);
     const dialog = await openLaunchDialog(page);
     await expect(dialog.getByText("no handicap index"), "a no-index row was drawn though everybody has an index").toHaveCount(0);
