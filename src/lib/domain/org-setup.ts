@@ -35,6 +35,10 @@ import { orgProfile, type OrgProfile } from "./org-profile";
  * keys held somewhere else: "Add your course" is a real convenience and not a
  * prerequisite, and saying so on the step is what keeps the gate honest.
  *
+ * SINCE CUT A (Ajay, 15 Nov 2026) THE ONLY REQUIRED STEP IS THE NAME, and it
+ * is answered on the create form itself. The members list is no longer asked
+ * for before the first event at all: see the roster step below.
+ *
  * The gate is only ever a FIRST-TOURNAMENT gate. Once one exists nothing is
  * blocked ever again — see `blockedByClubSetup` — because a club with a season
  * behind it has proved everything this list was asking about, and a gate that
@@ -295,7 +299,23 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     });
   }
 
-  if (profile.sharedRoster) {
+  /**
+   * EVENT-FIRST (Cut A, Ajay, 15 Nov 2026): the members list is never a step
+   * or a gate before the first event.
+   *
+   * It was `required: true` and listed from sign-up, so a new club met "Add
+   * your members" between its emailed code and its first tournament: a screen
+   * away and back again (J1's one return), for a list an outing, a charity day
+   * or a society starting out does not have, and a club already keeps in its
+   * own system. Every product the panel checked asks for the event first.
+   *
+   * So the step exists only once a first tournament does, and never holds one
+   * back. The list is asked for where it is used: at the draw, when the field
+   * is empty and so is the club's list (`membersAsked`), and as an optional
+   * "Import members" on Entries. Whatever is added there lands on Members,
+   * so nothing is typed twice.
+   */
+  if (profile.sharedRoster && facts.eventCount > 0) {
     steps.push({
       key: "roster",
       title: "Add your members",
@@ -303,7 +323,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
       done: facts.memberCount > 0,
       consequence: "Pairings cannot be drawn from an empty field.",
       href: SETUP_HREF.roster,
-      required: true,
+      required: false,
     });
   }
 
@@ -466,6 +486,34 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
  * produced "Name your personal" because a chip does not survive being dropped
  * into a sentence. A title does, because a title is already a phrase.
  */
+/**
+ * HOW MANY PEOPLE ARE ENTERED: the field, those awaiting approval and the waitlist.
+ * Withdrawn and disqualified entries are not. The draw asks for members only when this is 0.
+ */
+export function peopleEntered(confirmed: number, awaitingApproval: number, waitlisted: number): number {
+  return confirmed + awaitingApproval + waitlisted;
+}
+
+/**
+ * WHETHER THE DRAW ASKS FOR THE CLUB'S MEMBERS (Cut A, 15 Nov 2026).
+ *
+ * The one place the members list is asked for before anybody has entered: a
+ * draw needs players, the field is empty, and the outfit keeps a members list
+ * that is empty too. A personal organizer keeps no list, so is never asked;
+ * a club whose list has anybody on it is sent to pick from it on Entries
+ * instead (`drawReadiness`), not asked again.
+ */
+export function membersAsked(facts: {
+  kind: string | null | undefined;
+  country?: string | null;
+  communityNoun?: string | null;
+  memberCount: number;
+  fieldSize: number;
+}): boolean {
+  if (facts.fieldSize > 0 || facts.memberCount > 0) return false;
+  return orgProfile(facts.kind, facts.country, facts.communityNoun).sharedRoster;
+}
+
 function listSteps(steps: { title: string }[]): string {
   const words = steps.map((s) => s.title.charAt(0).toLowerCase() + s.title.slice(1));
   if (words.length <= 1) return words[0] ?? "";

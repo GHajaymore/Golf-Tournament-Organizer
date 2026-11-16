@@ -221,6 +221,8 @@ export const AREAS = {
       "e2e/tee-sheet-moves.spec.ts",
       // Replace a player in a slot with a member or a guest: a no-show, a cancellation (B43).
       "e2e/tee-sheet-replace.spec.ts",
+      // Cut A (event-first, 15 Nov): the members list asked for at the draw, and offered on Entries.
+      "e2e/members-asked-at-the-draw.spec.ts",
     ],
     scenarios: [],
     // Tee times are read on the club's clock.

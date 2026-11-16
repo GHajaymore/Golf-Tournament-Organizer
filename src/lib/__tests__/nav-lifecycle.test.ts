@@ -7,7 +7,10 @@ import { tournamentStatus, type Family, type TournamentFacts } from "../domain/t
 import { FAMILIES, FAMILY_FIXTURES, completed, launched, playedOut } from "../domain/__tests__/tournament-facts-fixtures";
 import { DEFAULT_SETTINGS, type TournamentSettings } from "../tournament-settings";
 import type { Role } from "../roles";
+import { SCREEN_KEYS, NO_MERGES, mergesShown, relocate, type ScreenKey, type Move } from "../domain/console-merges";
 import { readSource } from "./source";
+import { frozenMenu, step2Cases, type FrozenMenus } from "./step2-menus";
+import FROZEN_STEP2 from "./step2-menus.json";
 
 /**
  * THE MENU THAT FOLLOWS THE LIFECYCLE (the console structure review, 9 Nov 2026; step 2).
@@ -269,6 +272,206 @@ describe("the decided menu", () => {
     expect(activeEntryKey(menu, "/account")).toBeNull();
     // The flat menu is marked exactly as it was: the entry whose address this is.
     for (const s of flat) for (const i of s.items) expect(activeEntryKey(flat, i.href), i.href).toBe(i.key);
+  });
+});
+
+/**
+ * THE REDESIGN'S SCREENS IN THE MENU (redesign phase 2, R0; the step 3 design of 13 Nov, amended
+ * 14 Nov, §7.2; the test plan's PR 0).
+ *
+ *   off is step 2   with no screen shown — and none is, as shipped, without `&build=1`, nor in
+ *                   production without being an owner — the menu is MAIN's, deep-equal, for every
+ *                   role, setting and shape (the frozen file)
+ *   on loses no     with every screen shown, every destination the flat menu offers is still one
+ *   press           press from the menu (here, or where `relocate()` sends it), and the menu offers
+ *                   nothing but those and the rooms they lead into
+ *   the children    the Bracket beneath Leaderboard, under today's gate; the event's helpers named
+ *                   "Helpers" beneath Club settings, only where `access` is drawn today; the cup's
+ *                   teams beneath Players
+ */
+describe("the redesign's screens in the menu", () => {
+  const medal = trackOf(dated("stroke"));
+  const ALL_SCREENS: ReadonlySet<ScreenKey> = new Set(SCREEN_KEYS);
+  const merged = (role: Role, flat: readonly NavSection[], moves?: readonly Move[], shown: ReadonlySet<ScreenKey> = ALL_SCREENS) =>
+    lifecycleNav(flat, medal, { merges: shown, role, moves });
+  /** Presses from an open menu to reach `href`: 1 when an entry (or one beneath) opens it. */
+  const presses = (menu: readonly NavSection[], href: string) => (everyEntry(menu).some((i) => path(i.href) === path(href)) ? 1 : Infinity);
+  /** Where a flat entry's door leads with these screens shown (the menu's Money & payouts is Prizes' payout). */
+  /** The screens a flat menu gives this person: no door moves into a room withheld from them. */
+  const screensOf = (flat: readonly NavSection[]) => new Set(flat.flatMap((s) => s.items.map((i) => i.key)));
+  const leadsTo = (role: Role, shown: ReadonlySet<ScreenKey>, moves: readonly Move[] | undefined, screens: ReadonlySet<string>) => (h: string) => [
+    h,
+    relocate({ href: h, role, job: h === "/prizes" ? "payout" : undefined, screens }, shown, moves),
+  ];
+  /** The flat menu's destinations, and where each now leads: all the menu may offer. */
+  const mayOffer = (role: Role, flat: readonly NavSection[], shown: ReadonlySet<ScreenKey>, moves?: readonly Move[]) => {
+    // The menu's own place on a screen it may open: Courses, on Event details.
+    const places = flatHrefs(flat).includes("/event") ? ["/event#courses"] : [];
+    return new Set([...flatHrefs(flat), ...places].flatMap(leadsTo(role, shown, moves, screensOf(flat))).map(path));
+  };
+  /** The screens a menu opens, each once (two doors to one screen are one destination). */
+  const destinations = (menu: readonly NavSection[]) => [...new Set(everyEntry(menu).map((i) => path(i.href)))].sort();
+  /** Every flat destination is one press from the menu, here or where `relocate()` sends it. */
+  const longer = (role: Role, flat: readonly NavSection[], menu: readonly NavSection[], shown: ReadonlySet<ScreenKey>, moves?: readonly Move[]) =>
+    flatHrefs(flat).filter((h) => presses(menu, relocate({ href: h, role, screens: screensOf(flat) }, shown, moves)) > presses(flat, h));
+
+  it("switched off as shipped: MAIN's step 2 menu, deep-equal, for every role, setting, shape, family and stage", () => {
+    // The menus `main` drew before step 3, frozen in a committed file (`step2-menus.ts` says how):
+    // compared with the head, never with the head's own empty-set path, which shares its code.
+    const frozen = FROZEN_STEP2 as FrozenMenus;
+    const off: Array<[string, ReadonlySet<ScreenKey> | undefined]> = [
+      ["no screens passed", undefined],
+      ["nothing shown", NO_MERGES],
+      ["?stepper=1 on a preview deploy", mergesShown("?stepper=1", { owner: false }, "preview")],
+      ["?stepper=1, an owner in production", mergesShown("?stepper=1", { owner: true }, "production")],
+      ["?stepper=1&build=1, an owner in production", mergesShown("?stepper=1&build=1", { owner: true }, "production")],
+      ["?stepper=1&build=1, a club's staff in production", mergesShown("?stepper=1&build=1", { owner: false }, "production")],
+    ];
+    let checked = 0;
+    for (const c of step2Cases()) {
+      const was = frozenMenu(frozen, c.key);
+      expect(was, `${c.key} is not in the frozen file`).toBeDefined();
+      for (const [how, merges] of off) {
+        const now = merges ? lifecycleNav(c.flat, c.track, { roundName: c.roundName, merges, role: c.role }) : lifecycleNav(c.flat, c.track, { roundName: c.roundName });
+        expect(now, `${c.key}, ${how}`).toEqual(was);
+        checked++;
+      }
+    }
+    expect(checked).toBe(Object.keys(frozen.cases).length * off.length);
+    expect(Object.keys(frozen.cases)).toHaveLength(3 * 4 * 64 + 8 * 4);
+    // CONTROL: the comparison sees a menu the screens DO change (a knockout's bracket moves)…
+    const ko = step2Cases().find((c) => c.key === "admin|no settings|2")!;
+    expect(ko.flat.flatMap((s) => s.items).some((i) => i.key === "bracket")).toBe(true);
+    expect(lifecycleNav(ko.flat, ko.track, { roundName: ko.roundName, merges: ALL_SCREENS, role: "admin" })).not.toEqual(frozenMenu(frozen, ko.key));
+    // …and a frozen menu a label has drifted from (the file is read, not trusted to be empty).
+    const drifted = JSON.parse(JSON.stringify(frozenMenu(frozen, ko.key))) as NavSection[];
+    drifted[0].items[0].label = "zz-drifted";
+    expect(lifecycleNav(ko.flat, ko.track, { roundName: ko.roundName })).not.toEqual(drifted);
+  });
+
+  it("with every screen shown, every destination is still one press away, and nothing else is offered", () => {
+    let checked = 0;
+    for (const role of ROLES) {
+      for (const [name, settings] of SETTINGS) {
+        for (const shape of SHAPES) {
+          const flat = navForRole(role, settings, { ...shape, roundName: "Round 1 of 2 · Stroke Play" });
+          const menu = merged(role, flat);
+          const where = `${role}, ${name}, ${JSON.stringify(shape)}`;
+          // NEVER LOST, second leg: here, or where relocate() sends it — and it is an entry of this menu.
+          expect(longer(role, flat, menu, ALL_SCREENS), `a job got longer — ${where}`).toEqual([]);
+          const offer = mayOffer(role, flat, ALL_SCREENS);
+          expect(everyEntry(menu).map((i) => i.href).filter((h) => !offer.has(path(h))), `offered though withheld — ${where}`).toEqual([]);
+          expect(menu.find((s) => s.label === UNPLACED_SECTION), `unplaced — ${where}`).toBeUndefined();
+          const keys = everyEntry(menu).map((i) => i.key);
+          expect(keys.length, `a key twice — ${where}`).toBe(new Set(keys).size);
+          expect(primaryTabs(menu).map((t) => t.href), where).toEqual(primaryTabs(flat).map((t) => t.href));
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBe(ROLES.length * SETTINGS.length * 32);
+  });
+
+  it("each screen shown alone, and each left out, loses nothing either (a series lands one screen at a time)", () => {
+    const sets: ReadonlySet<ScreenKey>[] = SCREEN_KEYS.flatMap((k) => [new Set([k]), new Set(SCREEN_KEYS.filter((o) => o !== k))]);
+    let checked = 0;
+    for (const shown of sets) {
+      for (const role of ROLES) {
+        for (const shape of [EVERYTHING, {}, { hasKnockout: true }, { hasCup: true }, { isLeague: true, isPlayerToo: true }]) {
+          const flat = navForRole(role, { ...DEFAULT_SETTINGS, leaderboardVisibility: "participants", scoreEntryBy: "players" }, shape);
+          const menu = merged(role, flat, undefined, shown);
+          const where = `${[...shown].join(",")}: ${role}, ${JSON.stringify(shape)}`;
+          expect(longer(role, flat, menu, shown), where).toEqual([]);
+          expect(menu.find((s) => s.label === UNPLACED_SECTION), where).toBeUndefined();
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBe(SCREEN_KEYS.length * 2 * ROLES.length * 5);
+  });
+
+  it("everything shown: the entries, the destinations, and the children where the design puts them", () => {
+    const flat = navForRole("admin", undefined, EVERYTHING);
+    const menu = merged("admin", flat);
+    expect(menu.flatMap((s) => s.items)).toHaveLength(18);
+    // Three doors retire into rooms the menu already has (This week → Leaderboard, Print kit → Tee times
+    // & draw, Side games → Money); three are re-pointed (Bracket, Helpers, Courses); two rooms are new.
+    expect(destinations(flat)).toHaveLength(28);
+    expect(destinations(menu)).toEqual(
+      [...destinations(flat).filter((p) => !["/access", "/bracket", "/group-games", "/print", "/week"].includes(p)), "/courses", "/money"].sort(),
+    );
+    const beneath = Object.fromEntries(menu.flatMap((s) => s.items).filter((i) => i.children).map((i) => [i.label, i.children!.map((c) => `${c.label} ${c.href}`)]));
+    expect(beneath).toEqual({
+      Messages: ["Announcements /announcements"],
+      // In setup's one order (`SETUP_ORDER`), which puts the cup's teams before Teams & pairs.
+      Players: ["Entries /registration", "Team cup /cup", "Teams & pairs /teams", "Flights /grouping"],
+      Leaderboard: ["Bracket /leaderboard?view=bracket"],
+      Members: ["Member history /member"],
+      "Club settings": ["Helpers /organization#access"],
+      "Guide & rules": ["How TourneyHQ works /guide", "Rules reference /rules"],
+    });
+    const at = (label: string) => everyEntry(menu).find((i) => i.label === label)?.href;
+    expect(at("Money & payouts")).toBe("/money");
+    expect(at("Prizes & side games")).toBe("/prizes");
+    expect(at("Courses")).toBe("/courses");
+    expect(at("Tee times & draw")).toBe("/foursomes");
+  });
+
+  it("the press table, menu legs: J2 (add a helper) and J11 (read the bracket) cost 1 from the menu, as today", () => {
+    const staff = navForRole("admin", undefined, { hasKnockout: true });
+    expect(presses(lifecycleNav(staff, medal), "/access")).toBe(1);
+    expect(presses(merged("admin", staff), relocate({ href: "/access", role: "admin" }, ALL_SCREENS))).toBe(1);
+    const player = navForRole("player", { ...DEFAULT_SETTINGS, leaderboardVisibility: "participants", scoreEntryBy: "players" }, { hasKnockout: true });
+    expect(presses(lifecycleNav(player, medal), "/bracket")).toBe(1);
+    expect(presses(merged("player", player), relocate({ href: "/bracket", role: "player" }, ALL_SCREENS))).toBe(1);
+    // And each is its own entry, not the room's head: the press lands on the job.
+    expect(everyEntry(merged("player", player)).find((i) => i.key === "bracket")?.href).toBe("/leaderboard?view=bracket");
+  });
+
+  it("the Bracket child keeps today's gate: a knockout, and a board this person may see", () => {
+    const childrenOf = (menu: NavSection[], label: string) => menu.flatMap((s) => s.items).find((i) => i.label === label)?.children?.map((c) => c.label) ?? [];
+    expect(childrenOf(merged("admin", navForRole("admin", undefined, { hasKnockout: true })), "Leaderboard")).toEqual(["Bracket"]);
+    // No knockout: no Bracket anywhere.
+    expect(everyEntry(merged("admin", navForRole("admin"))).some((i) => i.key === "bracket")).toBe(false);
+    // A blind event hides it from a player, as the flat menu does.
+    const blind = { ...DEFAULT_SETTINGS, leaderboardVisibility: "staff" as const, scoreEntryBy: "players" as const };
+    expect(everyEntry(merged("player", navForRole("player", blind, { hasKnockout: true }))).some((i) => i.key === "bracket")).toBe(false);
+  });
+
+  it("a player on a blind event keeps the cup's board where it is: their menu has no Leaderboard to move it into", () => {
+    const blind = { ...DEFAULT_SETTINGS, leaderboardVisibility: "staff" as const, scoreEntryBy: "players" as const };
+    const flat = navForRole("player", blind, { hasCup: true });
+    expect(flat.flatMap((s) => s.items).some((i) => i.key === "leaderboard")).toBe(false);
+    expect(everyEntry(merged("player", flat)).find((i) => i.key === "cup")?.href).toBe("/cup");
+    // CONTROL: with the board open to the field, the same door is retired into the Leaderboard.
+    const open = navForRole("player", { ...blind, leaderboardVisibility: "participants" }, { hasCup: true });
+    expect(everyEntry(merged("player", open)).some((i) => i.key === "cup")).toBe(false);
+  });
+
+  it("the Helpers child only where today's Staff & helpers is: an organizer, with an event open", () => {
+    const helpers = (menu: NavSection[]) => everyEntry(menu).filter((i) => i.key === "access").map((i) => `${i.label} ${i.href}`);
+    expect(helpers(merged("admin", navForRole("admin")))).toEqual(["Helpers /organization#access"]);
+    expect(helpers(lifecycleNav(navForRole("admin"), medal))).toEqual(["Staff & helpers /access"]);
+    expect(helpers(merged("assistant", navForRole("assistant")))).toEqual([]);
+    // No event open: the flat menu has no access entry (and there is no track, so no lifecycle menu).
+    expect(navForRole("admin", undefined, { orgAdminWithoutEvent: true }).flatMap((s) => s.items).some((i) => i.key === "access")).toBe(false);
+  });
+
+  it("CONTROL: a door that moves is re-pointed where it stays, retired where it does not — and a retired door with no room in the menu is seen as lost", () => {
+    const flat = navForRole("player", { ...DEFAULT_SETTINGS, leaderboardVisibility: "participants", scoreEntryBy: "players" }, { hasKnockout: true, isLeague: true, isPlayerToo: true });
+    const moves: Move[] = [
+      { from: "/bracket", roles: ["player"], homes: { "read-the-bracket": "leaderboard" }, room: "leaderboard", to: () => "/leaderboard?view=bracket" },
+      { from: "/week", roles: ["player"], homes: { "read-the-week": "leaderboard" }, room: "leaderboard", to: () => "/leaderboard?view=week" },
+    ];
+    const menu = merged("player", flat, moves);
+    expect(everyEntry(menu).find((i) => i.key === "bracket")?.href).toBe("/leaderboard?view=bracket");
+    expect(everyEntry(menu).some((i) => i.key === "week")).toBe(false);
+    expect(longer("player", flat, menu, ALL_SCREENS, moves)).toEqual([]);
+    // An organizer's week retired into Winners & money, while no entry of THIS table opens that room
+    // (its Money & payouts row is left out): the check names the door.
+    const admin = navForRole("admin", undefined, { isLeague: true });
+    const toMoney: Move[] = [{ from: "/week", roles: ["admin"], homes: { "read-the-week": "money" }, room: "money", to: () => "/money" }];
+    expect(longer("admin", admin, merged("admin", admin, toMoney), ALL_SCREENS, toMoney)).toEqual(["/week"]);
   });
 });
 
