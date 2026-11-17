@@ -160,6 +160,8 @@ describe("who may call an API route", () => {
     expect(v("export async function GET() { const s = await getSession(); return Response.json({ ok: !!s }); }")).not.toBeNull();
     // the role only echoed
     expect(v("export async function GET() { const s = await getSession(); return Response.json({ role: s.role }); }")).not.toBeNull();
+    // the role echoed, with a refusal that only asks whether anybody is signed in
+    expect(v('export async function GET() { const s = await getSession(); if (!s) return Response.json({}, { status: 401 }); return Response.json({ role: s.role }); }')).not.toBeNull();
     // the read comes before the role check
     expect(
       v('export async function GET() {\n  const s = await getSession();\n  const e = await prisma.event.findMany();\n  if (s.role !== "admin") return Response.json({}, { status: 401 });\n  return Response.json(e);\n}'),
