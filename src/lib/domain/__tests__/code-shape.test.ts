@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { CODE_ALPHABET } from "../../code-format";
 import { LINK_ALPHABET } from "../player-link";
+import { MAX_CODE_INPUT as LINK_MAX_CODE_INPUT, normaliseLinkCode } from "../../link-code-format";
 import { boxStepFor, codeShapeOf, CODE_WORDS, MAX_CODE_INPUT, type CodeBox, type CodeShape } from "../code-shape";
 
 /**
@@ -69,16 +70,62 @@ describe("each printed, spoken, typed and pasted form of each code", () => {
     ["a number", 12345678],
     ["an object", { code: "ABCDEFGH" }],
     ["null", null],
-    ["129 characters", "ABCDEFGH" + " ".repeat(121)],
+    ["65 characters", "ABCDEFGH" + " ".repeat(57)],
   ];
   for (const [what, input] of nones) {
     it(`${what} is no code`, () => {
       expect(codeShapeOf(input)).toEqual({ shape: "none" });
     });
   }
-  it("CONTROL: the 129-character case is only too long (128 of the same is a code)", () => {
-    expect(("ABCDEFGH" + " ".repeat(120)).length).toBe(MAX_CODE_INPUT);
-    expect(codeShapeOf("ABCDEFGH" + " ".repeat(120)).shape).toBe("eight");
+  it("CONTROL: the 65-character case is only too long (64 of the same is a code)", () => {
+    expect(("ABCDEFGH" + " ".repeat(56)).length).toBe(MAX_CODE_INPUT);
+    expect(codeShapeOf("ABCDEFGH" + " ".repeat(56)).shape).toBe("eight");
+  });
+});
+
+/**
+ * ONE FIGURE FOR HOW LONG A CODE BOX READS (one code box PR B; the Security
+ * Lead's follow-up on #1176). `normaliseLinkCode` refused text over 64 while
+ * `codeShapeOf` took 128, so `k7qm2xra.t123` with fifty-odd spaces typed INSIDE
+ * it was a personal code to neither of them being asked the same question: the
+ * twelve reader said no and the shape reader went on to read an eight. Both now
+ * hold `MAX_CODE_INPUT` (64), on the WHOLE input.
+ */
+describe("the two readers agree about how long a code may be", () => {
+  const agrees = (shape: CodeShape, link: string | null) => (shape.shape === "twelve") === (link !== null);
+  const padded = (n: number) => "k7qm2xra".padEnd(n - 5, " ") + ".t123";
+  it("MAX_CODE_INPUT is 64, the one figure both readers hold", () => {
+    expect(MAX_CODE_INPUT).toBe(64);
+    expect(MAX_CODE_INPUT).toBe(LINK_MAX_CODE_INPUT);
+  });
+  it("a personal code with spaces inside it is a twelve up to 64 characters and no code past it", () => {
+    expect(padded(64)).toHaveLength(64);
+    expect(codeShapeOf(padded(64))).toEqual({ shape: "twelve", code: "K7QM2XRAT123" });
+    expect(normaliseLinkCode(padded(64))).toBe("K7QM2XRAT123");
+    expect(padded(65)).toHaveLength(65);
+    // Past the figure it is read by NEITHER: above all, never as the round code its first 8 characters spell.
+    expect(codeShapeOf(padded(65))).toEqual({ shape: "none" });
+    expect(normaliseLinkCode(padded(65))).toBeNull();
+    // The 51-space case the review named (it was an eight at 128).
+    expect(codeShapeOf("k7qm2xra" + " ".repeat(52) + ".t123")).toEqual({ shape: "none" });
+  });
+  it("for every string, codeShapeOf says twelve exactly when normaliseLinkCode finds a code, and then the same one", () => {
+    const symbolsOf = (alphabet: string, n: number) => fc.array(fc.constantFrom(...alphabet), { minLength: n, maxLength: n }).map((a) => a.join(""));
+    const wordy = fc.array(fc.constantFrom(..."K7QM2XRA9DTPabcdefgh .-#·_OIL"), { maxLength: 90 }).map((a) => a.join(""));
+    fc.assert(
+      fc.property(fc.oneof(wordy, symbolsOf(LINK_ALPHABET, 12), fc.string({ maxLength: 90 })), (typed) => {
+        const link = normaliseLinkCode(typed);
+        const shape = codeShapeOf(typed);
+        expect(agrees(shape, link), JSON.stringify(typed)).toBe(true);
+        if (shape.shape === "twelve") expect(shape.code).toBe(link);
+      }),
+      { numRuns: 4000 },
+    );
+  });
+  it("CONTROL: the agreement check can see a disagreement", () => {
+    expect(agrees({ shape: "twelve", code: "K7QM2XRAT123" }, null)).toBe(false);
+    expect(agrees({ shape: "none" }, "K7QM2XRAT123")).toBe(false);
+    expect(agrees({ shape: "eight", code: "ABCDEFGH", group: null }, null)).toBe(true);
   });
 });
 

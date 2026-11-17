@@ -125,7 +125,7 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
   (never keyed on the code, never cleared; a real open gives back one); one shared bucket where no client
   address can be read; past 200 failed opens an hour platform-wide (counted only for requests the client's
   own limit let through) every client is held to three failed opens in 15 minutes and one error is logged
-  per window. Twenty stays the per-client figure (Security Lead review N-1: 60 bits carries it; the cost of a
+  per window (one code box PR B gave the 8-character round code the same two steps with its own figures: `eight-char-alarm`, 300 failed lookups an hour platform-wide, then `eight-char-slow`, 12 failed per client in 15 minutes while it stands, set for a code a whole field TYPES off a card; and where no address can be read the round code now shares one bucket too, where it had none). Twenty stays the per-client figure (Security Lead review N-1: 60 bits carries it; the cost of a
   tighter one falls on a clubhouse wifi or a carrier's shared address).
 - **Stored hashed:** `PlayerPass.lookup` (HMAC under `derivedKey("player-link-lookup")`) and `sealed`
   (AES-256-GCM, bound to `passId:version`), so the organizer can show the same link again (re-sending is

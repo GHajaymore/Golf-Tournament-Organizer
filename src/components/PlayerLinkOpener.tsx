@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { Icon } from "./Icon";
-import { PLAYER_LINK_WORDS, normaliseLinkCode } from "@/lib/domain/player-link";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
+import { normaliseLinkCode } from "@/lib/link-code-format";
+import { roundCodeLink } from "@/lib/code-format";
 import { boxStepFor, codeShapeOf } from "@/lib/domain/code-shape";
 import { openCode } from "@/app/actions/code-box";
 
@@ -50,7 +52,7 @@ export function PlayerLinkOpener({ ended }: { ended: boolean }) {
       setError("");
       const r = await openCode(code);
       if (!r.ok) setError(r.error);
-      else window.location.assign(r.kind === "round" ? `/play#${r.code}` : r.href);
+      else window.location.assign(r.kind === "round" ? roundCodeLink("", r.code) : r.href);
     });
 
   return (

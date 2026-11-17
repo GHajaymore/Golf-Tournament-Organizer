@@ -45,10 +45,11 @@ import { logAudit } from "@/lib/services/action-shared";
  *
  * It never calls `createSession`, and asks no sign-in hold: neither door is
  * held (`NOT_SWITCHED` `round-codes`, `player-links`), and neither makes an
- * account's session. The limit FIGURES and KEYS are the ones each door had
- * (PR A changes none): `round-code-client` with no limit where no address can
- * be read, `player-link-client` with one shared bucket there, the platform
- * alarm and its slow pace for the link.
+ * account's session. The limit FIGURES and KEYS are `RATE_LIMITS`' own, named
+ * once in `LANES`. Since PR B both shapes take the same steps: the client's
+ * budget (one shared bucket where no address can be read), the platform alarm
+ * and the slow pace while it stands (the eight's are `eight-char-alarm` and
+ * `eight-char-slow`, the Security Lead's 300 an hour and 12 per 15 minutes).
  */
 
 /** A round code's answer: the field and groups a scorer picks from (as `redeemRoundCode` answered). */
@@ -73,46 +74,48 @@ export type OpenedCode =
   | { ok: true; kind: "entry"; href: string }
   | { ok: false; error: string };
 
-/** Every client whose address cannot be read shares one bucket for the LINK (S2a; unchanged). */
+/** Every client whose address cannot be read shares one bucket, for either shape (S2a; the eight's since PR B). */
 const NO_ADDRESS = "no-client-address";
-/** The platform-wide failure counter's one identity (S2c; unchanged). */
-const PLATFORM = "player-link-platform";
-/** The alarm's window last reported by this instance: one error line a window, not one a request (SF-2). */
-let alarmReportedIn = -1;
+
+/**
+ * THE TWO SHAPES' LANES, the only place a guess budget's keys are named. Each
+ * shape has its client's budget, a platform alarm and the slow pace every client
+ * is held to while the alarm stands. The FIGURES are `RATE_LIMITS`' own.
+ */
+const LANES = {
+  eight: { client: "round-code-client", alarm: "eight-char-alarm", slow: "eight-char-slow", platform: "eight-char-platform" },
+  twelve: { client: "player-link-client", alarm: "player-link-alarm", slow: "player-link-slow", platform: "player-link-platform" },
+} as const;
+/** The alarm's window last reported by this instance, per shape: one error line a window, not one a request (SF-2). */
+const alarmReportedIn: Record<"eight" | "twelve", number> = { eight: -1, twelve: -1 };
 
 const nothingToGiveBack = async () => {};
 
 /**
- * THE ONE PLACE A GUESS BUDGET IS CHOSEN: by shape, never by box. The keys and
- * figures are each door's own (`RATE_LIMITS`), unchanged.
- *
- * `eight`: the client's round-code budget (failed lookups only; no address,
- * no client limit — the per-code limit still stands). `twelve`: the client's
- * link budget (one shared bucket where no address can be read), then the
- * platform alarm, counted only for a request the client's own limit let
- * through (SF-2), and while it stands each client is held to the slow pace.
+ * THE ONE PLACE A GUESS BUDGET IS CHOSEN: by shape, never by box. Both shapes
+ * take the same steps (one code box PR B gave the eight what the twelve had):
+ * the client's budget (one shared bucket where no address can be read), then the
+ * platform alarm, counted only for a request the client's own limit let through
+ * (SF-2), and while it stands each client is held to the slow pace. The eight's
+ * per-code budget (`round-code`) is the door's own, never the gate's.
  * `opened()` gives the attempt back once something real has been found.
  */
 export async function guessGate(
   shape: "eight" | "twelve",
   client: string | null,
 ): Promise<{ refused: string | null; opened: () => Promise<void> }> {
-  if (shape === "eight") {
-    const guess = await clientGuessGate("round-code-client", client);
-    if (!guess.decision.allowed) return { refused: guess.decision.message, opened: nothingToGiveBack };
-    return { refused: null, opened: guess.succeeded };
-  }
+  const lane = LANES[shape];
   const who = client ?? NO_ADDRESS;
-  const guess = await clientGuessGate("player-link-client", who);
+  const guess = await clientGuessGate(lane.client, who);
   if (!guess.decision.allowed) return { refused: guess.decision.message, opened: nothingToGiveBack };
 
-  const alarm = await clientGuessGate("player-link-alarm", PLATFORM);
-  const slow = alarm.decision.allowed ? null : await clientGuessGate("player-link-slow", who);
+  const alarm = await clientGuessGate(lane.alarm, lane.platform);
+  const slow = alarm.decision.allowed ? null : await clientGuessGate(lane.slow, who);
   if (!alarm.decision.allowed) {
-    const window = windowFor(RATE_LIMITS["player-link-alarm"], Date.now()).bucket;
-    if (window !== alarmReportedIn) {
-      alarmReportedIn = window;
-      console.error("[player-link] platform alarm: failed player-link opens are above the hourly threshold; opens are slowed");
+    const window = windowFor(RATE_LIMITS[lane.alarm], Date.now()).bucket;
+    if (window !== alarmReportedIn[shape]) {
+      alarmReportedIn[shape] = window;
+      console.error(`[${lane.alarm}] platform alarm: failed opens are above the hourly threshold; opens are slowed`);
     }
     if (slow && !slow.decision.allowed) {
       // Refused by the slow limit: it neither counts toward the alarm nor spends the client's budget twice.

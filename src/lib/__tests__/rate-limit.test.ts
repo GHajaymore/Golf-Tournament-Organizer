@@ -110,9 +110,9 @@ describe("what a refused person is told", () => {
   });
 
   it("says ONE sentence for every code budget, round code or player link (one code box, §9 item 4)", () => {
-    // Running into a code limit must not say which kind of code was being tried: the five kinds
+    // Running into a code limit must not say which kind of code was being tried: the seven kinds
     // speak byte-identical words at the same wait, and those words are the code boxes' own.
-    const CODE_KINDS: RateLimitKind[] = ["round-code", "round-code-client", "player-link-client", "player-link-alarm", "player-link-slow"];
+    const CODE_KINDS: RateLimitKind[] = ["round-code", "round-code-client", "player-link-client", "player-link-alarm", "player-link-slow", "eight-char-alarm", "eight-char-slow"];
     for (const wait of [45, 600, 3600]) {
       const said = new Set(CODE_KINDS.map((k) => throttleMessage(k, wait)));
       expect([...said], `at ${wait}s`).toEqual([CODE_WORDS.tooMany(retryAfterText(wait))]);

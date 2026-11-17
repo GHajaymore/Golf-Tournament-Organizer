@@ -23,6 +23,8 @@ const ABOUT: Record<RateLimitKind, RegExp> = {
   "player-link-client": /code attempts/i,
   "player-link-alarm": /code attempts/i,
   "player-link-slow": /code attempts/i,
+  "eight-char-alarm": /code attempts/i,
+  "eight-char-slow": /code attempts/i,
   "link-slips": /printed slips/i,
   "discount-check": /discount code/i,
   "register-token": /entry form/i,
