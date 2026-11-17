@@ -170,8 +170,8 @@ describe("who may call an API route", () => {
     expect(
       v('export async function GET(r: Request) { await prisma.club.findMany(); if (r.headers.get("authorization") !== `Bearer ${s}`) return new Response("no", { status: 401 }); }'),
     ).toMatch(/before/);
-    // a 401 that is not after the header read
-    expect(v('export async function GET(r: Request) { const x = 401; await prisma.club.findMany(); const h = r.headers.get("authorization"); return Response.json(`Bearer ${h}`); }')).not.toBeNull();
+    // the header is read first, but the read of the database comes before the 401 refusal
+    expect(v('export async function GET(r: Request) { const h = r.headers.get("authorization"); await prisma.club.findMany(); if (h !== `Bearer ${s}`) return new Response("no", { status: 401 }); }')).toMatch(/before/);
     // a gate named only in a comment
     expect(v("export async function GET() { // authorization Bearer ${s} 401\n return Response.json({}); }")).not.toBeNull();
     // a gate in a helper BELOW the handler is not the handler's
