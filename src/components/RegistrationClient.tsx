@@ -1554,12 +1554,6 @@ export function RegistrationClient({
           <button type="button" className="btn btn-primary btn-block" disabled={pending || !!addRefusal || !name.trim() || (!addingGuest && phoneRequired && !phone.trim())} onClick={() => submitAdd()}><Icon name="plus" /> {underWay ? "Add late entry" : "Add to field"}</button>
           {/* Said HERE, where the dead button is — the banner is a screen and a
               half above a form somebody has just filled in. The rule's own words. */}
-          {addRefusal && (
-            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              {/* The rule's words already say who can unlock (an Organizer), true for either reader. */}
-              {addRefusal}
-            </p>
-          )}
           {/* A KNOCKOUT WHOSE DRAW IS MADE takes a reserve instead (panel Q3):
               the way out its refusal names, one press away. */}
           {offerReserve && !doors.reserve && (
