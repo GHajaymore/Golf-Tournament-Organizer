@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { currentPlayStatus } from "@/app/actions/play-status";
-import { alarmOnChange } from "@/lib/domain/play-status";
+import { alarmOnChange, type PlayScreen } from "@/lib/domain/play-status";
 
 /** How often an open player screen asks whether play is suspended. */
 const POLL_MS = 20_000;
@@ -24,7 +24,19 @@ const SIREN_SECONDS = 4;
  * so the first tap anywhere in the app unlocks it; a player scoring has always
  * tapped.
  */
-export function SuspensionAlarm({ suspended }: { suspended: boolean }) {
+export function SuspensionAlarm({
+  suspended,
+  screen,
+}: {
+  suspended: boolean;
+  /**
+   * Which kind of screen this is — the player app or a round code's `/play` —
+   * REQUIRED, so every screen that mounts the siren says which round it is
+   * for, and the poll asks the same question its banner was drawn from
+   * (`playStatusForScreen`).
+   */
+  screen: PlayScreen;
+}) {
   const router = useRouter();
   const was = useRef(suspended);
   const audio = useRef<AudioContext | null>(null);
@@ -50,7 +62,7 @@ export function SuspensionAlarm({ suspended }: { suspended: boolean }) {
     const check = async () => {
       if (stopped || document.visibilityState !== "visible") return;
       try {
-        const { suspended: now } = await currentPlayStatus();
+        const { suspended: now } = await currentPlayStatus(screen);
         const act = alarmOnChange(was.current, now);
         was.current = now;
         if (act === "siren") siren(audio.current);
@@ -67,7 +79,7 @@ export function SuspensionAlarm({ suspended }: { suspended: boolean }) {
       clearInterval(poll);
       document.removeEventListener("visibilitychange", check);
     };
-  }, [router]);
+  }, [router, screen]);
 
   return null;
 }

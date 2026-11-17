@@ -79,7 +79,6 @@ async function eventWith(suffix: string) {
       name: `${TAG} ${suffix}`,
       status: "live",
       // A live tournament is locked until the organizer unlocks it.
-      configUnlocked: true,
       shape: "series",
       dates: "",
       course: "Home",
@@ -149,7 +148,7 @@ beforeAll(async () => {
     await prisma.emailFailure.create({ data: { organizationId: orgId, eventId: evId, kind: "registration", reason: "quota" } });
     await prisma.auditLog.create({ data: { eventId: evId, actor: "zz", action: "zz", detail: "zz" } });
     const thread = await prisma.thread.create({ data: { organizationId: orgId, eventId: evId, scopeKey: "event:zz" } });
-    await prisma.message.create({ data: { threadId: thread.id, authorEmail: "zz@example.invalid", body: "zz" } });
+    await prisma.message.create({ data: { threadId: thread.id, authorKey: "zz@example.invalid", body: "zz" } });
   }
   session = { eventId, email: staffEmail, viewRole: "admin", name: "zz staff", role: "admin", userId: "zz", accountId: "" };
 });

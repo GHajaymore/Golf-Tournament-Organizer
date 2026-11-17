@@ -36,7 +36,8 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock("@/lib/services/push", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/services/push")>()),
-  sendPushToEmails: async (emails: string[]) => void pushed.emails.push(...emails),
+  // Who-keys since J39/J40 PR 2; these fixture entries are accounts, so each key is an email.
+  sendPushTo: async (keys: string[]) => void pushed.emails.push(...keys),
 }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";
@@ -100,7 +101,7 @@ beforeAll(async () => {
   orgId = org.id;
   assistantId = (await prisma.user.create({ data: { email: at("assistant"), name: `${TAG} Assistant`, password: "x", emailVerifiedAt: new Date() } })).id;
   const e = await prisma.event.create({
-    data: { organizationId: orgId, name: `${TAG} medal`, dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${TAG}-${Date.now()}`, status: "live", configUnlocked: false },
+    data: { organizationId: orgId, name: `${TAG} medal`, dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${TAG}-${Date.now()}`, status: "live" },
   });
   eventId = e.id;
   stageId = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: clubDayFrom(1) } })).id;

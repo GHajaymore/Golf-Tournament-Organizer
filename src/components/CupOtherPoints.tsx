@@ -9,7 +9,7 @@ import { bringIntoView } from "@/lib/bring-into-view";
 /**
  * POINTS OUTSIDE THE MATCHES, kept by the organizer (2026-10-19). The first
  * real cup played fifteen matches and a sixteenth point for the lower team net
- * total; CDG won it, and the cup had nowhere to put it. Add the point when the
+ * total; Pines won it, and the cup had nowhere to put it. Add the point when the
  * cup is set up — it counts in the total, so the target is right from the start
  * — and give it to a team when it is decided.
  */

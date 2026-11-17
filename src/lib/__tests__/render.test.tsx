@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamEntryMode } from "@/lib/domain/team-entry";
+import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
 import { PlayClient } from "@/components/PlayClient";
@@ -2088,13 +2089,13 @@ describe("course library", () => {
 
 describe("event switcher", () => {
   const event = {
-    id: "e1", name: "Ajay More Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
+    id: "e1", name: "Rowan Hale Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
     course: "Bushwood", players: 32, isActive: true, hasAccess: true, isOrganizer: true,
   };
 
   it("renders the list with the active event marked", () => {
     const html = render(<EventSwitcher events={[event]} />);
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
     expect(html).toContain("32");
   });
 
@@ -2102,7 +2103,7 @@ describe("event switcher", () => {
     const html = render(
       <EventSwitcher events={[{ ...event, hasAccess: false, isOrganizer: false, isActive: false }]} />,
     );
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
   });
 
   it("renders with no events", () => {
@@ -3719,8 +3720,8 @@ describe("printed foursome cards", () => {
   ];
   const base = {
     groups,
-    clubName: "Cinci Desi Golf",
-    courseName: "CDG Home Course",
+    clubName: "Cedar Dunes Golf Club",
+    courseName: "Cedar Dunes Home Course",
     dates: "May 3 – Sep 30, 2026",
     roundLabel: "Round 1",
     pars: new Array(18).fill(4),
@@ -3732,8 +3733,8 @@ describe("printed foursome cards", () => {
     // A card without its provenance is a page of numbers — this is the whole
     // point of merging printing into the sheet of record.
     const html = render(<TeeSheetPrint {...base} />);
-    expect(html).toContain("Cinci Desi Golf");
-    expect(html).toContain("CDG Home Course");
+    expect(html).toContain("Cedar Dunes Golf Club");
+    expect(html).toContain("Cedar Dunes Home Course");
     expect(html).toContain("May 3 – Sep 30, 2026");
     expect(html).toContain("Hole 10 · 8:00 AM");
   });
@@ -3754,14 +3755,14 @@ describe("printed foursome cards", () => {
     // was already on it; the badge that is on the paper one was not.
     const html = render(<TeeSheetPrint {...base} clubLogoUrl="https://x.test/l.png" />);
     expect(html).toContain("https://x.test/l.png");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   it("prints the name alone for a club with no logo", () => {
     // No logo means no mark — never ours in its place.
     const html = render(<TeeSheetPrint {...base} />);
     expect(html).not.toContain("<img");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   /**
@@ -6849,7 +6850,7 @@ describe("registration and field", () => {
       <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -6945,7 +6946,7 @@ describe("registration and field", () => {
       <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -7372,7 +7373,8 @@ describe("the setup checklist", () => {
 
   it("lists what is left and marks the next one", async () => {
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
-    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
+    // `eventCount: 1`: since Cut A (15 Nov) the members step exists only once a first event does.
+    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />);
     expect(html).toContain("Add your members");
     expect(html).toContain("Next");
   });
@@ -7474,9 +7476,9 @@ describe("the setup checklist", () => {
      */
     expect(html, "/event").not.toContain('href="/event"');
     expect(html).toContain('href="/organization"');
-    expect(html).toContain('href="/roster"');
+    // EVENT-FIRST (Cut A, 15 Nov 2026): no members step before the first event at all.
+    expect(html).not.toContain("Add your members");
     // The rows are still THERE, and each blocked one says why it is not a link.
-    expect(html).toContain("Add your members");
     expect(html).toContain("Opens once you have a tournament");
     // And the promise the screen was breaking is not made.
     expect(html).not.toContain("nothing here is locked");
@@ -7503,7 +7505,8 @@ describe("the setup checklist", () => {
      */
     expect(html.indexOf("Name your")).toBeLessThan(chip);
     expect(html.lastIndexOf("Create your first tournament")).toBeGreaterThan(chip);
-    expect(html.indexOf("Add your members")).toBeGreaterThan(chip);
+    // Event-first (Cut A): nothing about members before the first event.
+    expect(html).not.toContain("Add your members");
   });
 
   it("does not say a step costs something it cannot yet be blamed for", async () => {
@@ -7530,10 +7533,10 @@ describe("the setup checklist", () => {
     const open = render(<OrgSetupChecklist state={await state({ hasCourse: false, eventCount: 1 })} />);
     expect(open).toContain("re-entered on every tournament");
 
-    // The roster's own consequence is the control: it is shown now, on the
-    // same no-tournament render, because that step CAN be acted on.
+    // The roster's own consequence is the control: shown once the step exists
+    // (a first event, since Cut A), because that step CAN be acted on.
     expect(
-      render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />),
+      render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />),
       "the members step can be acted on, so it keeps its consequence",
     ).toContain("empty field");
   });
@@ -7552,7 +7555,7 @@ describe("the setup checklist", () => {
     expect(html).not.toContain("You do this one on this page");
   });
 
-  it("does not link the tournament while the club still owes an answer", async () => {
+  it("links the tournament when the only answer owed is the name, which the create form takes", async () => {
     /**
      * THE ROW THE COMPLAINT WAS ABOUT. "How come create your first tournament
      * is complete and enabled when club settings are not complete?" — raised
@@ -7571,10 +7574,13 @@ describe("the setup checklist", () => {
         state={await state({ named: false, memberCount: 0, eventCount: 0 })}
       />,
     );
-    expect(html).not.toContain(`href="${SETUP_HREF.tournament}"`);
-    // And it says WHICH answers, rather than greying out in silence.
-    expect(html).toContain("name your club");
-    expect(html).toContain("add your members");
+    /**
+     * EVENT-FIRST (Cut A, Ajay 15 Nov 2026). The members list is no longer
+     * owed before the first event, so the one answer left is the club's name,
+     * and the create form asks for it in the same breath: the row is live.
+     */
+    expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
+    expect(html).not.toContain("add your members");
     // The promise the header makes has to follow the rows it describes.
     expect(html).not.toContain("nothing here is locked");
   });
@@ -7934,17 +7940,16 @@ describe("the lifecycle button names the phase, not the link", () => {
       <LifecycleBar
         status={cardFor(status)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
       />,
     );
   };
 
-  it("offers Launch and says Setting up, whichever setting-up status is stored (G1, 2026-10-31)", async () => {
+  it("offers Launch and says Setting up on the one setting-up status (G1, 2026-10-31; A045)", async () => {
     // The ladder's two buttons gated nothing — taking entries is the sign-up
-    // link, readiness is the launch gate — so they are gone, and the three
-    // stored values read as one step.
-    for (const status of ["draft", "registration", "ready"]) {
+    // link, readiness is the launch gate — so they are gone, and since A045
+    // (state machine PR 8) one stored value is left before launch.
+    for (const status of PRE_LAUNCH_STATUSES) {
       const html = await bar(status);
       expect(html, status).toContain("Launch tournament");
       expect(html, status).toContain("Setting up");
@@ -8011,7 +8016,6 @@ describe("a Par tournament is offered the upgrade before it is deleted", () => {
       <LifecycleBar
         status={cardFor(status, 3, 8)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
         deletesOnComplete={deletes}
         keepOffer={deletes ? offer : undefined}
@@ -8059,7 +8063,6 @@ describe("a draft that is already being played", () => {
       <LifecycleBar
         status={cardFor(status, played)}
         isAdmin={isAdmin}
-        configUnlocked={false}
         summary={summary}
       />,
     );

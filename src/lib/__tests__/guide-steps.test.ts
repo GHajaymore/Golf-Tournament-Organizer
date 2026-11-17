@@ -54,6 +54,10 @@ const PINNED: [label: string, file: string][] = [
   ["Print…", "src/app/(app)/cup/page.tsx"],
   // Member or guest (the no-email player identity, PR 1): the CSV preview's buttons.
   ["Download template", "src/components/RegistrationClient.tsx"],
+  // Cut A (event-first, 15 Nov): the members list asked for at the draw and offered on Entries.
+  ["Import members", "src/components/ImportMembers.tsx"],
+  ["Add a player", "src/components/ImportMembers.tsx"],
+  ["Create tournament", "src/components/CreateFirstTournament.tsx"],
   ["Make guest", "src/components/RegistrationClient.tsx"],
   ["Make member", "src/components/RegistrationClient.tsx"],
   ["Choose another file", "src/components/RegistrationClient.tsx"],
@@ -64,6 +68,9 @@ const PINNED: [label: string, file: string][] = [
   ["Copy link", "src/lib/domain/player-link.ts"],
   ["New link", "src/lib/domain/player-link.ts"],
   ["Turn off link", "src/lib/domain/player-link.ts"],
+  // PR 2 (S8): the panel's mute, from the same words module.
+  ["Mute in messages", "src/lib/domain/player-link.ts"],
+  ["Unmute in messages", "src/lib/domain/player-link.ts"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

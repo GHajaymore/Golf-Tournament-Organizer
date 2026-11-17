@@ -120,6 +120,12 @@ describe("every server action is guarded", () => {
 
   const GUARDS = [
     "getSession",
+    // The player screens' viewer: an account's session, or a live guest pass re-read from the
+    // database (J39/J40). Null for anybody else, and every reader asks only the viewer's own event.
+    "getPlayerViewer",
+    // Messaging's one resolver per target, and push's owner: both the viewer, never an argument (PR 2).
+    "requireActor",
+    "pushOwnerNow",
     "requireEvent",
     "requireAdminEvent",
     "requireStaffEvent",
@@ -141,6 +147,10 @@ describe("every server action is guarded", () => {
     // authorises anything. Verified by reading it, per the note above.
     "requireMembership",
     "getPlaySession",
+    // play-status.ts (`currentPlayStatus`): `getSession` or `getPlaySession`, chosen by the kind of screen
+    // and never by an event the caller names, then one read of that event's suspension. Verified against
+    // real rows in `the-siren-reaches-a-round-code.audit.test.ts`.
+    "playStatusForScreen",
     "effectiveAccess",
     /**
      * skins.ts: the one guard here that is deliberately NOT staff-only.

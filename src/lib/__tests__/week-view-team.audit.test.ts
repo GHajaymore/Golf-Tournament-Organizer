@@ -80,7 +80,7 @@ beforeAll(async () => {
       name: `${TAG} league`,
       shape: "series",
       format: "stroke",
-      status: "active",
+      status: "live",
       dates: "",
       course: "",
       city: "",

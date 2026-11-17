@@ -27,7 +27,7 @@ describe("the entry window, in the club's locale", () => {
 
   it("carries through to the status sentences", () => {
     const s = registrationStatus({
-      eventStatus: "registration",
+      eventStatus: "draft",
       deadline: "2026-01-05",
       opens: "",
       capacity: 0,

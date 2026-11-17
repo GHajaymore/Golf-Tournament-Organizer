@@ -46,7 +46,7 @@ const guestEmail = `${TAG.toLowerCase()}-guest@example.invalid`;
 const eventData = (organizationId: string, name: string) => ({
   organizationId,
   name: `${TAG} ${name}`,
-  status: "registration",
+  status: "draft",
   shape: "series",
   format: "stroke",
   formationRule: "balanced",

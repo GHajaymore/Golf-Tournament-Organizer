@@ -30,7 +30,6 @@ import { PrismaClient } from "@prisma/client";
 vi.mock("@/lib/auth", () => ({ getSession: async () => null }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { launchCheckFor } = await import("@/lib/services/setup-flow");
 /**
  * THE RAIL IS THE STATE MACHINE'S SINCE PR 3 (`setupRailFor`, which replaced
  * `setupFlowFor`). The expectations below held across PR 2's switch unchanged;
@@ -41,9 +40,24 @@ const { launchCheckFor } = await import("@/lib/services/setup-flow");
  *       guide open: the rail is "complete" when nothing holds launch.
  *   D4  the details step needs the dates the launch gate needs.
  *
- * `launchCheckFor` is the launch ACTION's gate and is unchanged until PR 4.
+ * THE GATE IS THE MACHINE'S SINCE PR 4, AND ITS OLD READER IS GONE (PR 9a). The
+ * launch action asks `refusals.launch`; the dashboard's dialog reads the same
+ * refusal through the rail (`setupRailFor(id).launch`, `launchDialogOf`). This
+ * file asked `launchCheckFor`, the setup flow's own verdict, until it was
+ * deleted; it now asks the dialog. Three expectations moved, each marked
+ * "PR 9a": the dialog's open-step count is the rail's own (so a knockout with
+ * no dates counts its details step, and a league no longer counts the old
+ * Rounds step), a casual round has no setup steps and no next action (the
+ * machine's table, 2e), and a tournament that does not exist has no status.
  */
-const { setupRailFor: setupFlowFor } = await import("@/lib/services/tournament-status");
+const { setupRailFor, tournamentStatusNow } = await import("@/lib/services/tournament-status");
+
+/** The dashboard's launch dialog: the machine's refusal and the rail's count of open steps. */
+async function launchDialog(id: string) {
+  const flow = await setupRailFor(id);
+  if (!flow) throw new Error(`no rail for ${id}`);
+  return flow.launch;
+}
 
 const prisma = new PrismaClient();
 const TAG = "zz-setup-wrap";
@@ -159,7 +173,7 @@ beforeAll(async () => {
   }
 
   // G: a casual round — two people on the first tee.
-  const casual = await event(org.id, "casual", { shape: "match", status: "live", configUnlocked: true });
+  const casual = await event(org.id, "casual", { shape: "match", status: "live" });
   await prisma.stage.create({ data: { eventId: casual, position: 0, type: "Single Match Stage", format: "Match Play", holes: 18 } });
   await field(casual, 2);
 }, 120_000);
@@ -174,8 +188,8 @@ afterAll(async () => {
 
 /** The flow, as the facts a person sees: each step ticked or open, where the rail stands, and the gate. */
 async function read(name: string) {
-  const flow = await setupFlowFor(ids[name]);
-  const launch = await launchCheckFor(ids[name]);
+  const flow = await setupRailFor(ids[name]);
+  const launch = await launchDialog(ids[name]);
   return {
     steps: flow ? flow.steps.map((s) => `${s.key}${s.done ? "+" : "-"}`).join(" ") : null,
     current: flow?.current?.key ?? null,
@@ -196,7 +210,7 @@ describe("the setup flow and the launch gate, worked by hand", () => {
       refused: false,
       stepsOpen: 2,
     });
-    const flow = await setupFlowFor(ids.medal);
+    const flow = await setupRailFor(ids.medal);
     const flights = flow!.steps.find((s) => s.key === "grouping")!;
     // D1: it never says "No flights yet." as a thing undone (Golf Pro, 8.2).
     expect(flights.missing).toBe("Optional — one field.");
@@ -218,12 +232,12 @@ describe("the setup flow and the launch gate, worked by hand", () => {
       complete: false,
       readyToLaunch: false,
       refused: true,
-      stepsOpen: 1, // the launch action's own gate (PR 4), unchanged.
+      stepsOpen: 1, // the rail's one open step (Rounds & formats).
     });
-    const flow = await setupFlowFor(ids["round-robin"]);
+    const flow = await setupRailFor(ids["round-robin"]);
     expect(flow!.current!.missing).toContain("Round 2");
     expect(flow!.current!.missing).toMatch(/no pairings/);
-    expect((await launchCheckFor(ids["round-robin"])).refusal).toMatch(/Generate them on Rounds & formats/);
+    expect((await launchDialog(ids["round-robin"])).refusal).toMatch(/Generate them on Rounds & formats/);
   });
 
   it("CONTROL: a round robin with no flights and nothing drawn: Flights holds, as the refusal says to make them first", async () => {
@@ -231,18 +245,24 @@ describe("the setup flow and the launch gate, worked by hand", () => {
     expect(r.current).toBe("grouping");
     expect(r.refused).toBe(true);
     expect(r.steps).toMatch(/grouping-/);
-    expect((await launchCheckFor(ids["round-robin-no-flights"])).refusal).toMatch(/Make flights on Flights/);
+    expect((await launchDialog(ids["round-robin-no-flights"])).refusal).toMatch(/Make flights on Flights/);
   });
 
-  it("a four-ball with two players on no side: Sides opens before Flights; a side exists, so launch is not refused", async () => {
+  it("a four-ball with two players on no side: Sides opens before Flights, and launch is refused until they are on one (P1)", async () => {
     expect(await read("four-ball")).toEqual({
       steps: "event+ stages+ registration+ teams- grouping- money+",
       current: "teams",
       complete: false,
       readyToLaunch: false,
-      refused: false,
+      // PR 9a: was false — the old flow refused only "no sides at all". The machine's gate (the
+      // one the action and the dialog both ask) refuses a team round with a player on no side:
+      // that player cannot be scored (Golf Pro, 8.2; P1, pinned in tournament-status.test.ts).
+      refused: true,
       stepsOpen: 2,
     });
+    expect((await launchDialog(ids["four-ball"])).refusal).toBe(
+      "2 players are not on a side, so their team rounds cannot be scored. Put them on one on Teams & pairs, then launch.",
+    );
   });
 
   it("a cup with one player on neither team: the Teams step, no Flights step", async () => {
@@ -258,10 +278,10 @@ describe("the setup flow and the launch gate, worked by hand", () => {
       complete: false, // D4: was true.
       readyToLaunch: false, // D4: was true.
       refused: true,
-      stepsOpen: 0, // the launch action's own gate (PR 4), unchanged.
+      stepsOpen: 1, // PR 9a: the dialog counts the rail's open details step; the old flow ticked it (D4) and said 0.
     });
-    expect((await launchCheckFor(ids.knockout)).refusal).toMatch(/no dates/i);
-    expect((await setupFlowFor(ids.knockout))!.current!.missing).toMatch(/needs its dates/);
+    expect((await launchDialog(ids.knockout)).refusal).toMatch(/no dates/i);
+    expect((await setupRailFor(ids.knockout))!.current!.missing).toMatch(/needs its dates/);
   });
 
   it("a league whose next week is dated: Rounds & formats is done, and its later weeks only warn (J08, PR 3)", async () => {
@@ -272,9 +292,9 @@ describe("the setup flow and the launch gate, worked by hand", () => {
       complete: true,
       readyToLaunch: true,
       refused: false,
-      stepsOpen: 2, // the launch action's gate (PR 4) still counts the old Rounds step open.
+      stepsOpen: 1, // PR 9a: the rail's one open step (Flights); the old flow still counted its Rounds step open (J08).
     });
-    const warned = (await setupFlowFor(ids.league))!.launch.warnings.map((w) => w.says).join(" ");
+    const warned = (await setupRailFor(ids.league))!.launch.warnings.map((w) => w.says).join(" ");
     expect(warned).toMatch(/Round 2 and Round 3 have no day or deadline yet\. Only the next week needs one now/);
   });
 
@@ -299,13 +319,18 @@ describe("the setup flow and the launch gate, worked by hand", () => {
     expect(r.readyToLaunch).toBe(false);
   });
 
-  it("a casual round has no rail, and still goes through the gate", async () => {
-    expect(await setupFlowFor(ids.casual)).toBeNull();
-    expect((await launchCheckFor(ids.casual)).steps).toBeGreaterThan(0);
+  it("a casual round has no rail, nothing to set up, and nothing to launch (PR 9a: the machine's table, 2e)", async () => {
+    expect(await setupRailFor(ids.casual)).toBeNull();
+    // A casual round is created live with no setup at all; it is never offered Launch, so
+    // there is no gate for it to go through (the old flow counted steps it never shows).
+    const told = await tournamentStatusNow(ids.casual);
+    expect(told?.status.family).toBe("casual");
+    expect(told?.status.setup.of).toBe(0);
+    expect(told?.status.nextAction).toBeNull();
   });
 
-  it("a tournament that does not exist: no rail, and the gate says so", async () => {
-    expect(await setupFlowFor(`${TAG}-no-such-event`)).toBeNull();
-    expect((await launchCheckFor(`${TAG}-no-such-event`)).refusal).toBe("This tournament could not be found.");
+  it("a tournament that does not exist: no rail and no status (PR 9a: the action says it could not be found)", async () => {
+    expect(await setupRailFor(`${TAG}-no-such-event`)).toBeNull();
+    expect(await tournamentStatusNow(`${TAG}-no-such-event`)).toBeNull();
   });
 });

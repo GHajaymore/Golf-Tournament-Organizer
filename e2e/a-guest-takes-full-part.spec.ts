@@ -18,8 +18,12 @@ import { watchPageErrors } from "./page-errors";
  *       the old link after New link reads "This link no longer works", and the round code still opens
  *       the same player at /play; a turned-off link opens nothing
  *
+ *   G1  the committee suspends play and the guest's OPEN screen is told without a reload (the siren's
+ *       poll, `currentPlayStatus`, answers for a link); resuming clears it
+ *
  * Actions pressed: openPlayerLink, forgetThisPhone, choosePlayerView, playerLinkStatus, showPlayerLink,
- * newPlayerLink, turnOffPlayerLink — and the card's own saveScorecard, as a guest.
+ * newPlayerLink, turnOffPlayerLink — and the card's own saveScorecard and the siren's currentPlayStatus,
+ * as a guest; suspendPlay and resumePlay, as the organizer.
  *
  * Fixture facts are read from the fixture: the guest is the row this spec makes (standing "guest", no
  * email), the round's code is the one written here. The round is played today in the club's zone (UTC),
@@ -175,6 +179,27 @@ test.describe("a guest takes full part by a player link", () => {
         return card ? (JSON.parse(card.strokes) as (number | null)[]).some((n) => n != null) : false;
       }, { timeout: 30_000, message: "the guest's hole never reached the server" })
       .toBe(true);
+
+    // 4b. G1 (Rule 5.7): the committee stops play and the guest's OPEN screen is told without a reload —
+    // the siren's poll (`currentPlayStatus`) answers for a link, as the banner does. Then play resumes.
+    const suspendedBanner = a.getByRole("alert").filter({ hasText: "Play is suspended" });
+    await a.goto(`/me?bust=${Date.now()}`);
+    await a.waitForLoadState("networkidle").catch(() => {});
+    await expect(suspendedBanner, "CONTROL: told play is suspended before anybody suspended it").toHaveCount(0);
+    try {
+      await deskPage.goto(`/dashboard?bust=${Date.now()}`);
+      await deskPage.waitForLoadState("networkidle").catch(() => {});
+      await deskPage.getByRole("button", { name: "Suspend play" }).click();
+      await deskPage.getByRole("button", { name: "Suspend play now" }).click();
+      await expect(deskPage.getByRole("button", { name: "Resume play" })).toBeVisible({ timeout: 20_000 });
+      // The screen asks every twenty seconds. Nothing here reloads it.
+      await expect(suspendedBanner, "a guest's open screen never noticed play was suspended (the siren's poll asked getSession)").toBeVisible({ timeout: 45_000 });
+      await deskPage.getByRole("button", { name: "Resume play" }).click();
+      await expect(deskPage.getByRole("button", { name: "Suspend play" })).toBeVisible({ timeout: 20_000 });
+      await expect(suspendedBanner, "a guest's open screen still says play is suspended after it resumed").toHaveCount(0, { timeout: 45_000 });
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { playSuspendedAt: null, playSuspendedNote: "" } });
+    }
 
     // 5. S4: a member of another event, SIGNED IN on their own phone, types the same code.
     const phoneB = await guestContext(browser, baseURL!, testInfo);

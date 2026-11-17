@@ -27,6 +27,7 @@
 import { launchRefusal, type LaunchFacts } from "./phase-gate";
 import type { SetupFacts, SetupStep } from "./setup-flow";
 import { isRated } from "./handicap";
+import { GIVE_STROKES, SINK_LIVE, needsFigureSaid, type NeedsStrokes } from "./committee-figure";
 
 /**
  * The facts, with the two that `SetupFacts` leaves optional made REQUIRED: a
@@ -295,6 +296,26 @@ export function unratedTeesTodo(u: UnratedTees | null | undefined): string | nul
   return tier ? TODO_WORDS[tier] : null;
 }
 
+/**
+ * PLAYERS WITH NO HANDICAP INDEX IN A ROUND SCORED NET (lane N, PR A). A WARNING, NEVER A REFUSAL: a
+ * handicap often arrives on the morning, and unrated tees set the precedent. The sentence is the one
+ * every door says (`needsFigureSaid`), to "you" — only staff see the launch dialog — and the fix opens
+ * the band on Rounds & formats. Who needs strokes is `needsCommitteeFigure`, never worked out here.
+ *
+ * THE STATE MACHINE PUTS IT IN THE DIALOG (state machine PR 9a), not `launchCheck` below: the machine
+ * passes today's warnings through filters keyed on a warning's screen — dropped while a step on that
+ * screen HOLDS, dropped when the family draws no such step, a league's "/stages" row reworded as its
+ * later weeks — and this row is about a PLAYER, not about the rounds that screen sets. Handed through
+ * those filters it vanished whenever the rounds still lacked a course card (#1144's audit asked the
+ * deleted `launchCheckFor`, which never filtered). So `tournamentStatus` asks this from its own fact,
+ * first, past the filters; `launchCheck` does not build it, so there is one row and one place.
+ */
+export function needsStrokesWarning(n: NeedsStrokes | null | undefined, screen: string): LaunchWarning | null {
+  if (!n || n.players === 0) return null;
+  const { text } = needsFigureSaid({ count: n.players, rounds: n.rounds, sideGameRounds: n.sideGameRounds, canGive: true, sinkLive: SINK_LIVE });
+  return { says: text, fix: `${GIVE_STROKES} on ${screen}`, href: "/stages", screen, afterLaunch: "open" };
+}
+
 export function launchCheck(
   f: LaunchSource,
   steps: readonly SetupStep[],
@@ -308,6 +329,7 @@ export function launchCheck(
   if (tee) warnings.push(tee);
   const unrated = unratedTeesWarning(f.unratedTees, labelFor("/event"));
   if (unrated) warnings.push(unrated);
+  // No handicap index in a net round: the machine's first row (`needsStrokesWarning`, above), never here.
   return {
     refusal: launchRefusal(launchFactsFrom(f)),
     warnings,

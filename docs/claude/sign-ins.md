@@ -141,3 +141,19 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
 - **Analytics and reports (S3):** `/p` renders no analytics and `pageViewFor` drops a view of it;
   `scrubText` redacts the code in a fragment, a `/p/` path, a query or its printed dashed form.
 - A spec reaches a guest by the real door (`/p`, a tap or the typed box), never a hand-made `ng_guest`.
+- **A link's messages and notices (PR 2):** a guest is `guest:<playerId>` in messaging (never an address),
+  reads and posts in the threads its entry puts it in (never the club's), writes to the organizers
+  (`desk:<playerId>`), and starts no direct thread (D7: `startDirectThread` is account-only). Every messaging
+  action asks `messagingContextFor(target)`, which picks the link only for the target's own event, by PR 1's
+  precedence. Its notices go by push only, to `PlayerPassPush` rows bound to the pass's VERSION: New link,
+  Turn off, withdrawal and expiry stop them at once (`sendPushTo` asks `livePass`). **Forget me on this phone**
+  changes no version, so it deletes the held pass's row for this browser's endpoint itself (`forgetPassHere`;
+  #1133 review SEC-1). The player's **Turn off** deletes the caller's OWN row on its endpoint and nobody
+  else's (`turnOffHere`; the #1133 security review F-3 replaced SEC-2's every-row delete), then unsubscribes
+  the browser, so the push service's 410 clears any other row on that phone at the next send. Turn on and
+  Turn off are budgeted per pass or address (`push-device`, 10 in 15 minutes), a link holds at most
+  `GUEST_PUSH_ROWS` (5) phones with the oldest dropped, and every send has `PUSH_SEND_TIMEOUT_MS` (3 s), so
+  one dead host cannot hold a "play suspended" press (F-1). A link-only browser asking about another event's
+  thread is answered in its own event, exactly as for a missing id (F-2). The organizer can Mute a guest in
+  messages from their link (the link stays live; a mute is on the pass, F-4). The installed app starts at
+  `/start`: an account goes home, a live link to Today, anybody else to `/p` with "Have an account? Sign in".

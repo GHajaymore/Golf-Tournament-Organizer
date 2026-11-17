@@ -1,99 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  lifecycleMismatch,
-  nextLifecycleAction,
   resultsIn,
-  tournamentPhase,
   isLaunched,
   isFinished,
-  datesPassedUnlaunched,
-  configurationLocked,
   PRE_LAUNCH_STATUSES,
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
 import { readSource } from "@/lib/__tests__/source";
-
-const facts = (over: Partial<Parameters<typeof lifecycleMismatch>[0]> = {}) => ({
-  status: "draft",
-  resultsIn: 0,
-  playersEntered: 32,
-  ...over,
-});
-
-describe("when the status disagrees with the tournament", () => {
-  it("says nothing about a draft that has not started", () => {
-    // The ordinary case, and the reason this checks results rather than
-    // status alone: a draft with no scores is exactly what a draft is.
-    expect(lifecycleMismatch(facts())).toBeNull();
-  });
-
-  it("flags results recorded before the tournament was launched", () => {
-    const w = lifecycleMismatch(facts({ resultsIn: 40 }));
-    expect(w?.title).toMatch(/40 results are in/);
-    // That launching is what to offer here is `nextLifecycleAction`'s answer
-    // now, and is asserted against it below rather than against a boolean this
-    // function set to true and nothing read.
-    expect(nextLifecycleAction({ status: "draft", resultsIn: 40 })?.kind).toBe("launch");
-  });
-
-  it("flags it from any of the pre-launch statuses, not just draft", () => {
-    // Not because launch gates anything — it does not, see below — but
-    // because "registration" and "ready" are just as far from saying "this
-    // tournament is live" as "draft" is, and results have arrived in all three.
-    for (const status of ["draft", "registration", "ready"]) {
-      expect(lifecycleMismatch(facts({ status, resultsIn: 1 })), status).not.toBeNull();
-    }
-  });
-
-  it("says nothing once the tournament is live or finished", () => {
-    for (const status of ["live", "completed"]) {
-      expect(lifecycleMismatch(facts({ status, resultsIn: 40 })), status).toBeNull();
-    }
-  });
-
-  it("explains the consequence rather than just naming the mismatch", () => {
-    /**
-     * The point of the warning. "Status is draft" is a fact about a database
-     * column; what it costs is the thing an organizer needs to know.
-     *
-     * REWORDED, NOT RELAXED. This used to pin "can’t see their matches", and
-     * that sentence was false — measured on 2026-09-11, signed in as a player
-     * on a `draft` tournament, where `/me/board` rendered the standings and
-     * `/me/card` offered to certify. The assertion follows the corrected rule:
-     * the cost is a tournament calling itself a draft in front of people who
-     * can already read it.
-     */
-    const w = lifecycleMismatch(facts({ resultsIn: 40 }));
-    expect(w?.detail).toMatch(/already open the board and their card/);
-    expect(w?.detail).toMatch(/32 in the field/);
-    // And that nothing is broken meanwhile — scoring works either way.
-    expect(w?.detail).toMatch(/Scoring works either way/);
-    // And that it cannot quietly re-acquire the claim it just lost.
-    expect(w?.detail).not.toMatch(/can’t see/);
-  });
-
-  it("reads properly for a single result", () => {
-    expect(lifecycleMismatch(facts({ resultsIn: 1 }))?.title).toMatch(/1 result is in/);
-  });
-
-  it("gives the chip something truer than the stored status", () => {
-    /**
-     * "TOURNAMENT STATUS: Draft" sat an inch above this warning's own title
-     * saying 47 results were in. The chip is what a reader takes away, and it
-     * was the one part of the card still claiming nothing had happened.
-     */
-    expect(lifecycleMismatch(facts({ resultsIn: 47 }))?.chip).toBe("Being played");
-  });
-
-  it("copes with results but no field, without claiming a player count", () => {
-    // Possible with placeholder entries removed after scoring. Saying "the 0
-    // in the field have no way to follow it" would be nonsense.
-    const w = lifecycleMismatch(facts({ resultsIn: 3, playersEntered: 0 }));
-    expect(w?.detail).toMatch(/anyone in the field can/);
-    expect(w?.detail).not.toMatch(/\b0 in the field\b/);
-  });
-});
+import { setupLockedByLaunch, type Family } from "@/lib/domain/tournament-status";
 
 /**
  * WHAT COUNTS AS "SOMEBODY HAS PLAYED".
@@ -108,14 +23,12 @@ describe("how much golf has been played", () => {
     /**
      * THE BUG THIS CLOSES. A medal has no matches at all, so the old count was
      * 0 however many cards were in — and a stroke-play tournament played from
-     * start to finish in `draft` was never warned once.
-     *
-     * Asserted through `lifecycleMismatch` as well as the count, because the
-     * count being right is only interesting if the warning then fires.
+     * start to finish in `draft` was never warned once. (The warning itself is
+     * the machine's `underWayUnlaunched` now, pinned on a medal in draft with
+     * cards in by `tournament-status.test.ts`, D5.)
      */
     const n = resultsIn({ matches: [], cards: [{}, {}, {}, {}, {}, {}, {}] });
     expect(n).toBe(7);
-    expect(lifecycleMismatch(facts({ resultsIn: n }))).not.toBeNull();
   });
 
   it("counts both sources together", () => {
@@ -134,120 +47,6 @@ describe("how much golf has been played", () => {
     // match exists from the moment the draw is made. Counting those would
     // report a tournament as under way the day it is created.
     expect(resultsIn({ matches: [{ played: false }, { played: false }], cards: [] })).toBe(0);
-    expect(lifecycleMismatch(facts({ resultsIn: 0 }))).toBeNull();
-  });
-});
-
-/**
- * ONE ANSWER TO "WHERE IS THIS TOURNAMENT", for the card and the chip.
- *
- * `TournamentJourney` computed this inline and `/dashboard` answered it
- * separately, and on the demo tournament they disagreed — the card said Play
- * and the chip said Draft.
- */
-describe("which phase the tournament is in", () => {
-  /**
-   * TAKES THE STATUS NOW, not `launched` and `finished` as separate flags.
-   *
-   * Those were computed in `/event/page.tsx` and forwarded untouched through
-   * `EventSetupClient`, so the rule about what "launched" means lived in a
-   * page. It is derived here from `PRE_LAUNCH_STATUSES` — which also closes a
-   * latent disagreement, since the hand-written pair was the INVERSE of that
-   * list rather than the same rule, and a sixth status would have split them.
-   */
-  const p = (over: Partial<Parameters<typeof tournamentPhase>[0]> = {}) =>
-    tournamentPhase({ status: "draft", scored: false, setupComplete: true, ...over });
-
-  it("only calls it finished when somebody said so", () => {
-    /**
-     * The PR #361 fix, kept here now the rule has moved. One returned card
-     * used to report a never-launched tournament as finished, so the card
-     * ticked Launch and Play as done and told the organizer to settle the
-     * money — on a tournament whose second round was in progress.
-     */
-    expect(p({ scored: true })).toBe("play");
-    expect(p({ status: "live", scored: true })).toBe("play");
-    expect(p({ status: "completed" })).toBe("results");
-  });
-
-  it("lets a result move it forward to play, and no further", () => {
-    // The evidence route: a card that has come in means somebody is out there
-    // whatever the status says.
-    expect(p({ scored: true, status: "draft" })).toBe("play");
-  });
-
-  it("reads every pre-launch status as pre-launch, not just draft", () => {
-    /**
-     * The half the boolean could not express. `launched` arrived as one value
-     * and this function could not tell "draft" from "registration" from
-     * "ready" — they are all before the launch, and all three now reach here
-     * intact. Worth asserting because the old hand-written pair tested for
-     * live-or-completed, so anything NOT in that pair was pre-launch by
-     * accident rather than by the list.
-     */
-    for (const status of PRE_LAUNCH_STATUSES) {
-      expect(p({ status }), status).toBe("launch");
-      expect(p({ status, setupComplete: false }), status).toBe("setup");
-    }
-  });
-
-  it("waits for setup before offering launch", () => {
-    expect(p({ setupComplete: false })).toBe("setup");
-    expect(p({ setupComplete: true })).toBe("launch");
-  });
-});
-
-/**
- * THE ONE NEXT STEP, so that three buttons stop competing.
- */
-describe("what to do next", () => {
-  it("offers launching, not entries, to a draft that is being played", () => {
-    /**
-     * The sharpest of the three defects. A tournament 47 results into being
-     * played was offered "Start taking entries", because the ladder only asked
-     * what the status was.
-     */
-    expect(nextLifecycleAction({ status: "draft", resultsIn: 47 })).toEqual({
-      label: "Launch tournament",
-      kind: "launch",
-    });
-  });
-
-  it("offers Launch from every setting-up status, played or not — one step before launch (G1)", () => {
-    // Ajay, 2026-10-31: draft, registration and ready are one "Setting up" step.
-    // "Start taking entries" and "Mark ready" gated nothing and are gone.
-    for (const status of ["draft", "registration", "ready"]) {
-      for (const resultsIn of [0, 3]) {
-        expect(nextLifecycleAction({ status, resultsIn }), `${status} with ${resultsIn} results`).toEqual({
-          label: "Launch tournament",
-          kind: "launch",
-        });
-      }
-    }
-    expect(nextLifecycleAction({ status: "live", resultsIn: 99 })?.label).toBe("Complete tournament");
-  });
-
-  it("offers a finished tournament its Reopen, to correct a card (2026-10-10)", () => {
-    // It offered nothing, so a result finalized by mistake — or a card found
-    // wrong at the prize-giving — had no way back on screen.
-    expect(nextLifecycleAction({ status: "completed", resultsIn: 99 })).toEqual({
-      label: "Reopen tournament",
-      kind: "status",
-      to: "live",
-    });
-  });
-
-  it("only ever offers one thing", () => {
-    // The shape of the fix, rather than any one branch of it: whatever the
-    // state, this returns a single action or none. The dashboard reads it to
-    // decide whether its own header still deserves a primary button, which
-    // only works because there is exactly one answer.
-    for (const status of ["draft", "registration", "ready", "live", "completed"]) {
-      for (const n of [0, 1, 47]) {
-        const a = nextLifecycleAction({ status, resultsIn: n });
-        if (a) expect(typeof a.label, `${status}/${n}`).toBe("string");
-      }
-    }
   });
 });
 
@@ -277,8 +76,8 @@ describe("what the app says launching does", () => {
 
   it("claims only the two things launchTournament writes", () => {
     /**
-     * `status: "live"`, `launchedAt`, `configUnlocked: false`. The lock is
-     * real — `isSetupLocked` reads exactly that — so it is the half worth
+     * `status: "live"` and `launchedAt`. The lock is real — the machine's
+     * `setupLockedByLaunch` reads the status — so it is the half worth
      * saying, and the only half.
      */
     /**
@@ -294,7 +93,9 @@ describe("what the app says launching does", () => {
     const after = action.indexOf("export async function", from + 1);
     const launch = action.slice(from, after === -1 ? undefined : after);
     expect(launch).toMatch(/status: "live"/);
-    expect(launch).toMatch(/configUnlocked: false/);
+    expect(launch).toMatch(/launchedAt: new Date\(\)/);
+    // The lock is the machine's (`setupLockedByLaunch`), not a flag launch writes (state machine PR 9b).
+    expect(launch).not.toMatch(/configUnlocked/);
     // If a visibility flag is ever written here, this test should fail and the
     // sentence should be rewritten to match it.
     expect(launch).not.toMatch(/leaderboardVisibility/);
@@ -419,56 +220,31 @@ describe("what launched means, asked once", () => {
   });
 });
 
+/**
+ * WHAT LOCKED MEANS, ASKED ONCE — since state machine PR 9b the machine's
+ * `setupLockedByLaunch(status, family)`: launched, and not a casual round
+ * (proposal 8.2, "Casual: locks none"). It was `configurationLocked` here,
+ * launched and not unlocked by the retired blanket flag. The whole table, family
+ * by family and scope by scope, is `scoped-locks.test.ts` (B2).
+ */
 describe("what locked means, asked once", () => {
-  it("is launched and not deliberately unlocked", () => {
-    expect(configurationLocked({ status: "live", configUnlocked: false })).toBe(true);
-    expect(configurationLocked({ status: "completed", configUnlocked: false })).toBe(true);
+  const SETUP_FAMILIES: Family[] = ["stroke", "stableford", "match", "roundRobinFlights", "knockout", "flightedKnockout", "teamCup", "league"];
+
+  it("is launched, for every family but a casual round", () => {
+    for (const family of SETUP_FAMILIES) {
+      expect(setupLockedByLaunch("live", family), family).toBe(true);
+      expect(setupLockedByLaunch("completed", family), family).toBe(true);
+    }
   });
 
-  it("an organizer who unlocked it is not locked", () => {
-    // The escape hatch, and the half a `status` check alone would lose.
-    expect(configurationLocked({ status: "live", configUnlocked: true })).toBe(false);
+  it("a casual round is never locked by launch — the half a status check alone would lose", () => {
+    expect(setupLockedByLaunch("live", "casual")).toBe(false);
+    expect(setupLockedByLaunch("completed", "casual")).toBe(false);
   });
 
   it("a tournament that has not launched is never locked", () => {
     for (const status of PRE_LAUNCH_STATUSES) {
-      expect(configurationLocked({ status, configUnlocked: false }), status).toBe(false);
+      for (const family of [...SETUP_FAMILIES, "casual" as const]) expect(setupLockedByLaunch(status, family), `${status} ${family}`).toBe(false);
     }
-  });
-});
-
-describe("datesPassedUnlaunched — a draft whose days have gone by", () => {
-  // Ajay's list read "Draft" beside a matchplay of 30 Jul to 26 Sep, in October.
-  const ev = (status: string, startOn: string, endOn: string) => ({ status, startOn, endOn });
-
-  it("is said of every status before launch, once the last day is behind the club", () => {
-    for (const status of PRE_LAUNCH_STATUSES) {
-      expect(datesPassedUnlaunched(ev(status, "2026-07-30", "2026-09-26"), "2026-10-26"), status).toBe(true);
-    }
-  });
-
-  it("is never said of a tournament that was launched", () => {
-    for (const status of ["live", "completed"]) {
-      expect(datesPassedUnlaunched(ev(status, "2026-07-30", "2026-09-26"), "2026-10-26"), status).toBe(false);
-    }
-  });
-
-  it("counts from the LAST day, and the last day itself has not passed", () => {
-    expect(datesPassedUnlaunched(ev("draft", "2026-10-01", "2026-10-26"), "2026-10-26")).toBe(false);
-    expect(datesPassedUnlaunched(ev("draft", "2026-10-01", "2026-10-26"), "2026-10-27")).toBe(true);
-    // The first day long gone, the last still ahead: not passed.
-    expect(datesPassedUnlaunched(ev("draft", "2026-01-01", "2026-12-31"), "2026-10-26")).toBe(false);
-  });
-
-  it("reads a one-day tournament off its start, and says nothing of an undated one", () => {
-    expect(datesPassedUnlaunched(ev("draft", "2026-10-25", ""), "2026-10-26")).toBe(true);
-    expect(datesPassedUnlaunched(ev("draft", "2026-10-26", ""), "2026-10-26")).toBe(false);
-    expect(datesPassedUnlaunched(ev("draft", "", ""), "2099-01-01")).toBe(false);
-    expect(datesPassedUnlaunched(ev("draft", "next spring", "TBC"), "2099-01-01")).toBe(false);
-  });
-
-  it("crosses a month and a year the way the calendar does", () => {
-    expect(datesPassedUnlaunched(ev("draft", "2026-12-31", ""), "2027-01-01")).toBe(true);
-    expect(datesPassedUnlaunched(ev("draft", "2026-09-30", ""), "2026-10-01")).toBe(true);
   });
 });

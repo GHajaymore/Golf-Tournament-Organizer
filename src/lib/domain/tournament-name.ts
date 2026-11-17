@@ -23,13 +23,15 @@ import { clubToday } from "./club-clock";
  */
 
 /**
- * The statuses in which a tournament HOLDS its name: every step before launch and live. The
- * stored values, enumerated on the development database (2026-11-01: draft, registration,
- * live, completed; `ready` is written by older rows and still a status the app reads).
+ * The statuses in which a tournament HOLDS its name: every step before launch and live —
+ * `draft` and `live` since migration A045 (state machine PR 8) moved the old ladder's two
+ * later words off every row.
  *
- * A POSITIVE list, deliberately, because the index lists the same four words and the two must
- * agree; a status the app does not know is not in play, which is the side that never blocks a
- * club from naming something.
+ * A POSITIVE list, deliberately; a status the app does not know is not in play, which is the
+ * side that never blocks a club from naming something. The A036 index still lists those two
+ * old words beside these: no row holds one any more, so it covers exactly these rows, and
+ * rebuilding a guarded index on production to drop two dead words would be a risk for nothing
+ * (`a-tournament-name-is-checked-one-way.test.ts` holds the index to "these, plus only those").
  */
 export const NAME_HOLDING_STATUSES: readonly string[] = [...PRE_LAUNCH_STATUSES, "live"];
 

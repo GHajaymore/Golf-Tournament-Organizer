@@ -165,7 +165,7 @@ test("a practice tournament is deleted only when asked twice, with every row of 
   const club = await makeClub(mark);
   try {
     const keep = await playedMedal(club, "Club Championship", "live");
-    const practice = await playedMedal(club, "Practice Day", "registration");
+    const practice = await playedMedal(club, "Practice Day", "draft");
     await signIn(context, baseURL!, club, keep.event.id);
     const rowsOf = async (eventId: string) => ({
       event: await prisma.event.count({ where: { id: eventId } }),
@@ -252,7 +252,7 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
     await expect(row("Summer Matchplay").locator(".tag")).toHaveText("Dates passed, not launched");
     await expect(row("Club Championship").locator(".tag").first()).toHaveText("Live");
     // Undated, so nothing has passed: it reads its ordinary status. The fixture stores
-    // "registration", which is one Setting up step before launch (G1).
+    // "draft", the one Setting up step before launch (G1; the only pre-launch word since A045).
     await expect(row("Away Fixture").locator(".tag")).toHaveText("Setting up");
 
     // ── two of one name are told apart, and a name used once is not dated ──

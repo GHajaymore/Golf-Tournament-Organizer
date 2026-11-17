@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import { aggregateStroke, emptyAgg, netOf } from "../domain/stroke-agg";
+import { holesToComplete } from "../domain/completed-round";
 import { skinsPotFor, type SkinsPotView } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel, type SkinsScope } from "../domain/skins-pot";
 import { roundIsStroke } from "../stage-types";
@@ -54,8 +55,12 @@ export interface WeekResult {
   net: number;
   points: number;
   thru: number;
-  /** Position on the night, ties sharing a place. */
-  position: number;
+  /**
+   * Position on the night, ties sharing a place. Null for a card with holes
+   * missing in a week of stroke play the committee has closed: listed beneath
+   * the field, without a place (Rule 3.3c; `holesToComplete`).
+   */
+  position: number | null;
 }
 
 /**
@@ -444,8 +449,25 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    */
   const nightKind = boardKind(stage.format);
   const ranksPlayers = nightKind === "standard" || nightKind === "modified-stableford";
-  const ranked = ranksPlayers
-    ? positionWithTies(scored, (a, b) => nightLevel(basis, stage.holes, a, b))
+  /**
+   * AND A CLOSED WEEK OF STROKE PLAY PLACES ONLY THE CARDS THAT COMPLETED IT
+   * (15 Nov 2026). This table ranks on the raw figure, so twelve holes in 45
+   * read "1st … thru 12" above every card of eighteen, closed or not. Open,
+   * that is a card still in play; closed, it is a round not completed, which
+   * holds no place (Rule 3.3c) — asked of `holesToComplete`, the leaderboard's
+   * own answer, so the sheet and the board agree. Listed beneath, not dropped:
+   * the card is real and the committee may need to see it. Points are left
+   * alone: a hole not played scores none and the card counts (Rule 21.1c).
+   */
+  const owed = stage.closedAt != null && basis !== "stableford" ? holesToComplete(stage) : 1;
+  const ranked: Array<(typeof scored)[number] & { position: number | null }> = ranksPlayers
+    ? [
+        ...positionWithTies(
+          scored.filter((r) => r.thru >= owed),
+          (a, b) => nightLevel(basis, stage.holes, a, b),
+        ),
+        ...scored.filter((r) => r.thru < owed).map((r) => ({ ...r, position: null })),
+      ]
     : [];
   // Exactly `WeekResult` — the countback card (`countback`) is a ranking input, not
   // something the client needs, so it does not ride along in the payload.

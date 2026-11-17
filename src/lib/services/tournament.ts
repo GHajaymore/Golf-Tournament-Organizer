@@ -98,6 +98,7 @@ import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domai
 import { holesPlayed, type CourseHandicaps } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
+import { holesToComplete } from "../domain/completed-round";
 import { isMatch, reviewsScores } from "../tournament-shape";
 import { flightLabel } from "../domain/flight-label";
 import { cardsOnBoard, heldFromBoard, onBoard } from "../domain/board-hold";
@@ -1414,9 +1415,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     );
   }
   /**
-   * AND PER MATCH, for the matches that name their own set.
+   * AND PER MATCH, for the matches that name their own set OR their own course.
    *
-   * Only those. In a league with no fixed venue a pair says where they played
+   * The course too (Fable's review of #1159): a match moved to another course
+   * with no set named fell to its ROUND's map, whose set is resolved against the
+   * round's course — so a match at the away course was priced off the home
+   * White, 20 where the away Gold gives 17. It priced right only while a stale
+   * `Match.teeId` kept it in this map by accident; `setMatchCourse` now clears
+   * that, as `teeAfterVenue` says. `services/handicaps.ts` already walked the
+   * match's own course for its reader, so the two now agree.
+   *
+   * Otherwise only those. In a league with no fixed venue a pair says where they played
    * at scoring time and, since `Match.teeId` exists, off which tees — and that
    * is a fact about one pairing, not about the round the other nine matches
    * are also in. A match that names nothing is not in this map at all and
@@ -1424,12 +1433,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * nothing.
    *
    * Built eagerly like the per-round maps, and bounded by the same thing: a
-   * match has to have had a set chosen ON it to appear here, which is a
+   * match has to have had a set or a venue chosen ON it to appear here, which is a
    * deliberate act by a scorer rather than something every row acquires.
    */
   const courseHcpByMatch = new Map<string, CourseHandicaps>();
   for (const m of matches) {
-    if (!m.teeId) continue;
+    if (!m.teeId && !m.courseId) continue;
     const stage = stages.find((s) => s.id === m.stageId);
     const matchTee = teeForPlay(
       tees,
@@ -2273,7 +2282,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * multiplier, and a single round is unchanged.
    */
   const isSeason = strokeRounds.length > 1;
-  const activeRoundId = isSeason ? null : (strokeUnitStage?.id ?? null);
+  /**
+   * AND A ROUND THE COMMITTEE HAS CLOSED IS NOT IN FLIGHT (15 Nov 2026). The
+   * live normalisation compares players who are different distances round; in
+   * a closed round nobody is still out, and a hole not played scores no points
+   * (Rule 21.1c). Left "in flight", twelve pars for 24 points read level with
+   * eighteen for 36 and above eighteen for 34: points per hole played, which is
+   * not the competition (Rule 21.1a, the most points wins). Closed, every card
+   * is charged the whole round and the order is the points
+   * (`a-short-card-is-judged-by-its-own-format.audit.test.ts`).
+   */
+  const activeRoundId = isSeason || strokeUnitStage?.closedAt ? null : (strokeUnitStage?.id ?? null);
   const levelRounds = strokeRounds.map((s) => ({ id: s.id, holes: holesPlayed(s.holes) }));
   const levelHoles = (a: StrokeAgg): number => chargedHoles(a, levelRounds, activeRoundId);
 
@@ -2303,9 +2322,30 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * own looser test rather than sharing this one.
    */
   const closedRoundIds = strokeRounds.filter((s) => s.closedAt).map((s) => s.id);
-  /** The first closed round this player has no card for, or null. */
+  /**
+   * The first closed round this player did not COMPLETE, or null: no card for
+   * it, or a card with holes missing (15 Nov 2026, G2). In stroke play every
+   * hole must be holed out (Rule 3.3c), and a closed round is one no more holes
+   * are coming for, so twelve holes of it are no more a round's score than
+   * none. Asking only "are the holes zero" ranked a player four under "thru
+   * 30" first among cards of 36
+   * (`a-short-card-in-a-closed-round-holds-no-place.audit.test.ts`).
+   *
+   * Against ONE round's length, though a round robin files several cards
+   * under one round: fewer holes than a single card owes is short whatever
+   * else is true, and a match that stopped early is `stoppedShort`'s to judge.
+   *
+   * ONLY A ROUND OF INDIVIDUAL STROKE PLAY OWES EVERY HOLE (`holesToComplete`,
+   * the one answer). A four-ball partner who picked up has completed the round
+   * (Rule 23.2b), and the first cut of this asked eighteen holes of them too:
+   * closing a four-ball round took the place of every partner with a blank
+   * hole (`a-short-card-is-judged-by-its-own-format.audit.test.ts`).
+   */
+  const holesOwedIn = new Map(strokeRounds.map((s) => [s.id, holesToComplete(s)]));
   const missedClosedRoundId = (a: StrokeAgg): string | null =>
-    stableford ? null : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0) ?? null);
+    stableford
+      ? null
+      : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) < (holesOwedIn.get(id) ?? 1)) ?? null);
   const missedAClosedRound = (a: StrokeAgg): boolean => missedClosedRoundId(a) !== null;
   /**
    * The closed round to NAME, whatever the board ranks on (2026-10-08, grid

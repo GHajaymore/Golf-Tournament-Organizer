@@ -107,7 +107,7 @@ test("the organizer sets the tees for the tournament, a flight and one player, a
     data: {
       organizationId: club.org.id,
       name: `${MARK} Mixed Open ${testInfo.project.name}`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       formationRule: "manual",

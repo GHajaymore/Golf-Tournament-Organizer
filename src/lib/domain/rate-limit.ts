@@ -71,7 +71,9 @@ export type RateLimitKind =
   | "join-request"
   | "interest"
   | "course-search"
-  | "course-search-staff";
+  | "course-search-staff"
+  | "guest-post"
+  | "push-device";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -229,6 +231,16 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * it. Searching and importing both draw on it — see `directoryBudget`.
    */
   "course-search-staff": { limit: 120, windowMs: 60 * MINUTE },
+  /** A guest's posts through a player link (J39/J40 PR 2; S8), keyed on the PASS, never cleared:
+   *  a forwarded link must not flood the round's thread. Twenty in fifteen minutes is more than a
+   *  person writes between shots; the organizer can also Mute or Turn off the link. */
+  "guest-post": { limit: 20, windowMs: 15 * MINUTE },
+  /** Turning a phone's alerts on or off (2026-11-14, the #1133 security review F-1 and F-3), keyed on
+   *  WHO is asking: a guest's pass, or an account's address (`pushDeviceBudgetKey`). A save files a row
+   *  every later notice is sent to, so unlimited saves let one link holder make the server write to
+   *  hosts of their choosing on every organizer press. Ten in fifteen minutes is a person turning
+   *  alerts on and off five times over; counted on every press, never cleared. */
+  "push-device": { limit: 10, windowMs: 15 * MINUTE },
 };
 
 /**
@@ -429,6 +441,10 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many registration attempts. Wait ${wait} and try again.`;
     case "join-request":
       return `Too many requests to join. Wait ${wait} and try again.`;
+    case "guest-post":
+      return `Too many messages just now. Wait ${wait} and try again.`;
+    case "push-device":
+      return `Too many alert changes just now. Wait ${wait} and try again.`;
     case "interest":
       return `We already have your note — thank you. To add anything, wait ${wait} or write to inquiries@tourneyhq.club.`;
   }

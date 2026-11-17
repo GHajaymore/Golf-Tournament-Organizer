@@ -48,7 +48,7 @@ async function makeClub(label: string): Promise<Club> {
       address: "",
       regDeadline: "",
       capacity: 0,
-      status: "active",
+      status: "live",
       shape: "series",
       formationRule: "balanced",
       shareToken: `audit-authz-${label}-${Date.now()}-${Math.random()}`,
@@ -79,7 +79,9 @@ let mine: Club;
 let theirs: Club;
 
 const ctxFor = (club: Club): MembershipContext => ({
-  email: `${TAG.toLowerCase()}-staff@example.invalid`,
+  whoKey: `${TAG.toLowerCase()}-staff@example.invalid`,
+  guest: false,
+  muted: false,
   role: "admin",
   organizationId: club.orgId,
   eventId: club.eventId,
@@ -99,7 +101,7 @@ const ctxFor = (club: Club): MembershipContext => ({
    * empty, so the cross-club case below actually exercises the widening
    * instead of passing against a context that grants nothing.
    */
-  staffScopes: { groupIds: [], stageIds: [], teamIds: [club.teamId] },
+  staffScopes: { groupIds: [], stageIds: [], teamIds: [club.teamId], playerIds: [] },
 });
 
 beforeAll(async () => {

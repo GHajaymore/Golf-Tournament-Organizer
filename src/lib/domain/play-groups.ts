@@ -13,7 +13,7 @@ import type { TeeSheetGroup } from "./tee-sheet";
  *
  * So after the code the page lists GROUPS:
  *   - a match round: each match is a group, both sides named
- *     ("Rakesh & Snehal v Subhas & Prashant"), with its tee time and starting
+ *     ("Sam & Alex v Jo & Max"), with its tee time and starting
  *     hole where the round has a published tee sheet;
  *   - a stroke round with a published tee sheet: its groups, all their names;
  *   - a stroke round with no tee sheet: the names, as before.
@@ -24,7 +24,7 @@ export interface PlayGroup {
   key: string;
   /** "Group 3" off the tee sheet, otherwise "Match 2" in draw order. */
   title: string;
-  /** Who is in it: "Rakesh & Snehal v Subhas & Prashant", or a stroke group's names. */
+  /** Who is in it: "Sam & Alex v Jo & Max", or a stroke group's names. */
   names: string;
   /** "12:54 off the 10th", or "" where the round has no published tee sheet. */
   tee: string;
@@ -125,7 +125,7 @@ export function rememberedGroup(stored: RememberedGroup | null, groups: readonly
   return same.find((g) => g.key === stored.key) ?? same[0] ?? null;
 }
 
-/** The line over a remembered group: "Last time: Group 3 — Rakesh & Snehal v Subhas & Prashant". */
+/** The line over a remembered group: "Last time: Group 3 — Sam & Alex v Jo & Max". */
 export function lastTimeSentence(g: Pick<PlayGroup, "title" | "names">): string {
   return `Last time: ${g.title} — ${g.names}`;
 }
@@ -140,8 +140,8 @@ export function teeWords(g: Pick<TeeSheetGroup, "time" | "startHole" | "half">):
 
 /**
  * The one confirmation, in the UX Writer's words: what this phone is about to
- * keep, said in full. "You're keeping Group 3: Rakesh & Snehal v Subhas &
- * Prashant · 12:54 off the 10th" — the tee details left out with no tee sheet.
+ * keep, said in full. "You're keeping Group 3: Sam & Alex v Jo &
+ * Max · 12:54 off the 10th" — the tee details left out with no tee sheet.
  */
 export function keepingSentence(t: PlayTarget): string {
   if (t.kind === "player") return `You're keeping ${t.name}'s card`;

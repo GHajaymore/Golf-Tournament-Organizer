@@ -170,7 +170,15 @@ export function mayPlayThroughLink(entryStatus: string): boolean {
  * other door learns about guests. `a-guest-acts-only-through-its-list.test.ts`
  * holds the source to this list.
  *
- * Not yet on it (later PRs of the design): messages and push (PR 2), side-game
+ * And it asks whether play is suspended in its own event, for the siren on an
+ * open screen (`currentPlayStatus`, G1: Rule 5.7, a safety notice).
+ *
+ * PR 2: it reads and posts in the threads its entry puts it in, and marks them
+ * read (`messagingContextFor`, per target); turns its own direct messages off;
+ * and turns notices on and off in a browser (`pushOwnerNow`). It starts no
+ * direct thread (D7: `startDirectThread` stays account-only).
+ *
+ * Not yet on it (later PRs of the design): side-game
  * opt-in, withdrawing an entry, and a match card's hole-by-hole presses — a
  * guest's match is kept from the round code until then.
  */
@@ -181,6 +189,13 @@ export const GUEST_ACTIONS = [
   "disputeScorecard",
   "forgetThisPhone",
   "choosePlayerView",
+  "currentPlayStatus",
+  "readThread",
+  "sendMessage",
+  "markThreadRead",
+  "setMyMessagesOptOut",
+  "savePushSubscription",
+  "removePushSubscription",
 ] as const;
 
 /** What a guest viewer carries: one pass, one entry, one event. Never taken from an argument. */
@@ -250,6 +265,8 @@ export interface PassStatus {
   browsers: number;
   /** When it was last opened, as the club writes a day; "" when never. */
   lastOpened: string;
+  /** The organizer muted this guest in messages (PR 2, S8); they can still write to the organizers. */
+  muted?: boolean;
 }
 
 /** The panel's status line (design §4.1). "Phones or browsers": a private window is a new one. */
@@ -318,6 +335,13 @@ export const PLAYER_LINK_WORDS = {
   sendToOne: (name: string) => `Send it to ${firstNameOf(name) || "them"} only, not to a group.`,
   suggestNew: "Opened on several phones or browsers. If the link has travelled, press New link.",
   membersHaveEmail: "A member's own way in is their email. Player links are for guests.",
+  /** PR 2 (S8): quieten a guest's posts without ending the link; the desk stays open. */
+  mute: "Mute in messages",
+  unmute: "Unmute in messages",
+  /** Says the LINK, no more (the #1133 security review F-4): a mute is on the pass, so it does not
+   *  follow the person to an account they may sign in with after launch. */
+  mutedSaid: (name: string) => `${firstNameOf(name) || "They"} can't post in the event's threads from their player link now. They can still message the organizers.`,
+  unmutedSaid: (name: string) => `${firstNameOf(name) || "They"} can post in the event's threads again.`,
   /** The guest's own screens. */
   otherPhone: (day: string) => `Your link was opened on another phone or browser on ${day}. Not you? Ask the organizer for a new link.`,
   forget: "Forget me on this phone",

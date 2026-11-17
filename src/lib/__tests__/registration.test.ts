@@ -21,7 +21,7 @@ import {
 const at = (iso: string) => new Date(`${iso}T12:00:00`);
 
 const input = (over: Partial<RegistrationInput> = {}): RegistrationInput => ({
-  eventStatus: "registration",
+  eventStatus: "draft",
   deadline: "2026-06-14",
   opens: "",
   capacity: 0,
@@ -224,7 +224,7 @@ describe("a tournament that has finished takes no more entries", () => {
     // Only `completed` closes the door. A LIVE tournament may still be taking
     // entries — a club league runs for weeks and members join mid-season — and
     // deciding that is the organizer's switch, not this rule's.
-    for (const eventStatus of ["draft", "registration", "ready", "live"]) {
+    for (const eventStatus of ["draft", "live"]) {
       expect(registrationStatus(input({ eventStatus })).acceptingEntries, eventStatus).toBe(true);
     }
   });
@@ -324,18 +324,18 @@ describe("the opening date", () => {
 
 describe("the entry window a member reads", () => {
   it("names both dates when both are set", () => {
-    expect(entryDatesOf("2026-06-01", "2026-06-14", "registration")).toBe(
+    expect(entryDatesOf("2026-06-01", "2026-06-14", "draft")).toBe(
       `Entries open ${formatDeadline("2026-06-01")} · close ${formatDeadline("2026-06-14")}`,
     );
   });
 
   it("names the half that is set", () => {
-    expect(entryDatesOf("", "2026-06-14", "registration")).toBe(`Entries close ${formatDeadline("2026-06-14")}`);
-    expect(entryDatesOf("2026-06-01", "", "registration")).toBe(`Entries open ${formatDeadline("2026-06-01")}`);
+    expect(entryDatesOf("", "2026-06-14", "draft")).toBe(`Entries close ${formatDeadline("2026-06-14")}`);
+    expect(entryDatesOf("2026-06-01", "", "draft")).toBe(`Entries open ${formatDeadline("2026-06-01")}`);
   });
 
   it("prints no date it cannot read, and nothing once the tournament is over", () => {
-    expect(entryDatesOf("", "end of the month", "registration")).toBe("");
+    expect(entryDatesOf("", "end of the month", "draft")).toBe("");
     expect(entryDatesOf("2026-06-01", "2026-06-14", "completed")).toBe("");
   });
 });

@@ -186,8 +186,8 @@ export async function seed() {
          * A STATUS THE APP ACTUALLY WRITES.
          *
          * This said "active", which is not one of them. The app writes exactly
-         * "draft", "live" and "completed"; `STATUS_META` labels those five
-         * (with "registration" and "ready"), and an unknown status falls back
+         * "draft", "live" and "completed"; `STATUS_META` labels those three
+         * (and, until A045 moved them off every row, two older words), and an unknown status falls back
          * to the DRAFT label. So the whole suite rendered a launched
          * tournament that called itself a draft, and three behaviours differed
          * from production on every screen it touched:

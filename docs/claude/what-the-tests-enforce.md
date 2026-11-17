@@ -56,6 +56,23 @@ Added after the move (the list above is the original, kept whole by `claude-md-i
   plants each banned shape as a control. A legitimate await on something that is not the database
   goes in `KNOWN_OFF_CLIENT` with its reason; nothing is there. On the `main` of that morning it
   named exactly the nightly's defect, at the two calls that awaited `prizeWinnerNames` without `tx`.
+- `the-tournament-is-asked-one-way.test.ts` (a WALL since state machine PR 9a, 2026-11-14; it was a
+  ratchet over the screens until PR 5b emptied `KNOWN_STRAYS`) — "where is this tournament, what is
+  next, what is locked" is asked of `tournamentStatus(facts)` and nothing else, over every non-test
+  file in `src/app`, `src/components` AND `src/lib`, in four classes whose names live in ONE list,
+  `src/lib/__tests__/retired-readers.ts` (the actions' and the timeline's sweeps read it too):
+  **A** a deleted reader's name as an identifier anywhere in `src` (tests included), `e2e` or
+  `scripts` — read by the TypeScript parser, so a comment or string naming it is history, while a
+  declaration or `const { x } = await import(…)` is caught (two audit tests reached a dead twin that
+  way). Since PR 9b (2026-11-15) class A holds the retired blanket unlock too — `configurationLocked`,
+  `setConfigUnlocked` and the flag `configUnlocked` — named nowhere but the column's two files
+  (`GONE_WITH_THE_COLUMN`, deleted with the column after launch); a test that needs a part open makes
+  a committee correction (`correction-fixture.ts`, `e2e/committee-correction.ts`), and an old-flag row
+  is written in SQL. `no-unlock-word.test.ts` keeps the word "unlock" off every screen, refusal, the
+  guide and Help: "committee correction" is the one word; **B** the old modules' live rules (`statusMove`, `launchRefusal`, `PRE_LAUNCH_STATUSES` …)
+  asked only by the machine and the old modules, one named exception; **C** the nine step-reading
+  files decide nothing about the step; **D** a stored status compared by hand with "draft" or "live",
+  three named files with exact counts, capped at three. Each class has a planted control.
 
 **WHEN A CORRECT CHANGE MAKES AN EXISTING GUARD FAIL, READ THE GUARD BEFORE UPDATING IT.** A guard
 that goes red on a change you have already proven right was asserting something false, and the

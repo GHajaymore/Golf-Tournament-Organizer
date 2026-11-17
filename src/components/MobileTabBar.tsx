@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
 import { primaryTabs, type NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
+import { releaseThisDevicesPush } from "@/lib/push-client";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import { LOGO_SIZE } from "./Logo";
 import { Icon } from "./Icon";
@@ -116,7 +117,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
                   <div style={{ fontSize: 13 }}>{name}</div>
                   <div className="text-muted" style={{ fontSize: 13 }}>{roleLabel(viewRole)}</div>
                 </div>
-                <button type="button" className="btn btn-icon" title="Sign out" aria-label="Sign out" onClick={() => startTransition(() => signOutAction())}>
+                <button type="button" className="btn btn-icon" title="Sign out" aria-label="Sign out" onClick={() => startTransition(async () => signOutAction(await releaseThisDevicesPush()))}>
                   <Icon name="sign-out" />
                 </button>
               </div>

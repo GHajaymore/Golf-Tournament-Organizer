@@ -68,7 +68,7 @@ beforeAll(async () => {
   orgId = (await prisma.organization.create({ data: { name: `${TAG} Golfclub`, kind: "club", country: "DE" } })).id;
   const event = await prisma.event.create({
     data: {
-      organizationId: orgId, name: `${TAG} medal`, status: "registration", shape: "single", format: "stroke",
+      organizationId: orgId, name: `${TAG} medal`, status: "draft", shape: "single", format: "stroke",
       formationRule: "balanced", dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
       shareToken: `audit-distance-${Date.now()}`, registrationToken: `r-distance-${Date.now()}`,
     },

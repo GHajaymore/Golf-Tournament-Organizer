@@ -124,12 +124,13 @@ export async function seedMySeason(mark) {
     const players = {};
     const stages = {};
 
-    async function event(key, title, { offset, status = "completed", visibility = "public", sideStyle } = {}) {
+    async function event(key, title, { offset, status = "completed", visibility = "public", sideStyle, registrationOpen = false } = {}) {
       events[key] = await prisma.event.create({
         data: {
           organizationId: org.id,
           name: `${mark} ${title}`,
           status,
+          registrationOpen,
           shape: "single",
           format: "stroke",
           ...(sideStyle ? { sideStyle } : {}),
@@ -259,13 +260,15 @@ export async function seedMySeason(mark) {
     await prisma.prize.create({ data: { eventId: events.autumn.id, position: 1, category: "Autumn champion", amount: 40, winnerId: players.autumn.fenella.id } });
 
     // ── Winter Cup: entered, nothing played yet ───────────────────────────────
-    await event("winter", "Winter Cup", { offset: 10, status: "registration" });
+    // Setting up with its sign-up link published — what lets a member see it before launch
+    // (`openToMembers`). It was stored as the old ladder's "taking entries" word until A045.
+    await event("winter", "Winter Cup", { offset: 10, status: "draft", registrationOpen: true });
     await round("winter", { closed: false, offset: 10 });
     await enter("winter", "fenella", { handicap: 10 });
     await enter("winter", "oswin", { handicap: 4 });
 
     // ── Members' Foursomes: on the waiting list ───────────────────────────────
-    await event("foursomes", "Members Foursomes", { offset: 20, status: "registration" });
+    await event("foursomes", "Members Foursomes", { offset: 20, status: "draft", registrationOpen: true });
     await round("foursomes", { closed: false, offset: 20 });
     await enter("foursomes", "oswin");
     await enter("foursomes", "fenella", { status: "waitlisted" });

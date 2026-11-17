@@ -199,6 +199,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   registrationOverride:
     "a decision about last year's deadline — a copy has a new deadline and starts following it",
   status: "a copy starts as a draft, however far along the original got",
+  legacyStatus:
+    "the old word migration A045 kept on a row it moved (state machine PR 8) is a fact of that row's history; a copy is a new tournament, opened to members by its own sign-up link",
   configUnlocked: "an unlock is granted to one tournament, not inherited",
   // The committee correction (state machine PR 5b): opened on one tournament, for one reason, until one day's end.
   correctionScope: "a committee correction is made on one tournament, for a stated reason — a copy has nothing to correct",

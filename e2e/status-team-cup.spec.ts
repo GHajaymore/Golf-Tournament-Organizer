@@ -92,7 +92,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
     await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
 
     // Launched, nothing played.
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live" } });
     await expectTournamentSays(page, {
       chip: "Live",
       lock: "live",

@@ -40,7 +40,7 @@ test("a casual round is never offered Launch, Complete or Reopen, at any stage (
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "casual",
     players: 4,
-    event: { shape: "match", status: "live", configUnlocked: true },
+    event: { shape: "match", status: "live" },
     rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }],
   });
   try {

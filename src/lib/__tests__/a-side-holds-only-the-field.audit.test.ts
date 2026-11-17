@@ -41,6 +41,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addTeamMember } from "@/app/actions/teams";
+import { correctionColumns } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SIDEFIELD";
@@ -62,15 +63,16 @@ beforeAll(async () => {
     data: {
       name: `${TAG} invitational`,
       organizationId: org.id,
-      status: "active",
+      status: "live",
       /**
        * The state a committee is actually in when it substitutes. Teams are a
        * structural change, so a LAUNCHED tournament refuses them until the
-       * organizer unlocks — `configurationLocked` is `isLaunched && !unlocked`
-       * — which is the deliberate step that stops a mid-round accident. This
-       * test is about who may be added once they have taken it.
+       * organizer opens the sides with a committee correction — the deliberate
+       * step that stops a mid-round accident (state machine PR 9b: one part, with
+       * a reason; the blanket unlock is not read). This test is about who may be
+       * added once they have taken it.
        */
-      configUnlocked: true,
+      ...correctionColumns(`${TAG} invitational`, "sides"),
       dates: "",
       course: "",
       city: "",

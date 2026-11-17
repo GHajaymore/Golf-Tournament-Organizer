@@ -55,7 +55,7 @@ test.beforeAll(async () => {
   };
   // Taking entries, with its sign-up link published.
   const entries = await prisma.event.create({
-    data: { ...common, name: ENTRIES, status: "registration", registrationOpen: true, registrationToken: `${MARK}-${rand()}`, shareToken: `${MARK}-${rand()}` },
+    data: { ...common, name: ENTRIES, status: "draft", registrationOpen: true, registrationToken: `${MARK}-${rand()}`, shareToken: `${MARK}-${rand()}` },
   });
   ids.entries = entries.id;
   ids.stroke = (

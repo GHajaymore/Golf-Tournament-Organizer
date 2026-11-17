@@ -42,7 +42,7 @@ function randomFacts(next: () => number): TournamentFacts {
   const n = (max: number) => Math.floor(next() * (max + 1));
   const family = pick(FAMILIES);
   const base = FAMILY_FIXTURES[family]();
-  const status = family === "casual" ? pick(["live", "live", "completed"]) : pick(["draft", "registration", "ready", "live", "completed"]);
+  const status = family === "casual" ? pick(["live", "live", "completed"]) : pick(["draft", "draft", "draft", "live", "completed"]);
   const rounds: RoundFacts[] = base.rounds.map((r) => ({
     ...r,
     scorable: bool(0.9),
@@ -60,7 +60,6 @@ function randomFacts(next: () => number): TournamentFacts {
     status,
     // The kind (PR 3): a league stays one; anything else is sometimes CALLED one.
     league: base.league || bool(0.1),
-    configUnlocked: bool(0.2),
     named: bool(0.85),
     dated: bool(0.85),
     venued: bool(0.7),

@@ -1,3 +1,5 @@
+import { noticesOffAmong } from "@/lib/services/push";
+import { noticesOffWords } from "@/lib/domain/round-moved";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -41,6 +43,10 @@ import { PairingRequests } from "@/components/PairingRequests";
 import { parsePinSheet } from "@/lib/domain/pin-sheet";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { RoundDaySetup } from "@/components/RoundDaySetup";
+import { MembersAsk } from "@/components/ImportMembers";
+import { membersAsked, peopleEntered } from "@/lib/domain/org-setup";
+import { awaitingApproval } from "@/lib/registration";
+import { orgProfile } from "@/lib/domain/org-profile";
 
 export const metadata = screenMetadata("/foursomes");
 
@@ -337,6 +343,31 @@ export default async function FoursomesPage({
   /** Where the holes are cut for this round — the editor below, and a row on every printed card. */
   const pinSheet = stage ? parsePinSheet(stage.pinSheet, holes) : [];
 
+  /**
+   * THE DRAW ASKS FOR THE MEMBERS (Cut A, event-first, Ajay 15 Nov 2026). The
+   * members list is never asked for before the first event; it is asked for
+   * HERE, where it is first needed: nobody has entered and the club's list is
+   * empty too. Asked of staff only, and only when the field is empty, so a
+   * running tournament never pays for the two reads. Once the club has a list
+   * the same card stays (so the import's answer is still on screen after it)
+   * and says to pick who is playing on Entries instead.
+   */
+  const entered = peopleEntered(state.confirmed.length, awaitingApproval(state.players).length, state.waitlist.length);
+  const askMembers =
+    isStaff && entered === 0
+      ? await (async () => {
+          const org = await prisma.organization.findUnique({
+            where: { id: state.event.organizationId },
+            select: { kind: true, country: true, communityNoun: true },
+          });
+          if (!org) return null;
+          const profile = orgProfile(org.kind, org.country, org.communityNoun);
+          if (!profile.sharedRoster) return null;
+          const memberCount = await prisma.member.count({ where: { organizationId: state.event.organizationId, status: "active" } });
+          return { noun: profile.noun, asked: membersAsked({ ...org, memberCount, fieldSize: entered }), memberCount };
+        })()
+      : null;
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -347,6 +378,8 @@ export default async function FoursomesPage({
           Once a round has been played you can re-pair off the leaderboard and send the leaders out last.
         </MoreInfo>
       </div>
+
+      {askMembers && <MembersAsk noun={askMembers.noun} asked={askMembers.asked} memberCount={askMembers.memberCount} />}
 
       {/* The list the sheet below is drawn from, and the control that changes
           it — in that order, above the draw, because a sheet drawn from the
@@ -451,6 +484,8 @@ export default async function FoursomesPage({
         savedGroups={savedSheet?.groups ?? []}
         savedStart={savedSheet?.startType}
         published={stage?.teeSheetPublished ?? false}
+        // Beside Publish (J39/J40 PR 2): how many of this sheet's field a tee-time push cannot reach.
+        noticesOff={noticesOffWords(await noticesOffAmong(session.eventId, field.map((p) => p.id)))}
         rounds={rounds.map((r) => ({
           id: r.id,
           label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn, locale) : ""),

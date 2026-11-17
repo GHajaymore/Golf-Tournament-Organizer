@@ -64,7 +64,7 @@ test("the timeline says what the dashboard says, at every step of a medal (J16)"
     await expect(page.locator(".rt-need-next").getByRole("link", { name: "Launch tournament" })).toHaveAttribute("href", "/dashboard");
 
     // Launched, nothing scored: Complete refused in place on both, with the way out to Score entry.
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date() } });
     await expectTournamentSays(page, {
       chip: "Live",
       lock: "live",

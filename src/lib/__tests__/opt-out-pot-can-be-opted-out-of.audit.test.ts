@@ -79,7 +79,7 @@ beforeAll(async () => {
     data: {
       name: `${TAG} outing`,
       organizationId: org.id,
-      status: "active",
+      status: "live",
       dates: "",
       course: "",
       city: "",

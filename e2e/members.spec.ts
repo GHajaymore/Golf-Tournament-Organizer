@@ -66,7 +66,8 @@ test("the secretary adds, corrects, retires, imports and enters members from the
   watchPageErrors(page, errors, "secretary");
   // A tournament still taking entries: a launched one locks its field, and the screen says so.
   const open1 = club.events.find((e) => e.slug === "captains");
-  expect(open1?.status, "the seeded club has no tournament taking entries").toBe("registration");
+  // Setting up: stored `draft` since A045 (state machine PR 8) moved the old "taking entries" word off every row.
+  expect(open1?.status, "the seeded club has no tournament taking entries").toBe("draft");
   await context.addCookies([
     { name: "ng_session", value: club.organizer.session, url: baseURL! },
     { name: "ng_active_event", value: sign(open1!.id), url: baseURL! },
