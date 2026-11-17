@@ -176,6 +176,12 @@ describe("S1: /p opens nothing on load", () => {
     expect(box).not.toMatch(/method="get"/);
     expect(play).not.toMatch(/[?&]code=/);
   });
+  it("/play's box is never kept by the browser: a personal code typed there is not form history", () => {
+    const play = readSource("src/components/PlayClient.tsx");
+    const at = play.indexOf('id="play-round-code"');
+    const input = play.slice(play.lastIndexOf("<input", at), play.indexOf("/>", at));
+    expect(input).toContain('autoComplete="off"');
+  });
   it("its typed box has no name, so a press before the script posts no code", () => {
     const input = page.slice(page.indexOf("<input"), page.indexOf("/>", page.indexOf("<input")));
     expect(input).toContain('id="player-link-code"');

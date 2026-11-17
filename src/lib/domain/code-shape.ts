@@ -73,14 +73,15 @@ export function codeShapeOf(input: unknown): CodeShape {
   if (typeof input !== "string" || input.length > MAX_CODE_INPUT) return NONE;
   const hash = input.lastIndexOf("#");
   const text = (hash >= 0 ? input.slice(hash + 1) : input).trim();
+  // A twelve is decided FIRST, from the whole input: no 8-character reading may see a personal code.
+  const link = normaliseLinkCode(text);
+  if (link) return { shape: "twelve", code: link };
   // A sign's address, group and all: exactly a code, or a code and a group.
   const sign = linkFromHash(text);
   if (sign.code) return { shape: "eight", code: sign.code, group: sign.group };
   // The WHOLE input, squeezed — never a prefix of it.
   const squeezed = normalizeAccessCode(text.replace(/[.·•_]/g, ""));
   if (looksLikeAccessCode(squeezed)) return { shape: "eight", code: squeezed, group: null };
-  const link = normaliseLinkCode(text);
-  if (link) return { shape: "twelve", code: link };
   return NONE;
 }
 

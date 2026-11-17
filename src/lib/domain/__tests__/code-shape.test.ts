@@ -100,6 +100,25 @@ describe("properties", () => {
     );
   });
 
+  it("a personal code is a twelve under ANY separators in ANY case (a sign-looking tail included)", () => {
+    const risky = fc.tuple(symbolsOf(ROUND_ONLY, 8), symbolsOf(LINK_ALPHABET, 4)).map(([a, b]) => a + b);
+    // Every code gets a tail that looks like a sign's group: 8 round symbols, T, three digits.
+    const signLike = fc.tuple(symbolsOf(ROUND_ONLY, 8), fc.integer({ min: 100, max: 999 })).map(([a, n]) => `${a}T${n}`);
+    const seps = fc.constantFrom("", "-", ".", " ", "·");
+    fc.assert(
+      fc.property(fc.oneof(risky, signLike), fc.array(seps, { minLength: 11, maxLength: 11 }), fc.boolean(), (code, gaps, lower) => {
+        const valid = [...code].every((c) => LINK_ALPHABET.includes(c));
+        if (!valid) return; // a digit the personal alphabet lacks is not a personal code
+        let typed = [...code].map((c, i) => c + (gaps[i] ?? "")).join("");
+        if (lower) typed = typed.toLowerCase();
+        expect(codeShapeOf(typed)).toEqual({ shape: "twelve", code });
+      }),
+      { numRuns: 3000 },
+    );
+    expect(codeShapeOf("k7qm2xra.t123")).toEqual({ shape: "twelve", code: "K7QM2XRAT123" });
+    expect(codeShapeOf("k7qm-2xra.t123")).toEqual({ shape: "twelve", code: "K7QM2XRAT123" });
+  });
+
   it("every round code is an eight", () => {
     fc.assert(
       fc.property(symbolsOf(CODE_ALPHABET, 8), (code) => {

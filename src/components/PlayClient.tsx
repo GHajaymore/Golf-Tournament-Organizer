@@ -1204,6 +1204,7 @@ function PlayScreens(props: Props) {
             <input
               id="play-round-code"
               name="code"
+              autoComplete="off"
               className="input"
               value={code}
               autoCapitalize="characters"
