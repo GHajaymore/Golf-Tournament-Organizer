@@ -204,7 +204,7 @@ async function newPhone(browser: import("@playwright/test").Browser, baseURL: st
 async function openRound(page: Page, roundCode: string, name: string) {
   await page.goto(`/play?bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
-  await page.getByLabel("Round code").fill(roundCode);
+  await page.getByLabel("Your code").fill(roundCode);
   await page.getByRole("button", { name: "Continue" }).click();
   await keepCardOf(page, name);
 }

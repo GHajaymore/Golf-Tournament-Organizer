@@ -94,7 +94,7 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     watchPageErrors(player, errors);
     await player.goto(link!);
     await expect(player.getByRole("button", { name: somebody }), "the sign did not open the round's names").toBeVisible({ timeout: 20_000 });
-    await expect(player.getByLabel("Round code"), "the scanned phone was still asked to type the code").toHaveCount(0);
+    await expect(player.getByLabel("Your code"), "the scanned phone was still asked to type the code").toHaveCount(0);
     expect(new URL(player.url()).hash, "the code was left on the address").toBe("");
 
     // Tapping a group (or a name, on a round with none) and confirming it is the scorer's own act;
@@ -124,7 +124,7 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     await player.screenshot({ path: test.info().outputPath("asked.png") });
     await asked.getByRole("button", { name: "Keep scoring this one" }).click();
     await expect(asked).toHaveCount(0);
-    await expect(player.getByLabel("Round code"), "keeping the round left it anyway").toHaveCount(0);
+    await expect(player.getByLabel("Your code"), "keeping the round left it anyway").toHaveCount(0);
     await expect(scoring, "keeping the round lost the session").toBeVisible();
 
     // And switching opens the new code — which is nobody's round, so it is refused as if typed.

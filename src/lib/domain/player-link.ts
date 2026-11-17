@@ -119,8 +119,10 @@ export type PassRefusal = "revoked" | "rotated" | "left" | "member" | "expired";
 
 /**
  * Why a pass does not open, or null when it does (design §2.6). Every one is
- * said to the guest in the SAME words (`PLAYER_LINK_WORDS.dead`), so a refusal
- * never confirms a code was once real.
+ * said to the guest in the SAME words, so a refusal never confirms a code was
+ * once real: a code typed or tapped is told the code boxes' one sentence
+ * (`CODE_WORDS.opensNothing`), and a link this phone held that has since ended
+ * `PLAYER_LINK_WORDS.dead` on /p?ended=1.
  *
  * `today` is the CLUB's day (`todayForEvent`), never the server's — a pass
  * ends on a day at the club, and an instant is never compared with it.
@@ -315,8 +317,8 @@ export const PLAYER_LINK_WORDS = {
   openButton: "Open my card",
   typeLabel: "Or type the code from your organizer",
   typeButton: "Open",
-  notACode: "That doesn't look like a player link code. It's 12 letters and numbers, like K7QM-2XRA-9DTP.",
-  /** Unknown, turned off, rotated, ended or expired: one answer (never confirms a code was real). */
+  /** A link THIS PHONE HELD has ended (/p?ended=1): true, and not a guess. A typed or tapped code that
+   *  opens nothing is told the code boxes' one sentence instead (`CODE_WORDS.opensNothing`). */
   dead: "This link no longer works. Ask your organizer for a new one.",
   noScript: "This page needs JavaScript to open your link. Turn it on, or ask your organizer to read the code out.",
   /** The organizer's panel. */

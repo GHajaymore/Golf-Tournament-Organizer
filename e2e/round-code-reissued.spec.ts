@@ -56,7 +56,7 @@ async function atTheDoor(browser: Browser, baseURL: string, typed: string, someb
     const page = await ctx.newPage();
     await page.goto("/play");
     await page.waitForLoadState("networkidle").catch(() => {});
-    await page.getByLabel("Round code").fill(typed);
+    await page.getByLabel("Your code").fill(typed);
     await page.getByRole("button", { name: "Continue" }).click();
     // Let in is being shown the field to pick your own name from. (A search box sits over it only for a long field.)
     const inside = page.getByRole("button", { name: somebody });

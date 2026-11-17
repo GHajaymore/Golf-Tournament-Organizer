@@ -32,9 +32,13 @@ export function formatAccessCode(code: string): string {
  * Someone who types O might have meant Q or D, and guessing wrong fails
  * exactly the same way as not guessing — so a clear rejection they can retype
  * beats silent cleverness that mangles input which was already correct.
+ *
+ * NEVER CUT TO LENGTH (one code box, 2026-11-17). It ended `.slice(0, 8)`, so
+ * a 12-character player link code typed at /play was looked up by its first 8
+ * characters (design §2.3). The whole input is kept; `codeShapeOf` decides.
  */
 export function normalizeAccessCode(input: string): string {
-  return input.toUpperCase().replace(/[\s-]/g, "").slice(0, CODE_LENGTH);
+  return input.toUpperCase().replace(/[\s-]/g, "");
 }
 
 /** Whether a string could be a code at all — checked before hitting the

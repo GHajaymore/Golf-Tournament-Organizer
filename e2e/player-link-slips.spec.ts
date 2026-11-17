@@ -1,6 +1,7 @@
 import { test, expect, type Page, type BrowserContext, type Browser, type TestInfo } from "./coverage";
 import { prisma, makeClub, dropClub, makeEvent, signIn, dayIn, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * PLAYER LINK SLIPS, PRINTED AT THE DESK (J39/J40 PR 3; design §3.1, A10 to A12).
@@ -14,7 +15,7 @@ import { watchPageErrors } from "./page-errors";
  * link that the printed slip no longer opens. Read back from the database at each step.
  *
  * Actions pressed: printPlayerLinkSlips, newPlayerLinksFor, playerLinkSlipState (as staff), and the
- * link's own openPlayerLink (as the guest) and newPlayerLink (as staff).
+ * link's own openCode (as the guest) and newPlayerLink (as staff).
  *
  * Fixture facts are read from the fixture: the guests are the rows this spec makes (standing
  * "guest", no email); the members are makeEvent's. The round is played today in the club's zone.
@@ -145,7 +146,8 @@ test.describe("player link slips at the desk", () => {
     };
     await typeCode(first[0].code);
     // Not getByRole("alert") on the page: Next's route announcer is an alert too.
-    await expect(g.locator('p[role="alert"]')).toContainText("This link no longer works.", { timeout: 20_000 });
+    // One code box: a replaced code is told the one sentence for a code that opens nothing.
+    await expect(g.locator('p[role="alert"]')).toContainText(CODE_WORDS.opensNothing, { timeout: 20_000 });
     await typeCode(second[0].code);
     await g.waitForURL(/\/me$/, { timeout: 30_000 });
     await expect(g.getByTestId("guest-not-you")).toHaveText(`${GUESTS[0]} · ${MARK} Spring Outing. Not you? Hand this back to the desk.`);

@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Browser } from "./coverage";
 import { PrismaClient } from "@prisma/client";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * THE ROUND CODE WORKS BEFORE THE PAGE'S SCRIPT HAS ARRIVED (2026-10-25).
@@ -143,17 +144,18 @@ test.describe("a round code before the page's script", () => {
 
       // An empty box: the server's words, beside the button.
       await go.click();
-      await expect(refusal(page)).toContainText("That doesn't look like a round code");
+      await expect(refusal(page)).toContainText(CODE_WORDS.notACode);
       // A code that is not a round's: refused in words, and what was typed is still in the box.
-      await page.getByLabel("Round code").fill("ZZQQ-QQQQ");
+      await page.getByLabel("Your code").fill("ZZQQ-QQQQ");
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(refusal(page)).toContainText("That code isn't valid. Check it with your organizer.");
-      await expect(page.getByLabel("Round code")).toHaveValue("ZZQQ-QQQQ");
+      // One code box: a code of the right shape that opens nothing is told the one sentence.
+      await expect(refusal(page)).toContainText(CODE_WORDS.opensNothing);
+      await expect(page.getByLabel("Your code")).toHaveValue("ZZQQ-QQQQ");
       // The refusal is said in the form the press was in, not somewhere else on the page.
       await expect(page.locator("form").filter({ has: page.getByRole("button", { name: "Continue" }) }).getByRole("alert")).toBeVisible();
 
       // The round's own code: the names, drawn by the server.
-      await page.getByLabel("Round code").fill(CODE.toLowerCase());
+      await page.getByLabel("Your code").fill(CODE.toLowerCase());
       await page.getByRole("button", { name: "Continue" }).click();
       await expect(page.getByRole("heading", { name: `${MARK} Autumn Medal` })).toBeVisible();
       for (const name of NAMES) await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
@@ -185,7 +187,7 @@ test.describe("a round code before the page's script", () => {
       const page = await context.newPage();
       const script = await holdTheScript(page);
       await page.goto("/play", { waitUntil: "commit" });
-      const box = page.getByLabel("Round code");
+      const box = page.getByLabel("Your code");
       await box.waitFor({ timeout: 15_000 });
       await box.pressSequentially(CODE, { delay: 20 });
       // A mark on this page: a plain post would be a new page, without it.
@@ -227,7 +229,7 @@ test.describe("a round code before the page's script", () => {
       // Held for the whole test: this page's script never arrives.
       await holdTheScript(page);
       await page.goto("/play", { waitUntil: "commit" });
-      const box = page.getByLabel("Round code");
+      const box = page.getByLabel("Your code");
       await box.waitFor({ timeout: 15_000 });
       await box.pressSequentially(CODE, { delay: 20 });
       const pressed = Date.now();

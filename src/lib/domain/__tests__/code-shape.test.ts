@@ -1,0 +1,163 @@
+import { describe, it, expect } from "vitest";
+import fc from "fast-check";
+import { CODE_ALPHABET } from "../../code-format";
+import { LINK_ALPHABET } from "../player-link";
+import { boxStepFor, codeShapeOf, CODE_WORDS, MAX_CODE_INPUT, type CodeBox, type CodeShape } from "../code-shape";
+
+/**
+ * ONE CODE BOX: THE SHAPE OF WHAT WAS TYPED (design §2, §6; Security items 1 and 5).
+ *
+ * The shape is read from the WHOLE input. The finding it closes (§2.3): /play
+ * cut every input to 8 characters, so a personal code whose first 8 symbols
+ * fall in the round alphabet — about (27/32)^8, a quarter of them — was looked
+ * up as a round code, and its first 8 characters went into the counter table
+ * under an unkeyed hash. The property below generates personal codes of
+ * exactly that kind and holds every one to `twelve`.
+ */
+
+describe("each printed, spoken, typed and pasted form of each code", () => {
+  const eights: Array<[string, string]> = [
+    ["ABCDEFGH", "ABCDEFGH"],
+    ["ABCD-EFGH", "ABCDEFGH"],
+    ["abcd-efgh", "ABCDEFGH"],
+    [" abcd efgh ", "ABCDEFGH"],
+    ["ABCD.EFGH", "ABCDEFGH"],
+    ["ABCD · EFGH", "ABCDEFGH"],
+    ["https://tourneyhq.club/play#ABCD-EFGH", "ABCDEFGH"],
+  ];
+  for (const [typed, code] of eights) {
+    it(`${JSON.stringify(typed)} is a round code`, () => {
+      expect(codeShapeOf(typed)).toEqual({ shape: "eight", code, group: null });
+    });
+  }
+  it("a pasted sign address keeps its group", () => {
+    expect(codeShapeOf("https://tourneyhq.club/play#ABCD-EFGH.t3")).toEqual({ shape: "eight", code: "ABCDEFGH", group: "tee:3" });
+    expect(codeShapeOf("ABCD-EFGH.t3")).toEqual({ shape: "eight", code: "ABCDEFGH", group: "tee:3" });
+  });
+
+  const twelves: Array<[string, string]> = [
+    ["K7QM2XRA9DTP", "K7QM2XRA9DTP"],
+    ["K7QM-2XRA-9DTP", "K7QM2XRA9DTP"],
+    ["k7qm-2xra-9dtp", "K7QM2XRA9DTP"],
+    ["K7QM · 2XRA · 9DTP", "K7QM2XRA9DTP"],
+    ["https://tourneyhq.club/p#K7QM2XRA9DTP", "K7QM2XRA9DTP"],
+    // Crockford's folding: O reads as 0, I and L as 1.
+    ["K7QM-2XRA-9DTO", "K7QM2XRA9DT0"],
+  ];
+  for (const [typed, code] of twelves) {
+    it(`${JSON.stringify(typed)} is a player link code`, () => {
+      expect(codeShapeOf(typed)).toEqual({ shape: "twelve", code });
+    });
+  }
+
+  it("the help's own example, whose first 8 are all round symbols, is a twelve (the §2.3 case)", () => {
+    expect([..."K7QM2XRA"].every((c) => CODE_ALPHABET.includes(c))).toBe(true);
+    expect(codeShapeOf("K7QM-2XRA-9DTP").shape).toBe("twelve");
+  });
+
+  const nones: Array<[string, unknown]> = [
+    ["6 digits from an email", "482913"],
+    ["7 characters", "ABCDEFG"],
+    ["9 characters", "ABCDEFGHJ"],
+    ["11 characters", "K7QM2XRA9DT"],
+    ["13 characters", "K7QM2XRA9DTPQ"],
+    ["a 24-character sign-up token", "ABCDEFGHJKMNPQRTWXYZ2346"],
+    ["64 hex", "a".repeat(64)],
+    ["8 characters outside the round alphabet", "OOOOOOOO"],
+    ["a 12 with a U", "K7QM2XRA9DTU"],
+    ["empty", ""],
+    ["a number", 12345678],
+    ["an object", { code: "ABCDEFGH" }],
+    ["null", null],
+    ["129 characters", "ABCDEFGH" + " ".repeat(121)],
+  ];
+  for (const [what, input] of nones) {
+    it(`${what} is no code`, () => {
+      expect(codeShapeOf(input)).toEqual({ shape: "none" });
+    });
+  }
+  it("CONTROL: the 129-character case is only too long (128 of the same is a code)", () => {
+    expect(("ABCDEFGH" + " ".repeat(120)).length).toBe(MAX_CODE_INPUT);
+    expect(codeShapeOf("ABCDEFGH" + " ".repeat(120)).shape).toBe("eight");
+  });
+});
+
+describe("properties", () => {
+  const symbolsOf = (alphabet: string, n: number) => fc.array(fc.constantFrom(...alphabet), { minLength: n, maxLength: n }).map((a) => a.join(""));
+  const ROUND_ONLY = [...LINK_ALPHABET].filter((c) => CODE_ALPHABET.includes(c)).join("");
+
+  it("every personal code is a twelve, never an eight — also when its first 8 are round symbols", () => {
+    // The §2.3 case on purpose: first 8 drawn from symbols both alphabets share, last 4 from all 32.
+    const risky = fc.tuple(symbolsOf(ROUND_ONLY, 8), symbolsOf(LINK_ALPHABET, 4)).map(([a, b]) => a + b);
+    const any = symbolsOf(LINK_ALPHABET, 12);
+    fc.assert(
+      fc.property(fc.oneof(risky, any), fc.boolean(), fc.boolean(), (code, dashed, lower) => {
+        let typed = dashed ? `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}` : code;
+        if (lower) typed = typed.toLowerCase();
+        expect(codeShapeOf(typed)).toEqual({ shape: "twelve", code });
+      }),
+      { numRuns: 2000 },
+    );
+  });
+
+  it("every round code is an eight", () => {
+    fc.assert(
+      fc.property(symbolsOf(CODE_ALPHABET, 8), (code) => {
+        expect(codeShapeOf(`${code.slice(0, 4)}-${code.slice(4)}`)).toEqual({ shape: "eight", code, group: null });
+      }),
+      { numRuns: 1000 },
+    );
+  });
+
+  it("no string is two shapes, and an eight's code is always 8 symbols of the round alphabet", () => {
+    fc.assert(
+      fc.property(fc.oneof(fc.string(), fc.string({ unit: fc.constantFrom(..."ABCDEFGHJKMNPQRTWXYZ0123456789-. #OIL") })), (s) => {
+        const shape: CodeShape = codeShapeOf(s);
+        if (shape.shape === "eight") {
+          expect(shape.code).toHaveLength(8);
+          expect([...shape.code].every((c) => CODE_ALPHABET.includes(c))).toBe(true);
+        }
+        if (shape.shape === "twelve") expect(shape.code).toHaveLength(12);
+      }),
+      { numRuns: 3000 },
+    );
+  });
+});
+
+describe("what a box does before any request (boxStepFor)", () => {
+  const BOXES: CodeBox[] = ["play", "p", "register"];
+  it("no shape is refused in the one sentence, in every box", () => {
+    for (const box of BOXES) expect(boxStepFor({ shape: "none" }, box)).toEqual({ do: "refuse", words: CODE_WORDS.notACode });
+  });
+  it("a personal code is asked of the door in every box", () => {
+    for (const box of BOXES) expect(boxStepFor({ shape: "twelve", code: "K7QM2XRA9DTP" }, box)).toEqual({ do: "ask" });
+  });
+  it("a round code is asked at /play, and goes on to /play#… from any other box (no extra press)", () => {
+    const eight: CodeShape = { shape: "eight", code: "ABCDEFGH", group: null };
+    expect(boxStepFor(eight, "play")).toEqual({ do: "ask" });
+    expect(boxStepFor(eight, "p")).toEqual({ do: "go", href: "/play#ABCD-EFGH" });
+    expect(boxStepFor(eight, "register")).toEqual({ do: "go", href: "/play#ABCD-EFGH" });
+    expect(boxStepFor({ ...eight, group: "tee:3" }, "p")).toEqual({ do: "go", href: "/play#ABCD-EFGH.t3" });
+  });
+  it("a personal code never leaves in an address (S1): only a round code is ever put after /play#", () => {
+    for (const box of BOXES) {
+      const step = boxStepFor(codeShapeOf("K7QM-2XRA-9DTP"), box);
+      expect(step.do).toBe("ask");
+    }
+  });
+});
+
+describe("the sentences", () => {
+  it("name both public formats and send a 6-digit code back to its own screen", () => {
+    expect(CODE_WORDS.notACode).toContain("ABCD-EFGH");
+    expect(CODE_WORDS.notACode).toContain("K7QM-2XRA-9DTP");
+    expect(CODE_WORDS.notACode).toMatch(/6-digit/);
+  });
+  it("the failure sentence names no kind and blames nobody", () => {
+    expect(CODE_WORDS.opensNothing).not.toMatch(/round|link|valid|new one/i);
+  });
+  it("the throttle sentence says the wait and names no kind", () => {
+    expect(CODE_WORDS.tooMany("5 minutes")).toMatch(/Wait 5 minutes/);
+    expect(CODE_WORDS.tooMany("5 minutes")).not.toMatch(/round|link attempts/i);
+  });
+});

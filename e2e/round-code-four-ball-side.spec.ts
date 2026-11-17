@@ -138,7 +138,7 @@ test.afterAll(async () => {
 async function code(page: import("@playwright/test").Page) {
   await page.goto("/play");
   await page.waitForLoadState("networkidle").catch(() => {});
-  await page.getByLabel("Round code").fill(CODE);
+  await page.getByLabel("Your code").fill(CODE);
   await page.getByRole("button", { name: "Continue" }).click();
 }
 
@@ -259,7 +259,7 @@ test("a four-ball partner on side B keeps the match as drawn, and the answer nam
     // And the way to the next nine's code is right there, not a "Sign out"
     // at the foot of the page.
     await page.getByRole("button", { name: "Enter another round code" }).click();
-    await expect(page.getByLabel("Round code")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByLabel("Your code")).toBeVisible({ timeout: 15_000 });
     expect(errors).toEqual([]);
   } finally {
     await ctx.close();

@@ -38,8 +38,12 @@ const GUEST_DOORS = [
   "requireActor(",
   "pushOwnerNow(",
 ];
-/** Actions that reach a guest door but are not a GUEST action: the open door itself. */
-const NOT_GUEST_WRITES = new Set(["openPlayerLink"]);
+/**
+ * Actions that reach a guest door but are not a GUEST action. It held the open door itself
+ * (`openPlayerLink`); since one code box (2026-11-17) that door is `openAnyCode` in
+ * services/code-door.ts, pressed through `openCode`, which reads no guest session: none now.
+ */
+const NOT_GUEST_WRITES = new Set<string>([]);
 
 function actionsIn(src: string): { name: string; body: string }[] {
   return src
