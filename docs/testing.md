@@ -203,6 +203,8 @@ workflow* on the Nightly round) on `main` once the fix is merged. Only a clean N
 a held commit — a clean full `round/…` on that commit does not, because the gate reads Nightly runs
 only. *Override freeze* overrides the freeze and nothing else.
 
+**A scheduled nightly never repeats a commit (B75, 17 Nov).** Its first job (`scripts/qa/nightly-dedupe.mjs`) skips a SCHEDULED run when another Nightly run on the same head sha finished successfully or is queued or running: the summary says "Nightly: skipped — <run id> already covers <sha>", no round starts, no `Round / Verdict` is posted and nothing deploys. A hand-started (dispatched) run is never skipped; a sha whose only nightlies failed or were cancelled runs again.
+
 **The cap on parts at a time is counted at plan time** (`round-cap.mjs`): it sees the jobs running
 when the round's plan job ran, not the ones that start after, and it does not count queued jobs (a part held back by its own round's max-parallel is one, and holds no runner). So a
 round planned on a quiet account can still crowd a CI run that starts later: watch the deploy job's

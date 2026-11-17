@@ -158,7 +158,7 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
  * confirm), the banner and Resume play are on every console screen walked,
  * the dashboard draws ONE control, not two, and resuming is two presses (it
  * confirms: #1149 C3) that leave the organizer where they were. With play on
- * it is an ordinary row (no sticky band pushing every live screen's controls
+ * above 820px it is an ordinary row (on a phone the button is pinned over the top bar, B64) (no sticky band pushing every live screen's controls
  * behind the phone's tab bar); once suspended, the banner is sticky. Each step
  * is read back from the row.
  */
@@ -205,10 +205,10 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
       expect(box, `CONTROL: ${what} has no box to measure`).not.toBeNull();
       return box!;
     };
-    // With play on, Suspend play is an ordinary row: no sticky band holds the top of every live
+    // With play on above 820px, Suspend play is an ordinary row: no sticky band holds the top of every live
     // screen and pushes its controls down behind the tab bar (#1149's CI: Confirm result on Score
-    // entry, phone). Scrolled down the sheet, a person scrolls back up to it; the press below
-    // reaches it only because Playwright scrolls it into view first, not because the app does.
+    // entry, phone). Scrolled down the sheet, on this phone (B64) the same button is pinned over the top bar, so the press is made from down the sheet;
+    // it is not an ordinary row here.
     await expect(suspendButton).toBeVisible();
     await expect(page.locator(".console-play-status"), "with play on, a sticky band holds the top of the tee sheet").toHaveCount(0);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -311,6 +311,74 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     await Promise.all([organizer, member].map((c) => c.close()));
   }
 });
+
+/**
+ * SUSPEND PLAY IS IN THE PHONE'S TOP BAR, FAR DOWN A LONG SCREEN (B64, Rule 5.7).
+ *
+ * With play on, the shell's row scrolls away with the page; on a phone the same
+ * button is pinned over the top bar, so a committee member who has scrolled to
+ * the bottom of a long screen still stops play in two presses without scrolling
+ * back. At 393 wide (a current phone) and 320 (the narrowest).
+ */
+for (const width of [393, 320]) {
+  test(`on a ${width}px phone, scrolled to the bottom of a long screen, Suspend play is still in the top bar and suspends with its confirm`, async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await playOn();
+    const organizer = await browser.newContext({
+      ...testInfo.project.use,
+      baseURL,
+      storageState: ORGANIZER,
+      viewport: { width, height: 740 },
+      hasTouch: true,
+      serviceWorkers: "block",
+    });
+    try {
+      const page = await organizer.newPage();
+      const suspendButton = page.getByRole("button", { name: "Suspend play", exact: true });
+      await page.goto(`/event?bust=${Date.now()}`);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(suspendButton, "Suspend play is not on the screen").toBeVisible({ timeout: 20_000 });
+      // CONTROL: the screen is long, and we really are at its bottom.
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      const scrolled = await page.evaluate(() => window.scrollY);
+      expect(scrolled, "CONTROL: the screen did not scroll, so the button was never off its row").toBeGreaterThan(200);
+      await expect(page.locator(".console-play-status"), "CONTROL: play is on, so no banner is drawn").toHaveCount(0);
+
+      // Still in view, inside the top bar's strip, and a thumb-sized target.
+      await expect(suspendButton, "scrolled to the bottom, Suspend play is out of view").toBeInViewport({ ratio: 1 });
+      const bar = await page.locator(".m-topbar").boundingBox();
+      const box = await suspendButton.boundingBox();
+      expect(bar, "CONTROL: the top bar has no box").not.toBeNull();
+      expect(box, "CONTROL: the button has no box").not.toBeNull();
+      expect(box!.height, "Suspend play is under 44px tall").toBeGreaterThanOrEqual(43.5);
+      expect(box!.y, "Suspend play starts above the top bar").toBeGreaterThanOrEqual(bar!.y);
+      expect(box!.y + box!.height, "Suspend play hangs below the top bar").toBeLessThanOrEqual(bar!.y + bar!.height + 1);
+      const lockup = await page.locator(".m-topbar > span").first().boundingBox();
+      expect(lockup, "CONTROL: the top bar has no lockup to measure").not.toBeNull();
+      expect(lockup!.x + lockup!.width, "Suspend play covers the TourneyHQ lockup").toBeLessThanOrEqual(box!.x);
+      expect(box!.x + box!.width, "Suspend play runs off the right edge").toBeLessThanOrEqual(width);
+      expect(box!.x, "Suspend play runs off the left edge").toBeGreaterThanOrEqual(0);
+
+      // Two presses, with the confirm in view, and the row is stamped.
+      await suspendButton.click();
+      const now = page.getByRole("button", { name: "Suspend play now" });
+      await expect(now, "the confirm is out of view").toBeInViewport();
+      const tabs = await page.locator(".m-tabbar").boundingBox();
+      const nowBox = await now.boundingBox();
+      expect(tabs && nowBox, "CONTROL: nothing to measure").toBeTruthy();
+      expect(nowBox!.y + nowBox!.height, "Suspend play now sits behind the tab bar").toBeLessThanOrEqual(tabs!.y + 1);
+      await page.getByLabel("Reason (optional)").fill("Lightning in the area");
+      await now.click();
+      await expect(page.getByRole("alert").filter({ hasText: "Play is suspended" })).toBeVisible({ timeout: 20_000 });
+      await expect(suspendButton, "suspended, the compact button is still drawn").toHaveCount(0);
+      const stamped = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playSuspendedAt: true } });
+      expect(stamped.playSuspendedAt, "the tournament is not marked suspended").not.toBeNull();
+    } finally {
+      await playOn();
+      await organizer.close();
+    }
+  });
+}
 
 /**
  * A SECOND STAFF DEVICE IS TOLD, WITHOUT A RELOAD (review of #1149, C2).

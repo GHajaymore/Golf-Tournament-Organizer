@@ -1,0 +1,37 @@
+/* COMPACT SUSPEND PLAY IN THE PHONE'S TOP BAR (B64, Rule 5.7). With play on the
+   frame is an ordinary row that scrolls away above 820px; on a phone the idle button is
+   instead pinned over the right end of the sticky top bar (same element, same
+   press, same confirm: no second copy of the rule), so a committee member far
+   down a long screen can stop play at once. Tokens only; 44px target; clear of
+   the notch and under the menu drawer (z 40). Its confirm is a sheet fixed to
+   the top of the window, capped above the tab bar, scrolling inside itself.
+   Its own sheet, imported by PlayStatusControl, so only the console sends it:
+   a player's page never draws this control (screen-styles-stay-on-their-screen). */
+@media (max-width: 820px) {
+  .suspend-compact {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 4px);
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    z-index: 35;
+    margin: 0 !important;
+  }
+  .suspend-compact .btn.btn {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .suspend-confirm {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: calc(8px + env(safe-area-inset-left, 0px));
+    right: calc(8px + env(safe-area-inset-right, 0px));
+    z-index: 35;
+    margin: 0 !important;
+    max-height: calc(100vh - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+    overflow-y: auto;
+    box-shadow: 0 8px 28px color-mix(in srgb, var(--color-text) 25%, transparent);
+  }
+}
