@@ -164,9 +164,11 @@ describe("S1: /p opens nothing on load", () => {
     expect(page).toMatch(/onClick=\{\(\) => press\(fromLink\)\}/);
   });
   it("a round code typed at /p leaves only after a `#`, never in an address a server logs", () => {
-    // `boxStepFor(…, "p")` sends a round code on to /play#ABCD-EFGH; the shape module builds that address.
+    // `boxStepFor(…, "p")` sends a round code on to /play#ABCD-EFGH, built by the sign's one address
+    // builder (`roundCodeLink`), which puts the code after the `#` and escapes it there.
     expect(page).toMatch(/boxStepFor\(shape, "p"\)/);
-    expect(readSource("src/lib/domain/code-shape.ts")).toMatch(/href: `\/play#\$\{formatAccessCode\(shape\.code\)\}/);
+    expect(readSource("src/lib/domain/code-shape.ts")).toMatch(/href: roundCodeLink\("", shape\.code/);
+    expect(readSource("src/lib/code-format.ts")).toMatch(/\/play#\$\{encodeURIComponent\(formatAccessCode\(code\)\)\}/);
     expect(page).not.toMatch(/[?&]code=/);
   });
   it("/play's box posts a code in the BODY of a form, never in its address", () => {

@@ -158,6 +158,17 @@ describe("what a box does before any request (boxStepFor)", () => {
     expect(boxStepFor(eight, "register")).toEqual({ do: "go", href: "/play#ABCD-EFGH" });
     expect(boxStepFor({ ...eight, group: "tee:3" }, "p")).toEqual({ do: "go", href: "/play#ABCD-EFGH.t3" });
   });
+  it("the address a typed code goes to is escaped: what was typed can never become markup or a scheme", () => {
+    // `codeShapeOf` never lets such a code through; this holds the builder to it on its own (CodeQL
+    // js/xss-through-dom on /p's box, 2026-11-17), so a shape reader loosened later still cannot.
+    const hostile: CodeShape = { shape: "eight", code: `"><img src=x onerror=alert(1)>`, group: null };
+    const step = boxStepFor(hostile, "p");
+    expect(step.do).toBe("go");
+    const href = step.do === "go" ? step.href : "";
+    expect(href.startsWith("/play#")).toBe(true);
+    expect(href.slice("/play#".length)).not.toMatch(/[<>"'\s:]/);
+    expect(decodeURIComponent(href.slice("/play#".length))).toBe(hostile.code);
+  });
   it("a personal code never leaves in an address (S1): only a round code is ever put after /play#", () => {
     for (const box of BOXES) {
       const step = boxStepFor(codeShapeOf("K7QM-2XRA-9DTP"), box);

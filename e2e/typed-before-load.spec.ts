@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { landingSettled } from "./landing-settled";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * WHAT SOMEBODY TYPES BEFORE THE PAGE HAS FINISHED LOADING IS TAKEN (2026-10-11).
@@ -64,7 +65,7 @@ test.describe("typed while the page was still loading", () => {
       await expect(page.getByRole("button", { name: "Continue" }), "the code is in the box and the page does not know it").toBeEnabled();
       // And it is the code that was typed that goes: a made-up one is refused in words.
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page.getByText(/That code isn.t valid/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(CODE_WORDS.opensNothing)).toBeVisible({ timeout: 15_000 });
     } finally {
       await ctx.close();
     }

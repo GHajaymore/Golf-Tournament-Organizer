@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { keepCardOf } from "./keep-on-play";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * A ROUND'S PRINTED SIGN, FROM THE ORGANIZER'S SCREEN TO A PLAYER'S THUMB (2026-10-17).
@@ -131,7 +132,7 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     await player.goto("about:blank");
     await player.goto(otherLink);
     await asked.getByRole("button", { name: "Switch to that round" }).click();
-    await expect(player.getByText(/That code isn.t valid/), "switching did not open the sign's code").toBeVisible({ timeout: 20_000 });
+    await expect(player.getByText(CODE_WORDS.opensNothing), "switching did not open the sign's code").toBeVisible({ timeout: 20_000 });
   } finally {
     await phone.close();
   }

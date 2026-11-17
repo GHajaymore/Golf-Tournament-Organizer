@@ -29,8 +29,7 @@
  * and ONE for every throttle, whichever kind and whichever box: a wrong code
  * must not tell a guesser which kind it nearly was, or that it was once real.
  */
-import { formatAccessCode, linkFromHash, looksLikeAccessCode, normalizeAccessCode } from "../code-format";
-import { groupFragment } from "./play-groups";
+import { linkFromHash, looksLikeAccessCode, normalizeAccessCode, roundCodeLink } from "../code-format";
 import { normaliseLinkCode } from "./player-link";
 
 /**
@@ -104,8 +103,9 @@ export type BoxStep =
 export function boxStepFor(shape: CodeShape, box: CodeBox): BoxStep {
   if (shape.shape === "none") return { do: "refuse", words: CODE_WORDS.notACode };
   if (shape.shape === "eight" && box !== "play") {
-    const part = shape.group ? groupFragment(shape.group) : null;
-    return { do: "go", href: `/play#${formatAccessCode(shape.code)}${part ? `.${part}` : ""}` };
+    // The sign's own address, built by its one builder (escaped there): typed text never becomes an
+    // address by any other route.
+    return { do: "go", href: roundCodeLink("", shape.code, shape.group ?? undefined) };
   }
   return { do: "ask" };
 }
