@@ -171,7 +171,9 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
   /** While the 8-character alarm stands: twelve failed lookups per client network in fifteen minutes
    *  (not the link's three). One clubhouse is ONE network and a 60-player morning makes about six honest
    *  failures in its busy quarter-hour, so twelve never locks it out, yet it cuts a guesser from 240 an
-   *  hour to 48. A right code still opens (a success gives its attempt back). */
+   *  hour to 48. While the alarm stands, a right code typed when the network holds 12 or fewer
+   *  failures opens and gives its attempt back; from the 13th failure every code from that
+   *  network is refused until the window turns (15 minutes at most). */
   "eight-char-slow": { limit: 12, windowMs: 15 * MINUTE },
   /** PLAYER LINK SLIPS printed (J39/J40 PR 3): six presses an hour per staff member per event. A
    *  sheet holds every guest's link at once, so a bulk print is budgeted and on the record by name;
@@ -548,8 +550,9 @@ export function entryLinkBudget(link: EntryLink): number {
  * On Vercel `x-vercel-forwarded-for` is set by the platform and cannot be
  * written by the caller; `x-forwarded-for` is the fallback (first entry), then
  * `x-real-ip`. Off Vercel the first two can be forged, which is why this is only
- * ever the key of a SECOND limit. Null means "no per-client limit": a shared
- * bucket for every address-less caller would block innocents.
+ * ever the key of a SECOND limit. Null when none can be read: a caller decides
+ * what that means (the code door counts it in ONE shared bucket, `NO_ADDRESS`
+ * in `services/code-door.ts`, for either shape of code).
  */
 export function clientAddressFrom(get: (name: string) => string | null | undefined): string | null {
   for (const name of ["x-vercel-forwarded-for", "x-forwarded-for", "x-real-ip"]) {

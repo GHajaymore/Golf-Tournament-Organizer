@@ -203,8 +203,9 @@ export type { RateLimitDecision, RateLimitKind };
  * stay counted: forty players on one wifi entering the real code cost nothing.
  * Call it before the lookup, `succeeded()` on a found code. The guest player
  * link (J39/J40) uses the same function. No address (no header, no request) or
- * an unreadable counter: no per-client limit, the per-code one still stands,
- * because one shared bucket would block innocents.
+ * an unreadable counter: no per-client limit HERE. The code door never passes a
+ * null: it counts an address-less caller in one shared bucket (`NO_ADDRESS`,
+ * `services/code-door.ts`), so a code guess is never uncounted.
  */
 export function clientKeyFor(kind: RateLimitKind, clientAddress: string, now: number): string {
   return bucketKeyFor(kind, fingerprint(`client:${clientAddress.trim().toLowerCase()}`), now);
