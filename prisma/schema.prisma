@@ -1531,7 +1531,7 @@ model Event {
    * the rest.
    */
   legacyStatus   String    @default("")
-  configUnlocked Boolean   @default(false) // the retired blanket unlock; read as a legacy correction until PR 9
+  configUnlocked Boolean   @default(false) // the retired blanket unlock; read by nothing; the column goes in 9d
   /**
    * THE COMMITTEE CORRECTION (state machine PR 5b; TD Q2). The Organizer opens
    * ONE lock scope for a stated reason; it lapses at `correctionUntil` (the end

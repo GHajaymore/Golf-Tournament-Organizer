@@ -20,6 +20,15 @@ import { Icon } from "./Icon";
 
 export const CORRECTION_BUTTON = "Make a committee correction";
 
+/**
+ * THE PLAIN LINE UNDER THE BUTTON (state machine PR 9b; the persona re-walk, N3).
+ * A first-time reader meets "committee correction" on a refusal; this says what
+ * pressing it does, in the dialog's own words — no new term. Drawn under the
+ * button wherever it is drawn (every banner, the dashboard), and the guide's
+ * correction step says the same sentence (`the-correction-has-one-plain-line.test.ts`).
+ */
+export const CORRECTION_PLAIN_LINE = "Opens one part for changes, with your reason on record.";
+
 export function CorrectionButton({ scopes, className = "btn btn-secondary" }: { scopes: readonly LockScope[]; className?: string }) {
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<LockScope>(scopes[0]);
@@ -35,9 +44,15 @@ export function CorrectionButton({ scopes, className = "btn btn-secondary" }: { 
   };
   return (
     <>
-      <button type="button" className={className} disabled={pending} onClick={() => setOpen(true)}>
-        <Icon name="lock-simple-open" /> {CORRECTION_BUTTON}
-      </button>
+      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 4, minWidth: 0 }}>
+        {/* At least 48 px high: pressed on a phone, on the course (design principle 10). */}
+        <button type="button" className={className} style={{ minHeight: 48 }} disabled={pending} onClick={() => setOpen(true)}>
+          <Icon name="lock-simple-open" /> {CORRECTION_BUTTON}
+        </button>
+        <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.4 }}>
+          {CORRECTION_PLAIN_LINE}
+        </span>
+      </span>
       {open && (
         <div className="dialog-backdrop" onClick={close}>
           <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="correction-dialog-title" onClick={(e) => e.stopPropagation()}>

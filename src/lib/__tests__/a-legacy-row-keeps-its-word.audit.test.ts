@@ -46,15 +46,15 @@ let orgId = "";
 const ids: Record<string, string> = {};
 
 /** One tournament in each status the old app could store, with the other columns varied. */
-const SEEDS: { key: string; status: string; registrationOpen: boolean; playerCountMode: string; configUnlocked: boolean; capacity: number }[] = [
-  { key: "draft-shut", status: "draft", registrationOpen: false, playerCountMode: "registration", configUnlocked: false, capacity: 0 },
-  { key: "draft-open", status: "draft", registrationOpen: true, playerCountMode: "manual", configUnlocked: true, capacity: 24 },
-  { key: "entries-shut", status: "registration", registrationOpen: false, playerCountMode: "registration", configUnlocked: false, capacity: 40 },
-  { key: "entries-open", status: "registration", registrationOpen: true, playerCountMode: "manual", configUnlocked: true, capacity: 12 },
-  { key: "ready-shut", status: "ready", registrationOpen: false, playerCountMode: "registration", configUnlocked: true, capacity: 0 },
-  { key: "ready-open", status: "ready", registrationOpen: true, playerCountMode: "registration", configUnlocked: false, capacity: 8 },
-  { key: "live", status: "live", registrationOpen: false, playerCountMode: "registration", configUnlocked: false, capacity: 0 },
-  { key: "completed", status: "completed", registrationOpen: true, playerCountMode: "manual", configUnlocked: false, capacity: 0 },
+const SEEDS: { key: string; status: string; registrationOpen: boolean; playerCountMode: string; capacity: number }[] = [
+  { key: "draft-shut", status: "draft", registrationOpen: false, playerCountMode: "registration", capacity: 0 },
+  { key: "draft-open", status: "draft", registrationOpen: true, playerCountMode: "manual", capacity: 24 },
+  { key: "entries-shut", status: "registration", registrationOpen: false, playerCountMode: "registration", capacity: 40 },
+  { key: "entries-open", status: "registration", registrationOpen: true, playerCountMode: "manual", capacity: 12 },
+  { key: "ready-shut", status: "ready", registrationOpen: false, playerCountMode: "registration", capacity: 0 },
+  { key: "ready-open", status: "ready", registrationOpen: true, playerCountMode: "registration", capacity: 8 },
+  { key: "live", status: "live", registrationOpen: false, playerCountMode: "registration", capacity: 0 },
+  { key: "completed", status: "completed", registrationOpen: true, playerCountMode: "manual", capacity: 0 },
 ];
 const OLD_ROWS = SEEDS.filter((s) => s.status === "registration" || s.status === "ready").length;
 
@@ -168,7 +168,6 @@ beforeAll(async () => {
         regDeadline: "",
         registrationOpen: s.registrationOpen,
         playerCountMode: s.playerCountMode,
-        configUnlocked: s.configUnlocked,
         capacity: s.capacity,
         shareToken: `${TAG}-${s.key}-${process.pid}`,
       },

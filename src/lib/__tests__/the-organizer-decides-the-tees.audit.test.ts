@@ -113,7 +113,6 @@ beforeAll(async () => {
       courseId: links.id,
       defaultTeeId: ids.white,
       teePolicy: "own",
-      configUnlocked: true,
     },
   });
   ids.event = event.id;

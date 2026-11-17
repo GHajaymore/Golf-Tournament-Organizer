@@ -85,7 +85,7 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     await expect(page.getByRole("button", { name: "Launch tournament" })).toBeVisible();
 
     // LAUNCHED, BEFORE THE FIRST TEE: publish the tee sheet — a link, on the Tee times stop.
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date() } });
     d = await dashboard(page);
     await expect(d.current).toContainText("Tee sheet");
     await expect(page.getByRole("link", { name: /Publish the tee sheet/ }).first()).toHaveAttribute("href", "/foursomes");

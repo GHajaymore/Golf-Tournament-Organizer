@@ -61,7 +61,7 @@ test("a launched medal: an unplayed round changes, a played one asks first or re
   test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
   test.setTimeout(180_000);
   // Launched and locked, as `launchTournament` leaves it. Two rounds; four entered.
-  const made = await makeEvent(club, "Autumn Medal", { status: "live", configUnlocked: false, stages: [{}, {}], players: 4 });
+  const made = await makeEvent(club, "Autumn Medal", { status: "live", stages: [{}, {}], players: 4 });
   const eventId = made.event.id;
   const [r1, r2] = made.stages;
   // Read from the fixture, never assumed: a net medal at the format's own allowance.
@@ -162,7 +162,6 @@ test("a round of matches with a result recorded keeps its Net or Gross: the choi
   test.setTimeout(120_000);
   const made = await makeEvent(club, "Winter Groups", {
     status: "live",
-    configUnlocked: false,
     stages: [{ type: "Round Robin", format: "Match Play" }],
     players: 4,
     flights: 1,

@@ -5,6 +5,7 @@ import { readSource } from "./source";
 import { importedNames } from "./imported-names";
 import {
   GONE,
+  GONE_WITH_THE_COLUMN,
   MACHINE_ONLY,
   MACHINE_OWNERS,
   MACHINE_ONLY_EXCEPTIONS,
@@ -196,12 +197,57 @@ describe("class A — the deleted readers are gone, in any role, everywhere", ()
 
   it("no file in src, e2e or scripts names a deleted reader", () => {
     const found = everywhere()
-      .map((f) => [f, identifiersIn(f, readFileSync(f, "utf8"), GONE)] as const)
+      .map((f) => [f, goneIn(f, readFileSync(f, "utf8"))] as const)
       .filter(([, ids]) => ids.length > 0)
       .map(([f, ids]) => `${f}: ${ids.join(", ")}`);
-    expect(found, "these were deleted — ask tournamentStatus(facts) (its refusals, nextAction, step, underWayUnlaunched)").toEqual([]);
+    expect(
+      found,
+      "these were deleted — ask tournamentStatus(facts) (its refusals, nextAction, step, underWayUnlaunched); a lock asks setupLockedByLaunch(status, family), a test opens one part with openCorrectionOn",
+    ).toEqual([]);
+  });
+
+  /**
+   * THE BLANKET UNLOCK (PR 9b). Its flag is named nowhere as an identifier — no fixture can lean
+   * on it, no reader can come back — except in the two files that must name the COLUMN until it
+   * is dropped (`GONE_WITH_THE_COLUMN`). A test that needs an old-flag row writes it in SQL.
+   */
+  it("CONTROL C9: the flag as a fixture's property, a read or a select is seen; in SQL, a regular expression or a comment it is not", () => {
+    for (const line of [
+      `await prisma.event.create({ data: { name: "zz", status: "live", configUnlocked: true } });`,
+      `if (event.configUnlocked) return;`,
+      `select: { status: true, configUnlocked: true },`,
+      `const locked = configurationLocked(event);`,
+      `await setConfigUnlocked(false);`,
+    ]) {
+      expect(goneIn("src/lib/__tests__/zz.audit.test.ts", line).length, line).toBe(1);
+    }
+    for (const line of [
+      `await prisma.$executeRawUnsafe('UPDATE "Event" SET "configUnlocked" = true WHERE id = $1', id);`,
+      `const CONFIG_UNLOCKED = /!\\w*\\.?configUnlocked/;`,
+      `// configUnlocked was read until PR 9b`,
+      `for (const f of ["status", "configUnlocked"]) expect(copy).not.toHaveProperty(f);`,
+    ]) {
+      expect(goneIn("src/lib/__tests__/zz.audit.test.ts", line), line).toEqual([]);
+    }
+    // The column's exceptions cover the flag, in their own file only.
+    expect(goneIn("src/lib/services/clone.ts", `const NOT_CLONED = { configUnlocked: "why" };`)).toEqual([]);
+    expect(goneIn("src/lib/services/zz.ts", `const NOT_CLONED = { configUnlocked: "why" };`)).toEqual(["configUnlocked"]);
+    expect(goneIn("src/lib/services/clone.ts", `configurationLocked(e);`)).toEqual(["configurationLocked"]);
+  });
+
+  it("the column's exceptions still hold, are two, and go with the column (9d)", () => {
+    expect(Object.keys(GONE_WITH_THE_COLUMN).length, "a third file naming the retired flag is a decision, not an edit").toBeLessThanOrEqual(2);
+    for (const [f, { names }] of Object.entries(GONE_WITH_THE_COLUMN)) {
+      expect(identifiersIn(f, readFileSync(f, "utf8"), names), `${f} no longer names it — delete its line in retired-readers.ts`).toEqual([...names].sort());
+    }
   });
 });
+
+/** A file's class-A identifiers, less what its column exception allows. */
+function goneIn(path: string, text: string): string[] {
+  const allowed = GONE_WITH_THE_COLUMN[path]?.names ?? [];
+  return identifiersIn(path, text, GONE).filter((n) => !allowed.includes(n));
+}
 
 describe("class B — the old modules' live rules are asked only by the machine", () => {
   it("CONTROL C4: an import of one is seen outside the owners, renamed or not, and not inside them", () => {

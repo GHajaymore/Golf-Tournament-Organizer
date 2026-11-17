@@ -51,7 +51,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   session = { eventId: ids.event, email, viewRole: "admin", name: "zz", role: "admin", userId: "zz", accountId: "" };
-  await prisma.event.update({ where: { id: ids.event }, data: { status: "draft", configUnlocked: false, flightsConfirmed: false } });
+  await prisma.event.update({ where: { id: ids.event }, data: { status: "draft", flightsConfirmed: false } });
   await prisma.player.update({ where: { id: ids.ann }, data: { groupId: ids.a } });
 });
 

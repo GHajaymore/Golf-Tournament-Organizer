@@ -61,7 +61,6 @@ beforeAll(async () => {
       registrationApproval: "auto",
       registrationToken: randomBytes(6).toString("hex"),
       shareToken: randomBytes(10).toString("hex"),
-      configUnlocked: true,
     },
   });
   ids.event = event.id;

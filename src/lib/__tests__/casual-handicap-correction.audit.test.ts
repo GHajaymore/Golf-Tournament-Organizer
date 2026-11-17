@@ -29,6 +29,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 const { updateSignup } = await import("@/app/actions/tournament");
 const { loadEventState } = await import("@/lib/services/tournament");
+const { correctionColumns } = await import("./correction-fixture");
 
 type Round = { eventId: string; stageId: string; ann: string; bea: string };
 const rounds: { casual: Round; tournament: Round } = {
@@ -48,10 +49,10 @@ async function round(orgId: string, kind: "casual" | "tournament"): Promise<Roun
       name: `${TAG} ${kind}`,
       shape: kind === "casual" ? "match" : "single",
       status: "live",
-      // As `match-setup.ts` creates every casual round — and on the
-      // tournament too, so the control is an organizer who HAS unlocked it
-      // to make an edit, which still must not re-price a played round.
-      configUnlocked: true,
+      // A casual round is open by its family (PR 9b: "Casual: locks none", no flag). On the
+      // tournament, the field is opened by a committee correction, so the control is an
+      // organizer who HAS opened it to make an edit, which still must not re-price a played round.
+      ...(kind === "tournament" ? correctionColumns(`${TAG} ${kind}`, "field") : {}),
       dates: "",
       course: "Home",
       city: "",

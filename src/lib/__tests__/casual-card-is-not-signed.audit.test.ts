@@ -47,7 +47,6 @@ async function round(into: Round, orgId: string, shape: string) {
       name: `${TAG} ${shape}`,
       shape,
       status: "live",
-      configUnlocked: true,
       dates: "",
       course: "Home",
       city: "",
