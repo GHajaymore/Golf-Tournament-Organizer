@@ -63,9 +63,10 @@ jobs:
 
   round:
     name: Round
+    uses: ./.github/workflows/round.yml
+    # (name and uses stay adjacent: deploy-gate-lean.test.ts reads the check name from them)
     needs: dedupe
     if: needs.dedupe.outputs.skip != 'true'
-    uses: ./.github/workflows/round.yml
     # round.yml's Verdict job posts its verdict on the commit (statuses: write). A called
     # workflow gets no more than its caller grants: without this line GitHub refuses to
     # start the run at all (startup_failure, run 41809332472, 2026-11-04).
