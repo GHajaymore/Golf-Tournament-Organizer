@@ -41,8 +41,30 @@ permissions:
   actions: read
 
 jobs:
+  # B75: a SCHEDULED run on a commit another nightly already covers (finished clean, or queued/running)
+  # ends here, successfully. A dispatched run is never skipped. When `round` is skipped it posts no
+  # Round / Verdict check (the deploy gate reads only a successful one) and `deploy` below, which needs
+  # round.result == 'success', does not run.
+  dedupe:
+    name: Skip if covered
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      skip: ${{ steps.d.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: d
+        run: node scripts/qa/nightly-dedupe.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   round:
     name: Round
+    needs: dedupe
+    if: needs.dedupe.outputs.skip != 'true'
     uses: ./.github/workflows/round.yml
     # round.yml's Verdict job posts its verdict on the commit (statuses: write). A called
     # workflow gets no more than its caller grants: without this line GitHub refuses to
