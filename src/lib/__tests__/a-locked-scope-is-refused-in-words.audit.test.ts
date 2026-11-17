@@ -21,8 +21,10 @@ import { PrismaClient } from "@prisma/client";
  * tournament of every lock shape it seeds itself, and for every other one in
  * this database (the panel's cost ruling).
  *
- * The control: the legacy blanket unlock still opens everything, so the
- * refusals are the lock, not something else refusing everything.
+ * The control: a committee correction on one scope lets that scope's presses
+ * through, so the refusals are the lock, not something else refusing everything.
+ * And since state machine PR 9b a row that still holds the retired blanket flag
+ * is refused like any other: the flag is not read.
  *
  *   npx vitest run --config vitest.audit.config.ts src/lib/__tests__/a-locked-scope-is-refused-in-words.audit.test.ts
  */
@@ -70,7 +72,6 @@ import {
   addStage,
   openCorrection,
   endCorrection,
-  setConfigUnlocked,
   launchTournament,
   setEventStatus,
 } from "@/app/actions/tournament";
@@ -108,7 +109,6 @@ beforeAll(async () => {
       organizationId: org.id,
       // DRAFT first: Launch is pressed below, and must leave its line.
       status: "draft",
-      configUnlocked: false,
       dates: "14 Nov 2026",
       startOn: "2026-11-14",
       endOn: "2026-11-14",
@@ -360,16 +360,24 @@ describe("the committee correction opens ONE scope, for a reason, on the record 
     }
   });
 
-  it("the blanket unlock can no longer be opened — only locked again (the legacy rows, Ops 8.5)", async () => {
-    expect(await setConfigUnlocked(true)).toMatchObject({ ok: false, error: expect.stringMatching(/committee correction/) });
-    expect((await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).configUnlocked).toBe(false);
-    // THE CONTROL: a row the old unlock still holds open opens everything, as it did; locking it again closes it and logs that.
-    await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: true } });
-    expect(await setRequirePhone(true)).toEqual({ ok: true });
-    expect(await setRequirePhone(false)).toEqual({ ok: true });
-    expect(await setConfigUnlocked(false)).toEqual({ ok: true });
-    expect((await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).configUnlocked).toBe(false);
-    expect(await setRequirePhone(true)).toMatchObject({ ok: false, lock: { scope: "field" } });
+  it("a row that still holds the retired blanket flag is refused like any other (state machine PR 9b; Ops 8.5)", async () => {
+    // The flag written as SQL, the column a string: the wall allows its name as an identifier nowhere but the column's two files.
+    await prisma.$executeRawUnsafe(`UPDATE "Event" SET "configUnlocked" = true WHERE id = $1`, eventId);
+    const phoneWas = (await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).requirePhone;
+    try {
+      expect(await setRequirePhone(!phoneWas)).toMatchObject({ ok: false, error: LIVE("change the entry terms"), lock: { scope: "field", by: "launch" } });
+      expect(await setQualifyPerGroup(3)).toMatchObject({ ok: false, lock: { scope: "rounds", by: "launch" } });
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).requirePhone, "written while locked").toBe(phoneWas);
+      // The way out is the correction, for one part: the field opens, the rounds do not.
+      expect(await openCorrection("field", "A walk-in needs a phone number")).toEqual({ ok: true });
+      expect(await setRequirePhone(!phoneWas)).toEqual({ ok: true });
+      expect(await setRequirePhone(phoneWas)).toEqual({ ok: true });
+      expect(await setQualifyPerGroup(3)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
+    } finally {
+      await prisma.$executeRawUnsafe(`UPDATE "Event" SET "configUnlocked" = false WHERE id = $1`, eventId);
+      await endCorrection();
+      await prisma.auditLog.deleteMany({ where: { eventId, action: "committee-correction" } });
+    }
   });
 });
 
@@ -403,7 +411,8 @@ describe("the narrow lock read gives the full facts' locks, for every tournament
     { label: "draft", event: { status: "draft" }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
     { label: "live", event: { status: "live" }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
     { label: "completed", event: { status: "completed" }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
-    { label: "live, legacy unlock", event: { status: "live", configUnlocked: true }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
+    // PR 9b: the retired flag is not a lock shape any more; a casual round is ("Casual: locks none", 8.2).
+    { label: "live casual round", event: { status: "live", shape: "match" }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
     {
       label: "live, correction open on the rounds",
       event: { status: "live", correctionScope: "rounds", correctionReason: "Round 1 set wrongly", correctionBy: `${TAG} admin`, correctionUntil: new Date(Date.now() + 60 * 60 * 1000) },
@@ -457,13 +466,14 @@ describe("the narrow lock read gives the full facts' locks, for every tournament
     }
 
     // THE CONTROL: the fixtures are not alike, so an equality over them is not an equality over one answer.
-    // Seven answers, worked from `locksOf` by hand: nothing locked (draft, the legacy unlock); the live blanket
+    // Seven answers, worked from `locksOf` by hand: nothing locked (draft, the live casual round); the live blanket
     // (live, the lapsed correction, Stableford, the one-bracket knockout); completed (both completed shapes);
     // the blanket with the rounds open (the correction); the confirmed draw; and the flighted knockout's draw
     // open, then shut by its result.
     expect(new Set(seen.values()).size, "the fixtures all lock alike — the sweep cannot tell a wrong read").toBe(7);
     expect(seen.get("live knockout in flights, a result"), "a result must shut a flighted knockout's draw").not.toBe(seen.get("live knockout in flights, no result"));
     expect(seen.get("live, correction open on the rounds"), "an open correction must open its scope").not.toBe(seen.get("live, correction lapsed"));
+    expect(seen.get("live casual round"), "a live casual round locks nothing, as a draft").toBe(seen.get("draft"));
 
     // And every other tournament in this database, as far as the newest 150.
     const ours = new Set([eventId, ...seeded.map((s) => s.id)]);

@@ -91,7 +91,7 @@ beforeAll(async () => {
         address: "",
         regDeadline: "",
         capacity: 40,
-        configUnlocked: true,
+        // A draft is never locked, so it needs no correction opened (9b retired the blanket flag).
         registrationOpen: true,
         registrationApproval: "auto",
         registrationToken: token,

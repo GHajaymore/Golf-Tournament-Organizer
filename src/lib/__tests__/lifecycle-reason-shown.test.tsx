@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("@/app/actions/tournament", () => ({
   setEventStatus: async () => ({ ok: true }),
   launchTournament: async () => ({ ok: true }),
-  setConfigUnlocked: async () => ({ ok: true }),
 }));
 
 const { LifecycleBar } = await import("@/components/LifecycleBar");
@@ -38,7 +37,6 @@ const bar = (disputed: number) =>
     <LifecycleBar
       status={statusCardOf({ ...played, review: { pendingConfirmations: 0, disputed } })}
       isAdmin
-      configUnlocked={false}
       summary={summary}
     />,
   );

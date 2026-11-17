@@ -51,7 +51,6 @@ test.beforeAll(async () => {
   // must still be offered (panel review of #1028, must-fix 1) — it moves nobody else.
   const made = await makeEvent(club, "Monthly Medal", {
     status: "live",
-    configUnlocked: false,
     stages: [{}],
     players: 4,
     flights: 2,

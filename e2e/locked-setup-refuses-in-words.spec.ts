@@ -38,10 +38,17 @@ import { makeCommitteeCorrection, CORRECTION_REASON } from "./committee-correcti
  * holds the line, the same control now works, and Done closes it. The dashboard
  * offers the same button and never "Unlock configuration".
  *
- * LAST, THE OLD UNLOCK'S ONE CONTROL: a tournament left unlocked as a whole from
- * before PR 5b (`configUnlocked`) says so on the dashboard and offers only Lock
- * setup again (`setConfigUnlocked(false)`), which locks it, on the record, and
- * brings the correction back. No screen turns the old unlock ON any more.
+ * ON A TOURNAMENT THAT HELD THE OLD BLANKET UNLOCK (state machine PR 9b; test plan
+ * B13b, B19, B20). The whole walk runs with the retired flag still TRUE on the row,
+ * as a tournament unlocked before PR 5b still holds it: 9b no longer reads it, so
+ * every press above is refused all the same. After each refused press the screen
+ * catches up AND focus moves to the banner, in view, where Make a committee
+ * correction is drawn with its plain line ("Opens one part for changes, with your
+ * reason on record.") — the way out is a button where the press ended. On a phone
+ * (375 × 812) the field's press is made again: the banner is in view and focused,
+ * the button is at least 48 px high, and ONE press on it opens the dialog with the
+ * field already chosen. The dashboard draws no "Lock setup again" and no "unlocked
+ * as a whole" note — that button and its action are deleted (9b).
  *
  * WHAT IT CANNOT PRESS, and where each is proved instead: the other 24 sites
  * (Clear scores among them), the assistant's "Ask the Organizer" words, a lapsed
@@ -74,8 +81,15 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
   const ev = club.events.find((e) => e.slug === "medal")!;
   const event = await prisma.event.findUniqueOrThrow({ where: { id: ev.id } });
   expect(event.status, "the seeded medal is not launched").toBe("live");
-  expect(event.configUnlocked, "the seeded medal's setup is unlocked the old way").toBe(false);
   expect(event.correctionScope, "the seeded medal already has a correction open").toBeNull();
+  /**
+   * THE OLD BLANKET FLAG, ON (9b): this file's copy of the medal is made a tournament unlocked
+   * the old way, before PR 5b. The column is named in SQL, a string: the wall allows the name as
+   * an identifier nowhere outside its listed exceptions, and the column is dropped after launch.
+   */
+  await prisma.$executeRawUnsafe(`UPDATE "Event" SET "configUnlocked" = true WHERE id = $1`, ev.id);
+  const oldFlag = async () => (await prisma.$queryRawUnsafe<{ v: boolean }[]>(`SELECT "configUnlocked" AS v FROM "Event" WHERE id = $1`, ev.id))[0]?.v;
+  expect(await oldFlag(), "the old flag was not written").toBe(true);
   const seeded = await prisma.stage.findMany({ where: { eventId: ev.id }, orderBy: { position: "asc" } });
   expect(seeded.length, "the seeded medal has no round").toBeGreaterThanOrEqual(1);
   expect(seeded.some((s) => s.cutEnabled), "a cut would change the rounds' numbers this spec reads").toBe(false);
@@ -140,14 +154,38 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       const before = await step.stored();
       await closed();
       await step.press(page);
+      // Said where the press was (its words), then the screen moves to the way out (below):
+      // the refusal is read for what it is, not for where the page has scrolled to since.
       const said = page.getByText(step.said).first();
       await expect(said, `${step.label}: the refusal was not said`).toBeVisible({ timeout: 20_000 });
-      await expect(said, `${step.label}: the refusal is not in view`).toBeInViewport();
+      // Said where the press was: the refusal itself is in the viewport, before the screen moves on.
+      await expect(said, `${step.label}: the refusal was said off screen`).toBeInViewport();
       await expect(page.getByRole("heading", { level: 1, name: step.heading }), `${step.label}: the screen was replaced by an error page`).toBeVisible();
       const banner = page.getByRole("region", { name: "Locked" });
       await expect(banner, `${step.label}: the screen did not catch up with the lock`).toContainText(/locked because the tournament is live\./i, { timeout: 20_000 });
       await expect(banner.getByRole("button", { name: "Make a committee correction" }), `${step.label}: the Organizer has no way out on the banner`).toBeVisible();
+      // B19: the plain line under the button, the dialog's own words.
+      await expect(banner.getByText(PLAIN_LINE, { exact: true }), `${step.label}: no plain line under the button`).toBeVisible();
+      // B20: focus moved to the banner, and it is in view — the button is where the press ended.
+      await expect
+        .poll(() => page.evaluate(() => document.activeElement?.id ?? ""), { message: `${step.label}: focus did not move to the banner`, timeout: 20_000 })
+        .toBe("scope-lock-banner");
+      await expect(banner, `${step.label}: the banner is not in view after the refusal`).toBeInViewport();
       expect(await step.stored(), `${step.label}: written while locked`).toEqual(before);
+      expect(await oldFlag(), `${step.label}: the old flag changed`).toBe(true);
+    };
+    const PLAIN_LINE = "Opens one part for changes, with your reason on record.";
+    const entriesPress = {
+      label: "Entries · Save entry terms",
+      path: "/registration",
+      scope: "field",
+      heading: /^Entries$/,
+      said: LIVE("change the entry terms"),
+      stored: async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).capacity,
+      press: async (p: Page) => {
+        await p.getByLabel("Places in the field (players)").fill("77");
+        await p.getByRole("button", { name: "Save entry terms" }).click();
+      },
     };
 
     await pressedAfterTheLock({
@@ -163,18 +201,7 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       },
     });
 
-    await pressedAfterTheLock({
-      label: "Entries · Save entry terms",
-      path: "/registration",
-      scope: "field",
-      heading: /^Entries$/,
-      said: LIVE("change the entry terms"),
-      stored: async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).capacity,
-      press: async (p) => {
-        await p.getByLabel("Places in the field (players)").fill("77");
-        await p.getByRole("button", { name: "Save entry terms" }).click();
-      },
-    });
+    await pressedAfterTheLock(entriesPress);
 
     /**
      * RENAME IS A MANUAL-RULE CONTROL. The Flights screen draws its flight board, with a
@@ -250,33 +277,30 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
     await expect(page.getByRole("region", { name: "Locked" }), "the rounds did not lock again after Done").toContainText("Locked because the tournament is live.", { timeout: 20_000 });
     expect(await prisma.auditLog.count({ where: { eventId: ev.id, action: "committee-correction" } })).toBe(2);
 
-    // The dashboard: the correction, never the retired button.
+    // The dashboard of a tournament that held the old unlock: the correction with its plain line,
+    // never the retired buttons — no "Lock setup again", no "unlocked as a whole" note (9b).
     await open("/dashboard");
     await expect(page.getByRole("button", { name: "Make a committee correction" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Unlock configuration|Unlock setup/ })).toHaveCount(0);
+    await expect(page.getByText(PLAIN_LINE, { exact: true }).first(), "no plain line under the dashboard's button").toBeVisible();
+    await expect(page.getByRole("button", { name: /Unlock configuration|Unlock setup|Lock setup again/ })).toHaveCount(0);
+    await expect(page.getByText(/unlocked as a whole/), "the retired note is still drawn").toHaveCount(0);
 
-    // ── A TOURNAMENT THE OLD WHOLE-SETUP UNLOCK STILL HOLDS OPEN (from before PR 5b) ──
-    // No screen turns `configUnlocked` ON any more; the one control left for it is the
-    // dashboard's Lock setup again (`setConfigUnlocked(false)`), pressed here by the Organizer.
-    await prisma.event.update({ where: { id: ev.id }, data: { configUnlocked: true } });
-    await open("/dashboard");
-    await expect(page.getByText("Setup was unlocked as a whole, the old way, and stays open until it is locked again.")).toBeVisible({ timeout: 20_000 });
-    const lockAgain = page.getByRole("button", { name: "Lock setup again" });
-    await lockAgain.click();
-    await expect
-      .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, { message: "Lock setup again stored nothing" })
-      .toBe(false);
-    await expect(lockAgain, "Lock setup again is still offered once locked").toHaveCount(0, { timeout: 20_000 });
-    await expect(page.getByText("Setup was unlocked as a whole, the old way"), "the old unlock is still said once locked").toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Make a committee correction" }), "the correction is not offered once the old unlock is closed").toBeVisible();
-    expect(
-      await prisma.auditLog.count({ where: { eventId: ev.id, action: "committee-correction", detail: { contains: "Locked setup again" } } }),
-      "the record has no line for locking the old unlock",
-    ).toBe(1);
+    // ── ON A PHONE (375 × 812): the field's press again, and the way out one press away ──
+    await page.setViewportSize({ width: 375, height: 812 });
+    await pressedAfterTheLock(entriesPress);
+    const button = page.getByRole("region", { name: "Locked" }).getByRole("button", { name: "Make a committee correction" });
+    const box = await button.boundingBox();
+    expect(box?.height ?? 0, "the banner's button is under 48 px high on a phone").toBeGreaterThanOrEqual(48);
+    await button.click();
+    const dialog = page.getByRole("dialog", { name: "Make a committee correction" });
+    await expect(dialog.getByLabel("Open which part"), "the dialog did not open on the refused part").toHaveValue("field");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
 
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
-    await prisma.event.update({ where: { id: ev.id }, data: { configUnlocked: false, formationRule: event.formationRule } });
+    await prisma.$executeRawUnsafe(`UPDATE "Event" SET "configUnlocked" = false WHERE id = $1`, ev.id);
+    await prisma.event.update({ where: { id: ev.id }, data: { formationRule: event.formationRule } });
     await closed();
     await prisma.auditLog.deleteMany({ where: { eventId: ev.id, action: "committee-correction" } });
   }

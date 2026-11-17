@@ -49,7 +49,7 @@ test("a draft with players says Setting up and offers Launch, refused in place w
     const event = await prisma.event.create({
       data: {
         organizationId: org.id, name: `zz-settingup medal ${size}`, dates: "", course: "Home", city: "", address: "", regDeadline: "",
-        status: "draft", shareToken: `zz-settingup-${size}-${Date.now()}`, configUnlocked: true,
+        status: "draft", shareToken: `zz-settingup-${size}-${Date.now()}`,
         customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
         customYards: JSON.stringify(new Array(18).fill(400)),
       },

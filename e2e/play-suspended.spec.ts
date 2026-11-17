@@ -253,13 +253,23 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     expect(scrolledBy, "CONTROL: Tournament details did not scroll, so its strip never had to stick").toBeGreaterThan(0);
     expect(scrolledBy, "CONTROL: not scrolled past where the banner sits, so it never had to stick").toBeGreaterThan(bandAtRest.y - (topBar.y + topBar.height) + 1);
     await expect(bandAt, `scrolled ${scrolledBy}px down, the Suspend play banner is out of view: it is not sticky`).toBeInViewport();
-    const stuck = await boxOf("the Suspend play banner, scrolled", bandAt);
-    // The bar is measured AGAIN, now, beside the band: WebKit's scroll to the very end of the page
-    // can carry the whole sticky stack ~10px past its resting place (the failure screenshot of round
-    // trainb-1 shows the top bar, the band and the tab bar all 10px up), so the bar's rest position
-    // is not where it is now. What matters is that the band is flush with the bar it sits under.
-    const topBarNow = await boxOf("the phone's top bar, scrolled", page.locator(".m-topbar"));
-    expect(Math.abs(stuck.y - (topBarNow.y + topBarNow.height)), "scrolled down, the Suspend play banner is not held right under the top bar").toBeLessThanOrEqual(1);
+    // The bar and the band are boxed TOGETHER, in one evaluate (one frame), and polled: WebKit's scroll to the
+    // very end of the page can carry the whole sticky stack ~10px past its resting place for a frame or two
+    // (round trainb-1), so a settling frame is waited for and a standing gap still fails. Tolerance stays 1px.
+    await expect
+      .poll(
+        async () => {
+          const r = await page.evaluate(() => {
+            const box = (sel: string) => { const b = document.querySelector(sel)?.getBoundingClientRect(); return b ? { y: b.y, height: b.height } : null; };
+            return { bar: box(".m-topbar"), band: box(".console-play-status"), scrollY: window.scrollY };
+          });
+          if (!r.bar || !r.band) return `missing: bar ${JSON.stringify(r.bar)}, band ${JSON.stringify(r.band)}`;
+          const gap = Math.abs(r.band.y - (r.bar.y + r.bar.height));
+          return gap <= 1 ? "flush" : `gap ${gap}px: top bar y=${r.bar.y} h=${r.bar.height} (bottom ${r.bar.y + r.bar.height}), band y=${r.band.y} h=${r.band.height}, scrollY=${r.scrollY}`;
+        },
+        { message: "scrolled down, the Suspend play banner is not held right under the top bar (rects in the message)", timeout: 5_000 },
+      )
+      .toBe("flush");
     // The strip's own heading, so no larger card around it is measured instead.
     const strip = page.locator(".card-kicker", { hasText: "On this page" }).first();
     await expect(strip, "CONTROL: Tournament details has no On this page strip to stack").toHaveCount(1);

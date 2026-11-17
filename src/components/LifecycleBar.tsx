@@ -1,7 +1,7 @@
 "use client";
 import { useId, useState, useTransition } from "react";
 import Link from "next/link";
-import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actions/tournament";
+import { setEventStatus, launchTournament } from "@/app/actions/tournament";
 import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
 import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
@@ -38,7 +38,6 @@ export interface LifecycleSummary {
 export function LifecycleBar({
   status,
   isAdmin,
-  configUnlocked,
   summary,
   launchOpen,
   deletesOnComplete = false,
@@ -103,8 +102,6 @@ export function LifecycleBar({
    */
   status: LifecycleStatus;
   isAdmin: boolean;
-  /** The OLD blanket unlock, still read until PR 9: when on, the card says so and offers only to lock again. */
-  configUnlocked: boolean;
   summary: LifecycleSummary;
   /**
    * What setup still has open that does not stop a launch — no tee sheet, no
@@ -364,33 +361,13 @@ export function LifecycleBar({
             one scope, a reason in Recent changes, closed at Done or the end of the
             club's day. Not offered on a lapsed club's read-only archive: there is
             nothing to open it FOR, and the banner above every screen says why. */}
-        {isAdmin && launched && !completed && !archived && !configUnlocked && correctableScopes.length > 0 && (
+        {/* State machine PR 9b: the retired blanket flag is not read, so a tournament
+            that held it is locked like any other and gets the same button — there is
+            no "Lock setup again" and no note about the old way. */}
+        {isAdmin && launched && !completed && !archived && correctableScopes.length > 0 && (
           <CorrectionButton scopes={correctableScopes} />
         )}
-        {/* A tournament the OLD blanket unlock still holds open (a legacy
-            `configUnlocked`): said, with the one thing left to do about it. */}
-        {isAdmin && launched && !archived && configUnlocked && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                const res = await setConfigUnlocked(false);
-                if (!res.ok) setRefused(res.error ?? "That could not be done.");
-              })
-            }
-          >
-            <Icon name="lock-simple" /> Lock setup again
-          </button>
-        )}
       </div>
-      {launched && !archived && configUnlocked && (
-        <p role="note" className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
-          <Icon name="lock-simple-open" /> Setup was unlocked as a whole, the old way, and stays open until it is locked again. From now on a
-          committee correction opens one part at a time, with a reason.
-        </p>
-      )}
       {correction && (
         <div style={{ marginTop: 4 }}>
           <CorrectionOpenLine correction={correction} isAdmin={isAdmin} />

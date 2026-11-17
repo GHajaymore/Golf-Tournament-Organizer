@@ -1338,6 +1338,13 @@ model Event {
   registrationToken    String  @default("")
   registrationOpen     Boolean @default(false)
   registrationApproval String  @default("auto") // auto | approve
+  /// J39/J40 PR 3: guests may enter themselves on the sign-up link. Off by default; every such entry
+  /// waits for a staff press. Never cloned.
+  guestEntryOpen       Boolean @default(false)
+  /// J39/J40 PR 3: the short, typed form of the sign-up link (8 characters of the round code's alphabet).
+  /// "" until a staff press first needs it; rotates and ends with registrationToken; never cloned.
+  /// Unique by a PARTIAL index in A047 (unique where <> ''), as registrationToken is.
+  registrationCode     String  @default("")
 
   inviteMessage String @default("")
 
@@ -1531,7 +1538,7 @@ model Event {
    * the rest.
    */
   legacyStatus   String    @default("")
-  configUnlocked Boolean   @default(false) // the retired blanket unlock; read as a legacy correction until PR 9
+  configUnlocked Boolean   @default(false) // the retired blanket unlock; read by nothing; the column goes in 9d
   /**
    * THE COMMITTEE CORRECTION (state machine PR 5b; TD Q2). The Organizer opens
    * ONE lock scope for a stated reason; it lapses at `correctionUntil` (the end
@@ -1792,6 +1799,16 @@ model PlayerPass {
   /// PR 2 (S8): the organizer's Mute. The pass stays live; the guest may still write to the organizers.
   mutedAt        DateTime?
   mutedBy        String    @default("")
+  /// PR 3: the slip in the guest's pocket — when it was printed, and for which version of the link.
+  /// `slipPrintedVersion < version` means the printed slip no longer opens (New link was pressed).
+  slipPrintedAt      DateTime?
+  slipPrintedVersion Int?
+  /// PR 3: what a self-entered guest typed under "Who invited you?". Staff only. Dies with the pass.
+  entryNote          String    @default("")
+  /// PR 3: keyed hash of the Ask-to-play nonce (event + device bound), so a weak-signal retry returns
+  /// the same entry. "" once its window is past.
+  entryNonceHash     String    @default("")
+  entryNonceAt       DateTime?
 
   player  Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
   event   Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)

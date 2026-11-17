@@ -45,6 +45,28 @@ export function nightlyWait(files) {
   return null;
 }
 
+/**
+ * GitHub's own hiccups, as the gh CLI words them: a 5xx, a dropped stream, a reset or timed-out connection.
+ * A 4xx, an auth refusal, "not found" and a real answer are NOT here: they are answers and are never asked again.
+ */
+export const TRANSIENT_FAULT = /HTTP 5\d\d|Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|stream error|CANCEL|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset|TLS handshake timeout/i;
+export const RETRY_DELAYS_MS = [5000, 15000, 45000];
+
+/**
+ * Run `attempt()` (a spawnSync-shaped result: status, stdout, stderr) up to four times, waiting `delays` between
+ * attempts, asking again ONLY when it failed with a transient signature. Anything else is returned at once.
+ * `sleep` and `log` are passed in so a test does not wait. The last result is returned either way.
+ */
+export function retryTransient(attempt, { what = "command", sleep = (_ms) => {}, log = (_message) => {}, delays = RETRY_DELAYS_MS } = {}) {
+  let r = attempt();
+  for (let i = 0; i < delays.length && r && r.status !== 0 && TRANSIENT_FAULT.test(`${r.stderr ?? ""}${r.stdout ?? ""}`); i += 1) {
+    log(`retry ${i + 1} of ${delays.length} in ${delays[i] / 1000}s: ${what}: ${String(r.stderr || r.stdout).trim().split(/\r?\n/)[0].slice(0, 120)}`);
+    sleep(delays[i]);
+    r = attempt();
+  }
+  return r;
+}
+
 /** A git or gh result that must have succeeded: anything else THROWS, so the gate exits 1 and nothing ships. */
 export function mustSucceed(result, what) {
   if (!result || result.status !== 0) throw new Error(`${what} failed (exit ${result?.status ?? "none"}): ${String(result?.stderr ?? "").trim().slice(0, 200)}`);
@@ -111,6 +133,39 @@ export function decideDeploy(f) {
  */
 export function cleanNightlyShas(runs) {
   return runs.filter((r) => (r.jobs ?? []).some((j) => j.name.endsWith("Verdict") && j.conclusion === "success")).map((r) => r.headSha);
+}
+
+/**
+ * HOW THE GATE READS A NIGHTLY'S VERDICT (17 Nov 2026). It used to fetch every job of the last 20 nightlies
+ * (`gh run view <id> --json jobs`). A nightly has 57 jobs; GitHub takes 9–11 s to answer that endpoint for one
+ * and often answers 502 or drops the stream — measured 17 Nov, twice in four calls — so a gate making 20 of
+ * them failed again and again however often it retried (16 Nov 16:48, 21:00; 17 Nov 02:18, 03:02). The
+ * Verdict is a CHECK RUN on the nightly's commit: one small call (~0.5 s, a few hundred bytes), tied to the
+ * exact run by its details_url (…/actions/runs/<id>/job/…), so a Verdict of another run on the same commit
+ * (a re-dispatched nightly, a round) is never read as this one's.
+ */
+export const NIGHTLY_VERDICT_CHECK = "Round / Verdict";
+
+/** The query for one nightly's Verdict check run on its commit. */
+export function verdictCheckPath(repo, headSha) {
+  return `repos/${repo}/commits/${headSha}/check-runs?check_name=${encodeURIComponent(NIGHTLY_VERDICT_CHECK)}&per_page=100`;
+}
+
+/** The Verdict of run `runId`, as `cleanNightlyShas` reads jobs: [{ name, conclusion }], or [] when it has none yet. */
+export function verdictJobsForRun(checkRuns, runId) {
+  const own = `/actions/runs/${runId}/`;
+  return (checkRuns ?? [])
+    .filter((c) => c.name === NIGHTLY_VERDICT_CHECK && String(c.details_url ?? "").includes(own))
+    .map((c) => ({ name: c.name, conclusion: c.conclusion ?? null }));
+}
+
+/**
+ * The nightlies worth asking about. `main` is one line, so a nightly whose commit does not contain the OLDEST
+ * commit waiting for a nightly contains none of them and cannot clear anything; it is not asked. `contains(sha)`
+ * answers "does sha contain the oldest waiting commit" (git; it throws when git cannot say — fail closed).
+ */
+export function nightliesWorthAsking(runs, contains) {
+  return (runs ?? []).filter((r) => contains(r.headSha));
 }
 
 /**

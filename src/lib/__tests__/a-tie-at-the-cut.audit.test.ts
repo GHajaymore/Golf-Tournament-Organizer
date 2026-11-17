@@ -49,6 +49,7 @@ import { setRoundClosed, settleCutTie, setStageCutTies } from "@/app/actions/tou
 import { strokeCutOutcomeOf, strokeCutField } from "@/lib/services/stroke-cut";
 import { loadEventState, standingRows, cutLineNote } from "@/lib/services/tournament";
 import { meFor } from "@/lib/services/me";
+import { openCorrectionOn } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "zz-cut-tie";
@@ -395,7 +396,8 @@ describe("a play-off for the last place, as the secretary settles it", () => {
     // RETURNED in words, never thrown (state machine PR 5b, J10: a throw is "This screen didn't load").
     expect(await setStageCutTies(t.r2, "ties")).toMatchObject({ ok: false, error: expect.stringMatching(/^Locked because the tournament is live\./), lock: { scope: "rounds", by: "launch" } });
     expect((await prisma.stage.findUnique({ where: { id: t.r2 }, select: { cutTies: true } }))?.cutTies, "a refused press wrote").toBe("playoff");
-    await prisma.event.update({ where: { id: t.eventId }, data: { configUnlocked: true } });
+    // The rounds opened by a committee correction (PR 9b: the blanket unlock is not read).
+    await openCorrectionOn(prisma, t.eventId, "rounds");
     expect(await setStageCutTies(t.r2, "ties")).toEqual({ ok: true });
     expect((await prisma.stage.findUnique({ where: { id: t.r2 }, select: { cutTies: true } }))?.cutTies).toBe("ties");
     expect(await setRoundClosed(t.r1, true)).toEqual({ ok: true });
