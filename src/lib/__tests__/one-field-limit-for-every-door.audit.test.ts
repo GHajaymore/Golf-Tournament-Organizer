@@ -55,7 +55,6 @@ async function field(mode: "manual" | "registration") {
     data: {
       organizationId: org.id, name: `${TAG} open`, dates: "", course: "", city: "", address: "", regDeadline: "",
       shareToken: `${TAG}-${process.pid}-${mode}`, format: "stroke", capacity: 32, playerCountMode: mode, manualPlayerCount: 2,
-      configUnlocked: true,
     },
   });
   eventId = event.id;

@@ -46,6 +46,7 @@ import { roundRobinCutOf } from "@/lib/services/regroup";
 import { loadEventState } from "@/lib/services/tournament";
 import { currentRoundCut, currentRoundCutRule } from "@/lib/domain/cut";
 import { cutAfterRound } from "@/lib/domain/cut-ready";
+import { correctionColumns } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "zz-rr-cut-past-medal";
@@ -75,7 +76,8 @@ beforeAll(async () => {
         name: `${TAG} Autumn Qualifier`,
         organizationId: orgId,
         status: "live",
-        configUnlocked: true,
+        // The rounds opened by a committee correction: the cut's terms lock with setup (PR 9b: the blanket unlock is not read).
+        ...correctionColumns(`${TAG} Autumn Qualifier`, "rounds"),
         format: "match",
         dates: "",
         course: "",

@@ -5865,7 +5865,7 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
 async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string }> {
   /**
    * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
-   * the tournament to its field and clears `configUnlocked`, so a tournament
+   * the tournament to its field and locks its setup, so a tournament
    * with no rounds and nobody in it went live AND locked. The organizer's next
    * move was to unlock the thing they had just locked, in order to build the
    * tournament they had just published.
@@ -5893,7 +5893,9 @@ async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string
   });
   await prisma.event.update({
     where: { id: eventId },
-    data: { status: "live", launchedAt: new Date(), configUnlocked: false },
+    // The retired blanket flag is neither read nor written since state machine PR 9b: launching
+    // locks setup because the machine says a launched tournament is locked (`setupLockedByLaunch`).
+    data: { status: "live", launchedAt: new Date() },
   });
   // THE TRAIL (PR 5b; panel 8.0 F1): launching wrote no line of its own, so
   // Recent changes could not say who declared the tournament live, or when.
@@ -5902,26 +5904,13 @@ async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string
   return { ok: true };
 }
 
-/**
- * THE BLANKET UNLOCK IS RETIRED (PR 5b; TD Q2, panel 8.1): it opened every
- * scope, recorded nothing and stayed open for weeks. What is left of it is the
- * way to LOCK AGAIN a tournament a legacy `configUnlocked` still holds open —
- * the dashboard offers that, and only that, while the flag is on. Opening is
- * refused in words; the committee correction (`openCorrection`) is the remedy.
- * The flag itself is read as the legacy correction until PR 9.
+/*
+ * THE BLANKET UNLOCK IS GONE (PR 5b retired opening it; state machine PR 9b
+ * deleted its last action, the dashboard's "Lock setup again"). Its flag on the
+ * row is no longer read — a tournament that held it is locked like any other —
+ * and the column is dropped after launch (9d). The committee correction below
+ * is the one way to change a launched tournament's setup.
  */
-export async function setConfigUnlocked(unlocked: boolean): Promise<{ ok: boolean; error?: string }> {
-  const gate = await adminEventOrRefusal();
-  if ("refused" in gate) return { ok: false, error: gate.refused };
-  const { eventId } = gate;
-  if (unlocked) {
-    return { ok: false, error: "Setup is no longer unlocked as a whole. Make a committee correction to open one part of it, with a reason." };
-  }
-  await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: false } });
-  await logAudit(eventId, "committee-correction", "Locked setup again — the old whole-tournament unlock is closed.");
-  await refresh();
-  return { ok: true };
-}
 
 /**
  * OPEN A COMMITTEE CORRECTION ON ONE SCOPE (PR 5b; TD Q2, panel 8.1).

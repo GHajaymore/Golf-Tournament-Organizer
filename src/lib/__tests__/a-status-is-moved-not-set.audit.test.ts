@@ -34,6 +34,10 @@ vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
 const { setEventStatus, launchTournament } = await import("@/app/actions/tournament");
+const { lockFactsFor } = await import("@/lib/services/tournament-facts");
+const { locksFor } = await import("@/lib/domain/tournament-status");
+/** Whether its setup is locked, as the machine says (state machine PR 9b: no flag on the row decides it). */
+const setupLocked = async (id: string) => locksFor((await lockFactsFor(id))!).details.locked;
 
 let orgId = "";
 
@@ -52,7 +56,7 @@ async function tournament(name: string, status: string, ready = false, players =
   const event = await prisma.event.create({
     data: {
       organizationId: orgId, name: `${TAG} ${name}`, status, dates: ready ? "Saturday" : "", course: "", city: "", address: "",
-      regDeadline: "", shareToken: `${TAG}-${name}-${process.pid}`, configUnlocked: true,
+      regDeadline: "", shareToken: `${TAG}-${name}-${process.pid}`,
     },
   });
   await prisma.account.create({ data: { eventId: event.id, email: EMAIL, name: `${TAG} secretary`, role: "admin" } });
@@ -69,7 +73,7 @@ async function tournament(name: string, status: string, ready = false, players =
   return event.id;
 }
 
-const read = (id: string) => prisma.event.findUnique({ where: { id }, select: { status: true, launchedAt: true, configUnlocked: true } });
+const read = (id: string) => prisma.event.findUnique({ where: { id }, select: { status: true, launchedAt: true } });
 
 beforeAll(async () => {
   await scrub();
@@ -99,7 +103,7 @@ describe("going live is launching, whichever door asks", () => {
     const after = await read(id);
     expect(after?.status).toBe("live");
     expect(after?.launchedAt, "went live without a launch time").not.toBeNull();
-    expect(after?.configUnlocked, "went live with its setup still unlocked").toBe(false);
+    expect(await setupLocked(id), "went live with its setup still open").toBe(true);
   });
 
   it("CONTROL: reopening a finished tournament is not a launch, and is still allowed", async () => {
@@ -118,13 +122,13 @@ describe("the move is asked of the state machine, as the dashboard's button is (
     expect((await read(id))?.status).toBe("draft");
   });
 
-  it("a launched tournament is not launched again — which re-stamped it and locked setup an organizer had unlocked", async () => {
+  it("a launched tournament is not launched again — which re-stamped it", async () => {
     const id = await tournament("launched-twice", "live", true);
-    await prisma.event.update({ where: { id }, data: { configUnlocked: true } });
+    const stamped = (await read(id))?.launchedAt ?? null;
     const res = await launchTournament();
     expect(res.ok).toBe(false);
     expect(res.error).toBe("This tournament has already been launched, so there is nothing to launch.");
-    expect((await read(id))?.configUnlocked, "a second launch locked setup again").toBe(true);
+    expect((await read(id))?.launchedAt ?? null, "a second launch re-stamped it").toEqual(stamped);
   });
 
   it("a draft is not completed by this door — there is nothing to complete until it is launched", async () => {

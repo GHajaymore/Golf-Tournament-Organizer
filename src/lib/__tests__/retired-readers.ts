@@ -17,8 +17,8 @@ import ts from "typescript";
  *
  * Joining in the second half of 9a, when the file their deletion edits is no longer held by
  * another open pull request: `playOverOf` (`tournament-switcher.test.ts`, #1149) and
- * `setupFactsFor` (`tournament-facts.ts`, #1144). In 9b: `configurationLocked`,
- * `setConfigUnlocked`, `configUnlocked`.
+ * `setupFactsFor` (`tournament-facts.ts`, #1144). Joined in 9b: `configurationLocked`,
+ * `setConfigUnlocked`, `configUnlocked`, with the column's two exceptions below.
  */
 export const GONE = [
   // PR 3 (4 Nov)
@@ -42,7 +42,30 @@ export const GONE = [
   "LifecycleWarning",
   "datesPassedUnlaunched",
   "launchCheckFor",
+  // PR 9b (15 Nov): the blanket unlock — its predicate, its last action, and the flag itself
+  "configurationLocked",
+  "setConfigUnlocked",
+  "configUnlocked",
 ] as const;
+
+/**
+ * CLASS A's EXCEPTIONS: the retired flag's COLUMN still exists until it is dropped after launch
+ * (state machine 9d), and two files must still name it as an identifier until then. Each goes
+ * WITH THE COLUMN — 9d deletes this constant in one place. Two-way: an exception that no longer
+ * names the flag fails with "delete it". Not here, because they hold the column's name only in a
+ * string (the wall reads identifiers): `prisma/schema.prisma`, `scripts/migrate-sqlite-to-postgres.ts`,
+ * and the specs and audit tests that write an old-flag row by SQL to prove the flag is not read.
+ */
+export const GONE_WITH_THE_COLUMN: Readonly<Record<string, { names: readonly string[]; reason: string }>> = {
+  "src/lib/services/clone.ts": {
+    names: ["configUnlocked"],
+    reason: "its table must classify every column of Event, and the column still exists (not cloned)",
+  },
+  "scripts/count-unlocked-events.mjs": {
+    names: ["configUnlocked"],
+    reason: "Ops' read-only count of the rows that held the flag, run once before 9b merges (a notice, not a gate)",
+  },
+};
 
 /**
  * CLASS B — MACHINE ONLY. Live, but asked only by the machine (`domain/tournament-status.ts`)

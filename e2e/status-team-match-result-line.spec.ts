@@ -28,7 +28,7 @@ test("a player's board names the pairs that won, never Side A or Side B (#1034)"
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "teamline",
     players: 8,
-    event: { dates: "Sunday", format: "match", status: "live", configUnlocked: false },
+    event: { dates: "Sunday", format: "match", status: "live" },
     rounds: [
       { type: "Round Robin", format: "Four-Ball", scoringBasis: "net" },
       { type: "Round Robin", format: "Foursomes", scoringBasis: "net" },

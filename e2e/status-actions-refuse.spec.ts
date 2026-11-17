@@ -81,7 +81,7 @@ test("the organizer's presses are refused or asked in the machine's words", asyn
   await test.step("Complete: a card disputed after the page was drawn is refused, and the tournament stays live", async () => {
     const f = await statusFixture(browser, baseURL, testInfo, {
       family: "pr4-complete",
-      event: { dates: "Saturday medal", startOn: day, endOn: day, status: "live", launchedAt: new Date(), configUnlocked: false },
+      event: { dates: "Saturday medal", startOn: day, endOn: day, status: "live", launchedAt: new Date() },
       rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }],
       players: 2,
     });
@@ -107,7 +107,7 @@ test("the organizer's presses are refused or asked in the machine's words", asyn
   await test.step("Closing a round: asked over an unsigned card, refused over a disputed one", async () => {
     const f = await statusFixture(browser, baseURL, testInfo, {
       family: "pr4-close",
-      event: { dates: "Saturday medal", startOn: day, endOn: day, status: "live", launchedAt: new Date(), configUnlocked: false },
+      event: { dates: "Saturday medal", startOn: day, endOn: day, status: "live", launchedAt: new Date() },
       rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }],
       players: 2,
     });
