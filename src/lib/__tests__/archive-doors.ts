@@ -41,7 +41,9 @@ export const NOT_A_DOOR: Record<string, string> = {
   // A guest's player link (J39/J40): opening it, forgetting it on this phone and choosing which of two
   // held credentials to look through set cookies on this browser and change nothing in a tournament.
   // An archived tournament stays open to players to view; every write still meets the scoring gate's archive check.
-  openPlayerLink: "person", forgetThisPhone: "person", choosePlayerView: "person",
+  // One code box (2026-11-17): a typed code opens through `openCode` / `openCodeForm` — a link's cookie on this
+  // browser, or a round's field to pick from (a read); neither writes to a tournament.
+  openCode: "person", openCodeForm: "person", forgetThisPhone: "person", choosePlayerView: "person",
   // club
   checkDiscountCode: "club", startCheckout: "club", openBillingPortal: "club", deleteClub: "club",
   saveHandicapPolicy: "club", saveScoreReporting: "club", approveJoinRequest: "club", declineJoinRequest: "club", dismissNamesakeNotice: "club",
@@ -63,8 +65,8 @@ export const NOT_A_DOOR: Record<string, string> = {
   // own data
   deleteEvent: "own data",
   // reads
-  enterTournament: "reads", switchEvent: "reads", setPreviewAction: "reads", redeemRoundCode: "reads",
-  claimPlayerSlot: "reads", redeemRoundCodeForm: "reads", claimPlayerSlotForm: "reads", leavePlay: "reads", currentPlayStatus: "reads", readThread: "reads",
+  enterTournament: "reads", switchEvent: "reads", setPreviewAction: "reads",
+  claimPlayerSlot: "reads", claimPlayerSlotForm: "reads", leavePlay: "reads", currentPlayStatus: "reads", readThread: "reads",
   markThreadRead: "reads", previewSmsBroadcast: "reads", draftMessage: "reads",
 };
 

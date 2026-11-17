@@ -179,7 +179,7 @@ test.describe("a round code on slow 3G", () => {
       // Nothing of the app is on this phone yet.
       const opened = Date.now();
       await page.goto("/play", { waitUntil: "commit" });
-      const box = page.getByLabel("Round code");
+      const box = page.getByLabel("Your code");
       await expect(box).toBeVisible({ timeout: 60_000 });
       const drawn = Date.now() - opened;
       await box.pressSequentially(CODE);
@@ -233,7 +233,7 @@ test.describe("a round code on slow 3G", () => {
       await onSlow3G(context, page);
       const opened = Date.now();
       await page.goto("/play", { waitUntil: "commit" });
-      const box = page.getByLabel("Round code");
+      const box = page.getByLabel("Your code");
       await expect(box).toBeVisible({ timeout: 60_000 });
       const drawn = Date.now() - opened;
       await box.pressSequentially(CODE, { delay: 300 });
@@ -273,7 +273,7 @@ test.describe("a round code on slow 3G", () => {
 
       const opened = Date.now();
       await page.goto("/play", { waitUntil: "commit" });
-      const box = page.getByLabel("Round code");
+      const box = page.getByLabel("Your code");
       await expect(box).toBeVisible({ timeout: 60_000 });
       const drawn = Date.now() - opened;
       // Reading the code off the sheet: by the time they type, the page is live.

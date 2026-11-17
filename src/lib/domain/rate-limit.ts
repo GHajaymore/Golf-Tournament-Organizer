@@ -46,9 +46,16 @@
  * the per-code one and never instead of it, on the client address, counting only
  * FAILED lookups, so a shared wifi address is never blocked by players who got it
  * right, and a spoofed header can only dodge the second limit, never the first.
+ *
+ * ONE CODE BOX (2026-11-17): a code typed in any box goes through one door
+ * (`openAnyCode`, services/code-door.ts), and the budget is CHOSEN BY THE SHAPE of
+ * the code, never by the box: an 8-character round code takes the `round-code` rows,
+ * a 12-character player link code the `player-link-*` rows (never a per-code key).
+ * Every one of them says the same sentence (`CODE_WORDS.tooMany`).
  */
 
 import { EMAIL_CODE_WORDS } from "./email-code";
+import { CODE_WORDS } from "./code-shape";
 
 /** The throttled entry points. One budget per kind, per identifier. */
 export type RateLimitKind =
@@ -423,15 +430,16 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `We've sent several codes from this connection. Try again in ${wait}.`;
     case "email-code-send":
       return EMAIL_CODE_WORDS.tooManySends(wait);
+    case "link-slips":
+      return `You have printed slips several times this hour. Wait ${wait}, or show one guest's link from their row on Entries.`;
+    // ONE sentence for every code budget, round code or player link, whichever box (one code box,
+    // 2026-11-17): running into a limit must not say which kind of code was being tried.
+    case "round-code":
+    case "round-code-client":
     case "player-link-client":
     case "player-link-alarm":
     case "player-link-slow":
-      return `Too many link attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
-    case "link-slips":
-      return `You have printed slips several times this hour. Wait ${wait}, or show one guest's link from their row on Entries.`;
-    case "round-code":
-    case "round-code-client":
-      return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
+      return CODE_WORDS.tooMany(wait);
     case "discount-check":
       return `Too many discount code attempts. Wait ${wait}, and check the code against the email it came in.`;
     // Its own sentence (2026-10-03). It fell through to the card-photo message,

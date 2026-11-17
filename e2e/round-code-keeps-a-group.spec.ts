@@ -139,7 +139,7 @@ test("a scorer on side B: the code, the group, one confirmation, a hole to their
   try {
     await page.goto("/play");
     await page.waitForLoadState("networkidle").catch(() => {});
-    await page.getByLabel("Round code").fill(CODE);
+    await page.getByLabel("Your code").fill(CODE);
     await page.getByRole("button", { name: "Continue" }).click();
 
     // GROUPS, not names: the round's one match, side A first.
@@ -181,8 +181,8 @@ test("a scorer on side B: the code, the group, one confirmation, a hole to their
 
     // ASKED ONCE PER PHONE: out and back in on the same phone goes straight to the card.
     await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page.getByLabel("Round code")).toBeVisible({ timeout: 20_000 });
-    await page.getByLabel("Round code").fill(CODE);
+    await expect(page.getByLabel("Your code")).toBeVisible({ timeout: 20_000 });
+    await page.getByLabel("Your code").fill(CODE);
     await page.getByRole("button", { name: "Continue" }).click();
     // The phone confirmed this group a moment ago, so the page offers it first (2026-11-05): the list is behind "Not my group".
     await openFullList(page);

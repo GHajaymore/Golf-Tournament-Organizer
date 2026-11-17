@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * A ROUND CODE THAT HAS TRAVELLED IS REISSUED — AND THE OLD ONE STOPS WORKING.
@@ -56,11 +57,12 @@ async function atTheDoor(browser: Browser, baseURL: string, typed: string, someb
     const page = await ctx.newPage();
     await page.goto("/play");
     await page.waitForLoadState("networkidle").catch(() => {});
-    await page.getByLabel("Round code").fill(typed);
+    await page.getByLabel("Your code").fill(typed);
     await page.getByRole("button", { name: "Continue" }).click();
     // Let in is being shown the field to pick your own name from. (A search box sits over it only for a long field.)
     const inside = page.getByRole("button", { name: somebody });
-    const refused = page.getByText(/That code isn.t valid|doesn.t look like a round code/);
+    // The one door's two refusals (one code box, 2026-11-17): a code that opens nothing, and no code at all.
+    const refused = page.getByText(CODE_WORDS.opensNothing).or(page.getByText(CODE_WORDS.notACode));
     await expect(inside.or(refused).first(), `a code was neither taken nor refused: ${typed}`).toBeVisible({ timeout: 20_000 });
     return (await inside.count()) ? "in" : (await refused.first().innerText()).trim();
   } finally {
@@ -109,7 +111,7 @@ test("a round code is reissued, the old one is refused at the door and the new o
   await expect(table, "the organizer's screen still shows the old code").not.toContainText(`${old.slice(0, 4)}-${old.slice(4)}`);
 
   // ── the old one is dead, the new one works ──────────────────────────────
-  expect(await atTheDoor(browser, baseURL!, old, somebody), "a code that was reissued still lets somebody in").toMatch(/That code isn.t valid/);
+  expect(await atTheDoor(browser, baseURL!, old, somebody), "a code that was reissued still lets somebody in").toContain(CODE_WORDS.opensNothing);
   expect(await atTheDoor(browser, baseURL!, fresh, somebody), "the reissued code is not taken at the door").toBe("in");
 
   expect(errors, "a screen threw").toEqual([]);

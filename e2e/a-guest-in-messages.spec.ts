@@ -17,7 +17,7 @@ import { watchPageErrors } from "./page-errors";
  *
  * Actions pressed: sendMessage, readThread, markThreadRead (as the guest and the organizer),
  * muteGuestInMessages (organizer), getVapidPublicKey, savePushSubscription,
- * removePushSubscription and forgetThisPhone (guest), and PR 1's showPlayerLink and openPlayerLink
+ * removePushSubscription and forgetThisPhone (guest), and PR 1's showPlayerLink and openCode (one code box)
  * to get there.
  *
  * Push in a headless browser: the browser's push machinery is stubbed in the page
