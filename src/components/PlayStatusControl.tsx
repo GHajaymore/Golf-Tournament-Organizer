@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { resumePlay, suspendPlay } from "@/app/actions/play-status";
 import { MAX_SUSPEND_NOTE, alertsOffWords } from "@/lib/domain/play-status";
+import "./play-status-control.css";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import { formatClock } from "@/lib/domain/locale";

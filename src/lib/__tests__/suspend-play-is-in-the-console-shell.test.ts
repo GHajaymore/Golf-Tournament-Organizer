@@ -197,7 +197,7 @@ describe("one mount: the console's shell", () => {
   });
 
   it("a phone has Suspend play in its sticky top bar with play on: the same button, pinned by CSS, 44px, tokens only; its confirm a sheet (B64)", () => {
-    const css = readSource("src/app/globals.css");
+    const css = readSource("src/components/play-status-control.css"); // its own sheet: the console sends it, a player page does not
     const at = css.indexOf(".suspend-compact {");
     expect(at, "no compact Suspend play rule").toBeGreaterThan(-1);
     expect(css.slice(css.lastIndexOf("@media", at), at), "not phone-only").toMatch(/^@media \(max-width: 820px\) \{\s*$/);
@@ -211,7 +211,7 @@ describe("one mount: the console's shell", () => {
     expect(sheet).toMatch(/position: fixed/);
     expect(sheet).toMatch(/overflow-y: auto/);
     // Tokens only, in everything this change drew.
-    const drawn = css.slice(at, css.indexOf(".app-sidebar {", at));
+    const drawn = css.slice(at, css.length);
     expect(drawn, "CONTROL: the slice is the rules and not the rest of the file").toContain(".suspend-confirm {");
     expect(drawn.length, "CONTROL: the slice ran on past the rules").toBeLessThan(1500);
     expect(drawn, "a hard-coded colour").not.toMatch(/#[0-9a-fA-F]{3,8}\b|\brgba?\(/);
@@ -222,9 +222,8 @@ describe("one mount: the console's shell", () => {
     expect(control.match(/run\(\(\) => suspendPlay\(why\)|suspendPlay\(why\)/g), "a second way to suspend").toHaveLength(1);
     expect(mountsOf("PlayStatusControl")).toEqual(["src/components/ConsolePlayStatus.tsx"]);
     // The sheet's cap has a vh fallback and pays the top inset; the confirm is a labelled alertdialog with Escape and focus.
-    // 70% of the window: from the top inset it ends clear of the tab bar on the shortest phone (568px, notch 47px).
-    expect(sheet).toMatch(/max-height: 70vh;/);
-    expect(sheet).toMatch(/max-height: 70dvh;/);
+    expect(sheet).toMatch(/max-height: calc\(100vh - 96px - env\(safe-area-inset-top, 0px\)/);
+    expect(sheet).toMatch(/max-height: calc\(100dvh - 96px - env\(safe-area-inset-top, 0px\)/);
     expect(control).toMatch(/role="alertdialog"/);
     expect(control).toMatch(/aria-labelledby="suspend-confirm-title"/);
     expect(control).toMatch(/e\.key === "Escape"/);
