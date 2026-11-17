@@ -47,11 +47,14 @@ const CUP_FIELD_FIXED = "The sides are picked, so the field is fixed. To change 
 test("a team cup says the same thing on every panel from the teams to the last session (J13)", async ({ browser, baseURL }, testInfo) => {
   test.setTimeout(420_000);
   const errors: string[] = [];
-  const day = dayFromNow(14);
+  // The home waits for the fortnight (LAUNCH_AHEAD_DAYS), counted from the CLUB's day: the seeded club is
+  // in New York, so on a UTC day that has not yet turned there, 14 days from the UTC date is 15 from the
+  // club's today and the line would not be drawn. Ten days leaves four either side, as the other families do.
+  const day = dayFromNow(10);
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "cup",
     players: 8,
-    event: { dates: "Autumn cup", startOn: day, endOn: dayFromNow(15), format: "match" },
+    event: { dates: "Autumn cup", startOn: day, endOn: dayFromNow(11), format: "match" },
     rounds: [
       { type: "Team Session", format: "Match Play", scoringBasis: "net" },
       { type: "Team Session", format: "Match Play", scoringBasis: "net" },
@@ -89,7 +92,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
 
     // Everybody on a team: ready.
     await put(f.playerIds.slice(4, 8), whites.id);
-    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null, home: { text: "ready to launch", action: "Launch tournament" } });
 
     // Launched, nothing played.
     await prisma.event.update({ where: { id: f.eventId }, data: { status: "live" } });
