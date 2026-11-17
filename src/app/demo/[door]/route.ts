@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { formatAccessCode } from "@/lib/code-format";
+import { roundCodeLink } from "@/lib/code-format";
 import { DEMO_DOORS, type DemoDoor } from "@/lib/domain/demo-club";
 import { demoLinks, demoMark, demoRoundCode, demoStatus } from "@/lib/services/demo-club";
 
@@ -38,7 +38,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ door
   };
   if (door === "card") {
     const code = await demoRoundCode(mark);
-    return to(code ? `/play#${formatAccessCode(code)}` : "/demo");
+    return to(code ? roundCodeLink("", code) : "/demo");
   }
   return to(where[door as Exclude<DemoDoor, "card">]);
 }

@@ -51,6 +51,8 @@
  * (`openAnyCode`, services/code-door.ts), and the budget is CHOSEN BY THE SHAPE of
  * the code, never by the box: an 8-character round code takes the `round-code` rows,
  * a 12-character player link code the `player-link-*` rows (never a per-code key).
+ * Both shapes take the same gate steps (PR B): the client's budget, a platform alarm
+ * (`eight-char-alarm`, `player-link-alarm`) and a slow pace while it stands.
  * Every one of them says the same sentence (`CODE_WORDS.tooMany`).
  */
 
@@ -71,6 +73,8 @@ export type RateLimitKind =
   | "player-link-client"
   | "player-link-alarm"
   | "player-link-slow"
+  | "eight-char-alarm"
+  | "eight-char-slow"
   | "link-slips"
   | "discount-check"
   | "register-token"
@@ -158,6 +162,19 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  against the usual eighty (security review SF-2: one a minute was sixty, barely slower). A
    *  guest with the right link still opens it (a success gives its attempt back). */
   "player-link-slow": { limit: 3, windowMs: 15 * MINUTE },
+  /** THE 8-CHARACTER SHAPE'S PLATFORM ALARM (one code box PR B; Security Lead, 14 Nov): failed round
+   *  and entry code lookups across the whole app in an hour. A round code is TYPED by a whole field off
+   *  a card, so the link's 200 would be too tight; 300 is about fifty 60-player outings mistyping in
+   *  the same hour. Past it an error is reported once and every client is slowed to `eight-char-slow`.
+   *  The Security Lead re-sets the figure from measurement when an honest hour passes 150. */
+  "eight-char-alarm": { limit: 300, windowMs: 60 * MINUTE },
+  /** While the 8-character alarm stands: twelve failed lookups per client network in fifteen minutes
+   *  (not the link's three). One clubhouse is ONE network and a 60-player morning makes about six honest
+   *  failures in its busy quarter-hour, so twelve never locks it out, yet it cuts a guesser from 240 an
+   *  hour to 48. While the alarm stands, a right code typed when the network holds 12 or fewer
+   *  failures opens and gives its attempt back; from the 13th failure every code from that
+   *  network is refused until the window turns (15 minutes at most). */
+  "eight-char-slow": { limit: 12, windowMs: 15 * MINUTE },
   /** PLAYER LINK SLIPS printed (J39/J40 PR 3): six presses an hour per staff member per event. A
    *  sheet holds every guest's link at once, so a bulk print is budgeted and on the record by name;
    *  a morning reprints new slips two or three times at most. Keyed on the staff user + the event. */
@@ -439,6 +456,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     case "player-link-client":
     case "player-link-alarm":
     case "player-link-slow":
+    case "eight-char-alarm":
+    case "eight-char-slow":
       return CODE_WORDS.tooMany(wait);
     case "discount-check":
       return `Too many discount code attempts. Wait ${wait}, and check the code against the email it came in.`;
@@ -531,8 +550,9 @@ export function entryLinkBudget(link: EntryLink): number {
  * On Vercel `x-vercel-forwarded-for` is set by the platform and cannot be
  * written by the caller; `x-forwarded-for` is the fallback (first entry), then
  * `x-real-ip`. Off Vercel the first two can be forged, which is why this is only
- * ever the key of a SECOND limit. Null means "no per-client limit": a shared
- * bucket for every address-less caller would block innocents.
+ * ever the key of a SECOND limit. Null when none can be read: a caller decides
+ * what that means (the code door counts it in ONE shared bucket, `NO_ADDRESS`
+ * in `services/code-door.ts`, for either shape of code).
  */
 export function clientAddressFrom(get: (name: string) => string | null | undefined): string | null {
   for (const name of ["x-vercel-forwarded-for", "x-forwarded-for", "x-real-ip"]) {

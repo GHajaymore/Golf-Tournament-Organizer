@@ -30,7 +30,7 @@
  * must not tell a guesser which kind it nearly was, or that it was once real.
  */
 import { linkFromHash, looksLikeAccessCode, normalizeAccessCode, roundCodeLink } from "../code-format";
-import { normaliseLinkCode } from "./player-link";
+import { MAX_CODE_INPUT, normaliseLinkCode } from "../link-code-format";
 
 /**
  * Every sentence the code boxes say (UX Writer). `opensNothing` is the ONE
@@ -56,8 +56,8 @@ export type CodeShape =
   | { shape: "twelve"; code: string }
   | { shape: "none" };
 
-/** Longer than this is not a code, whatever it holds (a `"use server"` argument is whatever was posted). */
-export const MAX_CODE_INPUT = 128;
+/** Longer than `MAX_CODE_INPUT` is not a code, whatever it holds (a `"use server"` argument is whatever was posted); the same figure `normaliseLinkCode` holds. */
+export { MAX_CODE_INPUT };
 
 const NONE: CodeShape = { shape: "none" };
 

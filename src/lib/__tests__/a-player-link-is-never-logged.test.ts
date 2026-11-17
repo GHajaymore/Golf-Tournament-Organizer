@@ -140,9 +140,12 @@ describe("S2: the limit is the client's, never the code's", () => {
     expect(TWELVE).toMatch(/if \(!pass\) return \{ ok: false, error: CODE_WORDS\.opensNothing \};\s*await gate\.opened\(\)/);
   });
   it("has a fallback bucket where no client address can be read, and a platform alarm that acts", () => {
-    expect(GATE_TWELVE).toContain('clientGuessGate("player-link-client", who)');
-    expect(GATE_TWELVE).toContain('clientGuessGate("player-link-alarm", PLATFORM)');
-    expect(GATE_TWELVE).toContain('clientGuessGate("player-link-slow", who)');
+    // The one gate takes its keys from the shape's lane (PR B: the eight has the same steps); the twelve's lane names the link's.
+    expect(GATE_TWELVE).toContain("clientGuessGate(lane.client, who)");
+    expect(GATE_TWELVE).toContain("clientGuessGate(lane.alarm, lane.platform)");
+    expect(GATE_TWELVE).toContain("clientGuessGate(lane.slow, who)");
+    const lanes = between(DOOR, "const LANES = {", "} as const;");
+    expect(lanes).toContain('twelve: { client: "player-link-client", alarm: "player-link-alarm", slow: "player-link-slow"');
   });
   it("CONTROL: the check would see a per-code limit in the twelve's branch", () => {
     expect('async function openTwelve(code) { await checkRateLimit("round-code", code); }').toContain("checkRateLimit(");
@@ -205,19 +208,19 @@ describe("SF-2: one client cannot hold the platform alarm on", () => {
   // The twelve's half of the door's gate (one code box, 2026-11-17), where `openPlayerLink`'s lines moved.
   const body = GATE_TWELVE;
   it("the client's own limit refuses BEFORE the alarm is counted", () => {
-    const clientGate = body.indexOf('clientGuessGate("player-link-client", who)');
+    const clientGate = body.indexOf("clientGuessGate(lane.client, who)");
     const refused = body.indexOf("if (!guess.decision.allowed) return");
-    const alarm = body.indexOf('clientGuessGate("player-link-alarm", PLATFORM)');
+    const alarm = body.indexOf("clientGuessGate(lane.alarm, lane.platform)");
     expect(clientGate).toBeGreaterThan(0);
     expect(refused).toBeGreaterThan(clientGate);
     expect(alarm, "the alarm is counted before the client's refusal").toBeGreaterThan(refused);
   });
   it("a slow-limit refusal gives its alarm count back, and the alarm is logged once a window", () => {
     expect(body).toMatch(/if \(slow && !slow\.decision\.allowed\) \{\s*(\/\/[^\n]*\n\s*)?await alarm\.succeeded\(\);\s*return/);
-    expect(body).toMatch(/if \(window !== alarmReportedIn\) \{\s*alarmReportedIn = window;\s*console\.error\(/);
+    expect(body).toMatch(/if \(window !== alarmReportedIn\[shape\]\) \{\s*alarmReportedIn\[shape\] = window;\s*console\.error\(/);
   });
   it("CONTROL: the order check sees an alarm counted first", () => {
-    const bad = 'clientGuessGate("player-link-alarm", PLATFORM); clientGuessGate("player-link-client", client); if (!guess.decision.allowed) return';
-    expect(bad.indexOf('clientGuessGate("player-link-alarm", PLATFORM)')).toBeLessThan(bad.indexOf("if (!guess.decision.allowed) return"));
+    const bad = "clientGuessGate(lane.alarm, lane.platform); clientGuessGate(lane.client, who); if (!guess.decision.allowed) return";
+    expect(bad.indexOf("clientGuessGate(lane.alarm, lane.platform)")).toBeLessThan(bad.indexOf("if (!guess.decision.allowed) return"));
   });
 });

@@ -136,3 +136,56 @@ describe("one failure sentence and one throttle sentence (item 4)", () => {
     expect(PER_KIND.test("That doesn't look like a photo. Use a JPEG, PNG or WebP.")).toBe(false);
   });
 });
+
+/**
+ * ONE BUILDER OF A SIGN'S ADDRESS, AND ONE HOME FOR A LINK CODE'S SHAPE (one
+ * code box PR B; the Principal Engineer's C1 and N1 on #1176).
+ *
+ * A second `/play#${…}` builder skips the escaping `roundCodeLink` does (a /p box
+ * builds this address from what somebody TYPED), and two screens had one: the
+ * opener's dead branch and the demo's door. And a client box needs the SHAPE of a
+ * link code, not the pass's lifetime rules and the feature's words, so the
+ * alphabet, the length, the reader and the one input cap live in one small
+ * browser-safe module and nowhere else.
+ */
+describe("one builder of a sign's address (C1)", () => {
+  // The shape, not the spelling: any template that puts something after `/play#`.
+  const BUILDS_A_SIGN_ADDRESS = /`[^`]*\/play#\$\{/;
+  it("only code-format.ts builds one", () => {
+    expect(where(BUILDS_A_SIGN_ADDRESS)).toEqual(["src/lib/code-format.ts"]);
+  });
+  it("CONTROL: a second builder is seen, a fixed address and a prose mention are not", () => {
+    expect(BUILDS_A_SIGN_ADDRESS.test("window.location.assign(`/play#${r.code}`)")).toBe(true);
+    expect(BUILDS_A_SIGN_ADDRESS.test("to(code ? `/play#${formatAccessCode(code)}` : \"/demo\")")).toBe(true);
+    expect(BUILDS_A_SIGN_ADDRESS.test("`${origin}/play#${encodeURIComponent(code)}`")).toBe(true);
+    expect(BUILDS_A_SIGN_ADDRESS.test("href: \"/play\"")).toBe(false);
+    expect(BUILDS_A_SIGN_ADDRESS.test("`/play?sw=1`")).toBe(false);
+  });
+  it("the two screens that had a copy ask roundCodeLink", () => {
+    expect(readSource("src/components/PlayerLinkOpener.tsx")).toMatch(/roundCodeLink\(/);
+    expect(readSource("src/app/demo/[door]/route.ts")).toMatch(/roundCodeLink\(/);
+  });
+});
+
+describe("a link code's shape has one browser-safe home (N1)", () => {
+  const HOME = "src/lib/link-code-format.ts";
+  it("the alphabet, the length, the reader and the input cap are defined only there", () => {
+    expect(where(/export const LINK_ALPHABET\b/)).toEqual([HOME]);
+    expect(where(/export const LINK_CODE_LENGTH\b/)).toEqual([HOME]);
+    expect(where(/export const MAX_CODE_INPUT\b/)).toEqual([HOME]);
+    expect(where(/export function normaliseLinkCode\b/)).toEqual([HOME]);
+  });
+  it("domain/player-link.ts re-exports them, so every other importer is unchanged", () => {
+    expect(readSource("src/lib/domain/player-link.ts")).toMatch(/export \{[^}]*LINK_ALPHABET[^}]*normaliseLinkCode[^}]*\} from "\.\.\/link-code-format"/);
+  });
+  it("the shape reader and both code boxes take the small module, never the pass's rules", () => {
+    // code-shape.ts runs in /play's and /p's bundles; PlayerLinkOpener reads the fragment with the reader.
+    expect(readSource("src/lib/domain/code-shape.ts")).not.toMatch(/from "\.\/player-link"|from "@\/lib\/domain\/player-link"/);
+    expect(readSource("src/lib/domain/code-shape.ts")).toMatch(/from "\.\.\/link-code-format"/);
+    expect(readSource("src/components/PlayerLinkOpener.tsx")).toMatch(/normaliseLinkCode\b[^;]*from "@\/lib\/link-code-format"/);
+    expect(readSource("src/components/PlayClient.tsx")).not.toMatch(/normaliseLinkCode/);
+  });
+  it("CONTROL: a second definition of the input cap would be seen", () => {
+    expect(/export const MAX_CODE_INPUT\b/.test("export const MAX_CODE_INPUT = 128;")).toBe(true);
+  });
+});
