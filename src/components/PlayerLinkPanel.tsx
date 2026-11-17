@@ -5,6 +5,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { qrModules, qrPath, type QrEncoder } from "@/lib/qr";
 import { PLAYER_LINK_WORDS, groupedCode, linkAddress, playerLinkShareMessage, playerLinkUrl, spokenCode } from "@/lib/domain/player-link";
 import { muteGuestInMessages, newPlayerLink, playerLinkStatus, showPlayerLink, turnOffPlayerLink } from "@/app/actions/player-link";
+import { playerLinkSlipState } from "@/app/actions/player-link-slips";
 
 /**
  * THE PLAYER LINK PANEL (J39/J40 PR 1; design §4.1) — on a guest's row on
@@ -27,11 +28,17 @@ export function PlayerLinkPanel({ playerId, name, eventName }: { playerId: strin
   const [encode, setEncode] = useState<QrEncoder | null>(null);
   const [pending, start] = useTransition();
 
+  // The printed slip (PR 3, A12): when it was printed, or that New link has made it stop opening.
+  const [slip, setSlip] = useState<{ line: string; outOfDate: boolean } | null>(null);
+
   const loadStatus = () =>
-    playerLinkStatus(playerId).then((r) => {
-      if (r.ok) setStatus({ text: r.status, made: r.made, revoked: r.revoked, suggestNew: r.suggestNew, muted: r.muted });
-      else setError(r.error);
-    });
+    Promise.all([
+      playerLinkStatus(playerId).then((r) => {
+        if (r.ok) setStatus({ text: r.status, made: r.made, revoked: r.revoked, suggestNew: r.suggestNew, muted: r.muted });
+        else setError(r.error);
+      }),
+      playerLinkSlipState(playerId).then((r) => setSlip(r.ok ? { line: r.line, outOfDate: r.outOfDate } : null)),
+    ]);
 
   useEffect(() => {
     void loadStatus();
@@ -106,6 +113,11 @@ export function PlayerLinkPanel({ playerId, name, eventName }: { playerId: strin
         <p role="status" data-testid="player-link-status" style={{ fontSize: 13, margin: "6px 0 0" }}>
           {status?.text ?? "Checking…"}
         </p>
+        {slip && (
+          <p data-testid="player-link-slip" className={slip.outOfDate ? undefined : "text-muted"} style={{ fontSize: 13, margin: "4px 0 0" }}>
+            <Icon name={slip.outOfDate ? "warning-circle" : "printer"} /> {slip.line}
+          </p>
+        )}
         {status?.suggestNew && (
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
             <Icon name="info" /> {W.suggestNew}
