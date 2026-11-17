@@ -76,13 +76,14 @@ const WHO: Record<string, string> = {
   // anyone
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
   signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", confirmEntryCode: "anyone", getVapidPublicKey: "anyone",
-  redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
-  // A tap on a guest's player link (J39/J40): the code is its own authorization, as a round code is.
-  openPlayerLink: "anyone",
+  claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
+  // One code box (2026-11-17): a round code or a guest's player link code, typed in any box or tapped
+  // on /p. The code is its own authorization, behind the one door's budgets (services/code-door.ts).
+  openCode: "anyone",
   // guest link: this browser's own link, forgotten here or chosen over its sign-in (S4).
   forgetThisPhone: "guest link", choosePlayerView: "guest link",
   // The same two as plain forms, for a press made before the page's script arrived: they call them.
-  redeemRoundCodeForm: "anyone", claimPlayerSlotForm: "anyone",
+  openCodeForm: "anyone", claimPlayerSlotForm: "anyone",
   // Sets a cookie and nothing else, and the cookie can only ever show an
   // organizer LESS (the player's view of their own tournament): `getSession`
   // ignores it for anybody who is not an admin.
