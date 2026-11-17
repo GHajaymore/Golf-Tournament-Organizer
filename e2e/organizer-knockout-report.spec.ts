@@ -250,6 +250,10 @@ test("the secretary records, undoes, approves and changes knockout results on Sc
 
     await test.step("Change result on a semi-final is refused where the press was, naming the Final and linking it, and the way out works", async () => {
       const before = await stored();
+      // The Final's press is answered on its card BEFORE the screen is redrawn; the redraw then turns "1 more tie
+      // waits" into "Every tie has a result.", one line shorter on a 320 px phone, and moves every card up. A press
+      // made in between lands where the button was and does nothing (nightly 44124418761, Firefox only).
+      await expect(page.getByText("Every tie has a result."), "the list is not redrawn after the Final").toBeVisible({ timeout: 20_000 });
       await row("winners-0-0").getByRole("button", { name: `Change result, ${s1.name} v ${s4.name}` }).click();
       const refused = row("winners-0-0").getByRole("alert");
       await expect(refused).toContainText(
