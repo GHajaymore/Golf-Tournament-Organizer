@@ -108,17 +108,20 @@ Ajay, 2026-10-21: "go with your recommendations". Three rules, each held at one 
 
 Ajay, 7 Nov: members and organizers need an email; a **guest** needs no email and no app. A guest
 entry gets a personal player link — `/p#<12-character code>` (Crockford base32, 60 bits), or the code
-typed at `/p` — opening that one entry in that one event: Today, My card (where the event lets a player
+typed into any code box (`/p` or `/play`, one code box, 2026-11-17) — opening that one entry in that one event: Today, My card (where the event lets a player
 keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest player link (J39-J40) 12 Nov.md`.
 
-- **Not a sign-in, and not held.** `openPlayerLink` never calls `createSession`; `guest-auth.ts` never
+- **Not a sign-in, and not held.** The one door for a typed code (`openAnyCode`, `services/code-door.ts`,
+  pressed through `actions/code-box.ts`) never calls `createSession`; `guest-auth.ts` never
   asks `maySignInNow` / `signInsHeld` — links work before launch, like round codes (`NOT_SWITCHED`
   `player-links`, pinned by `go-live-switch.test.tsx`).
 - **A tap opens it, never a load (S1).** `/p` reads and strips the fragment and waits for "Open my card";
   only that POST records a browser (`PlayerPassDevice`, hashed under the link's own key) and sets
   `ng_guest` = `sign("guest1~<passId>:<version>:<issued>")` — exact prefix, 180 days held server-side,
   version-checked, re-verified against the row on every request (`getGuestSession`).
-- **Guessing (S2):** `player-link-client`, 20 FAILED opens per client in 15 minutes through `clientGuessGate`
+- **Guessing (S2):** the budget is CHOSEN BY THE CODE'S SHAPE in `openAnyCode`'s `guessGate`, never by the box it
+  was typed in (a 12-character code never reaches the round code's per-code key). `player-link-client`, 20 FAILED
+  opens per client in 15 minutes through `clientGuessGate`
   (never keyed on the code, never cleared; a real open gives back one); one shared bucket where no client
   address can be read; past 200 failed opens an hour platform-wide (counted only for requests the client's
   own limit let through) every client is held to three failed opens in 15 minutes and one error is logged
@@ -140,7 +143,11 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
   phone, choose view. Every other action still calls `getSession()` and refuses a guest.
 - **Analytics and reports (S3):** `/p` renders no analytics and `pageViewFor` drops a view of it;
   `scrubText` redacts the code in a fragment, a `/p/` path, a query or its printed dashed form.
-- A spec reaches a guest by the real door (`/p`, a tap or the typed box), never a hand-made `ng_guest`.
+- A spec reaches a guest by the real door (a tap at `/p`, or the code typed in any code box), never a hand-made `ng_guest`.
+- **One code box (plan row 4c, 2026-11-17):** a round code typed at `/p` goes on to `/play#ABCD-EFGH` (after the `#`,
+  no extra press); a personal code typed at `/play` opens the guest's Today. Every code of the right shape that opens
+  nothing says one sentence (`CODE_WORDS.opensNothing`) and every code throttle another (`CODE_WORDS.tooMany`);
+  `PLAYER_LINK_WORDS.dead` is said only on `/p?ended=1`, of a link this phone held. `e2e/one-code-box.spec.ts`.
 - **A link's messages and notices (PR 2):** a guest is `guest:<playerId>` in messaging (never an address),
   reads and posts in the threads its entry puts it in (never the club's), writes to the organizers
   (`desk:<playerId>`), and starts no direct thread (D7: `startDirectThread` is account-only). Every messaging
