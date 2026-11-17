@@ -33,39 +33,61 @@ const PUBLIC_ROUTES: Record<string, string> = {
 
 type Gate = { kind: string; at: number };
 
-/** The staff and owner gates a session route may use (the names the action sweep trusts). */
+/** The staff and owner gates a route may call (trusted by NAME, as the action sweep trusts them; their bodies are theirs to test). */
 const SESSION_GATES = [
   "requireStaffEvent(", "requireStaff(", "requireAdminEvent(", "requireOrganizerOrg(", "requireOrganizer(",
-  "requireStaffSession(", "requireStaffOrg(", "requireRosterOrg(", "requireOrg(", "requireClub(", "requireOwner(",
+  "requireStaffSession(", "requireStaffOrg(", "requireRosterOrg(", "requireOrg(", "requireClub(",
 ];
-const ROLE_LOOKS = [".canEdit", "isOwner(", "isStaff", 'role !== "admin"', 'role === "admin"', ".role"];
+/** A role COMPARED, not merely read: an echo of `session.role` is not a check. */
+const ROLE_COMPARE = /\brole\s*[!=]==\s*["']|\.canEdit\b|\bisOwner\(/;
+/** A refusal: a 401/403 answer, a redirect, or a 404. */
+const REFUSAL = /status:\s*40[13]\b|new Response\([^)]*40[13]|\bredirect\(|\bnotFound\(/;
 
 const first = (body: string, needles: string[]) => {
   const at = needles.map((n) => body.indexOf(n)).filter((i) => i >= 0);
   return at.length ? Math.min(...at) : -1;
 };
 
-/** Which gate a handler body carries, and where. */
+/** Where a handler first reads the database (the gate must come before it). */
+function firstDataRead(body: string): number {
+  return first(body, ["prisma.", "$queryRaw", "$executeRaw"]);
+}
+
+/** Which gate a handler carries, and where its REFUSAL sits (the gate is the refusal, not the mention). */
 function gateOf(h: Pick<Handler, "body" | "src">): Gate | null {
   const body = h.body;
-  // A bearer token compared with a secret, refused with 401 (cron routes, the deploy window). The compare
-  // may sit in a helper of the same file; the handler must read the header itself and refuse with 401.
+  // A bearer token compared with a secret (the compare may sit in a helper of the same file): the handler
+  // reads the header, and the 401 comes after it.
   const header = body.search(/authorization/i);
-  if (header >= 0 && h.src.includes("Bearer ${") && body.includes("401")) return { kind: "bearer", at: header };
+  if (header >= 0 && h.src.includes("Bearer ${")) {
+    const refuse = body.indexOf("401", header);
+    if (refuse >= 0) return { kind: "bearer", at: refuse };
+  }
   // A webhook verifier: Resend/Svix, Twilio, Stripe.
   const sig = first(body, ["verifySignedEvent(", "signatureOk(", "constructEvent(", "verifySignature("]);
   if (sig >= 0) return { kind: "signature", at: sig };
   const staff = first(body, SESSION_GATES);
   if (staff >= 0) return { kind: "staff", at: staff };
-  // A session, whose role is then looked at.
+  // A session whose role is compared and refused, in that order.
   const session = body.indexOf("getSession(");
-  if (session >= 0 && first(body.slice(session), ROLE_LOOKS) >= 0) return { kind: "session+role", at: session };
+  if (session >= 0) {
+    const rest = body.slice(session);
+    const compare = rest.search(ROLE_COMPARE);
+    if (compare >= 0) {
+      const refuse = rest.slice(compare).search(REFUSAL);
+      if (refuse >= 0) return { kind: "session+role", at: session + compare + refuse };
+    }
+  }
   return null;
 }
 
-/** Where a handler first reads the database (the gate must come before it). */
-function firstDataRead(body: string): number {
-  return first(body, ["prisma.", "$queryRaw", "$executeRaw"]);
+/** The sweep's own pass/fail: null when the handler is gated before its first read, else why not. Controls use this too. */
+function verdictOf(h: Pick<Handler, "body" | "src">): string | null {
+  const g = gateOf(h);
+  if (!g) return "has no gate (a role must be compared and refused, a bearer or signature checked)";
+  const read = firstDataRead(h.body);
+  if (read >= 0 && read < g.at) return `reads the database before its ${g.kind} gate`;
+  return null;
 }
 
 interface Handler {
@@ -81,14 +103,13 @@ const METHODS = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";
 function handlersIn(file: string, src: string): Handler[] {
   const re = new RegExp(`export\\s+(?:async\\s+)?(?:function\\s+|const\\s+)(${METHODS})\\b`, "g");
   const marks = [...src.matchAll(re)];
-  return marks.map((m, i) => ({
-    file,
-    method: m[1],
-    body: src.slice(m.index!, i + 1 < marks.length ? marks[i + 1].index! : src.length),
-    src,
-  }));
+  return marks.map((m, i) => {
+    const upTo = src.slice(m.index!, i + 1 < marks.length ? marks[i + 1].index! : src.length);
+    // The handler ends at its closing brace in column 0, so a helper written below it is not its gate.
+    const close = upTo.indexOf("\n}");
+    return { file, method: m[1], body: close >= 0 ? upTo.slice(0, close + 2) : upTo, src };
+  });
 }
-
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name);
@@ -106,16 +127,10 @@ const byFile = (f: string) => HANDLERS.filter((h) => h.file === f);
 
 describe("who may call an API route", () => {
   it("every handler carries a gate ahead of its first database read, or its route is on the public list", () => {
-    const bad: string[] = [];
-    for (const h of HANDLERS) {
-      if (h.file in PUBLIC_ROUTES) continue;
-      const g = gateOf(h);
-      if (!g) bad.push(`${h.file}: ${h.method} has no gate`);
-      else {
-        const read = firstDataRead(h.body);
-        if (read >= 0 && read < g.at) bad.push(`${h.file}: ${h.method} reads the database before its ${g.kind} gate`);
-      }
-    }
+    const bad = HANDLERS.filter((h) => !(h.file in PUBLIC_ROUTES)).flatMap((h) => {
+      const why = verdictOf(h);
+      return why ? [`${h.file}: ${h.method} ${why}`] : [];
+    });
     expect(bad, "gate it (bearer, signature, staff or session+role) or add the route to PUBLIC_ROUTES and say why").toEqual([]);
   });
 
@@ -137,28 +152,39 @@ describe("who may call an API route", () => {
     expect(FILES).toContain("src/app/api/deploy-window/route.ts");
   });
 
-  it("CONTROL: an ungated route, a read before the gate, and a prose-only gate are all seen", () => {
-    const [open] = handlersIn("x/route.ts", "export async function GET() { return Response.json(await prisma.user.findMany()); }");
-    expect(gateOf(open)).toBeNull();
-
-    const [late] = handlersIn(
-      "x/route.ts",
-      'export async function GET(r: Request) { await prisma.club.findMany(); if (r.headers.get("authorization") !== `Bearer ${s}`) return new Response("no", { status: 401 }); }',
-    );
-    const g = gateOf(late)!;
-    expect(firstDataRead(late.body)).toBeLessThan(g.at);
-
-    const [prose] = handlersIn(
-      "x/route.ts",
-      stripComments("export async function GET() { // authorization Bearer ${s} 401\n return Response.json({}); }"),
-    );
-    expect(gateOf(prose)).toBeNull();
-
-    // A second handler in the same file is judged on its own.
+  it("CONTROL: the sweep's own verdict flags every weak shape and passes the right one", () => {
+    const v = (src: string) => verdictOf(handlersIn("x/route.ts", stripComments(src))[0]);
+    // ungated
+    expect(v("export async function GET() { return Response.json(await prisma.user.findMany()); }")).not.toBeNull();
+    // a bare session, never checked
+    expect(v("export async function GET() { const s = await getSession(); return Response.json({ ok: !!s }); }")).not.toBeNull();
+    // the role only echoed
+    expect(v("export async function GET() { const s = await getSession(); return Response.json({ role: s.role }); }")).not.toBeNull();
+    // the read comes before the role check
+    expect(
+      v('export async function GET() {\n  const s = await getSession();\n  const e = await prisma.event.findMany();\n  if (s.role !== "admin") return Response.json({}, { status: 401 });\n  return Response.json(e);\n}'),
+    ).toMatch(/before/);
+    // a role compared but nothing refused
+    expect(v('export async function GET() { const s = await getSession(); const a = s.role === "admin"; return Response.json({ a }); }')).not.toBeNull();
+    // a read before a late bearer check
+    expect(
+      v('export async function GET(r: Request) { await prisma.club.findMany(); if (r.headers.get("authorization") !== `Bearer ${s}`) return new Response("no", { status: 401 }); }'),
+    ).toMatch(/before/);
+    // a 401 that is not after the header read
+    expect(v('export async function GET(r: Request) { const x = 401; await prisma.club.findMany(); const h = r.headers.get("authorization"); return Response.json(`Bearer ${h}`); }')).not.toBeNull();
+    // a gate named only in a comment
+    expect(v("export async function GET() { // authorization Bearer ${s} 401\n return Response.json({}); }")).not.toBeNull();
+    // a gate in a helper BELOW the handler is not the handler's
+    expect(v("export async function GET() {\n  return Response.json({});\n}\n\nfunction later(r: Request) { return verifySignedEvent({}); }")).not.toBeNull();
+    // the right shape: session, role compared, refused, then the read (the console play-status door)
+    expect(
+      v('export async function GET() {\n  const session = await getSession();\n  if (!session || (session.role !== "admin" && session.role !== "assistant")) {\n    return NextResponse.json({ ok: false }, { status: 401 });\n  }\n  const e = await prisma.event.findUnique({ where: { id: session.eventId } });\n  return NextResponse.json({ e });\n}'),
+    ).toBeNull();
+    // a second handler in the same file is judged on its own
     const two = handlersIn(
       "x/route.ts",
       "export async function GET() { return 1; }\nexport async function POST(r: Request) { await verifySignedEvent({}); }",
     );
-    expect(two.map((h) => gateOf(h)?.kind ?? null)).toEqual([null, "signature"]);
+    expect(two.map((h) => verdictOf(h) === null)).toEqual([false, true]);
   });
 });
