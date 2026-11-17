@@ -6,6 +6,8 @@ import { printKit } from "@/lib/services/print-kit";
 import { requestOrigin } from "@/lib/request-origin";
 import { PrintKitClient, type HubDoc } from "@/components/print/PrintKitClient";
 import { MoreInfo } from "@/components/MoreInfo";
+import { PlayerLinkSlips } from "@/components/print/PlayerLinkSlips";
+import { slipSummary } from "@/lib/services/player-link-slips";
 import { cardsByFrom, docTitle, docsFrom, paperFrom, signsByFrom, type DocKind } from "@/lib/domain/print-kit";
 import { screenName } from "@/lib/nav";
 // The cards are set in the scoreboard's condensed face, from disk, so what the
@@ -56,6 +58,9 @@ export default async function PrintKitPage({
     }),
   }));
   const Carts = kit.words.carts;
+  // Player link slips (J39/J40 PR 3): counts only, never a code. The codes come to a press (S7).
+  const slips = await slipSummary(session.eventId);
+  const paper = paperFrom(params.paper, kit.paper);
 
   return (
     <>
@@ -70,6 +75,9 @@ export default async function PrintKitPage({
         </MoreInfo>
       </div>
 
+      {/* A guest's slip needs no round: it opens their link for the whole event. Drawn only where there are guests. */}
+      {slips.all > 0 && <PlayerLinkSlips summary={slips} paper={paper} />}
+
       {!kit.round ? (
         <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
           <p style={{ margin: 0, lineHeight: 1.6 }}>
@@ -83,7 +91,7 @@ export default async function PrintKitPage({
           // A new round is a new checklist: nothing ticked or stamped carries over.
           key={`${kit.round.id}-${kit.cardsBy}-${kit.signsBy}`}
           kit={kit}
-          paper={paperFrom(params.paper, kit.paper)}
+          paper={paper}
           docs={docs}
           preticked={preticked}
           staleOnly={params.stale === "1"}

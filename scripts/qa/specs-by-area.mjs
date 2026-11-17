@@ -302,6 +302,8 @@ export const FULL_ONLY = [
   "e2e/a-guest-takes-full-part.spec.ts",
   // J39/J40 PR 2: a guest in messages and notices, by who-key (messaging and push: shared ground).
   "e2e/a-guest-in-messages.spec.ts",
+  // J39/J40 PR 3: player link slips printed at the desk, reprinted new, replaced after a lost sheet (access: shared ground).
+  "e2e/player-link-slips.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",
