@@ -66,7 +66,7 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
 
     // Launched (what the Launch press leaves behind): the draw is made, no tie played.
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live" } });
     await expectTournamentSays(page, {
       chip: "Live",
       lock: "live",

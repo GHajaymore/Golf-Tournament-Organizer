@@ -145,7 +145,7 @@ test("a countback pressed after the tournament was launched in another tab says 
     await signIn(context, baseURL!, club, event.id);
     await gotoStages(page);
     const card = await openTieChoices(page, stages[0].id);
-    await prisma.event.update({ where: { id: event.id }, data: { status: "live", configUnlocked: false } });
+    await prisma.event.update({ where: { id: event.id }, data: { status: "live" } });
 
     const standard = card.getByRole("button", { name: /Use the standard countback/ });
     await centre(standard);

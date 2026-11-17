@@ -50,7 +50,7 @@ beforeAll(async () => {
   const event = await prisma.event.create({
     data: {
       organizationId: ids.org, name: `${TAG} medal`, status: "live", dates: "Saturday", course: "Home", city: "", address: "",
-      regDeadline: "", shareToken: `${TAG}-${process.pid}`, configUnlocked: false,
+      regDeadline: "", shareToken: `${TAG}-${process.pid}`,
       // The committee accepts cards (the default): only an approved card is final.
       scoreApproval: "staff",
     },

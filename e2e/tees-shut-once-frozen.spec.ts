@@ -92,7 +92,6 @@ async function ratedCourse(c: Club) {
 async function medalAt(c: Club, name: string, status: string, at: Awaited<ReturnType<typeof ratedCourse>>) {
   const made = await makeEvent(c, name, {
     status,
-    configUnlocked: false,
     stages: [{}, {}],
     players: 4,
     event: { courseId: at.course.id, defaultTeeId: at.white.id, course: at.course.name },
@@ -227,7 +226,6 @@ for (const rule of ["balanced", "manual"] as const) {
     const make = async (name: string) => {
       const made = await makeEvent(club, `${name} ${rule}`, {
         status: "draft",
-        configUnlocked: false,
         stages: [{}, {}],
         players: 4,
         flights: 2,
