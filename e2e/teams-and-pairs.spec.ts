@@ -55,7 +55,6 @@ test("a secretary renames a side, takes a player out and puts them back, and is 
   const ev = club.events.find((e) => e.slug === "fourball")!;
   const stage = await prisma.stage.findFirstOrThrow({ where: { eventId: ev.id, position: 0 } });
   expect(stage.type, "the seeded four-ball is not a stroke-play round").toBe("Stroke Play Round");
-  expect((await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, "setup is already unlocked").toBe(false);
   const side = await prisma.team.findFirstOrThrow({
     where: { stageId: stage.id },
     orderBy: { seed: "asc" },

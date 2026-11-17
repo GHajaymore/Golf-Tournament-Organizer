@@ -72,6 +72,7 @@ const EXEMPT: Record<string, string> = {
   TeamsClient: "removeTeamMember is re-added in a tap — a confirmation there would be noise",
   ClearScores: "the whole component IS the confirmation, with the cards named",
   ScoreEntryClient: "clearMatch sits behind its own explicit are-you-sure step",
+  KnockoutTies: "the play-off for third's clearMatch sits behind its own are-you-sure step (Clear the result / Keep it), at 15 px for outdoors",
 };
 
 function componentFiles(): string[] {

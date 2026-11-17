@@ -78,7 +78,6 @@ beforeAll(async () => {
         format: "stroke",
         // LIVE AND LOCKED — the state every case below is about.
         status: "live",
-        configUnlocked: false,
       },
     })
   ).id;

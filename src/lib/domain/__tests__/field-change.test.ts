@@ -32,8 +32,12 @@ import { NO_SHEET } from "../../__tests__/field-doors";
  *   - a placed player is not moved between prize divisions once play is under
  *     way, and players' details and bulk imports are not day-of acts.
  *
- * Draft and unlocked are exactly today's behaviour: everything open (the
- * regression table copied from the present guard, `configurationLocked`).
+ * A draft is exactly the behaviour before the rule: everything open (the
+ * regression table copied from the guard it replaced). So is a casual round at
+ * any step short of completed: it is never locked by launch (proposal 8.2,
+ * "Casual: locks none"), which until state machine PR 9b only the retired
+ * blanket flag on its row said. The "unlocked" columns that flag earned here
+ * are gone with it (PR 9b).
  */
 
 // One stored status before launch since A045 (state machine PR 8): the old ladder's two later
@@ -43,11 +47,9 @@ type Stage =
   | "live"
   | "liveWithResult"
   | "completed"
-  | "unlocked"
-  | "unlockedWithResult"
   | "fieldCorrection"
   | "flightsCorrection";
-const STAGES: Stage[] = ["draft", "live", "liveWithResult", "completed", "unlocked", "unlockedWithResult", "fieldCorrection", "flightsCorrection"];
+const STAGES: Stage[] = ["draft", "live", "liveWithResult", "completed", "fieldCorrection", "flightsCorrection"];
 
 /** A committee correction open on one scope, after Round 1's first card — the day the way out is needed. */
 const correctionOn = (scope: "field" | "flights") => ({ scope, by: "A. Organizer", reason: "A walk-in after the first card", until: "2026-11-30T05:00:00.000Z" });
@@ -60,17 +62,13 @@ function at(family: Family, stage: Stage): TournamentFacts {
   });
   switch (stage) {
     case "draft":
-      return { ...f, status: stage, configUnlocked: false };
+      return { ...f, status: stage };
     case "live":
       return launched(f);
     case "liveWithResult":
       return withResult(launched(f));
     case "completed":
-      return { ...withResult(f), status: "completed", configUnlocked: false };
-    case "unlocked":
-      return { ...f, status: "live", configUnlocked: true };
-    case "unlockedWithResult":
-      return withResult({ ...f, status: "live", configUnlocked: true });
+      return { ...withResult(f), status: "completed" };
     case "fieldCorrection":
       return { ...withResult(launched(f)), correction: correctionOn("field") };
     case "flightsCorrection":
@@ -85,7 +83,7 @@ const PRIZE_DIVISIONS: Family[] = ["stroke", "stableford"];
 /** The knockouts: their draw is made at the first result (the bracket re-seeds until it). */
 const KNOCKOUTS: Family[] = ["knockout", "flightedKnockout"];
 /** The stages with a result in Round 1 — for a knockout, a knockout result: its draw made. */
-const WITH_RESULT: Stage[] = ["liveWithResult", "completed", "unlockedWithResult", "fieldCorrection", "flightsCorrection"];
+const WITH_RESULT: Stage[] = ["liveWithResult", "completed", "fieldCorrection", "flightsCorrection"];
 
 /** The desk's answer, worked by hand — see the header. True = allowed. */
 function expected(family: Family, stage: Stage, change: FieldChange): boolean {
@@ -97,7 +95,8 @@ function expected(family: Family, stage: Stage, change: FieldChange): boolean {
    */
   const entering = change === "add" || change === "add-to-flight" || change === "approve";
   if (KNOCKOUTS.includes(family) && WITH_RESULT.includes(stage) && entering) return false;
-  if (stage === "draft" || stage === "unlocked" || stage === "unlockedWithResult") {
+  // A casual round is never locked by launch (8.2): live, it is as open as a draft (PR 9b).
+  if (stage === "draft" || family === "casual") {
     return true;
   }
   /**
@@ -130,7 +129,7 @@ function expected(family: Family, stage: Stage, change: FieldChange): boolean {
       // A round robin's late entrant needs a flight (panel Q3): a bare add or an approval has none to give.
       if (family === "roundRobinFlights") return false;
       if (DRAW_IS_THE_FIELD.includes(family)) return false;
-      if (family === "league" || family === "casual") return true;
+      if (family === "league") return true;
       return !begun;
     case "add-to-flight":
       // A round robin's late entry IS one with a flight; the window is its only question.
@@ -192,7 +191,7 @@ describe("every refusal says why and where to put it right", () => {
 
   it("withdraw is open in all nine families while live, with or without a result, and refused only when completed", () => {
     for (const family of FAMILIES) {
-      for (const stage of ["live", "liveWithResult", "draft", "unlocked"] as Stage[]) {
+      for (const stage of ["live", "liveWithResult", "draft"] as Stage[]) {
         expect(fieldChangeAllowed(fieldFactsOf(at(family, stage), NO_SHEET), "withdraw").ok, `${family} ${stage}`).toBe(true);
         expect(fieldChangeAllowed(fieldFactsOf(at(family, stage), NO_SHEET), "reinstate").ok, `${family} ${stage}`).toBe(true);
       }
@@ -342,9 +341,7 @@ describe("a confirmed draw holds moves, not a late entrant's placement in a priz
     }
   });
 
-  it("unlocked does not open a confirmed draw's moves (the draw's own lock), and withdraw and add never asked it", () => {
-    expect(fieldChangeAllowed(withDraw("stroke", "unlocked"), "move-flight").ok).toBe(false);
-    expect(fieldChangeAllowed(withDraw("stroke", "unlocked"), "place-in-flight").ok).toBe(true);
+  it("withdraw and add never asked a confirmed draw", () => {
     expect(fieldChangeAllowed(withDraw("stroke", "live"), "withdraw").ok).toBe(true);
     expect(fieldChangeAllowed(withDraw("stroke", "live"), "add").ok).toBe(true);
   });
@@ -453,7 +450,8 @@ describe("the screen's doors and banner come from the same rule", () => {
 
   it("the banner is two short lines while under way, and never promises an add the rule refuses", () => {
     expect(fieldBanner(fieldFactsOf(at("stroke", "draft"), NO_SHEET))).toBeNull();
-    expect(fieldBanner(fieldFactsOf(at("stroke", "unlocked"), NO_SHEET))).toBeNull();
+    // A casual round is never under way behind a lock: no banner (PR 9b, the family rule).
+    expect(fieldBanner(fieldFactsOf(at("casual", "live"), NO_SHEET))).toBeNull();
     expect(fieldBanner(fieldFactsOf(at("stroke", "completed"), NO_SHEET))).toBeNull();
     expect(fieldBanner(fieldFactsOf(at("stroke", "live"), NO_SHEET))).toEqual([
       "You can withdraw a player, put one back or add a late entry.",
@@ -560,9 +558,10 @@ describe("late entries close at Round 1's last published tee time, by the club's
     }
   });
 
-  it("draft and unlocked never ask the clock (the behaviour before the rule)", () => {
-    for (const stage of ["draft", "unlocked", "unlockedWithResult"] as Stage[]) {
-      expect(fieldChangeAllowed(facts("stroke", stage, WHEN[5]), "add").ok, stage).toBe(true);
+  it("a draft and a casual round never ask the clock (the behaviour before the rule)", () => {
+    expect(fieldChangeAllowed(facts("stroke", "draft", WHEN[5]), "add").ok, "draft").toBe(true);
+    for (const stage of ["live", "liveWithResult"] as Stage[]) {
+      expect(fieldChangeAllowed(facts("casual", stage, WHEN[5]), "add").ok, `casual ${stage}`).toBe(true);
     }
   });
 

@@ -27,6 +27,7 @@ vi.mock("@/lib/integrations/federation-link", () => ({ federationLinkLive: () =>
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
 import { updateSignup } from "@/app/actions/tournament";
+import { openCorrectionOn } from "./correction-fixture";
 
 /**
  * A PLAYER'S INDEX, CHANGED FROM A TOURNAMENT (2026-10-16).
@@ -266,8 +267,9 @@ describe("Members", () => {
   it("the field screen's old door no longer writes Members behind anybody's back", async () => {
     await tournament();
     const ray = await entrant("Ray", 9);
-    // The details door is behind the setup lock; this tournament is live, so unlock it for the edit.
-    await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: true } });
+    // The details door is behind the field's lock; this tournament is live, so the field is opened
+    // for the edit with a committee correction (state machine PR 9b: the blanket unlock is not read).
+    await openCorrectionOn(prisma, eventId, "field");
     await signIn(ownerId);
     const res = await updateSignup(ray.playerId, { handicap: 6 });
     expect(res.ok, res.error).toBe(true);

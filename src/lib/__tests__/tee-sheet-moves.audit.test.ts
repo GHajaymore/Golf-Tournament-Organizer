@@ -117,7 +117,6 @@ beforeAll(async () => {
       regDeadline: "",
       shareToken: `${TAG}-${Date.now()}`,
       status: "live",
-      configUnlocked: false,
     },
   });
   eventId = e.id;
@@ -304,7 +303,6 @@ describe("the field a group's room is counted against (a league week)", () => {
         regDeadline: "",
         shareToken: `${TAG}-league-${Date.now()}`,
         status: "live",
-        configUnlocked: false,
         attendanceMode: "opt-out",
       },
     });
