@@ -602,7 +602,7 @@ body {
 }
 
 /* SUSPEND PLAY IN THE CONSOLE'S SHELL (Rule 5.7; `PlayStatusFrame`). Drawn only
-   WHILE PLAY IS SUSPENDED; with play on, Suspend play is an ordinary row that
+   WHILE PLAY IS SUSPENDED; with play on, above 820px (on a phone see `play-status-control.css`), Suspend play is an ordinary row that
    scrolls away with the page and covers nothing. Sticky, so
    a TD scrolled down a long tee sheet still has it under the thumb; under the
    phone's sticky top bar (`--play-status-top` is that bar's measured height,

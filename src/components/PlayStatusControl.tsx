@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { resumePlay, suspendPlay } from "@/app/actions/play-status";
 import { MAX_SUSPEND_NOTE, alertsOffWords } from "@/lib/domain/play-status";
+import "./play-status-control.css";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import { formatClock } from "@/lib/domain/locale";
@@ -16,6 +17,14 @@ import { formatClock } from "@/lib/domain/locale";
  * On every console screen it is the primary button at the top, and a stray
  * tap sends the field back out into the lightning: an accidental suspend is
  * safe, an accidental resume is not.
+ *
+ * ON A PHONE, ONE CONTROL, TWO PLACES (B64, Rule 5.7): with play on, the very
+ * same button is drawn compact in the sticky top bar (`.suspend-compact`, CSS
+ * only: fixed over the bar's right end, 44px, never scrolling away), and its
+ * confirm opens as a sheet pinned to the top of the window
+ * (`.suspend-confirm`), so a committee member far down a long screen suspends
+ * in the same two presses and no second copy of the rule exists. Above 820px
+ * both are the ordinary rows they always were.
  *
  * Drawn on every console screen by the shell (`ConsolePlayStatus`), never by
  * a page. `alertsOff` is the names of the players the alarm will not reach
@@ -61,6 +70,20 @@ export function PlayStatusControl({
   useEffect(() => {
     if (open || resuming) confirmButton.current?.scrollIntoView({ block: "nearest" });
   }, [open, resuming]);
+  /**
+   * The suspend confirm is an overlay on a phone (B64): focus moves into it when it opens
+   * (the sheet itself, never the reason input, which would raise the keyboard over a lightning
+   * stop, and never the confirm button, which would make Enter the second press), and back to
+   * Suspend play when it closes. Escape closes it.
+   */
+  const sheet = useRef<HTMLFormElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) sheet.current?.focus({ preventScroll: true });
+    else if (wasOpen.current) trigger.current?.focus({ preventScroll: true });
+    wasOpen.current = open;
+  }, [open]);
   /**
    * The time on the ORGANIZER'S clock, so only in the browser. Formatted on
    * the server it would be the server's zone (UTC in production) and then a
@@ -117,8 +140,8 @@ export function PlayStatusControl({
 
   if (!open) {
     return (
-      <div style={{ marginBottom: 20 }}>
-        <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
+      <div className="suspend-compact" style={{ marginBottom: 20 }}>
+        <button ref={trigger} type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
           <Icon name="warning" /> Suspend play
         </button>
       </div>
@@ -127,14 +150,21 @@ export function PlayStatusControl({
 
   return (
     <form
-      className="card"
+      ref={sheet}
+      role="alertdialog"
+      aria-labelledby="suspend-confirm-title"
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !pending) setOpen(false);
+      }}
+      className="card suspend-confirm"
       style={{ marginBottom: 20, display: "grid", gap: 10, borderColor: "var(--color-danger)" }}
       onSubmit={(e) => {
         e.preventDefault();
         run(() => suspendPlay(why), close);
       }}
     >
-      <strong>Suspend play for the whole field?</strong>
+      <strong id="suspend-confirm-title">Suspend play for the whole field?</strong>
       <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
         Every player gets a notification to stop now, and every screen and the public board say so until you
         resume play.

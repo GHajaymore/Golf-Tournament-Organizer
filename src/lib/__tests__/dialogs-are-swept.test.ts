@@ -88,6 +88,8 @@ describe("every dialog is accounted for", () => {
       { file: "NeedsStrokesBand.tsx", modal: false, announced: true },
       { file: "OwnerAccounts.tsx", modal: true, announced: true },
       { file: "PlayerSignOut.tsx", modal: true, announced: true },
+      // Suspend play's confirm: a sheet pinned to the top on a phone (B64), not modal (the page behind stays usable).
+      { file: "PlayStatusControl.tsx", modal: false, announced: true },
       // The redesign's one-thing-open panel (2026-10-30). Its geometry is in
       // `e2e/dialog.spec.ts` ("the round's side panel", Rounds & formats' timeline).
       { file: "SidePanel.tsx", modal: true, announced: true },
