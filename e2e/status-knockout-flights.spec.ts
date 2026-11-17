@@ -4,6 +4,13 @@ import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
+import { expectLateEntryRefused } from "./status-late-entrant";
+
+/** The knockout rule's refusals (`field-change.ts`): before any result the committee correction opens the field; after the first the way out is the Bracket. */
+const KNOCKOUT_LAUNCHED =
+  "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. An Organizer can open the field with a committee correction.";
+const KNOCKOUT_DRAWN =
+  "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. To draw it again, clear its results on the Bracket.";
 
 /**
  * A KNOCKOUT IN FLIGHTS, WALKED THROUGH THE STATE MACHINE (J13; the flighted
@@ -112,7 +119,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
 
     // Dated: nothing else holds a flighted knockout (the division is made after launch, by design).
     await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Club championship", startOn: day, endOn: day } });
-    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null, home: { text: "ready to launch", action: "Launch tournament" } });
 
     // Launched by the press, as the other walks do it.
     await page.goto(`/dashboard?bust=${Date.now()}`);
@@ -142,6 +149,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
 
     // The division made (after launch, as a qualifying round would): still live, nothing played.
@@ -155,20 +163,30 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
 
     // Division made, nothing played: the draw is still the organizer's.
     await expectDraw("division made", true);
 
+    // A late entrant (PR 9c): a flighted knockout is a knockout, so it is REFUSED whichever flight
+    // the entrant would join, with the reserve as the way out. The Add form therefore draws no
+    // flight to name (`addFlightPick` is null for a knockout), and the refusal is the same sentence.
+    await expectLateEntryRefused(page, f, "Idris Calloway", KNOCKOUT_LAUNCHED);
+    await expect(page.getByLabel(/^Flight ·/), "the Add form offers a flight where no entry can be taken").toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add as a reserve" })).toBeEnabled();
+
     // Flight A decided: one Final of three. Live, and Complete is allowed.
     await decide(0);
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
     // The first result shut the draw (the machine's "results" lock): the screen says the flights are fixed.
     await expectDraw("first result in", false);
+    // And the late entrant is refused in the words for a draw that is made.
+    await expectLateEntryRefused(page, f, "Idris Calloway", KNOCKOUT_DRAWN);
 
     // Flights A and B: the third Final is still to play. Still live.
     await decide(1);
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
 
     // All three Finals: play over, said for every final.
     await decide(2);
@@ -176,6 +194,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chip: "Play over",
       lock: "live",
       chipDetail: "Every final decided · results not released",
+      home: { text: "Every final decided · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });
@@ -184,7 +203,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
     await expectDraw("completed", false, "completed");
 
     // Reopened by the press: every Final is still decided, so play is over again.
@@ -194,6 +213,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       chip: "Play over",
       lock: "live",
       chipDetail: "Every final decided · results not released",
+      home: { text: "Every final decided · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });
