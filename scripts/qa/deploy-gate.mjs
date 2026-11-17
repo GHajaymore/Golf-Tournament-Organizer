@@ -37,7 +37,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed, nightlyNeeded, retryTransient } from "./deploy-rules.mjs";
+import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed, nightlyNeeded, retryTransient, verdictCheckPath, verdictJobsForRun, nightliesWorthAsking } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
 const args = process.argv.slice(2);
@@ -115,8 +115,12 @@ function waitingCommitsSince(deployed, sha) {
   );
 }
 
-/** The commits a Nightly round was clean on: its Verdict job succeeded. */
-function cleanNightlies() {
+/**
+ * The commits a Nightly round was clean on: its Verdict succeeded. Only nightlies on a commit that contains
+ * `oldest` (the oldest commit waiting) are asked, and each is asked for its Verdict CHECK RUN, never for all
+ * its jobs — see NIGHTLY_VERDICT_CHECK in deploy-rules.mjs for the measurements behind that.
+ */
+function cleanNightlies(oldest) {
   let runs = [];
   try {
     runs = gh("run", "list", "-R", REPO, "--workflow", "nightly.yml", "--branch", "main", "--limit", "20", "--json", "databaseId,headSha") ?? [];
@@ -124,10 +128,11 @@ function cleanNightlies() {
     return [];
   }
   const withJobs = [];
-  for (const r of runs) {
-    // Not filtered to completed runs: the round asking is still running (its deploy job is this very step).
-    const view = gh("run", "view", String(r.databaseId), "-R", REPO, "--json", "jobs");
-    withJobs.push({ headSha: r.headSha, jobs: view?.jobs ?? [] });
+  for (const r of nightliesWorthAsking(runs, (head) => isAncestor(oldest, head))) {
+    // Not filtered to completed runs: the round asking is still running (its deploy job is this very step),
+    // and its Verdict check run is already written when the deploy job starts.
+    const checks = gh("api", verdictCheckPath(REPO, r.headSha));
+    withJobs.push({ headSha: r.headSha, jobs: verdictJobsForRun(checks?.check_runs ?? [], r.databaseId) });
   }
   return cleanNightlyShas(withJobs);
 }
@@ -158,7 +163,7 @@ try {
   const alreadyThere = Boolean(deployed) && isAncestor(SHA, deployed.sha);
   const green = verifyGreen(SHA);
   const coreCommits = alreadyThere ? [] : waitingCommitsSince(deployed?.sha ?? null, SHA);
-  const nightlies = coreCommits.length || !deployed ? cleanNightlies() : [];
+  const nightlies = coreCommits.length || !deployed ? cleanNightlies(coreCommits[0]?.sha ?? SHA) : [];
   const covered = (c) => nightlies.some((n) => isAncestor(c, n));
   const facts = {
     sha: SHA,
