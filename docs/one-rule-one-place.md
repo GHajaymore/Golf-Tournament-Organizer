@@ -372,6 +372,8 @@ day and will drift: search for the expression.
 - **Known divergence, left alone**: the player layout's banner reads its own `gateEvent` (the session's event), which `playStatusForScreen("player")` reads too. J39/J40's guest link (#1125, #1132) moves the player app to `getPlayerViewer`; when it lands, the `"player"` branch here asks the viewer, so the layout and the poll stay one answer.
 - Held by `the-siren-reaches-a-round-code.test.ts` (the screens ask it; the poll asks nothing else) and `.audit.test.ts` (against real rows: a round-code phone with no email; a phone holding a member's session and another club's code; a reissued code; a forged screen); as a code holder in `e2e/play-suspended.spec.ts`.
 
+- **Where the committee can stop play** (14 Nov, simplicity cut 2): `consoleOffersPlayStop({ viewRole, step, suspended, casualRound })` in `domain/play-status.ts`, drawn once by the console's shell (`ConsolePlayStatus`). Held by `suspend-play-is-in-the-console-shell.test.ts` (one mount, with a control), `play-can-be-suspended.audit.test.ts` (the machine's real step) and `e2e/play-suspended.spec.ts` (2 presses from the tee sheet on a phone).
+
 ### Dead twins of live rules
 All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`, `seasonPosition`, `isMatchStarted` (2026-10-14).
 

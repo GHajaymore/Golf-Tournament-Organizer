@@ -196,6 +196,8 @@ test.describe("a guest takes full part by a player link", () => {
       // The screen asks every twenty seconds. Nothing here reloads it.
       await expect(suspendedBanner, "a guest's open screen never noticed play was suspended (the siren's poll asked getSession)").toBeVisible({ timeout: 45_000 });
       await deskPage.getByRole("button", { name: "Resume play" }).click();
+      // Resuming asks first (#1149): the button, then "Resume play now".
+      await deskPage.getByRole("button", { name: "Resume play now" }).click();
       await expect(deskPage.getByRole("button", { name: "Suspend play" })).toBeVisible({ timeout: 20_000 });
       await expect(suspendedBanner, "a guest's open screen still says play is suspended after it resumed").toHaveCount(0, { timeout: 45_000 });
     } finally {
