@@ -4,7 +4,7 @@ import { readVerbatim } from "./source";
 import { decide } from "../../../scripts/qa/nightly-dedupe.mjs";
 
 const SHA = "a".repeat(40);
-const run = (databaseId: number, status: string, conclusion: string | null, headSha = SHA) => ({ databaseId, status, conclusion, headSha });
+const run = (databaseId: number, status: string, conclusion: string | null, headSha = SHA, clean = conclusion === "success") => ({ databaseId, status, conclusion, headSha, clean });
 
 describe("a scheduled nightly is not run twice on one commit (B75)", () => {
   it("never skips a dispatched run, even with a clean nightly on the sha", () => {
@@ -17,6 +17,9 @@ describe("a scheduled nightly is not run twice on one commit (B75)", () => {
       expect(d.reason).toBe(`Nightly: skipped — 7 already covers ${SHA}`);
     }
   });
+  it("a skipped run (success, no clean Verdict) is not cover, and neither is any run without one", () => {
+    expect(decide([run(7, "completed", "success", SHA, false)], SHA, "schedule", 9).skip).toBe(false);
+  });
   it("runs when the only same-sha runs failed or were cancelled", () => {
     expect(decide([run(7, "completed", "failure"), run(8, "completed", "cancelled")], SHA, "schedule", 9).skip).toBe(false);
   });
@@ -28,7 +31,7 @@ describe("a scheduled nightly is not run twice on one commit (B75)", () => {
     const wf = readVerbatim(".github/workflows/nightly.yml").replace(/\r\n/g, "\n");
     expect(wf).toContain("node scripts/qa/nightly-dedupe.mjs");
     expect(wf).toContain("needs: dedupe");
-    expect(wf).toContain("if: needs.dedupe.outputs.skip != 'true'");
+    expect(wf).toContain("if: ${{ !cancelled() && needs.dedupe.outputs.skip != 'true' }}");
     expect(wf).toContain("if: needs.round.result == 'success'");
   });
 });

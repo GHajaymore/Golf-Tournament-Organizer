@@ -18,17 +18,23 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { cleanNightlyShas, verdictCheckPath, verdictJobsForRun } from "./deploy-rules.mjs";
 
 const ACTIVE = new Set(["queued", "in_progress", "waiting", "requested", "pending"]);
 
-/** runs: [{ databaseId, status, conclusion, headSha }]. Returns { skip, reason, coveredBy }. */
+/**
+ * runs: [{ databaseId, status, conclusion, headSha, clean }]. `clean` is the DEPLOY GATE's own rule for a finished run
+ * (its Round / Verdict check run succeeded: `cleanNightlyShas` over `verdictJobsForRun`), never the run's conclusion:
+ * a run this script itself skipped ends "success" with no Verdict and must never count as cover.
+ * Returns { skip, reason, coveredBy }.
+ */
 export function decide(runs, sha, event, selfId) {
   if (event !== "schedule") return { skip: false, reason: `${event || "manual"} run: never skipped`, coveredBy: null };
   const cover = (runs ?? []).find(
     (r) =>
       r.headSha === sha &&
       String(r.databaseId) !== String(selfId ?? "") &&
-      (ACTIVE.has(r.status) || (r.status === "completed" && r.conclusion === "success")),
+      (ACTIVE.has(r.status) || (r.status === "completed" && r.clean === true)),
   );
   if (!cover) return { skip: false, reason: `no other nightly covers ${sha}`, coveredBy: null };
   return { skip: true, reason: `Nightly: skipped — ${cover.databaseId} already covers ${sha}`, coveredBy: cover.databaseId };
@@ -42,9 +48,18 @@ function main() {
   try {
     if (event !== "schedule") verdict = decide([], sha, event, process.env.GITHUB_RUN_ID);
     else {
-      const r = spawnSync("gh", ["run", "list", "-R", repo, "--workflow", "nightly.yml", "--limit", "50", "--json", "databaseId,status,conclusion,headSha"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+      const r = spawnSync("gh", ["run", "list", "-R", repo, "--workflow", "nightly.yml", "--branch", "main", "--limit", "50", "--json", "databaseId,status,conclusion,headSha"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
       if (r.status !== 0) throw new Error((r.stderr || r.stdout || "").trim().slice(0, 300));
-      verdict = decide(JSON.parse(r.stdout || "[]"), sha, event, process.env.GITHUB_RUN_ID);
+      const runs = JSON.parse(r.stdout || "[]");
+      // One small call for the sha: the Verdict check runs on it, tied to each run by its details_url.
+      let checks = [];
+      if (runs.some((x) => x.headSha === sha && x.status === "completed" && x.conclusion === "success")) {
+        const c = spawnSync("gh", ["api", verdictCheckPath(repo, sha)], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+        if (c.status !== 0) throw new Error((c.stderr || c.stdout || "").trim().slice(0, 300));
+        checks = JSON.parse(c.stdout || "{}").check_runs ?? [];
+      }
+      const withClean = runs.map((x) => ({ ...x, clean: cleanNightlyShas([{ headSha: x.headSha, jobs: verdictJobsForRun(checks, x.databaseId) }]).length > 0 }));
+      verdict = decide(withClean, sha, event, process.env.GITHUB_RUN_ID);
     }
   } catch (e) {
     console.log(`::warning title=Nightly dedupe::could not ask GitHub (${e instanceof Error ? e.message : String(e)}); running the nightly`);
