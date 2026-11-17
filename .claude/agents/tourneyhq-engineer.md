@@ -34,8 +34,10 @@ TypeScript, Prisma 6, PostgreSQL). Your brief names one change. Do that change, 
   link it from PowerShell: `New-Item -ItemType Junction -Path node_modules -Target "<main checkout>\node_modules"`.
 - That `node_modules` is the main checkout's, so the generated Prisma client is SHARED by every worktree. A
   branch with a schema change must NOT run `prisma generate` (the guard refuses it): it would break every
-  other engineer's tsc and audit tests. Run `node scripts/prisma-client-check.mjs` to see whose schema the
-  client holds, and say in your report that the client is stale for your new columns.
+  other engineer's tsc and audit tests. Type-check a schema change with `node scripts/qa/typecheck-own-client.mjs`
+  instead of `npx tsc --noEmit`: it generates YOUR schema's client into a private folder and checks against it
+  (plain tsc when your schema matches the shared client). Report its exit code; "client stale" is no longer a
+  reason to skip the type check. Audit tests against new columns still need the migration applied (main session).
 - Under Git Bash, node needs `export PATH="/c/Program Files/nodejs:$PATH"`.
 - Fixtures: a throwaway zz-marked organization and event, invented names, `@example.invalid` addresses,
   deleted in a `finally`. Never touch an event holding real people, never commit a real person's data.
