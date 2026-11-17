@@ -47,6 +47,8 @@ function cssImports(dir: string, out: Array<{ file: string; sheet: string }> = [
   return out;
 }
 
+const PLAY_STATUS_SHEET = "src/components/play-status-control.css";
+
 describe("the Rounds timeline's styles are sent with the Rounds screen only", () => {
   it("can see a timeline rule — the control", () => {
     expect(timelineSelectorsIn(".card { color: red } .rt-hero { display: grid }")).toEqual([".rt-hero"]);
@@ -76,5 +78,23 @@ describe("the Rounds timeline's styles are sent with the Rounds screen only", ()
     // The root layout sends globals.css to every page; it must stay the only sheet a layout sends.
     const fromLayouts = all.filter((i) => /\/layout\.tsx$/.test(i.file));
     expect(fromLayouts).toEqual([{ file: "src/app/layout.tsx", sheet: "./globals.css" }]);
+  });
+});
+
+describe("the compact Suspend play control's styles are sent with the console only (B64)", () => {
+  const COMPACT = /\.suspend-(compact|confirm)\b/;
+
+  it("can see a compact rule, and its own sheet is full of them", () => {
+    expect(selectors(".card { color: red } .suspend-compact .btn.btn { color: red }").filter((x) => COMPACT.test(x))).toHaveLength(1);
+    expect(selectors(readSource(PLAY_STATUS_SHEET)).filter((x) => COMPACT.test(x)).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(GLOBAL_SHEETS)("%s carries no compact Suspend play rule", (sheet) => {
+    expect(selectors(readSource(sheet)).filter((x) => COMPACT.test(x))).toEqual([]);
+  });
+
+  it("only PlayStatusControl imports its sheet", () => {
+    const all = cssImports(join(process.cwd(), "src"));
+    expect(all.filter((i) => i.sheet.endsWith("play-status-control.css")).map((i) => i.file)).toEqual(["src/components/PlayStatusControl.tsx"]);
   });
 });
