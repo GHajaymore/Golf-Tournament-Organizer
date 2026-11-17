@@ -189,7 +189,6 @@ test.describe("no handicap index in a net round", () => {
       const first = addDays(dayIn(ZONE), 20);
       const made = await makeEvent(own, "Thursday League", {
         status: "draft",
-        configUnlocked: true,
         stages: [
           { scoringBasis: "gross", playedOn: first },
           { scoringBasis: "net", playedOn: "" },
