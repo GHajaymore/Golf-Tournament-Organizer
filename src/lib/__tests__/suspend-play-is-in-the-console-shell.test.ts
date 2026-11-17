@@ -222,9 +222,9 @@ describe("one mount: the console's shell", () => {
     expect(control.match(/run\(\(\) => suspendPlay\(why\)|suspendPlay\(why\)/g), "a second way to suspend").toHaveLength(1);
     expect(mountsOf("PlayStatusControl")).toEqual(["src/components/ConsolePlayStatus.tsx"]);
     // The sheet's cap has a vh fallback and pays the top inset; the confirm is a labelled alertdialog with Escape and focus.
-    expect(sheet).toMatch(/--cap: calc\(96px \+ env\(safe-area-inset-top, 0px\)/);
-    expect(sheet).toMatch(/max-height: calc\(100vh - var\(--cap\)\)/);
-    expect(sheet).toMatch(/max-height: calc\(100dvh - var\(--cap\)\)/);
+    // 70% of the window: from the top inset it ends clear of the tab bar on the shortest phone (568px, notch 47px).
+    expect(sheet).toMatch(/max-height: 70vh;/);
+    expect(sheet).toMatch(/max-height: 70dvh;/);
     expect(control).toMatch(/role="alertdialog"/);
     expect(control).toMatch(/aria-labelledby="suspend-confirm-title"/);
     expect(control).toMatch(/e\.key === "Escape"/);

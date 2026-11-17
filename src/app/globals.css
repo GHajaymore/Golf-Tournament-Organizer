@@ -667,7 +667,6 @@ html {
   }
   .suspend-compact .btn.btn {
     min-height: 44px;
-    padding: 0 12px;
     white-space: nowrap;
   }
   .suspend-confirm {
@@ -677,9 +676,8 @@ html {
     right: calc(8px + env(safe-area-inset-right, 0px));
     z-index: 35;
     margin: 0 !important;
-    --cap: calc(96px + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
-    max-height: calc(100vh - var(--cap));
-    max-height: calc(100dvh - var(--cap));
+    max-height: 70vh;
+    max-height: 70dvh;
     overscroll-behavior: contain;
     overflow-y: auto;
   }
