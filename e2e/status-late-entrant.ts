@@ -37,6 +37,9 @@ export async function expectLateEntryRefused(page: Page, f: StatusFixture, name:
   await openEntries(page);
   await fillLateEntrant(page, f, name);
   await expect(page.getByRole("button", { name: "Add late entry" }), `${name}: a late entry is offered where the rule refuses it`).toBeDisabled();
-  await expect(page.getByText(says, { exact: false }).first(), `${name}: the refusal is not said where the press is`).toBeVisible();
+  // Read INSIDE the Add form (the card holding its button): the Entries banner above says the same
+  // sentence for a family the rule refuses outright, so a page-wide read would pass without the form's own line.
+  const form = page.locator(".card").filter({ has: page.getByRole("button", { name: "Add late entry" }) });
+  await expect(form.getByText(says, { exact: false }).first(), `${name}: the refusal is not said where the press is`).toBeVisible();
   expect(await prisma.player.count({ where: { eventId: f.eventId, name } }), `${name}: a refused add wrote a row`).toBe(0);
 }

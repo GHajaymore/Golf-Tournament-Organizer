@@ -119,6 +119,10 @@ test("a league needs only its next week dated, and a medal of the same rounds is
     });
 
     // A late entrant (PR 9c): taken, as a member who joins the season, with nothing said about a flight.
+    // The season has ONE flight with the six in it, so a flagged "in no flight" is possible at all: without
+    // a flight `flagsUnplaced` is false whatever the family, and the check below could never fail.
+    const flight = await prisma.group.create({ data: { eventId: f.eventId, name: "zz Flight A", position: 0 } });
+    await prisma.player.updateMany({ where: { id: { in: f.playerIds } }, data: { groupId: flight.id } });
     await openEntries(page);
     await expect(page.getByText("You can withdraw a player, put one back or add a late entry.", { exact: false }).first()).toBeVisible();
     expect(await prisma.player.count({ where: { eventId: f.eventId } })).toBe(6);
