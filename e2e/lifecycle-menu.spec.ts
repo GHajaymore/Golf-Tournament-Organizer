@@ -196,7 +196,7 @@ test("with the switch on the menu is the stepper's four stops, and every old des
     await expect(menu.locator('a.side-link[aria-current="page"]')).toHaveText("Entries");
 
     // LAUNCHED, the tee sheet not out: the stepper moves to the Tee times stop, and so does the menu's mark.
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date() } });
     await page.goto("/dashboard?stepper=1");
     await expect(page.getByRole("region", { name: "Where this tournament is" }).locator('[aria-current="step"]')).toContainText("Tee sheet");
     menu = await menuOf(page);

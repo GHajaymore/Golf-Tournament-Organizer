@@ -79,7 +79,6 @@ async function eventWith(suffix: string) {
       name: `${TAG} ${suffix}`,
       status: "live",
       // A live tournament is locked until the organizer unlocks it.
-      configUnlocked: true,
       shape: "series",
       dates: "",
       course: "Home",

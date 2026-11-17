@@ -947,7 +947,6 @@ export default async function DashboardPage() {
           // Ending early, behind the card's "More" — never a Complete beside the job (the PM, 10 Nov).
           endEarly={endEarlyOf(status, job)}
           isAdmin={isAdmin}
-          configUnlocked={event.configUnlocked}
           // The committee correction (PR 5b): which locked scopes it may open, and the one open now.
           correctableScopes={LOCK_SCOPES.filter((s) => scopeLockOf(locksFor(lockFactsOf(told.facts)), s)?.correctable)}
           correction={told.facts.correction}

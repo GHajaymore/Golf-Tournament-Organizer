@@ -88,7 +88,6 @@ beforeAll(async () => {
       name: `${TAG} autumn medal ${RUN}`,
       // Launched, as `launchTournament` leaves it: the setup lock is on.
       status: "live",
-      configUnlocked: false,
       shape: "single",
       format: "stroke",
       formationRule: "balanced",
@@ -280,7 +279,7 @@ describe("a cut made out of a round holds its figures (J12, 8 Nov)", () => {
     const course = await prisma.course.findFirstOrThrow({ where: { name: `${TAG} links` } });
     const event = await prisma.event.create({
       data: {
-        organizationId: ids.org, name: `${TAG} cut championship ${RUN}`, status: "live", configUnlocked: false, shape: "single", format: "stroke",
+        organizationId: ids.org, name: `${TAG} cut championship ${RUN}`, status: "live", shape: "single", format: "stroke",
         formationRule: "balanced", dates: "", course: `${TAG} links`, city: "", address: "", regDeadline: "", capacity: 40,
         shareToken: randomBytes(10).toString("hex"), courseId: course.id, defaultTeeId: ids.white, teePolicy: "own",
       },

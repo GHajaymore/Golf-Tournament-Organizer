@@ -66,7 +66,6 @@ test.describe("tee sheet moves: a tournament", () => {
     club = await makeClub(MARK, { timeZone: ZONE });
     const made = await makeEvent(club, "Monthly Medal", {
       status: "live",
-      configUnlocked: false,
       stages: [{ playedOn: addDays(dayIn(ZONE), 1) }],
       players: 8,
     });
@@ -171,7 +170,6 @@ test.describe("tee sheet moves: a league week", () => {
     club = await makeClub(MARK, { timeZone: ZONE });
     const made = await makeEvent(club, "Thursday League", {
       status: "live",
-      configUnlocked: false,
       stages: [{ playedOn: addDays(dayIn(ZONE), 1) }, { playedOn: addDays(dayIn(ZONE), 8) }],
       players: 8,
       event: { attendanceMode: "opt-out" },

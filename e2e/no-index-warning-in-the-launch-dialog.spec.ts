@@ -55,7 +55,6 @@ async function ready(
   const club = await makeClub(mark);
   const { event, players } = await makeEvent(club, name, {
     status: "draft",
-    configUnlocked: true,
     stages,
     players: 4,
     event: { dates: "Soon", startOn: STARTS, endOn: ENDS, moneyMode: "none", ...(opts.league ? { playKind: "league" } : {}) },
