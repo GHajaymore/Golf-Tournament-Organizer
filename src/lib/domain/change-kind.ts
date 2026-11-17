@@ -35,6 +35,8 @@ export const FIELD_ACTIONS = [
   "player-link.opened", "player-link.handed", "player-link.new", "player-link.off",
   // PR 2 (S8): a guest muted or unmuted in messages.
   "player-link.muted", "player-link.unmuted",
+  // PR 3: player link slips printed, and a lost sheet's links replaced in one press.
+  "player-link.slips", "player-link.new-for-all",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];
