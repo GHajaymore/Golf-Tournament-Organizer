@@ -14,7 +14,9 @@
 //      run tsc with that. The shared client's schema copy is hashed before and after: if it changed, this
 //      fails loudly (the guard's guarantee, kept).
 //
-//   node scripts/qa/typecheck-own-client.mjs        exit = tsc's exit (2 on a setup failure)
+//   node scripts/qa/typecheck-own-client.mjs
+//     exit 0 = types pass; 1 or 2 = tsc's own exit (type errors); 3 = setup failure (generate failed, schema
+//     not understood); 4 = the SHARED client changed (regenerate it from the main checkout).
 //
 // Read-only for everything outside .qa/tmp/own-client. Never touches a database.
 
@@ -55,7 +57,18 @@ export function privateTsconfig(rootTsconfig, root, clientDir) {
   };
 }
 
+/** Exit codes that are not tsc's (tsc uses 1 and 2 for type errors). */
+export const EXIT_SETUP = 3;
+export const EXIT_SHARED_CHANGED = 4;
+
 const sha = (file) => (existsSync(file) ? createHash("sha256").update(readFileSync(file)).digest("hex") : "absent");
+/** The files whose change would mean the SHARED client was touched: its schema copy, its types, and the package that points at it. */
+export const SHARED_CLIENT_FILES = [
+  ["node_modules", ".prisma", "client", "schema.prisma"],
+  ["node_modules", ".prisma", "client", "index.d.ts"],
+  ["node_modules", "@prisma", "client", "package.json"],
+];
+const fingerprint = (root) => SHARED_CLIENT_FILES.map((parts) => sha(path.join(root, ...parts))).join(" ");
 // The tools' own JavaScript entry points, run with this Node: no shell, so a path with spaces stays one argument
 // (the .cmd launchers need a shell on Windows, and the shell split "Golf Tournament App" into three).
 const TOOL = { prisma: ["prisma", "build", "index.js"], tsc: ["typescript", "bin", "tsc"] };
@@ -65,38 +78,44 @@ function main() {
   const root = process.cwd();
   const schemaFile = path.join(root, "prisma", "schema.prisma");
   const sharedCopy = path.join(root, "node_modules", ".prisma", "client", "schema.prisma");
-  const run = (name, args) => spawnSync(process.execPath, [...tool(root, name), ...args], { cwd: root, stdio: "inherit" });
+  // PRISMA_GENERATE_SKIP_AUTOINSTALL: Prisma may otherwise `npm add` @prisma/client into the SHARED node_modules.
+  const run = (name, args) =>
+    spawnSync(process.execPath, [...tool(root, name), ...args], { cwd: root, stdio: "inherit", env: { ...process.env, PRISMA_GENERATE_SKIP_AUTOINSTALL: "1" } });
 
   const mine = normaliseSchema(readFileSync(schemaFile, "utf8").replace(/\r\n/g, "\n"));
   const shared = existsSync(sharedCopy) ? normaliseSchema(readFileSync(sharedCopy, "utf8").replace(/\r\n/g, "\n")) : null;
   if (shared === mine) {
     console.log("typecheck-own-client: this schema matches the shared client; plain tsc");
-    process.exit(run("tsc", ["--noEmit"]).status ?? 2);
+    process.exit(run("tsc", ["--noEmit"]).status ?? EXIT_SETUP);
   }
 
   const work = path.join(root, ".qa", "tmp", "own-client");
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
   const clientDir = path.join(work, "client");
-  const before = sha(sharedCopy);
-  let status = 2;
+  const before = fingerprint(root);
+  let status = EXIT_SETUP;
   try {
     writeFileSync(path.join(work, "schema.prisma"), withPrivateOutput(readFileSync(schemaFile, "utf8"), clientDir));
     console.log("typecheck-own-client: this schema differs from the shared client; generating its own into .qa/tmp/own-client");
     const gen = run("prisma", ["generate", "--schema", path.join(work, "schema.prisma")]);
     if (gen.status !== 0) {
       console.error("typecheck-own-client: prisma generate failed (setup failure, not a type error)");
-    } else if (sha(sharedCopy) !== before) {
+    } else if (fingerprint(root) !== before) {
+      status = EXIT_SHARED_CHANGED;
       console.error("typecheck-own-client: the SHARED client changed while generating — stop; regenerate it from the main checkout");
     } else {
       const tsconfig = path.join(work, "tsconfig.json");
       writeFileSync(tsconfig, JSON.stringify(privateTsconfig(path.join(root, "tsconfig.json"), root, clientDir), null, 2));
-      status = run("tsc", ["--noEmit", "-p", tsconfig]).status ?? 2;
+      status = run("tsc", ["--noEmit", "-p", tsconfig]).status ?? EXIT_SETUP;
     }
+  } catch (e) {
+    console.error(`typecheck-own-client: setup failure: ${e instanceof Error ? e.message : String(e)}`);
+    status = EXIT_SETUP;
   } finally {
-    if (sha(sharedCopy) !== before) {
-      console.error("typecheck-own-client: the shared client's schema copy CHANGED — regenerate it from the main checkout");
-      status = 2;
+    if (fingerprint(root) !== before) {
+      console.error("typecheck-own-client: the SHARED client CHANGED — regenerate it from the main checkout");
+      status = EXIT_SHARED_CHANGED;
     }
     rmSync(work, { recursive: true, force: true });
   }

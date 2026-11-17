@@ -1,10 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import ts from "typescript";
 import { readSource } from "./source";
 // Plain JavaScript on purpose: it runs before anything is built.
-import { withPrivateOutput, privateTsconfig } from "../../../scripts/qa/typecheck-own-client.mjs";
+import {
+  withPrivateOutput,
+  privateTsconfig,
+  SHARED_CLIENT_FILES,
+  EXIT_SETUP,
+  EXIT_SHARED_CHANGED,
+} from "../../../scripts/qa/typecheck-own-client.mjs";
 
 /**
  * A branch that adds a column used to be impossible to type-check outside CI: every worktree shares the main
@@ -53,10 +60,47 @@ describe("type-checking a checkout against its own schema", () => {
     }
   });
 
-  it("never generates into the shared client: the generate call always names the private schema, and the shared copy is checked before and after", () => {
+  it("TypeScript itself resolves @prisma/client to the PRIVATE client under the private tsconfig — and, the control, not under the real one", () => {
+    // Inside the repository, so the real tsconfig's resolution reaches the repository's node_modules.
+    const dir = path.join(process.cwd(), ".qa", "tmp", `own-client-test-${process.pid}-${Date.now()}`);
+    mkdirSync(path.join(dir, "src"), { recursive: true });
+    try {
+      const realConfig = path.join(dir, "tsconfig.json");
+      writeFileSync(realConfig, JSON.stringify({ compilerOptions: { moduleResolution: "bundler", module: "esnext", paths: { "@/*": ["./src/*"] } }, include: ["src/**/*.ts"] }));
+      const from = path.join(dir, "src", "uses-client.ts");
+      writeFileSync(from, 'import type { PrismaClient } from "@prisma/client";\nexport type C = PrismaClient;\n');
+      const clientDir = path.join(dir, "private", "client");
+      mkdirSync(clientDir, { recursive: true });
+      writeFileSync(path.join(clientDir, "index.d.ts"), "export declare class PrismaClient { readonly privateMarker: true }\n");
+      const privateConfig = path.join(dir, "private", "tsconfig.json");
+      writeFileSync(privateConfig, JSON.stringify(privateTsconfig(realConfig, dir, clientDir)));
+
+      const resolve = (configFile: string) => {
+        const parsed = ts.getParsedCommandLineOfConfigFile(configFile, {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} });
+        if (!parsed) throw new Error(`could not read ${configFile}`);
+        return ts.resolveModuleName("@prisma/client", from, parsed.options, ts.sys).resolvedModule?.resolvedFileName ?? null;
+      };
+      const norm = (p: string | null) => (p === null ? null : path.resolve(p).toLowerCase());
+
+      expect(norm(resolve(privateConfig))).toBe(norm(path.join(clientDir, "index.d.ts")));
+      const viaReal = norm(resolve(realConfig));
+      expect(viaReal, "control: the real tsconfig must NOT reach the private client").not.toBe(norm(path.join(clientDir, "index.d.ts")));
+      expect(viaReal ?? "", "control: the real tsconfig reaches the shared @prisma/client").toContain(`${path.sep}node_modules${path.sep}`.toLowerCase());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("the shared client is fingerprinted by its schema copy, its types and the package that points at it; failures are not tsc's codes", () => {
+    expect(SHARED_CLIENT_FILES.map((p: string[]) => p.join("/"))).toEqual([
+      "node_modules/.prisma/client/schema.prisma",
+      "node_modules/.prisma/client/index.d.ts",
+      "node_modules/@prisma/client/package.json",
+    ]);
+    expect([EXIT_SETUP, EXIT_SHARED_CHANGED]).toEqual([3, 4]); // tsc exits 1 or 2 on type errors
     const src = readSource("scripts", "qa", "typecheck-own-client.mjs");
-    expect(src).toMatch(/run\("prisma", \["generate", "--schema", path\.join\(work, "schema\.prisma"\)\]\)/);
-    expect(src.match(/"generate"/g)?.length).toBe(1); // control: the one generate call, and no other
-    expect(src).toMatch(/sha\(sharedCopy\) !== before/);
+    expect(src.match(/"generate"/g)?.length).toBe(1); // the one generate call…
+    expect(src).toMatch(/run\("prisma", \["generate", "--schema", path\.join\(work, "schema\.prisma"\)\]\)/); // …names the private schema
+    expect(src).toMatch(/PRISMA_GENERATE_SKIP_AUTOINSTALL: "1"/);
   });
 });
