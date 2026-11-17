@@ -224,8 +224,13 @@ describe("one door for a typed code", () => {
     expect((await openCode(dashed(wrong))).ok).toBe(false);
     expect((await openCode(dashed(guests.live.code))).ok).toBe(true);
     expect((await openCodeForm(null, form({ code: dashed(wrong) }))).ok).toBe(false);
+    // The §2.3 case ON PURPOSE (a fixture's random code has it only about a quarter of the time): a personal
+    // code whose first 8 are all round-code symbols — the help's own example, which no pass here holds.
+    const roundish = "K7QM2XRA9DTP";
+    expect(await openCode(dashed(roundish))).toEqual({ ok: false, error: CODE_WORDS.opensNothing });
+    expect((await openCodeForm(null, form({ code: dashed(roundish) }))).ok).toBe(false);
     const keys = (await prisma.rateLimitHit.findMany({ where: { key: { startsWith: "round-code:" } }, select: { key: true } })).map((k) => k.key);
-    for (const code of [wrong, guests.live.code]) {
+    for (const code of [wrong, guests.live.code, roundish]) {
       for (const secret of [code.slice(0, 8), code]) {
         expect(keys.filter((k) => k.includes(sha(secret))), `a counter holds the hash of ${secret.length} characters of a personal code`).toEqual([]);
       }
