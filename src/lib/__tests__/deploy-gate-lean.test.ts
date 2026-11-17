@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readSource } from "./source";
+import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose: the gate runs on a bare runner.
 import {
   NIGHTLY_VERDICT_CHECK,
@@ -58,6 +58,17 @@ describe("the deploy gate reads a nightly's Verdict as one check run", () => {
 
   it("when git cannot say whether a nightly contains the commit, the gate stops (fail closed), it does not skip", () => {
     expect(() => nightliesWorthAsking([{ databaseId: 1, headSha: "h" }], () => { throw new Error("git failed"); })).toThrow("git failed");
+  });
+
+  it("the name the gate asks for is the name the nightly writes: <nightly's job calling round.yml> / <round.yml's verdict job>", () => {
+    // Renaming either job would otherwise make every Verdict invisible and hold every deploy, silently.
+    const nightly = readVerbatim(".github", "workflows", "nightly.yml");
+    const round = readVerbatim(".github", "workflows", "round.yml");
+    const caller = nightly.match(/\n {4}name: ([^\r\n]+)\r?\n {4}uses: \.\/\.github\/workflows\/round\.yml/);
+    const verdict = round.match(/\n {2}verdict:\r?\n {4}name: ([^\r\n]+)\r?\n/);
+    expect(caller, "nightly.yml: the job that uses round.yml, with its name on the line before").not.toBeNull();
+    expect(verdict, "round.yml: the verdict job and its name").not.toBeNull();
+    expect(`${caller![1].trim()} / ${verdict![1].trim()}`).toBe(NIGHTLY_VERDICT_CHECK);
   });
 
   it("the gate itself never fetches a nightly's whole job list again", () => {
