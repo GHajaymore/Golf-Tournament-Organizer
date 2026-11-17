@@ -218,3 +218,12 @@ guest-link spec), each written by an engineer who could not run Playwright. Find
 own element and role — `p`, `div` or `span[role="alert"]`, e.g. `page.locator('[role="alert"]:not(#__next-route-announcer__)')` — or better by its text with `.filter({ hasText })`; inside a card,
 section or dialog locator the plain role is fine. `src/lib/__tests__/no-page-wide-alert-locator.test.ts`
 refuses the page-wide form.
+
+- **A press right after a save lands before the redraw (Firefox, 17 Nov).** A server action writes the row, then the
+  page is redrawn with the new data; a database poll or the card's own "goes through" line is true BEFORE that
+  redraw. Playwright's click checks the button is stable, then presses where it was; if the redraw then moves it (a
+  sentence above appears, or a two-line sentence becomes one) the press falls on text and the handler never runs, with
+  no error. Two specs failed this way on Firefox in nightly 44124418761 (`seasons.spec.ts` "Start another season",
+  `organizer-knockout-report.spec.ts` "Change result") and passed on the four nightlies before. Before pressing a
+  button the previous press may have moved, wait for the SCREEN's answer (the next button's name, the sentence that
+  changes), not for the database row.
