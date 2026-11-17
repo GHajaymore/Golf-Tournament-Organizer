@@ -414,7 +414,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "Your {organizer} gives you a player link. No email or app needed.",
       "Open the link, then tap [[Open my card]].",
-      "No link to tap? Go to tourneyhq.club/p and type the code.",
+      "No link to tap? Type the code at tourneyhq.club/p. The round code box takes it too.",
       "Given a slip at the desk? Scan its QR, or type its code.",
       "Your name shows first. Not you? Hand the slip back to the desk.",
       "Capitals and dashes don't matter. An O is read as a zero.",

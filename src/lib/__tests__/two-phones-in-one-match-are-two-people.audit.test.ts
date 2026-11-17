@@ -36,7 +36,13 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { claimPlayerSlotForm, redeemRoundCode } = await import("@/app/actions/play");
+const { claimPlayerSlotForm } = await import("@/app/actions/play");
+const { openCode } = await import("@/app/actions/code-box");
+/** A round code's first step, as the one code box answers it (`openCode`: the door's round payload). */
+async function redeemRoundCode(typed: string): Promise<{ ok: boolean; error?: string; groups?: import("@/lib/domain/play-groups").PlayGroup[] }> {
+  const r = await openCode(typed);
+  return r.ok && r.kind === "round" ? { ok: true, groups: r.round.groups } : { ok: false, error: r.ok ? r.kind : r.error };
+}
 const { getPlaySession } = await import("@/lib/play-auth");
 const { keeperFor } = await import("@/lib/services/group-keeping");
 const { keepingRole } = await import("@/lib/domain/keeping-words");

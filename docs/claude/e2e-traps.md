@@ -64,7 +64,7 @@ page was slow; the button simply had to wait for everything. Three things were f
 
 - **Continue takes a press from the first paint (1.9 s), and a press made before the page is live
   is HELD on the page** (`HeldBeforeLoad`, a tiny inline script) and taken up the moment React is
-  there. The box and the names are also real forms (`redeemRoundCodeForm`, `claimPlayerSlotForm`,
+  there. The box and the names are also real forms (`openCodeForm` since one code box, `claimPlayerSlotForm`,
   through `useActionState`), posted the plain way with JavaScript off, or if the page has still not
   woken ten seconds after the press.
   **The plain post was built first and MEASURED WORSE**: it put the names on screen at 3.3 s instead

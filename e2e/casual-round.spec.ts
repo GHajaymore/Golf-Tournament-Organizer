@@ -704,7 +704,7 @@ test.describe("a casual round at the course", () => {
       try {
         const p = await ctx.newPage();
         await p.goto("/play");
-        await p.getByLabel("Round code").fill(code);
+        await p.getByLabel("Your code").fill(code);
         await p.getByRole("button", { name: "Continue" }).click();
         // A round with no tee sheet lists the names; the name is confirmed once.
         await keepCardOf(p, name);
@@ -768,7 +768,7 @@ test.describe("a casual round at the course", () => {
     try {
       const p = await ctx.newPage();
       await p.goto("/play");
-      await p.getByLabel("Round code").fill(code);
+      await p.getByLabel("Your code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
       await keepCardOf(p, BEA);
       const mine = p.getByRole("button", { name: `Hole 1 to ${BEA}` });
@@ -822,7 +822,7 @@ test.describe("a casual round at the course", () => {
     try {
       const p = await ctx.newPage();
       await p.goto("/play");
-      await p.getByLabel("Round code").fill(code);
+      await p.getByLabel("Your code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
       // Picking the match now draws the card in the same trip, with no reload
       // (`claimName`, 2026-10-25). The card is still drawn by the server ahead
@@ -882,7 +882,7 @@ test.describe("a casual round at the course", () => {
     try {
       const p = await ctx.newPage();
       await p.goto("/play");
-      await p.getByLabel("Round code").fill(code);
+      await p.getByLabel("Your code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
       // The match is the group: tapped, then confirmed once (2026-11-04).
       await keepCardOf(p, BEA);
