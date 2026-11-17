@@ -24,6 +24,10 @@ import { createHash } from "node:crypto";
  *      account session (the hold is untouched: no `createSession`)
  *   6  `claimPlayerSlot` handed a real personal code and a real player id is
  *      refused, and writes nothing
+ *   7  (PR B) the eight's platform alarm: 300 failures from 300 networks do not
+ *      trip it, the 301st trips and reports once; while it stands a network's
+ *      13th failure in the window is refused with the one sentence and a right
+ *      code inside its twelve still opens; no readable address is one shared bucket
  *
  * Fixtures: `zz-code-door` club, invented names, no addresses, deleted in
  * `finally`. Each case uses a fresh client address so a counting window that
@@ -313,5 +317,91 @@ describe("one door for a typed code", () => {
     newClient();
     expect(await claimPlayerSlot(roundCode, memberId)).toEqual({ ok: true });
     expect(jar.has("ng_play")).toBe(true);
+  });
+  it("7. the eight's platform alarm: 300 failures from 300 networks do not trip, the 301st trips and reports once; then 12 per network, and a right code still opens", async () => {
+    const alarmKey = () => clientKeyFor("eight-char-alarm", "eight-char-platform", Date.now());
+    const alarmCount = async () => (await prisma.rateLimitHit.findUnique({ where: { key: alarmKey() } }))?.count ?? 0;
+    const used = new Set([roundCode, reissuedCode, offCode]);
+    const wrongEight = () => {
+      for (;;) {
+        const code = generateAccessCode();
+        if (!used.has(code)) {
+          used.add(code);
+          return code;
+        }
+      }
+    };
+    // Every network this case makes, so a standing alarm and its slow pace are removed afterwards: left in
+    // the counter table they would slow every other round code typed on this database for an hour.
+    const networks: string[] = [];
+    const network = (n: number) => {
+      const address = `10.${200 + Math.floor(n / 250)}.${r()}.${(n % 250) + 1}`;
+      networks.push(address);
+      head.set("x-forwarded-for", address);
+      return address;
+    };
+    const slowOf = async (address: string) =>
+      (await prisma.rateLimitHit.findUnique({ where: { key: clientKeyFor("eight-char-slow", address, Date.now()) } }))?.count ?? 0;
+    const alarmLines = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter((c) => String(c[0]).includes("[eight-char-alarm]"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await prisma.rateLimitHit.deleteMany({ where: { key: alarmKey() } });
+      for (let i = 0; i < 300; i += 1) {
+        network(i);
+        expect(await openCode(wrongEight()), `failure ${i + 1}`).toEqual({ ok: false, error: CODE_WORDS.opensNothing });
+      }
+      expect(await alarmCount(), "300 failures from 300 networks are all counted").toBe(300);
+      expect(alarmLines(spy), "300 does not trip it").toHaveLength(0);
+
+      // The 301st trips it, and is itself only slowed (its own network is at one failure): reported once.
+      const n301 = network(300);
+      expect(await openCode(wrongEight())).toEqual({ ok: false, error: CODE_WORDS.opensNothing });
+      expect(await alarmCount()).toBe(301);
+      expect(alarmLines(spy), "the 301st trips it and reports").toHaveLength(1);
+      expect(await slowOf(n301), "the slow pace now counts this network").toBe(1);
+      network(301);
+      await openCode(wrongEight());
+      expect(alarmLines(spy), "reported once a window, not once a request").toHaveLength(1);
+
+      // While it stands: a network's 12 failures are answered, the 13th is refused with the ONE sentence,
+      // and a right code from a network still inside its twelve opens and gives its attempt back.
+      const n = network(302);
+      for (let i = 0; i < 11; i += 1) expect(await openCode(wrongEight())).toEqual({ ok: false, error: CODE_WORDS.opensNothing });
+      const opened = await openCode(roundCode);
+      expect(opened.ok && opened.kind, "a right code still opens while the alarm stands").toBe("round");
+      expect(await slowOf(n), "and it gave its own attempt back").toBe(11);
+      expect(await openCode(wrongEight()), "the 12th failure is answered").toEqual({ ok: false, error: CODE_WORDS.opensNothing });
+      const refused = await openCode(wrongEight());
+      expect(refused.ok).toBe(false);
+      expect(!refused.ok && refused.error, "the 13th gets the one throttle sentence").toMatch(/^Too many code attempts\. Wait .+ and try again, or ask your organizer to read the code out\.$/);
+      // Refused before the lookup: even the right code from THIS network, now, by the same words (as the link's).
+      const real = await openCode(roundCode);
+      expect(!real.ok && real.error).toMatch(/^Too many code attempts\./);
+      // Another network is not held by this one's, and a success never counts toward the alarm.
+      const alarmBefore = await alarmCount();
+      network(303);
+      const other = await openCode(roundCode);
+      expect(other.ok && other.kind).toBe("round");
+      expect(await alarmCount(), "a success is given back and never stays counted").toBe(alarmBefore);
+
+      // No readable address: one shared bucket, never no limit (item 9).
+      head.clear();
+      const before = await countOf("round-code-client", "no-client-address");
+      expect(await openCode(wrongEight())).toEqual({ ok: false, error: CODE_WORDS.opensNothing });
+      expect((await countOf("round-code-client", "no-client-address")) - before, "no address counts in the shared bucket").toBe(1);
+      const shared = await openCode(roundCode);
+      expect(shared.ok && shared.kind, "a right code with no address still opens").toBe("round");
+      expect((await countOf("round-code-client", "no-client-address")) - before, "and gives its attempt back").toBe(1);
+    } finally {
+      spy.mockRestore();
+      const keys = [alarmKey(), "no-client-address", ...networks].flatMap((a) =>
+        a === alarmKey()
+          ? [a]
+          : a === "no-client-address"
+            ? [clientKeyFor("round-code-client", a, Date.now())]
+            : [clientKeyFor("round-code-client", a, Date.now()), clientKeyFor("eight-char-slow", a, Date.now())],
+      );
+      await prisma.rateLimitHit.deleteMany({ where: { key: { in: keys } } });
+    }
   });
 });

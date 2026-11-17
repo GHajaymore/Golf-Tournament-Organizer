@@ -1,7 +1,7 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { CODE_ALPHABET, CODE_LENGTH } from "./code-format";
-import { LINK_ALPHABET, LINK_CODE_LENGTH } from "./domain/player-link";
+import { LINK_ALPHABET, LINK_CODE_LENGTH } from "./link-code-format";
 
 /**
  * Generating Round Codes and share tokens.

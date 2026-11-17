@@ -70,7 +70,8 @@ describe("both round-code lookups ask the client gate and give back only success
   const door = readSource("src/lib/services/code-door.ts");
   const between = (src: string, from: string, to: string) => src.slice(src.indexOf(from), src.indexOf(to, src.indexOf(from)));
   it("the client key is named once, in the door's gate, and never cleared", () => {
-    expect(door.match(/clientGuessGate\("round-code-client"/g)?.length).toBe(1);
+    expect(door.match(/"round-code-client"/g)?.length, "the key is named once, in LANES").toBe(1);
+    expect(door.match(/clientGuessGate\(lane\.client/g)?.length, "and asked once, by the shape's lane").toBe(1);
     expect(play).not.toMatch(/clientGuessGate\(/);
     expect(play + door).not.toMatch(/clearRateLimit\("round-code-client"/);
   });

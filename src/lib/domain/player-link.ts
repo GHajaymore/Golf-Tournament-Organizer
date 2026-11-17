@@ -16,37 +16,10 @@
  * sealing and the cookie live in `services/player-link.ts` and `guest-auth.ts`.
  */
 
-/** Crockford base32: 0-9 and A-Z without I, L, O and U. Thirty-two symbols, five bits each. */
-export const LINK_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-/** Twelve symbols: 60 bits (`player-link.test.ts` holds it). */
-export const LINK_CODE_LENGTH = 12;
+/** The alphabet, the length and the one reader of a typed code live in a small browser-safe module (one code box PR B, N1). */
+export { LINK_ALPHABET, LINK_CODE_LENGTH, MAX_CODE_INPUT, normaliseLinkCode } from "../link-code-format";
 /** Where a link opens. The code is never a path segment: there is no `/p/[code]` route. */
 export const LINK_PATH = "/p";
-
-/**
- * A code as somebody typed, pasted or read it, or null when it is not one.
- *
- * FORGIVING (design §2.1): case is ignored; spaces, dashes, dots and the middle
- * dot a code is read out with are dropped; O reads as 0, I and L as 1 (the
- * letters Crockford leaves out because they are mistaken for those digits). A
- * whole pasted link is read from its fragment. Anything else outside the
- * alphabet, or the wrong length, is not a code.
- */
-export function normaliseLinkCode(input: unknown): string | null {
-  if (typeof input !== "string") return null;
-  let text = input;
-  const hash = text.lastIndexOf("#");
-  if (hash >= 0) text = text.slice(hash + 1);
-  if (text.length > 64) return null;
-  const folded = text
-    .toUpperCase()
-    .replace(/[\s\-.·•_]/g, "")
-    .replace(/O/g, "0")
-    .replace(/[IL]/g, "1");
-  if (folded.length !== LINK_CODE_LENGTH) return null;
-  for (const ch of folded) if (!LINK_ALPHABET.includes(ch)) return null;
-  return folded;
-}
 
 /** `K7QM-2XRA-9DTP`: how a code is printed and typed. */
 export function groupedCode(code: string): string {
