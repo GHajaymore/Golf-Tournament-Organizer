@@ -616,7 +616,7 @@ body {
    a phone's collapsing address bar. */
 .console-play-status {
   position: sticky;
-  top: var(--play-status-top, 0px);
+  top: 0;
   z-index: 20;
   background: var(--color-bg);
   padding: 6px 0;
