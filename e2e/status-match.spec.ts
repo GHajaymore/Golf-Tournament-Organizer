@@ -4,6 +4,7 @@ import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
+import { expectLateEntryRefused } from "./status-late-entrant";
 
 /**
  * THE CLUB FINAL — ONE 18-HOLE MATCH BETWEEN TWO PLAYERS — WALKED THROUGH THE
@@ -32,6 +33,14 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  *
  * Its own throwaway club (`zz-status-match-*`), deleted in `finally`.
  */
+
+/**
+ * A LATE ENTRANT IN A MATCH (PR 9c; `field-change.ts`, the upstream-change rules for the field): a
+ * match is two players and a draw, so once it is launched nobody joins. REFUSED where the press is,
+ * in the rule's sentence with its way out (an Organizer's committee correction to the field). Not a
+ * step: the tournament is still Live and still asks to be completed.
+ */
+const MATCH_FIELD_FIXED = "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.";
 
 const eighteen = (first: Array<"A" | "B" | "H">): string =>
   JSON.stringify([...first, ...new Array(18 - first.length).fill(null)]);
@@ -86,6 +95,10 @@ test("a single match says the same thing on every panel from the draw to the las
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
       home: null,
     });
+
+    // A late entrant (PR 9c): refused, two players are the match; asking moves nothing.
+    await expectLateEntryRefused(page, f, "Idris Calloway", MATCH_FIELD_FIXED);
+    expect(await f.status(), "a refused late entry changed the tournament").toBe("live");
 
     // Three holes played (A wins the first, the next two halved): live — a match is not over until it cannot be caught.
     await prisma.match.update({ where: { id: match.id }, data: { holes: eighteen(["A", "H", "H"]), scoreStatus: "confirmed", confirmedBy: "zz" } });

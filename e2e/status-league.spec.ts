@@ -4,6 +4,15 @@ import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
+import { openEntries, fillLateEntrant } from "./status-late-entrant";
+
+/**
+ * A LATE ENTRANT IN A LEAGUE (PR 9c; `field-change.ts`, `LIVE_BY_NATURE`): TAKEN. A league's members
+ * come and go through the season, so the late-entry window never closes on a first card or a tee time
+ * (the banner names no closing time), and no flight is asked of them: nobody is flagged "in no flight"
+ * (a league is not in `UNPLACED_FLAG_FAMILIES`). It is not a step: the tournament is still Live.
+ */
+const LATE = "Idris Calloway";
 
 /**
  * A LEAGUE'S WEEKS, AS THE STATE MACHINE READS THEM (PR 3: J08, and a league
@@ -35,6 +44,8 @@ test("a league needs only its next week dated, and a medal of the same rounds is
   const start = dayFromNow(7);
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "league",
+    // The late entry is typed and saved on Entries: a save spec blocks the service worker.
+    saves: true,
     event: { dates: "Autumn league", startOn: start, endOn: dayFromNow(21), attendanceMode: "opt-out" },
     rounds: [
       { type: "Stroke Play Round", format: "Stroke Play", playedOn: "" },
@@ -107,10 +118,41 @@ test("a league needs only its next week dated, and a medal of the same rounds is
       home: null,
     });
 
+    // A late entrant (PR 9c): taken, as a member who joins the season, with nothing said about a flight.
+    await openEntries(page);
+    await expect(page.getByText("You can withdraw a player, put one back or add a late entry.", { exact: false }).first()).toBeVisible();
+    expect(await prisma.player.count({ where: { eventId: f.eventId } })).toBe(6);
+    await fillLateEntrant(page, f, LATE);
+    const add = page.getByRole("button", { name: "Add late entry" });
+    await expect(add, "a late entry is refused in a league").toBeEnabled();
+    await add.click();
+    await expect
+      .poll(async () => (await prisma.player.findFirst({ where: { eventId: f.eventId, name: LATE }, select: { status: true, groupId: true } })) ?? null, {
+        timeout: 20_000,
+        message: "the late entry was not taken",
+      })
+      .toEqual({ status: "confirmed", groupId: null });
+    await openEntries(page);
+    await expect(page.getByTestId("unplaced-flag"), "a league flags a late entrant as in no flight").toHaveCount(0);
+    // Not a step: the same tournament, asking for the same thing.
+    expect(await f.status()).toBe("live");
+    await expectTournamentSays(page, {
+      chip: "Live",
+      lock: "live",
+      chipDetail: null,
+      nextAction: END_EARLY,
+      refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
+    });
+
     // Week 1 played and closed: the next week has no day, so setting it is the next thing to do.
     await cardsIn(f, f.stageIds[0]);
     await prisma.stage.update({ where: { id: f.stageIds[0] }, data: { closedAt: new Date() } });
     await expectTournamentSays(page, { chip: "Live", lock: "live", nextAction: "Set Round 2’s day", refused: null, setup: null });
+    // Live by nature: a first card is in and a week is closed, and a late entry is still open.
+    await openEntries(page);
+    await fillLateEntrant(page, f, "Orla Venn");
+    await expect(page.getByRole("button", { name: "Add late entry" }), "a league closed its late entries on a first card").toBeEnabled();
     // `setup: null` ends that helper on Tournament details (it checks the rail is gone), so the
     // status card's link is read back on the dashboard, where the card is drawn. The card presses the
     // tournament's one job (`tournamentJob`, B03), which opens the round concerned on Rounds & formats.
