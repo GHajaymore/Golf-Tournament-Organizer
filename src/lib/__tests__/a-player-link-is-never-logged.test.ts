@@ -29,6 +29,11 @@ const LINK_FILES = [
   "src/components/PlayerLinkPanel.tsx",
   "src/components/PlayerLinkOpener.tsx",
   "src/components/GuestLinkControls.tsx",
+  // PR 3: the slips hand every guest's code to a press at once, so they are swept too.
+  "src/app/actions/player-link-slips.ts",
+  "src/lib/services/player-link-slips.ts",
+  "src/lib/domain/player-link-slips.ts",
+  "src/components/print/PlayerLinkSlips.tsx",
 ];
 
 /** Each call's own argument list, from its opening bracket to the one that closes it. */

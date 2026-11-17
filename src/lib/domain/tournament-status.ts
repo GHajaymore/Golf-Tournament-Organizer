@@ -1032,6 +1032,15 @@ export const ALREADY_LAUNCHED = "This tournament has already been launched, so t
 export const ALREADY_COMPLETED = "This tournament is already completed. To change a result, reopen it on the dashboard.";
 export const NOT_LAUNCHED_TO_COMPLETE = "This tournament hasn’t been launched yet, so there is nothing to complete. Launch it from the dashboard first.";
 export const NOT_COMPLETED_TO_REOPEN = "This tournament isn’t completed, so there is nothing to reopen.";
+/**
+ * A CASUAL ROUND IS NEVER COMPLETED (Tournament Director, 16 Nov). It has no
+ * Committee to sign its cards off and no result to release: it is kept, or it
+ * ends when its time runs out (`playIsOver`). No screen offers Complete for
+ * one, but `setEventStatus` is a public action, and completing one there
+ * closed every round and left no Reopen. Asked first, so a casual round
+ * already completed is told this rather than "reopen it on the dashboard".
+ */
+export const CASUAL_IS_NEVER_COMPLETED = "A casual round is not completed: keep it, or it ends when its time is up.";
 /** The launch dialog's warning for a tournament whose last day has gone by unlaunched — and the Tournaments list's word (PR 6). */
 export const DATES_PASSED_UNLAUNCHED = "Its dates have passed and it was never launched.";
 
@@ -1064,12 +1073,15 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
           new Set(f.rounds.filter((r) => r.hasResult).map((r) => r.id)),
         )
       : null;
-  const refusalComplete = finished
-    ? ALREADY_COMPLETED
-    : !launched
-      ? NOT_LAUNCHED_TO_COMPLETE
-      : (finishRefusal({ pendingConfirmations: f.review.pendingConfirmations, disputed: f.review.disputed }) ??
-        (completing && "refuse" in completing ? completing.refuse : null));
+  const refusalComplete =
+    family === "casual"
+      ? CASUAL_IS_NEVER_COMPLETED
+      : finished
+        ? ALREADY_COMPLETED
+        : !launched
+          ? NOT_LAUNCHED_TO_COMPLETE
+          : (finishRefusal({ pendingConfirmations: f.review.pendingConfirmations, disputed: f.review.disputed }) ??
+            (completing && "refuse" in completing ? completing.refuse : null));
   const refusals = {
     launch: refusalLaunch,
     play: playRefusalOf(f),
