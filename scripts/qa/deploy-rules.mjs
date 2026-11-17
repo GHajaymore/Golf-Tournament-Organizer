@@ -136,6 +136,39 @@ export function cleanNightlyShas(runs) {
 }
 
 /**
+ * HOW THE GATE READS A NIGHTLY'S VERDICT (17 Nov 2026). It used to fetch every job of the last 20 nightlies
+ * (`gh run view <id> --json jobs`). A nightly has 57 jobs; GitHub takes 9–11 s to answer that endpoint for one
+ * and often answers 502 or drops the stream — measured 17 Nov, twice in four calls — so a gate making 20 of
+ * them failed again and again however often it retried (16 Nov 16:48, 21:00; 17 Nov 02:18, 03:02). The
+ * Verdict is a CHECK RUN on the nightly's commit: one small call (~0.5 s, a few hundred bytes), tied to the
+ * exact run by its details_url (…/actions/runs/<id>/job/…), so a Verdict of another run on the same commit
+ * (a re-dispatched nightly, a round) is never read as this one's.
+ */
+export const NIGHTLY_VERDICT_CHECK = "Round / Verdict";
+
+/** The query for one nightly's Verdict check run on its commit. */
+export function verdictCheckPath(repo, headSha) {
+  return `repos/${repo}/commits/${headSha}/check-runs?check_name=${encodeURIComponent(NIGHTLY_VERDICT_CHECK)}&per_page=100`;
+}
+
+/** The Verdict of run `runId`, as `cleanNightlyShas` reads jobs: [{ name, conclusion }], or [] when it has none yet. */
+export function verdictJobsForRun(checkRuns, runId) {
+  const own = `/actions/runs/${runId}/`;
+  return (checkRuns ?? [])
+    .filter((c) => c.name === NIGHTLY_VERDICT_CHECK && String(c.details_url ?? "").includes(own))
+    .map((c) => ({ name: c.name, conclusion: c.conclusion ?? null }));
+}
+
+/**
+ * The nightlies worth asking about. `main` is one line, so a nightly whose commit does not contain the OLDEST
+ * commit waiting for a nightly contains none of them and cannot clear anything; it is not asked. `contains(sha)`
+ * answers "does sha contain the oldest waiting commit" (git; it throws when git cannot say — fail closed).
+ */
+export function nightliesWorthAsking(runs, contains) {
+  return (runs ?? []).filter((r) => contains(r.headSha));
+}
+
+/**
  * DOES A COMMIT WAIT FOR A NIGHTLY THAT HAS NOT BEEN RUN? (2026-11-14) — the facts `decideDeploy` was
  * given, asked one more question. True when `verify` is green, production does not already hold the
  * commit, and a core or function commit since the last deploy sits in no clean nightly round (or nobody
