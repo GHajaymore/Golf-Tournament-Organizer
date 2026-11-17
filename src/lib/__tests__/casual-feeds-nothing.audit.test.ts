@@ -78,7 +78,7 @@ async function eventWithCard(name: string, shape: string, courseId: string) {
       regDeadline: "",
       shareToken: `${TAG}-${name}-${process.pid}`.slice(0, 60),
       // Completed, because that is what the honours board looks for — and a
-      // casual round can reach it: `setEventStatus` asks nothing about shape.
+      // casual round completed before 16 Nov, when `setEventStatus` asked nothing about shape, still is.
       status: "completed",
       completedAt: new Date(),
       shape,

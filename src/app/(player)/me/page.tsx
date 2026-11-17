@@ -13,6 +13,7 @@ import { openedElsewhereSince } from "@/lib/services/player-link";
 import { deviceValueHere } from "@/lib/services/known-device";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
+import { SLIP_WORDS } from "@/lib/domain/player-link-slips";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { Icon } from "@/components/Icon";
@@ -460,6 +461,14 @@ export default async function PlayTodayPage() {
         <div className="page-kicker" data-testid="guest-event" style={{ marginBottom: 6 }}>
           {state.event.name}
         </div>
+      )}
+      {/* WHO THIS LINK IS FOR (J39/J40 PR 3, §3.1): a slip handed to the wrong person is caught
+          on the first screen after the tap; Forget me on this phone, in the header, undoes it
+          here. It adds no press to the way in. */}
+      {session.guest && (
+        <p data-testid="guest-not-you" style={{ fontSize: 14, lineHeight: 1.45, margin: "0 0 12px" }}>
+          {SLIP_WORDS.notYou(session.name, state.event.name)}
+        </p>
       )}
       {elsewhere && (
         <p role="status" className="card" style={{ fontSize: 13, margin: "0 0 12px", padding: "10px 12px" }}>

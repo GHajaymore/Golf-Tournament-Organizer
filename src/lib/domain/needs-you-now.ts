@@ -217,10 +217,12 @@ export function jobHref(j: Pick<ClubJob, "href" | "roundId" | "hash">): string {
  */
 const JOB_ORDER: Record<ClubJobKey, number> = {
   entries: 0,
-  // Strokes for players with no index come straight after the field: a wrong result is cheaper to
-  // prevent before launch than to explain after it.
-  strokes: 1,
-  launch: 2,
+  // Launch before strokes (the Tournament Director, 16 Nov): giving strokes does not hold a launch —
+  // the launch dialog lists it as still open, to do after — and under Rule 3.3b(4) the Committee's
+  // deadline for a player's handicap is the round's first card, so a strokes line is due on its
+  // round's day. A launch is due on the first day, never after Round 1's, so on a tie Launch leads.
+  launch: 1,
+  strokes: 2,
   "tee-sheet": 3,
   schedule: 4,
   draw: 5,
@@ -348,13 +350,21 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
     const s = t.strokes;
     if (s && s.count > 0) {
       const dated = isIso(s.day);
+      /**
+       * AN UNDATED ROUND IS NO EARLIER THAN THE TOURNAMENT'S FIRST DAY (QA, 16 Nov). A net round with no
+       * day yet (a league's later week) is due on the first day while that is ahead, never today: due
+       * today it outranked a Launch due on the first day and became the setting-up button, against the
+       * ruling that Launch leads. On the first day the two tie and `JOB_ORDER` puts Launch first; once
+       * the first day has come, an undated round is due today, as before.
+       */
+      const first = isIso(t.startOn) && t.startOn > today ? t.startOn : today;
       jobs.push({
         ...base,
         key: "strokes",
         text: strokesJobSaid(s.count, s.round, dated ? day(s.day) : ""),
         href: "/stages",
         action: GIVE_STROKES,
-        due: dated && s.day > today ? s.day : today,
+        due: dated && s.day > today ? s.day : dated ? today : first,
         roundId: s.roundId,
         hash: NEEDS_STROKES_ANCHOR,
       });
@@ -482,6 +492,11 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
  * — `whatsNext` of this tournament alone — so the two cannot disagree. Only when the home has none
  * (outside its fortnight, or nothing to do) is it the same jobs without the window, then waiting, then
  * the machine's own next action.
+ *
+ * SETTING UP, the button is the first of the jobs WITHOUT the window, always (the Tournament Director,
+ * 16 Nov): Launch is the setting-up button "at once", so a strokes line the home lists while the
+ * first day is beyond its fortnight (and the home has no launch line yet) does not become the button
+ * and leave Launch undrawn. Inside the fortnight the two lists hold the same first line.
  */
 export interface TournamentJob {
   key: ClubJobKey;
@@ -510,7 +525,7 @@ export function tournamentJob(t: TournamentJobFacts, today: string, day: (iso: s
   if (t.status.step === "completed") {
     return { key: "reopen", text: "Completed", action: next.label, href: next.href, enabled: next.enabled, disabledBecause: next.disabledBecause, wayOut: next.wayOut, moves: true, quiet: true, roundId: null };
   }
-  const home = byDue(jobsOf(t, today, day, true))[0];
+  const home = t.status.step === "setting-up" ? undefined : byDue(jobsOf(t, today, day, true))[0];
   const own = home ?? byDue(jobsOf(t, today, day, false))[0];
   if (own) return jobFrom(own, t);
 
