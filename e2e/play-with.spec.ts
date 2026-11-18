@@ -114,7 +114,8 @@ test("a member asks to play with a friend, the committee sees it, and the draw k
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A single round/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
 
     await open(page, "/event");
     // Two days on: the draw below is made at 07:30 and drawn AGAIN, and a group that has teed off by the club's clock is

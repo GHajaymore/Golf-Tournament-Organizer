@@ -8,6 +8,9 @@ import { signInUrlFor } from "./domain/safe-next";
 import { loadEventState, type EventState } from "./services/tournament";
 import { prisma } from "./db";
 import { screenAppliesToMatch } from "./nav";
+import { getPlayerViewer, type PlayerViewer } from "./player-viewer";
+import { holdsGuestCookie } from "./guest-auth";
+import { mayPlayThroughLink } from "./domain/player-link";
 import { isMatch } from "./tournament-shape";
 
 /**
@@ -41,6 +44,48 @@ export async function requireSession(): Promise<Session> {
    */
   if (!session) redirect(await signInUrl());
   return session;
+}
+
+/**
+ * THE PLAYER APP'S DOOR (J39/J40): an account, or a guest's player link
+ * (`player-viewer.ts`). A browser holding a link that no longer opens is sent
+ * to /p, which says so ("This link no longer works"), not to a sign-in page
+ * the guest has no account for.
+ */
+export async function requirePlayerViewer(): Promise<PlayerViewer> {
+  const viewer = await getPlayerViewer();
+  if (viewer) return viewer;
+  if (await holdsGuestCookie()) redirect("/p?ended=1");
+  redirect(await signInUrl());
+}
+
+/**
+ * A PLAYER SCREEN OF THE EVENT ITSELF (board, card, match, rules): a guest
+ * whose entry is pending or waitlisted is sent to Today's waiting card
+ * (security review SF-3). The layout draws the waiting card in place of the
+ * page, but a layout does not stop its page segment being rendered — a soft
+ * navigation or a hand-made RSC request would still carry the page's payload —
+ * so the page itself refuses. The same rule as the writes (`mayPlayThroughLink`).
+ */
+export async function requirePlayingViewer(): Promise<PlayerViewer> {
+  const viewer = await requirePlayerViewer();
+  if (guestIsWaiting(viewer)) redirect("/me");
+  return viewer;
+}
+
+/** A guest viewer whose entry is not (yet) in the field: Today's waiting card, nothing else (S5, SF-3). */
+export function guestIsWaiting(viewer: PlayerViewer): boolean {
+  return !!viewer.guest && !mayPlayThroughLink(viewer.guest.status);
+}
+
+/**
+ * The club-wide player screens (events, calendar, season) are an ACCOUNT's:
+ * a guest's link is one event, so a guest is sent to its Today.
+ */
+export async function requireAccountViewer(): Promise<Session> {
+  const viewer = await requirePlayerViewer();
+  if (viewer.guest) redirect("/me");
+  return viewer;
 }
 
 /**

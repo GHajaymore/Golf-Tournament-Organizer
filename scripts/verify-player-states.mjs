@@ -105,7 +105,7 @@ async function makeEvent(org, name, extra = {}) {
     data: {
       organizationId: org,
       name: `${MARK} ${name}`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       formationRule: "balanced",

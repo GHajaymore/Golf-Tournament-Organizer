@@ -8,6 +8,7 @@ import {
   ALREADY_LAUNCHED,
   NOT_LAUNCHED_TO_COMPLETE,
   NOT_COMPLETED_TO_REOPEN,
+  CASUAL_IS_NEVER_COMPLETED,
 } from "../tournament-status";
 import { cardsNotFinal, cutBlockers } from "../cut-ready";
 import { FAMILY_FIXTURES, FAMILIES, facts, round, launched, playedOut, completed } from "./tournament-facts-fixtures";
@@ -76,6 +77,26 @@ describe("a status move is asked of the machine", () => {
     expect(ask(st, "completed", "live")).toEqual({ kind: "reopen" });
   });
 
+  it("a casual round is never completed — not live, not played out, not a second time (the Tournament Director, 16 Nov)", () => {
+    // No Committee signs its cards and it has no result to release: it is kept, or it ends when its time
+    // is up. No screen offers Complete; this is the public action's door.
+    const casual = FAMILY_FIXTURES.casual();
+    const holed = { ...casual, rounds: casual.rounds.map((r) => ({ ...r, hasResult: true, closed: true })) };
+    for (const [from, f] of [
+      ["live", casual],
+      ["live", holed],
+      ["completed", completed(casual)],
+    ] as const) {
+      const st = tournamentStatus(f);
+      expect(st.refusals.complete, `${from}`).toBe(CASUAL_IS_NEVER_COMPLETED);
+      expect(ask(st, from, "completed"), `${from}`).toEqual({ kind: "refuse", error: CASUAL_IS_NEVER_COMPLETED });
+      expect(st.nextAction, "still no button at all").toBeNull();
+      expect(st.asks.complete).toBeNull();
+    }
+    // CONTROL: the same moves on a stroke-play tournament played out are allowed, so the refusal is the family's.
+    expect(ask(tournamentStatus(playedOut(FAMILY_FIXTURES.stroke())), "live", "completed")).toEqual({ kind: "complete", asks: null });
+  });
+
   it("'live' on a tournament already live is not a reopen", () => {
     const st = tournamentStatus(launched(FAMILY_FIXTURES.stroke()));
     expect(ask(st, "live", "live")).toEqual({ kind: "refuse", error: NOT_COMPLETED_TO_REOPEN });
@@ -87,8 +108,13 @@ describe("a status move is asked of the machine", () => {
     const back = ask(st, "live", "draft");
     expect(back.kind === "refuse" && back.error).toMatch(/can’t go back to setting up/);
     const draft = tournamentStatus(FAMILY_FIXTURES.stroke());
-    const between = ask(draft, "draft", "registration");
-    expect(between.kind === "refuse" && between.error).toMatch(/one Setting up step/);
+    const again = ask(draft, "draft", "draft");
+    expect(again.kind === "refuse" && again.error).toMatch(/one Setting up step/);
+    // The old ladder's two later words are not statuses since A045 (state machine PR 8): a request
+    // for one is refused as an unknown word, never written.
+    for (const old of ["registration", "ready"]) {
+      expect(ask(draft, "draft", old), old).toEqual({ kind: "refuse", error: "That is not a tournament status." });
+    }
   });
 
   it("every refusal the actions now return says what to do next, and a launched tournament is not launched again", () => {

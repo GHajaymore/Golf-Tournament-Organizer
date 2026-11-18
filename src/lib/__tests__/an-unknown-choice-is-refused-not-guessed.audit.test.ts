@@ -45,7 +45,7 @@ beforeAll(async () => {
   const event = await prisma.event.create({
     data: {
       organizationId: org.id, name: `${TAG} medal`, dates: "", course: "", city: "", address: "", regDeadline: "",
-      shareToken: `${TAG}-${process.pid}`, format: "stroke", configUnlocked: true,
+      shareToken: `${TAG}-${process.pid}`, format: "stroke",
     },
   });
   eventId = event.id;

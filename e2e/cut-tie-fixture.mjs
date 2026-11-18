@@ -73,9 +73,14 @@ export async function seedCutTie() {
         name: TIE_EVENT,
         organizationId: org.id,
         status: "live",
-        // Unlocked, so the secretary can choose how the tie is settled — it is
-        // part of the cut's terms and locks with setup.
-        configUnlocked: true,
+        // The rounds opened by a committee correction, so the secretary can choose
+        // how the tie is settled — it is part of the cut's terms and locks with setup
+        // (state machine PR 9b: the blanket unlock this used is not read). Stored as
+        // `openCorrection` stores it; open for the walk, past which it lapses.
+        correctionScope: "rounds",
+        correctionReason: "zz spec: the cut's tie rule is chosen",
+        correctionBy: "Zz Organizer",
+        correctionUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
         format: "stroke",
         dates: "",
         course: "",

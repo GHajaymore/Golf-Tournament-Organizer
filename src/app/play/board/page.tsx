@@ -5,6 +5,8 @@ import { settingsOf } from "@/lib/services/tournament";
 import { mayOpenBoard } from "@/lib/tournament-settings";
 import { PublicBoard, boardEventOf } from "@/components/PublicBoard";
 import { NOINDEX } from "@/lib/site";
+import { playStatusForScreen } from "@/lib/services/play-status-screen";
+import { SuspensionAlarm } from "@/components/SuspensionAlarm";
 
 /**
  * THE BOARD, FOR SOMEBODY HOLDING A ROUND CODE (2026-11-05).
@@ -34,5 +36,13 @@ export default async function PlayBoardPage({ searchParams }: { searchParams: Pr
   const event = await prisma.event.findUnique({ where: { id: session.eventId } });
   if (!event || !mayOpenBoard(settingsOf(event), "code-holder")) notFound();
   const { round } = await searchParams;
-  return <PublicBoard event={boardEventOf(event)} round={round} clubhouse={false} reportHref={null} />;
+  // The board draws the suspension banner itself; a code holder looking at it is still on the course, so
+  // the siren sounds here as on `/play` — asked of the same round (`playStatusForScreen`, safety sweep G-1).
+  const status = await playStatusForScreen("play");
+  return (
+    <>
+      <SuspensionAlarm screen="play" suspended={status.suspended} />
+      <PublicBoard event={boardEventOf(event)} round={round} clubhouse={false} reportHref={null} />
+    </>
+  );
 }

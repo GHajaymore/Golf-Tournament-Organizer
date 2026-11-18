@@ -45,7 +45,6 @@ test.beforeAll(async () => {
   // Tomorrow at the club: the last tee time is still to come, whatever the hour.
   const made = await makeEvent(club, "Monthly Medal", {
     status: "live",
-    configUnlocked: false,
     stages: [{ playedOn: addDays(dayIn(ZONE), 1) }],
     players: 6,
   });

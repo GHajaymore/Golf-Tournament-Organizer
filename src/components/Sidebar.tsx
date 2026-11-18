@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
+import { releaseThisDevicesPush } from "@/lib/push-client";
 import { LOGO_SIZE } from "@/components/Logo";
 import { OrgBrand, type Brand } from "@/components/OrgBrand";
 import { Icon } from "./Icon";
@@ -197,7 +198,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
             className="btn btn-icon"
             title="Sign out"
             aria-label="Sign out"
-            onClick={() => startTransition(() => signOutAction())}
+            onClick={() => startTransition(async () => signOutAction(await releaseThisDevicesPush()))}
           >
             <Icon name="sign-out" />
           </button>

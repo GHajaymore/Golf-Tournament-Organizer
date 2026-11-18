@@ -1,6 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { createHmac, timingSafeEqual, scryptSync, randomBytes } from "node:crypto";
+import { createHmac, timingSafeEqual, scryptSync, randomBytes, hkdfSync } from "node:crypto";
 import { prisma } from "./db";
 import { SECURE_COOKIES } from "./secure-cookies";
 import { accessibleEvents, effectiveAccess } from "./services/access";
@@ -74,6 +74,17 @@ export function sign(value: string): string {
  */
 export function fingerprint(value: string): string {
   return createHmac("sha256", secret()).update(value).digest("base64url");
+}
+
+/**
+ * A 32-byte key of its own for one job, derived from the app secret by HKDF
+ * under a label (2026-11-13, the guest player link: one key finds a code's row,
+ * another seals the code, a third hashes a browser). A key per label means a
+ * value made for one job can never be replayed as another's, and the secret
+ * itself still leaves this module only as a derivation.
+ */
+export function derivedKey(label: string): Buffer {
+  return Buffer.from(hkdfSync("sha256", secret(), "", label, 32));
 }
 
 export function verify(signed: string | undefined): string | null {

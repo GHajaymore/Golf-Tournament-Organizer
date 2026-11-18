@@ -64,7 +64,7 @@ page was slow; the button simply had to wait for everything. Three things were f
 
 - **Continue takes a press from the first paint (1.9 s), and a press made before the page is live
   is HELD on the page** (`HeldBeforeLoad`, a tiny inline script) and taken up the moment React is
-  there. The box and the names are also real forms (`redeemRoundCodeForm`, `claimPlayerSlotForm`,
+  there. The box and the names are also real forms (`openCodeForm` since one code box, `claimPlayerSlotForm`,
   through `useActionState`), posted the plain way with JavaScript off, or if the page has still not
   woken ten seconds after the press.
   **The plain post was built first and MEASURED WORSE**: it put the names on screen at 3.3 s instead
@@ -127,6 +127,12 @@ called the rest clean. **Any test of the front door awaits `landingSettled(page)
 where the thing is at the moment it scrolls. The visitor is fine: somebody already at the
 sign-up form keeps their place to the pixel on Chrome's engine and on Safari's — measured, after
 it had been assumed otherwise and written down as a fault that was not there.
+
+**ONE WEBKIT CHECK RUNS ON EVERY PULL REQUEST (2026-11-14).** Job `e2e-webkit-door` in `ci.yml` runs
+`e2e/front-door.spec.ts` (sign-up, log-in, reset, sign-out) on WebKit's iPhone profile in the Playwright
+image, which already holds WebKit, against the same bundle as the shards, with `E2E_PLAIN_HTTP=1`. Round
+G636 had cost 2 h 43 min to learn what it says in minutes. It is not in the shard matrix, so `e2e-cover`
+does not count it; `verify` needs it. Everything else on WebKit is still by hand, as below.
 
 **AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPhone, which is WebKit.
 `E2E_ENGINE=webkit npx playwright test` runs the same three projects on it (CI installs Chromium
@@ -203,3 +209,21 @@ chosen: `await pressRadio(radio)` from `e2e/press-radio.ts` (label click, then `
 `getByText("X won", { exact: true }).click()` then `expect(radio).toBeChecked()`.
 `src/lib/__tests__/seg-opt-radios-are-pressed-not-checked.test.ts` refuses a `.check(` on any locator that reaches a
 radio (by role, by `input[type="radio"]`, or by the words of a `.seg-opt` label); real checkboxes are untouched.
+
+**A PAGE HAS TWO ALERTS ONCE THE APP REFUSES SOMETHING (2026-11-14).** Next draws its own
+`<div role="alert" id="__next-route-announcer__">` on every page, so `page.getByRole("alert")` — or the
+same on anything made by `.newPage()` — matches two elements and strict mode fails the step, after
+every step before it has passed. It reached CI twice in one night (#1123's owner-finance spec, #1125's
+guest-link spec), each written by an engineer who could not run Playwright. Find a page's refusal by its
+own element and role — `p`, `div` or `span[role="alert"]`, e.g. `page.locator('[role="alert"]:not(#__next-route-announcer__)')` — or better by its text with `.filter({ hasText })`; inside a card,
+section or dialog locator the plain role is fine. `src/lib/__tests__/no-page-wide-alert-locator.test.ts`
+refuses the page-wide form.
+
+- **A press right after a save lands before the redraw (Firefox, 17 Nov).** A server action writes the row, then the
+  page is redrawn with the new data; a database poll or the card's own "goes through" line is true BEFORE that
+  redraw. Playwright's click checks the button is stable, then presses where it was; if the redraw then moves it (a
+  sentence above appears, or a two-line sentence becomes one) the press falls on text and the handler never runs, with
+  no error. Two specs failed this way on Firefox in nightly 44124418761 (`seasons.spec.ts` "Start another season",
+  `organizer-knockout-report.spec.ts` "Change result") and passed on the four nightlies before. Before pressing a
+  button the previous press may have moved, wait for the SCREEN's answer (the next button's name, the sentence that
+  changes), not for the database row.

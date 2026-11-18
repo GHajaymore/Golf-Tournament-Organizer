@@ -21,13 +21,15 @@ const OPEN_WITH_FLIGHT = "Players’ details and imports are locked because the 
 const DONE = "Locked because the tournament is completed.";
 
 type Stage = "live" | "liveWithResult" | "completed";
+/** Every family whose field locks at launch: all but a casual round. */
+const LOCKING = FAMILIES.filter((f) => f !== "casual");
 
 function at(family: Family, stage: Stage): TournamentFacts {
   const f = launched(FAMILY_FIXTURES[family]());
   const withResult = { ...f, rounds: f.rounds.map((r, i) => (i === 0 ? { ...r, hasResult: true } : r)) };
   if (stage === "live") return f;
   if (stage === "liveWithResult") return withResult;
-  return { ...withResult, status: "completed", configUnlocked: false };
+  return { ...withResult, status: "completed" };
 }
 
 function said(family: Family, stage: Stage): ScopeLock {
@@ -42,9 +44,9 @@ const EXPECTED: Record<string, string> = {
   // Where flights are a prize division, a late entry is taken until play begins.
   "stroke live": OPEN,
   "stableford live": OPEN,
-  // A league's field changes week to week by nature; a casual round has no draw to protect.
+  // A league's field changes week to week by nature. (A casual round's field is not locked at all:
+  // "Casual: locks none", 8.2 — state machine PR 9b, asserted below.)
   "league live": OPEN,
-  "casual live": OPEN,
   // The first card is in and no sheet gives a closing time: late entries are closed, the lock stands as it is.
   "stroke liveWithResult": LIVE,
   "stableford liveWithResult": LIVE,
@@ -68,8 +70,14 @@ describe("the field's lock, in words, per family and stage", () => {
     }
   }
 
-  it("a completed tournament keeps the completed words in every family", () => {
-    for (const family of FAMILIES) expect(said(family, "completed").because, family).toBe(DONE);
+  it("a completed tournament keeps the completed words in every family that locks", () => {
+    for (const family of LOCKING) expect(said(family, "completed").because, family).toBe(DONE);
+  });
+
+  it("a casual round's field is never locked, so there are no lock words to say (8.2; PR 9b)", () => {
+    for (const stage of ["live", "liveWithResult", "completed"] as Stage[]) {
+      expect(scopeLockOf(tournamentStatus(at("casual", stage)).locks, "field"), stage).toBeNull();
+    }
   });
 
   it("only the words change: the scope, the way out and the correction stay the machine's", () => {
@@ -81,11 +89,11 @@ describe("the field's lock, in words, per family and stage", () => {
   });
 
   it("never says Locked outright of a field that takes a late entry, and never promises one it refuses", () => {
-    for (const family of FAMILIES) {
+    for (const family of LOCKING) {
       const words = said(family, "live").because;
       const promises = /late entry can still be added/.test(words);
       // Worked by hand: the families where the draw is NOT the field.
-      expect(promises, family).toBe(["stroke", "stableford", "roundRobinFlights", "league", "casual"].includes(family));
+      expect(promises, family).toBe(["stroke", "stableford", "roundRobinFlights", "league"].includes(family));
       // And every family and stage has its words written above (none left to chance).
       expect(`${family} live` in EXPECTED, family).toBe(true);
     }

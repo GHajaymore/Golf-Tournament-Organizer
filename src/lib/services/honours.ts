@@ -143,8 +143,8 @@ export async function championSuggestions(organizationId: string): Promise<Pendi
     /**
      * TOURNAMENTS ONLY. An honours board is the club's permanent record.
      *
-     * A casual round can be marked completed — `setEventStatus` asks nothing
-     * about shape — so a Sunday fourball was offered to the committee as a
+     * A casual round could be marked completed — until 16 Nov `setEventStatus`
+     * asked nothing about shape, and rows completed then remain — so a Sunday fourball was offered to the committee as a
      * club champion, under its own auto-generated title ("Ada & Bo v Cal &
      * Dee"). Confirming it writes a `HonoursEntry`, and that row carries
      * `eventId` with NO foreign key, deliberately, so the board line survives

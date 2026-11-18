@@ -142,6 +142,14 @@ describe("the encoder is in no screen's first download", () => {
     // CONTROL: the sweep sees the ones that load it lazily. The Print kit's (2026-10-23) is on the
     // SERVER — `server-only`, in no browser's download at all — and draws every printed QR; so is
     // the front door's demo QR.
-    expect(lazy.sort()).toEqual(["src/components/SignUpPoster.tsx", "src/lib/landing/demo-qr.ts", "src/lib/services/print-kit.ts"]);
+    // The guest's Player link panel (J39/J40) draws its QR only when Show QR is pressed.
+    // The Print kit's Player link slips (PR 3) draw theirs only once a print is pressed.
+    expect(lazy.sort()).toEqual([
+      "src/components/PlayerLinkPanel.tsx",
+      "src/components/SignUpPoster.tsx",
+      "src/components/print/PlayerLinkSlips.tsx",
+      "src/lib/landing/demo-qr.ts",
+      "src/lib/services/print-kit.ts",
+    ]);
   });
 });

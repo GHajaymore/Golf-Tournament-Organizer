@@ -70,6 +70,8 @@ describe("the Playwright image is the locked @playwright/test version", () => {
       "breaks.yml:break",
       "browsers.yml:suite",
       "ci.yml:e2e",
+      "ci.yml:e2e-webkit-door",
+      "repeat-spec.yml:repeat",
       "round.yml:part",
     ]);
   });

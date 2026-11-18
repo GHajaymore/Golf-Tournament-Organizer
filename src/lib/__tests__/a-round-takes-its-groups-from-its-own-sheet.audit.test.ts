@@ -23,7 +23,12 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
 const { keeperFor, keepingContextFor, groupTitleFor } = await import("@/lib/services/group-keeping");
-const { redeemRoundCode } = await import("@/app/actions/play");
+const { openCode } = await import("@/app/actions/code-box");
+/** A round code's first step, as the one code box answers it (`openCode`: the door's round payload). */
+async function redeemRoundCode(typed: string): Promise<{ ok: boolean; error?: string; groups?: import("@/lib/domain/play-groups").PlayGroup[] }> {
+  const r = await openCode(typed);
+  return r.ok && r.kind === "round" ? { ok: true, groups: r.round.groups } : { ok: false, error: r.ok ? r.kind : r.error };
+}
 const { groupKeyFor } = await import("@/lib/domain/group-keeping");
 const { clearRateLimit } = await import("@/lib/rate-limit");
 const { generateAccessCode } = await import("@/lib/codes");

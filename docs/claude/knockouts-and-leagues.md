@@ -63,6 +63,20 @@ and a place waiting on a drawn tie reads "Winner of A v B" (`winnerOfWords`), "T
 tie is itself waiting. `a-draw-is-drawn-in-sections.test.ts` holds every tie to exactly one tab
 besides Whole draw (a quarter-final to two), over fifteen field sizes and twelve result orders.
 
+**A RESULT IS NEVER TAKEN BACK FROM UNDER A LATER ONE (cut 3, 2026-11-14).** The draw is rebuilt
+from its stored winners by POSITION, and a stored winner whose opponent is no longer known is
+dropped (`claimedWinner`). So taking back or changing a result whose winner had already played on
+took the LATER result off the draw without a word — one stray tap on the bracket's 13.5 px seat did
+it, with no audit line. `laterTieRefusal` (`domain/knockout-ties.ts`) is the one rule, asked by the
+SERVER for the bracket's tap (`setBracketWinner`) and for Undo / Change result on Score entry
+(`undoTieResult`): refused, naming the later tie, until that result is taken back first; a plate is
+held whole once it has a result, since it is drawn from the main draw's first-round losers. Every
+taking-back writes a `knockout.undo` audit line. On Score entry a knockout round is its ties as a
+list (`scoreEntryTies`: reported first, then to play, then decided; every flight through
+`bracketDraws`), two name buttons each and NO Halved (Rule 3.2a(4)), recording through
+`recordTieResult`. The matrix's "taking a knockout result back" cell holds the rule to what the
+rebuild does, at every field size, in random orders.
+
 ## A club league: what has been ARRANGED has not HAPPENED
 
 A league of clubs (flights as clubs, pairs nominated each week, `LeagueSection` on Teams & pairs)

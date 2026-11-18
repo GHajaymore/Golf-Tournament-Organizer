@@ -155,7 +155,7 @@ describe("what day it is, on the server", () => {
     never(() => playerMayChange("2026-10-12"));
     never(() =>
       // @ts-expect-error — registrationStatus must be told the day
-      registrationStatus({ eventStatus: "registration", deadline: "", opens: "", capacity: 0, confirmedCount: 0, override: null }),
+      registrationStatus({ eventStatus: "draft", deadline: "", opens: "", capacity: 0, confirmedCount: 0, override: null }),
     );
     expect(true).toBe(true);
   });

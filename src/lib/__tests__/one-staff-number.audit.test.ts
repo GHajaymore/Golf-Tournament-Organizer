@@ -56,7 +56,7 @@ beforeAll(async () => {
     data: {
       organizationId: orgId,
       name: `${TAG} saturday medal`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       dates: "",

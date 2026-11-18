@@ -87,6 +87,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 4, of: 5, optional: ["Flights"] },
+      home: { text: "ready to launch", action: "Launch tournament" },
       journey: "Launch",
     });
     await expect(page.locator("main")).not.toContainText("No flights yet");
@@ -100,6 +101,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 4, of: 5, optional: ["Flights"] },
+      home: { text: "ready to launch", action: "Launch tournament" },
       journey: "Launch",
     });
     await page.goto(`/dashboard?bust=${Date.now()}`);
@@ -115,6 +117,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
       setup: null,
       journey: "Play",
     });
@@ -166,7 +169,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
 
     // ── the round's first card: its format, holes, venue and tees shut, each with the reason (PR 7b) ──
     await cardsIn(f, round1, f.playerIds.slice(0, 1));
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, setup: null, journey: "Play" });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null, setup: null, journey: "Play" });
     await expectRoundDoors(page, round1, "Round 1", { format: FORMAT_SHUT, holes: HOLES_SHUT });
     await expectTeesDoor(page, round1, TEES_FROZEN);
     // Late entries close at the first card (no sheet is published), and the way out is the correction.
@@ -183,6 +186,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
+      home: { text: "Every round closed · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
       setup: null,
@@ -195,7 +199,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish" });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null, setup: null, journey: "Finish" });
     await pressReopen(page);
     await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
     await expectTournamentSays(page, over);

@@ -37,8 +37,7 @@ test("a net medal on a course with no tees: the rail and Launch both say scores 
   const club = await makeClub(mark);
   try {
     const { event, stages } = await makeEvent(club, "Spring Medal", {
-      status: "ready",
-      configUnlocked: true,
+      status: "draft",
       stages: [{ playedOn: "2099-06-12", scoringBasis: "net" }],
       players: 4,
       // Money answered and a tee sheet saved, so the only warnings left are the flights and the tees:

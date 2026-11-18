@@ -38,7 +38,7 @@ describe("what the sheet is allowed to claim", () => {
   it("refuses the word on every state that is not closed", () => {
     // A sweep rather than a case, so a status added later cannot quietly
     // acquire the claim by not being mentioned here.
-    for (const status of ["draft", "registration", "ready", "live"]) {
+    for (const status of ["draft", "live"]) {
       expect(at({ status }).title, status).not.toMatch(/final/i);
       expect(at({ status }).note, status).not.toBe("");
     }

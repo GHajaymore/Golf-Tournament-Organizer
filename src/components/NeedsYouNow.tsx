@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { NeedsYouItem, ClubJob } from "@/lib/domain/needs-you-now";
+import { jobHref, type NeedsYouItem, type ClubJob } from "@/lib/domain/needs-you-now";
 import { enterTournament } from "@/app/actions/auth";
 import { Icon } from "./Icon";
 
@@ -114,7 +114,7 @@ export function WhatsNext({
               (job.eventId === openEventId ? (
                 <Link
                   // A job on one round ("Close Round 2") opens that round on Rounds & formats.
-                  href={job.roundId && job.href === "/stages" ? `/stages?round=${job.roundId}` : job.href}
+                  href={jobHref(job)}
                   className="btn btn-secondary"
                   style={{ minHeight: 44 }}
                 >

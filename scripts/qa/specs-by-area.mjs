@@ -161,6 +161,8 @@ export const AREAS = {
       "e2e/round-allowance.spec.ts",
       "e2e/team-allowance.spec.ts",
       "e2e/round-handicap.spec.ts",
+      // Lane N, PR A: a player with no handicap index in a net round — the note on Entries, the band, Give by keyboard.
+      "e2e/no-handicap-net-round.spec.ts",
       // State machine PR 7b (J12): a round's format, allowance and delete judged by what they would invalidate.
       "e2e/round-changes-after-scores.spec.ts",
       // …and a scored round's tees drawn shut with the reason on Score entry and Tournament details (round G594-1).
@@ -219,6 +221,8 @@ export const AREAS = {
       "e2e/tee-sheet-moves.spec.ts",
       // Replace a player in a slot with a member or a guest: a no-show, a cancellation (B43).
       "e2e/tee-sheet-replace.spec.ts",
+      // Cut A (event-first, 15 Nov): the members list asked for at the draw, and offered on Entries.
+      "e2e/members-asked-at-the-draw.spec.ts",
     ],
     scenarios: [],
     // Tee times are read on the club's clock.
@@ -294,6 +298,14 @@ export const AREAS = {
  * where a change is never targeted anyway — or a check of the test harness itself.
  */
 export const FULL_ONLY = [
+  // J39/J40 PR 1: a guest takes full part by a personal player link, no email and no app (access and sign-in: shared ground).
+  "e2e/a-guest-takes-full-part.spec.ts",
+  // J39/J40 PR 2: a guest in messages and notices, by who-key (messaging and push: shared ground).
+  "e2e/a-guest-in-messages.spec.ts",
+  // J39/J40 PR 3: player link slips printed at the desk, reprinted new, replaced after a lost sheet (access: shared ground).
+  "e2e/player-link-slips.spec.ts",
+  // One code box (plan row 4c, cut 1): either code in either box, one sentence for every wrong one (access: shared ground).
+  "e2e/one-code-box.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",
@@ -363,11 +375,17 @@ export const FULL_ONLY = [
   "e2e/match-kept-by.spec.ts",
   "e2e/match-play-rules.spec.ts",
   "e2e/match-results.spec.ts",
+  // A member scores from the cart sign signed out, with or without an email on the list (J39/J40: the guest link must not change it).
+  "e2e/members-still-score-from-the-qr.spec.ts",
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
   "e2e/net-without-tees-says-so.spec.ts",
+  // Lane N PR A with state machine PR 9a: no handicap index in a net round - the launch dialog names the player first (plain event, league).
+  "e2e/no-index-warning-in-the-launch-dialog.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  // State machine PR 8 (J14): a row A045 moved keeps what members saw, launches like any other, and is copied without its old word.
+  "e2e/old-setting-up-rows-keep-their-word.spec.ts",
   "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",
@@ -381,6 +399,9 @@ export const FULL_ONLY = [
   // The round-code holder's board (2026-11-05): all three visibility settings; /live stays the privacy line.
   "e2e/play-board.spec.ts",
   "e2e/play-suspended.spec.ts",
+  // Work plan row 0b (14 Nov): a member's and a guest's first hole, MEASURED — screens, presses, characters, seconds
+  // (one JOURNEY line each). Shared ground: sign-in, the player link, the card and the board at once.
+  "e2e/player-journey.spec.ts",
   "e2e/pot-on-the-scores.spec.ts",
   "e2e/prizes.spec.ts",
   "e2e/roster-handicap-and-field.spec.ts",
@@ -433,7 +454,11 @@ export const FULL_ONLY = [
   "e2e/status-stroke.spec.ts",
   "e2e/status-team-cup.spec.ts",
   "e2e/status-team-match-result-line.spec.ts",
+  // The reach gap (2026-11-13): the buttons that ask an outside service (Stripe, a model, a course directory), pressed where a person
+  // would, and a member's tee-time alerts turned on and off. Shared ground: plan, announcements, scoring, courses and Today at once.
+  "e2e/switched-off-services-answer-in-words.spec.ts",
   "e2e/team-cup.spec.ts",
+  "e2e/tee-time-alerts.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",
   "e2e/the-bot-check-cannot-shut-the-door.spec.ts",

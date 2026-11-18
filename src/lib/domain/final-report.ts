@@ -1,8 +1,8 @@
 /**
  * THE FINAL REPORT'S ARITHMETIC (2026-10-19) — pure, so it is tested by hand.
  *
- * Ajay, after the first real cup: "close the CVC vs CDG cup and provide me the
- * final report which app generates with all the tournament details", then
+ * Ajay, after the first real cup, asked (paraphrased) to close the cup and for the
+ * final report the app generates with all the tournament details, then
  * "whatever you are doing, the actual app should do it". The report reads the
  * cup board (`cupBoard`) and works three things out of it here:
  *
@@ -242,7 +242,7 @@ export interface ReportStoryInput {
   outside: Array<{ label: string; points: number; side: ReportSide | null }>;
 }
 
-/** The line under the score: "CDG win the cup". Empty while it is undecided. */
+/** The line under the score: "Pines win the cup". Empty while it is undecided. */
 export function reportRibbon(input: Pick<ReportStoryInput, "teams" | "verdict">): string {
   const v = input.verdict;
   const name = (s: ReportSide) => input.teams[s === "A" ? 0 : 1];

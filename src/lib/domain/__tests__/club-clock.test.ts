@@ -67,7 +67,7 @@ describe("what day it is at the club", () => {
 describe("a deadline is the end of that day AT THE CLUB", () => {
   const reg = (now: Date) =>
     registrationStatus({
-      eventStatus: "registration",
+      eventStatus: "draft",
       deadline: "2026-10-12",
       opens: "",
       capacity: 0,
@@ -96,7 +96,7 @@ describe("a deadline is the end of that day AT THE CLUB", () => {
   it("entries opening on the 13th are not open yet in New York, and are in Auckland", () => {
     const opens = (now: Date) =>
       registrationStatus({
-        eventStatus: "registration",
+        eventStatus: "draft",
         deadline: "",
         opens: "2026-10-13",
         capacity: 0,

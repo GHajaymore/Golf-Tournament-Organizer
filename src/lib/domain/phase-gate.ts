@@ -12,7 +12,7 @@
  * THE TRANSITIONS BETWEEN PHASES ARE A DIFFERENT QUESTION, and they were not
  * guarded at all. `launchTournament` checked nothing: a tournament with no
  * rounds and nobody in it would go live, and go live LOCKED, because launching
- * clears `configUnlocked`. The organizer's next move is then to unlock the
+ * locks it (setup is locked by launch). The organizer's next move is then to unlock the
  * thing they just locked in order to build the tournament they just published.
  *
  * So: guide within a phase, gate between them. That is the same line the rest
@@ -336,11 +336,12 @@ export function statusMove(from: string, to: string): StatusMove {
     };
   }
   /**
-   * ONE SETTING-UP STEP (Ajay, 2026-10-31, gap G1). Draft, registration and
-   * ready read as one, and no screen offers a move between them any more. The
-   * action is a public endpoint, so a request for one is REFUSED rather than
-   * written: a stored value nothing reads differently is still a change nobody
-   * asked for, and refusing keeps every stored value where it is.
+   * ONE SETTING-UP STEP (Ajay, 2026-10-31, gap G1). The old ladder's three
+   * pre-launch words read as one, and since migration A045 (state machine PR 8)
+   * one is all that is stored: the other two are not statuses at all, and the
+   * first line refuses them. The action is a public endpoint, so a request to
+   * "move" to setting up is REFUSED rather than written: a stored value nothing
+   * reads differently is still a change nobody asked for.
    */
   if (PRE_LAUNCH_STATUSES.includes(to)) {
     return {

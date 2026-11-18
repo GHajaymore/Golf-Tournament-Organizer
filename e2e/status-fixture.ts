@@ -72,7 +72,7 @@ export async function statusFixture(
   const event = await prisma.event.create({
     data: {
       organizationId: org.id, name: `${mark} event`, dates: "", course: "Home", city: "", address: "", regDeadline: "",
-      status: "draft", shareToken: `${mark}-${Date.now()}`, configUnlocked: true,
+      status: "draft", shareToken: `${mark}-${Date.now()}`,
       customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
       customYards: JSON.stringify(new Array(18).fill(400)),
       /**

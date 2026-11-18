@@ -37,6 +37,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addSignup, importCsvSignups } from "@/app/actions/tournament";
+import { openCorrectionOn } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-LOCKED-ADD";
@@ -76,7 +77,6 @@ beforeAll(async () => {
         shareToken: `${TAG}-${Date.now()}`,
         capacity: 0,
         status: "live",
-        configUnlocked: false,
       },
     })
   ).id;
@@ -120,8 +120,9 @@ describe("adding a player while setup is locked", () => {
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);
   });
 
-  it("goes through once setup is unlocked (the control)", async () => {
-    await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: true } });
+  it("goes through once the field is opened by a committee correction (the control)", async () => {
+    // PR 9b: the blanket unlock this used is not read; one part, the field, is opened.
+    await openCorrectionOn(prisma, eventId, "field");
     const res = await addSignup(entrant("Unlocked"));
     expect(res.ok, res.error).toBe(true);
     expect(await prisma.player.count({ where: { eventId } })).toBe(1);

@@ -54,7 +54,6 @@ import {
   reinstateWithdrawn,
   removeSignup,
   removeSignups,
-  setConfigUnlocked,
   setQualifyPerGroup,
   updateSignup,
 } from "@/app/actions/tournament";
@@ -93,7 +92,6 @@ async function tournament(name: string, data: { status: string; capacity?: numbe
       shareToken: `${TAG}-${name}-${Date.now()}`,
       capacity: data.capacity ?? 0,
       status: data.status,
-      configUnlocked: false,
     },
   });
   const stage = await prisma.stage.create({
@@ -278,7 +276,7 @@ describe("once Round 1 has a card", () => {
 
   /**
    * THE ASSISTANT ON THE DESK (panel review of #1028, must-fix 2): they cannot
-   * unlock (`setConfigUnlocked` is the Organizer's), so the refusal they are
+   * make a committee correction (`openCorrection` is the Organizer's), so the refusal they are
    * handed must name who can — not end on "unlock the tournament".
    */
   it("an Assistant refused a walk-in is told an Organizer can unlock it, because they cannot", async () => {
@@ -289,9 +287,9 @@ describe("once Round 1 has a card", () => {
       expect(res.error).toBe(
         "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction to the field on the dashboard.",
       );
-      // The reason the words matter: the Assistant has no Unlock of their own.
-      await expect(setConfigUnlocked(true)).rejects.toThrow();
-      expect((await prisma.event.findUniqueOrThrow({ where: { id: medal } })).configUnlocked).toBe(false);
+      // The reason the words matter: the Assistant cannot open a correction of their own.
+      await expect(openCorrection("field", "A walk-in after the first card")).rejects.toThrow();
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: medal } })).correctionScope).toBeNull();
     } finally {
       await as(organizerId, medal);
     }

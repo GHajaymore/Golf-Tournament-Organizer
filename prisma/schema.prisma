@@ -1338,6 +1338,13 @@ model Event {
   registrationToken    String  @default("")
   registrationOpen     Boolean @default(false)
   registrationApproval String  @default("auto") // auto | approve
+  /// J39/J40 PR 3: guests may enter themselves on the sign-up link. Off by default; every such entry
+  /// waits for a staff press. Never cloned.
+  guestEntryOpen       Boolean @default(false)
+  /// J39/J40 PR 3: the short, typed form of the sign-up link (8 characters of the round code's alphabet).
+  /// "" until a staff press first needs it; rotates and ends with registrationToken; never cloned.
+  /// Unique by a PARTIAL index in A047 (unique where <> ''), as registrationToken is.
+  registrationCode     String  @default("")
 
   inviteMessage String @default("")
 
@@ -1515,8 +1522,23 @@ model Event {
   shareToken            String  @unique
 
   // Lifecycle
-  status         String    @default("draft") // draft | registration | ready | live | completed
-  configUnlocked Boolean   @default(false) // the retired blanket unlock; read as a legacy correction until PR 9
+  // draft | live | completed — and nothing else: A045's CHECK "Event_status_is_one_the_app_writes"
+  // (SQL only; Prisma cannot express it, docs/claude/migrations.md).
+  status         String    @default("draft")
+  /**
+   * THE OLD WORD OF A ROW MOVED TO `draft` (state machine PR 8, J14; migration
+   * A045). Before 31 Oct a tournament could be stored as `registration` or
+   * `ready`; A045 moved each to `draft` and kept its old value here, verbatim,
+   * so nothing is lost and a member who could see it still can
+   * (`openToMembers`). Any other stray word was mapped to live or completed,
+   * its word kept here too. "" on every other row, and on every row made since:
+   * nothing in the app writes it. Reversal (code rollback FIRST; see the
+   * rollback plan in A045's migration.sql): status = legacyStatus only where
+   * status is still `draft` (a row launched since stays launched), then blank
+   * the rest.
+   */
+  legacyStatus   String    @default("")
+  configUnlocked Boolean   @default(false) // the retired blanket unlock; read by nothing; the column goes in 9d
   /**
    * THE COMMITTEE CORRECTION (state machine PR 5b; TD Q2). The Organizer opens
    * ONE lock scope for a stated reason; it lapses at `correctionUntil` (the end
@@ -1611,6 +1633,8 @@ model Event {
   sideGames       SideGame[]
   threads         Thread[]
   cupPoints       CupPoint[]
+  /// Guests' personal player links (J39/J40, A044): gone with the tournament.
+  playerPasses    PlayerPass[]
 
   @@index([organizationId])
   @@index([courseId])
@@ -1715,9 +1739,16 @@ model Player {
    * reader.
    */
   publicNameWithheld Boolean       @default(false)
+  /**
+   * When a guest's details were anonymised, 90 club days after the event
+   * (J39/J40 PR 4). Null for everyone today; nothing writes it yet.
+   */
+  anonymisedAt       DateTime?
 
   event           Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   group           Group?            @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  /// A guest's personal player link, made on the organizer's first press (J39/J40).
+  pass            PlayerPass?
   // Removing someone from the roster must not delete tournaments they played
   // in — the entry stays, detached, preserving the result.
   member          Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
@@ -1732,6 +1763,97 @@ model Player {
   @@index([eventId])
   @@index([groupId])
   @@index([memberId])
+}
+
+/**
+ * A GUEST'S PERSONAL PLAYER LINK (J39/J40, Ajay 2026-11-07: guests need no
+ * email and no app). One link = one guest entry in one event, nothing wider.
+ * Read only through `services/player-link.ts`; the rules are
+ * `domain/player-link.ts`.
+ *
+ * The code itself is never stored. `lookup` is a keyed HMAC of it (the one
+ * way a typed code finds its row: a database dump is no oracle without the
+ * app secret); `sealed` is AES-256-GCM of it under a second derived key, so
+ * the organizer can show the SAME link again mid-event (D3: re-sending is not
+ * rotating). `version` goes up on New link and is signed into every guest
+ * cookie, so a rotation ends every phone holding the old one.
+ */
+model PlayerPass {
+  id           String    @id @default(cuid())
+  playerId     String    @unique
+  eventId      String
+  lookup       String    @unique
+  sealed       String
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now())
+  createdBy    String    @default("")
+  rotatedAt    DateTime?
+  revokedAt    DateTime?
+  revokedBy    String    @default("")
+  lastOpenedAt DateTime?
+  /// PR 3: an optional address the guest proved, for a lost link only. Never Player.email.
+  recoveryEmail           String    @default("")
+  recoveryEmailVerifiedAt DateTime?
+  /// PR 2: the guest's own "turn off direct messages" (D7's switch). An account's lives on Member.
+  messagesOptOut Boolean   @default(false)
+  /// PR 2 (S8): the organizer's Mute. The pass stays live; the guest may still write to the organizers.
+  mutedAt        DateTime?
+  mutedBy        String    @default("")
+  /// PR 3: the slip in the guest's pocket — when it was printed, and for which version of the link.
+  /// `slipPrintedVersion < version` means the printed slip no longer opens (New link was pressed).
+  slipPrintedAt      DateTime?
+  slipPrintedVersion Int?
+  /// PR 3: what a self-entered guest typed under "Who invited you?". Staff only. Dies with the pass.
+  entryNote          String    @default("")
+  /// PR 3: keyed hash of the Ask-to-play nonce (event + device bound), so a weak-signal retry returns
+  /// the same entry. "" once its window is past.
+  entryNonceHash     String    @default("")
+  entryNonceAt       DateTime?
+
+  player  Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  event   Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  devices PlayerPassDevice[]
+  pushes  PlayerPassPush[]
+
+  @@index([eventId])
+}
+
+/**
+ * A browser a GUEST turned notices on in (J39/J40 PR 2). Bound to the pass's
+ * VERSION: New link, Turn off and the entry ending all stop it at once, because
+ * every send asks `livePass(passId, passVersion)`; and it cascades with the
+ * pass. Apart from `PushSubscription` (an account's, `endpoint @unique`), so a
+ * guest's subscribe on a browser that also holds an account never overwrites it.
+ */
+model PlayerPassPush {
+  id          String   @id @default(cuid())
+  passId      String
+  passVersion Int
+  endpoint    String
+  p256dh      String
+  auth        String
+  createdAt   DateTime @default(now())
+
+  pass PlayerPass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@unique([passId, endpoint])
+}
+
+/**
+ * The browsers a player link was opened on — a keyed hash of the browser's
+ * `ng_device` value under its own label, so it cannot be joined to
+ * `KnownDevice`. Only a TAP on /p records one (S1): a page load never does.
+ */
+model PlayerPassDevice {
+  id          String   @id @default(cuid())
+  passId      String
+  deviceHash  String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  pass PlayerPass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@unique([passId, deviceHash])
 }
 
 model Group {
@@ -3303,7 +3425,8 @@ model Thread {
    */
   scopeKey       String
   title          String   @default("")
-  createdByEmail String   @default("")
+  /// Who started it: an account's lower-cased email, or `guest:<playerId>` for a guest's link (the who-key, J39/J40 PR 2). The column keeps its old name: no SQL.
+  createdByKey   String   @default("") @map("createdByEmail")
   createdByName  String   @default("")
   createdAt      DateTime @default(now())
   /**
@@ -3330,7 +3453,8 @@ model Thread {
 model Message {
   id          String    @id @default(cuid())
   threadId    String
-  authorEmail String
+  /// The who-key of who wrote it (an email, or `guest:<playerId>`). Column name unchanged (@map, no SQL).
+  authorKey   String    @map("authorEmail")
   authorName  String    @default("")
   body        String
   createdAt   DateTime  @default(now())
@@ -3354,12 +3478,13 @@ model Message {
 model ThreadParticipant {
   id       String @id @default(cuid())
   threadId String
-  email    String
+  /// The who-key (an email, or `guest:<playerId>`). Column and index names unchanged (@map, no SQL).
+  whoKey   String @map("email")
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  @@unique([threadId, email])
-  @@index([email])
+  @@unique([threadId, whoKey], map: "ThreadParticipant_threadId_email_key")
+  @@index([whoKey], map: "ThreadParticipant_email_idx")
 }
 
 /**
@@ -3370,13 +3495,14 @@ model ThreadParticipant {
 model ThreadRead {
   id         String   @id @default(cuid())
   threadId   String
-  email      String
+  /// The who-key (an email, or `guest:<playerId>`). Column and index names unchanged (@map, no SQL).
+  whoKey     String   @map("email")
   lastReadAt DateTime @default(now())
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  @@unique([threadId, email])
-  @@index([email])
+  @@unique([threadId, whoKey], map: "ThreadRead_threadId_email_key")
+  @@index([whoKey], map: "ThreadRead_email_idx")
 }
 
 /**

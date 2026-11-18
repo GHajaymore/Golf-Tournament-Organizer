@@ -89,59 +89,54 @@ describe("what launched means is written once", () => {
 
 describe("what locked means is written once", () => {
   /**
-   * The composite, which is the one that was really being copied: launched AND
-   * not deliberately unlocked. A screen offering a control the server refuses
-   * is a bug report filed against the wrong thing, and that is what five
-   * copies of this buy you.
+   * THE ONE PREDICATE, SINCE STATE MACHINE PR 9b: `setupLockedByLaunch(status, family)` in the
+   * machine — launched, and not a casual round (proposal 8.2, "Casual: locks none"). Until 9b it
+   * was `configurationLocked`, launched AND not unlocked by the retired blanket flag, and a casual
+   * round was open only because `createMatch` wrote that flag. Both arguments are REQUIRED, so the
+   * compiler lists every caller the day the rule grows.
    */
-  const CONFIG_UNLOCKED = /!\w*\.?configUnlocked/;
+  const ONE = /\bsetupLockedByLaunch\(/;
+  /** A second spelling of the casual half beside a launched test: `isLaunched(…) && …"casual"`, either order. */
+  const CASUAL_BESIDE_LAUNCHED = /isLaunched\([^)]*\)[^;\n]*["']casual["']|["']casual["'][^;\n]*isLaunched\(/;
 
-  it("nobody pairs a status test with a configUnlocked test by hand", () => {
-    const offenders = files.filter((f) => {
-      const src = readSource(f);
-      return HAND_WRITTEN.test(src) && CONFIG_UNLOCKED.test(src);
-    });
-    expect(
-      offenders,
-      `these decide "is the configuration locked" by hand. Ask ` +
-        `configurationLocked() — or isSetupLocked() on the server, which now ` +
-        `delegates to it.`,
-    ).toEqual([]);
+  it("CONTROL: the matcher sees a second casual clause beside a launched test, and nothing else", () => {
+    expect(CASUAL_BESIDE_LAUNCHED.test(`return isLaunched(f.status) && family !== "casual";`)).toBe(true);
+    expect(CASUAL_BESIDE_LAUNCHED.test(`const open = f.family === "casual" || !isLaunched(f.status);`)).toBe(true);
+    expect(CASUAL_BESIDE_LAUNCHED.test(`if (family === "casual") return 8;`)).toBe(false);
+    expect(CASUAL_BESIDE_LAUNCHED.test(`const live = isLaunched(event.status);`)).toBe(false);
   });
 
-  it("finds the callers that should be asking — the sweep's own control", () => {
-    /**
-     * "Nobody writes it by hand" is also true of an app where nobody asks the
-     * question at all. These are the five that were copies, and they must now
-     * be readers: if one stops calling the shared predicate, it has either
-     * gone back to a copy or lost the check entirely, and both are worth a
-     * failure.
-     */
-    const readers = [
-      // `page-helpers.ts` (`isSetupLocked`) and `action-shared.ts` (`assertUnlocked`, `lockedRefusal`)
-      // were readers until the state machine's PR 5b DELETED them: every screen and action asks its
-      // scope's lock through the machine instead. Neither may hold a copy — asserted below.
-      // The state machine (PR 3): its locks ask the shared predicate…
-      "src/lib/domain/tournament-status.ts",
-      // …and so does the one field rule (day-of field changes, PR A), which the roster
-      // action and the roster screen now ask instead of the predicate itself (below).
-      "src/lib/domain/field-change.ts",
-    ];
-    for (const file of readers) {
-      expect(readSource(file), `${file} no longer asks the shared question`).toMatch(
-        /configurationLocked\(|isSetupLocked\(/,
-      );
+  it("nobody but the machine writes the casual half beside a launched test", () => {
+    const offenders = files.filter((f) => f !== "src/lib/domain/tournament-status.ts" && CASUAL_BESIDE_LAUNCHED.test(readSource(f)));
+    expect(offenders, "ask setupLockedByLaunch(status, family) instead").toEqual([]);
+    // And the machine writes it exactly once, in the predicate.
+    const machine = readSource("src/lib/domain/tournament-status.ts");
+    expect(machine).toMatch(/export function setupLockedByLaunch\(status: string, family: Family\): boolean \{\s*return isLaunched\(status\) && family !== "casual";\s*\}/);
+    expect(machine.match(new RegExp(CASUAL_BESIDE_LAUNCHED.source, "g")) ?? []).toHaveLength(1);
+  });
+
+  it("every caller passes both, and none hands it a family by hand", () => {
+    const callers = files.filter((f) => ONE.test(readSource(f)));
+    // The machine's locks and the one field rule (four readings there): the readers the predicate replaced.
+    expect(callers.sort()).toEqual(["src/lib/domain/field-change.ts", "src/lib/domain/tournament-status.ts"]);
+    for (const f of callers) {
+      const calls = [...readSource(f).matchAll(/\bsetupLockedByLaunch\(([^()]*(?:\([^()]*\))?[^()]*)\)/g)].map((m) => m[1]);
+      for (const args of calls.filter((a) => !/:\s*string/.test(a))) {
+        expect(args.split(",").length, `${f}: setupLockedByLaunch(${args}) — both arguments`).toBe(2);
+        expect(args, `${f}: setupLockedByLaunch(${args}) — a literal family is the rule written again`).not.toMatch(/["']/);
+      }
     }
-    // The two deleted readers hold no copy of the question either (PR 5b).
+    expect(readSource("src/lib/domain/field-change.ts").match(/\bsetupLockedByLaunch\(/g) ?? []).toHaveLength(4);
+  });
+
+  it("the deleted readers hold no copy of the question (PR 5b), and LifecycleBar reads the machine's lock", () => {
     for (const file of ["src/lib/page-helpers.ts", "src/lib/services/action-shared.ts"]) {
       expect(readSource(file), `${file} has grown a lock of its own again`).not.toMatch(/configUnlocked|isSetupLocked\(|assertUnlocked\(|lockedRefusal\(/);
     }
     // The roster's two copies read the field rule: neither a copy nor a lost check.
     expect(readSource("src/app/actions/roster.ts")).toMatch(/await fieldRefusal\(eventId, "add"\)/);
     expect(readSource("src/app/(app)/roster/page.tsx")).toMatch(/await fieldRefusal\(session\.eventId, "add"\)/);
-    // …and `LifecycleBar`, the fifth copy, reads the machine's lock rather than
-    // asking it again: the card is handed `statusCardOf(facts).locked`, which is
-    // `locks.details.locked`. Neither a copy nor a lost check.
+    // …and `LifecycleBar`, the fifth copy, reads the machine's lock rather than asking it again.
     expect(readSource("src/components/LifecycleBar.tsx")).toMatch(/const locked = status\.locked;/);
     expect(readSource("src/lib/domain/tournament-status.ts")).toMatch(/locked: st\.locks\.details\.locked,/);
   });

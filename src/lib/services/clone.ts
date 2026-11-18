@@ -199,6 +199,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   registrationOverride:
     "a decision about last year's deadline — a copy has a new deadline and starts following it",
   status: "a copy starts as a draft, however far along the original got",
+  legacyStatus:
+    "the old word migration A045 kept on a row it moved (state machine PR 8) is a fact of that row's history; a copy is a new tournament, opened to members by its own sign-up link",
   configUnlocked: "an unlock is granted to one tournament, not inherited",
   // The committee correction (state machine PR 5b): opened on one tournament, for one reason, until one day's end.
   correctionScope: "a committee correction is made on one tournament, for a stated reason — a copy has nothing to correct",
@@ -224,6 +226,10 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "the public sign-up link. Unique (partial index), so copying collides, and it would point last year's shared URL at this year's field — the copy mints its own when its organizer opens registration",
   registrationOpen:
     "a copy starts with sign-ups closed, whatever the original ended at — opening a brand-new draft to the public the moment it's created is never what a copy wants",
+  guestEntryOpen:
+    "J39/J40 PR 3: guests entering themselves is switched on for one tournament by its organizer, who approves each one; a copy starts with it off, like the sign-up link it rides on",
+  registrationCode:
+    "J39/J40 PR 3: the typed form of the sign-up link. Unique (partial index), so copying collides, and it would let last year's poster open this year's form — it rotates and ends with registrationToken, which is not carried either",
   expiresAt:
     "the self-destruct clock on a casual round, and the one field here where copying it would DELETE something. A copy is made from the Tournaments list, which is a tournament act — so inheriting an expiry would hand a brand-new tournament a deletion date it never asked for, and the sweep would remove it overnight with its field and its cards in it. Written by createMatch and nothing else; a copy is not a casual round however casual the thing it was copied from",
   cupHolderGroupId:
@@ -344,6 +350,9 @@ export const CLONE_IGNORED_RELATIONS = [
   // teams themselves are not carried — so a copy starts without them, and the
   // organizer adds this year's team net total point on the Team cup screen.
   "cupPoints",
+  // A guest's player link (J39/J40) opens one entry in one event. The entries are not
+  // carried, so neither is any link: a guest in this year's event is given a new one.
+  "playerPasses",
 ];
 
 /**

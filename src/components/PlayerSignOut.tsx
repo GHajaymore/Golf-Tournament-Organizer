@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { signOutAction } from "@/app/actions/auth";
+import { releaseThisDevicesPush } from "@/lib/push-client";
 import { Icon } from "./Icon";
 
 /**
@@ -84,7 +85,8 @@ export function PlayerSignOut({ name }: { name: string }) {
                 type="button"
                 className="btn btn-primary"
                 disabled={pending}
-                onClick={() => startTransition(() => signOutAction())}
+                // This phone's alerts leave with the person signing out (safety sweep G-4).
+                onClick={() => startTransition(async () => signOutAction(await releaseThisDevicesPush()))}
               >
                 <Icon name="sign-out" /> Sign out
               </button>

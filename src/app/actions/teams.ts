@@ -353,61 +353,71 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
     if (scored > 0) {
       return { ok: false, error: "Scores have already been recorded for this round." };
     }
-    await prisma.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
   }
 
   /**
-   * THE CARRIER for this round's team matches, found by the ROUND.
-   *
-   * This was a find-or-create BY NAME, and the comment here said at length
-   * that the string was really an identifier and that renaming it would "fail
-   * to match the flight already there, create a second one beside it, and
-   * split a club's matches across the two". All true — and the thing doing
-   * the renaming was never the renumbering it guarded against. It was
-   * `regenerateGroupsAndSchedule`, reusing rows by position and renaming them
-   * in place. See `Group.stageId` and `matchCarrierGroup`.
-   *
-   * The name is now a label. The fallback below is the migration: a carrier
-   * created before the column exists has no round, so it is found the old way
-   * once and adopted. Scoped to `stageId: null` so it can never take a carrier
-   * that already belongs to a different round.
+   * ALL OR NOTHING: removing the old matches, finding or making the carrier and
+   * writing the schedule are ONE transaction, so a failure part-way (a
+   * concurrent delete, a constraint, a dropped connection) leaves the round as
+   * it was, never a part-drawn round robin.
    */
-  const groupName = `${stage.format} — Round ${stage.position + 1}`;
-  let group = await prisma.group.findFirst({ where: { eventId, stageId, isCarrier: true } });
-  if (!group) {
-    // Pre-column carrier — claims neither axis, so the name is the only
-    // evidence it is one. Adopted onto both. See `matchCarrierGroup`.
-    const byName = await prisma.group.findFirst({
-      where: { eventId, name: groupName, stageId: null, isCarrier: false },
-    });
-    if (byName) {
-      group = await prisma.group.update({
-        where: { id: byName.id },
-        data: { stageId, isCarrier: true },
+  await prisma.$transaction(async (tx) => {
+    if (existing.length > 0) {
+      await tx.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
+    }
+
+    /**
+     * THE CARRIER for this round's team matches, found by the ROUND.
+     *
+     * This was a find-or-create BY NAME, and the comment here said at length
+     * that the string was really an identifier and that renaming it would "fail
+     * to match the flight already there, create a second one beside it, and
+     * split a club's matches across the two". All true — and the thing doing
+     * the renaming was never the renumbering it guarded against. It was
+     * `regenerateGroupsAndSchedule`, reusing rows by position and renaming them
+     * in place. See `Group.stageId` and `matchCarrierGroup`.
+     *
+     * The name is now a label. The fallback below is the migration: a carrier
+     * created before the column exists has no round, so it is found the old way
+     * once and adopted. Scoped to `stageId: null` so it can never take a carrier
+     * that already belongs to a different round.
+     */
+    const groupName = `${stage.format} — Round ${stage.position + 1}`;
+    let group = await tx.group.findFirst({ where: { eventId, stageId, isCarrier: true } });
+    if (!group) {
+      // Pre-column carrier — claims neither axis, so the name is the only
+      // evidence it is one. Adopted onto both. See `matchCarrierGroup`.
+      const byName = await tx.group.findFirst({
+        where: { eventId, name: groupName, stageId: null, isCarrier: false },
+      });
+      if (byName) {
+        group = await tx.group.update({
+          where: { id: byName.id },
+          data: { stageId, isCarrier: true },
+        });
+      }
+    }
+    if (!group) {
+      const maxPos = await tx.group.aggregate({ where: { eventId }, _max: { position: true } });
+      group = await tx.group.create({
+        data: {
+          eventId,
+          stageId,
+          isCarrier: true,
+          name: groupName,
+          position: (maxPos._max.position ?? -1) + 1,
+        },
       });
     }
-  }
-  if (!group) {
-    const maxPos = await prisma.group.aggregate({ where: { eventId }, _max: { position: true } });
-    group = await prisma.group.create({
-      data: {
-        eventId,
-        stageId,
-        isCarrier: true,
-        name: groupName,
-        position: (maxPos._max.position ?? -1) + 1,
-      },
-    });
-  }
 
-  const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
-  const schedule = roundRobinSchedule(use.map((t) => t.id));
-  for (const pairing of schedule) {
-    await prisma.match.create({
-      data: {
+    const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
+    const schedule = roundRobinSchedule(use.map((t) => t.id));
+    // ONE statement: a pairing that cannot be written takes the whole schedule with it.
+    await tx.match.createMany({
+      data: schedule.map((pairing) => ({
         eventId,
         stageId,
-        groupId: group.id,
+        groupId: group!.id,
         round: pairing.round,
         // The sides are teams, so the player columns stay empty rather than
         // being repurposed — a column whose meaning depends on the format is
@@ -417,9 +427,9 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
         teamAId: pairing.aId,
         teamBId: pairing.bId,
         holes: emptyHoles,
-      },
+      })),
     });
-  }
+  });
 
   await refresh();
   return { ok: true };

@@ -47,7 +47,7 @@ beforeAll(async () => {
     data: {
       organizationId: org.id,
       name: `${TAG} open`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       formationRule: "balanced",
@@ -61,7 +61,6 @@ beforeAll(async () => {
       registrationApproval: "auto",
       registrationToken: randomBytes(6).toString("hex"),
       shareToken: randomBytes(10).toString("hex"),
-      configUnlocked: true,
     },
   });
   ids.event = event.id;

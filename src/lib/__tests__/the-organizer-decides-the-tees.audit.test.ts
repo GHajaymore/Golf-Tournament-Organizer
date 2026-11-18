@@ -96,7 +96,7 @@ beforeAll(async () => {
     data: {
       organizationId: org.id,
       name: `${TAG} mixed open`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       formationRule: "balanced",
@@ -113,7 +113,6 @@ beforeAll(async () => {
       courseId: links.id,
       defaultTeeId: ids.white,
       teePolicy: "own",
-      configUnlocked: true,
     },
   });
   ids.event = event.id;

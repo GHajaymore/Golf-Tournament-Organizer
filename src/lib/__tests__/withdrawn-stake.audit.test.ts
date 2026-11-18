@@ -50,7 +50,7 @@ async function seedPot(opts: { withdrawnPaid: boolean }) {
       address: "",
       regDeadline: "",
       capacity: 0,
-      status: "active",
+      status: "live",
       shape: "series",
       formationRule: "balanced",
       shareToken: `audit-stake-${Date.now()}-${Math.random()}`,

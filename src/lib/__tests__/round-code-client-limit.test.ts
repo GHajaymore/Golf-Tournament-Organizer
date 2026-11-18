@@ -59,11 +59,33 @@ describe("networkOf: IPv6 by its /64, IPv4 whole", () => {
   });
 });
 
+/**
+ * ONE CODE BOX (2026-11-17): the round code's two lookups are the one door's
+ * (`openEight` in services/code-door.ts) and the round's second step
+ * (`claimPlayerSlot`). Both ask the ONE gate the door chooses by shape
+ * (`guessGate("eight", …)`), which is the only place the client key is named.
+ */
 describe("both round-code lookups ask the client gate and give back only successes", () => {
-  const src = readSource("src/app/actions/play.ts");
-  it("calls the gate once in each of redeemRoundCode and claimPlayerSlot, never clears it", () => {
-    expect(src.match(/clientGuessGate\("round-code-client"/g)?.length).toBe(2);
-    expect(src.match(/guess\.succeeded\(\)/g)?.length).toBe(2);
-    expect(src).not.toMatch(/clearRateLimit\("round-code-client"/);
+  const play = readSource("src/app/actions/play.ts");
+  const door = readSource("src/lib/services/code-door.ts");
+  const between = (src: string, from: string, to: string) => src.slice(src.indexOf(from), src.indexOf(to, src.indexOf(from)));
+  it("the client key is named once, in the door's gate, and never cleared", () => {
+    expect(door.match(/"round-code-client"/g)?.length, "the key is named once, in LANES").toBe(1);
+    expect(door.match(/clientGuessGate\(lane\.client/g)?.length, "and asked once, by the shape's lane").toBe(1);
+    expect(play).not.toMatch(/clientGuessGate\(/);
+    expect(play + door).not.toMatch(/clearRateLimit\("round-code-client"/);
+  });
+  it("each lookup asks the gate before it looks, and gives back only after a found round", () => {
+    const eight = between(door, "async function openEight(", "async function openTwelve(");
+    const claim = between(play, "export async function claimPlayerSlot(", "export async function claimPlayerSlotForm(");
+    for (const [name, body] of [["openEight", eight], ["claimPlayerSlot", claim]] as const) {
+      const gate = body.indexOf('guessGate("eight"');
+      const lookup = body.indexOf("lookupEight(code)");
+      const back = body.indexOf("gate.opened()");
+      expect(gate, `${name} asks the gate`).toBeGreaterThan(0);
+      expect(lookup, `${name} looks up after the gate`).toBeGreaterThan(gate);
+      expect(back, `${name} gives back only after the lookup`).toBeGreaterThan(lookup);
+      expect(body.match(/gate\.opened\(\)/g)?.length, `${name} gives back once`).toBe(1);
+    }
   });
 });

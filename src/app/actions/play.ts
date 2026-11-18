@@ -3,25 +3,25 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
-import { normalizeAccessCode, looksLikeAccessCode } from "@/lib/code-format";
+import { CODE_WORDS, codeShapeOf } from "@/lib/domain/code-shape";
+import { guessGate, lookupEight, openAnyCode } from "@/lib/services/code-door";
 import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/play-auth";
 import { settingsOf } from "@/lib/services/tournament";
-import { usesAccessCodes, canPlayerSavePartial, allowsAutoConfirm } from "@/lib/tournament-settings";
+import { canPlayerSavePartial, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { playerEntryRefusal, roundScoring } from "@/lib/domain/round-scoring";
 import { isInMatch, mayWriteMatch, playersInMatch } from "@/lib/services/match-membership";
-import { keeperGate, claimGroup, handOverKeeping, roundTeeSheet, otherRoundsTeeGroups } from "@/lib/services/group-keeping";
+import { keeperGate, claimGroup, handOverKeeping } from "@/lib/services/group-keeping";
 import { attestMatch, matchSidesOf, endCheckRule } from "@/lib/services/attestation";
 import { effectiveScoreStatus } from "@/lib/services/tournament";
 import { isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { assertSignsCards } from "@/lib/services/scorecard-write";
-import { checkRateLimit, clearRateLimit, clientGuessGate } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { clientAddress } from "@/lib/client-address";
 // The machine's play refusal (`refusals.play`, state machine PR 4).
 import { playRefusedBecause } from "@/lib/services/tournament-status";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { cleanHoleResults, cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { matchIsOver } from "@/lib/domain/match";
-import { roundCodeName } from "@/lib/domain/round-label";
 import { marginRefusal, marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard, assertRoundOpen, storedCard } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -32,186 +32,22 @@ import { deriveMatchFromItsCards, recomputeTeamMatch } from "@/lib/services/matc
 import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
-import { type TeeSheetGroup } from "@/lib/domain/tee-sheet";
-import { groupNeedsName, groupsOfRound, withBorrowedTeeTimes, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
-import { matchKeptBy } from "@/lib/domain/match-kept-by";
+import { groupNeedsName, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
 
 /**
- * Redeeming a Round Code.
+ * A ROUND CODE'S SECOND STEP: say which player you are, and start the play
+ * session.
+ *
+ * The FIRST step — a code typed in any box, or a scanned sign — is the one
+ * door for a typed code (`openAnyCode` in `services/code-door.ts`, pressed
+ * through `actions/code-box.ts`). This step asks the same door's budgets
+ * (`guessGate`, the per-code `round-code`) and its one lookup (`lookupEight`),
+ * so there is no second reader of `Stage.accessCode` to guess through, and it
+ * answers a code that opens nothing in the door's one sentence.
  *
  * The code is a shared secret announced to a field, so the security here rests
- * on rate limiting rather than on the code's length: 27^8 is a large space,
- * but only if an attacker can't sit there trying it.
- *
- * The allowance and the wording live in src/lib/domain/rate-limit.ts; the
- * counters live in Postgres, because until recently they lived in the memory
- * of a serverless instance and an attacker got a fresh budget every time they
- * landed on a cold one.
+ * on rate limiting rather than on the code's length (`domain/rate-limit.ts`).
  */
-
-export interface RedeemResult {
-  ok: boolean;
-  error?: string;
-  /**
-   * The field for that round: the list a scorer picks from where the round has
-   * no groups, and what "find your group by a name" searches.
-   */
-  players?: Array<{ id: string; name: string }>;
-  /**
-   * The round's GROUPS, which the scorer picks from instead of a name
-   * (`play-groups.ts`): its matches, when it draws them and their lineup is
-   * public, or its published tee sheet's groups. Empty for a round with
-   * neither, which keeps the list of names.
-   */
-  groups?: PlayGroup[];
-  stageId?: string;
-  /**
-   * The tournament, so a phone can remember its group across the rounds of it
-   * (`rememberedGroup`). An id, not a name or a secret: it is what the page's
-   * own session already carries.
-   */
-  eventId?: string;
-  eventName?: string;
-  roundLabel?: string;
-  /**
-   * The round is kept by ONE SCORER PER GROUP (2026-11-05, phase 2): the phone
-   * keeps the whole group's card, so "whose card" in a group of stroke cards is
-   * asked as "which one are you".
-   */
-  keepsGroups?: boolean;
-}
-
-export async function redeemRoundCode(input: string): Promise<RedeemResult> {
-  const code = normalizeAccessCode(input);
-
-  // Shape-check before touching the database, so junk costs nothing.
-  if (!looksLikeAccessCode(code)) {
-    return { ok: false, error: "That doesn't look like a round code. It's 8 characters, like ABCD-EFGH." };
-  }
-
-  // Keyed on the code rather than on a caller identity, which we don't have
-  // here — this caps how fast any one code can be guessed at.
-  // The second limit: one client trying many codes (failed lookups only, never cleared).
-  const guess = await clientGuessGate("round-code-client", await clientAddress());
-  if (!guess.decision.allowed) return { ok: false, error: guess.decision.message };
-  const limit = await checkRateLimit("round-code", code);
-  if (!limit.allowed) return { ok: false, error: limit.message };
-
-  const stage = await prisma.stage.findFirst({
-    where: { accessCode: code },
-    include: { event: true },
-  });
-  // Same message whether the code is wrong or the tournament has since turned
-  // code access off — no reason to confirm that a code was once real.
-  if (!stage || !usesAccessCodes(settingsOf(stage.event))) {
-    return { ok: false, error: "That code isn't valid. Check it with your organizer." };
-  }
-
-  const players = await prisma.player.findMany({
-    where: { eventId: stage.eventId, status: "confirmed" },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
-
-  // `type` as well as `id` — see play-auth: the number counts rounds, not rows,
-  // and a cut is a row that is not a round.
-  const stages = await prisma.stage.findMany({
-    where: { eventId: stage.eventId },
-    orderBy: { position: "asc" },
-    select: { id: true, type: true, format: true, holes: true, nine: true },
-  });
-
-  await guess.succeeded();
-  await clearRateLimit("round-code", code);
-  return {
-    ok: true,
-    players,
-    groups: await playGroups(stage, players),
-    stageId: stage.id,
-    eventId: stage.eventId,
-    eventName: stage.event.name,
-    // Which round and which holes, so the wrong nine's code shows on the
-    // first screen after it is typed.
-    roundLabel: roundCodeName(stages, stages.find((s) => s.id === stage.id) ?? stage),
-    keepsGroups: roundScoring(stage).scoreKeeping === "group",
-  };
-}
-
-/**
- * THE ROUND'S MATCHES, AS THE PLAYERS STAND ON THE TEE (2026-10-16).
- *
- * Ajay, setting up a real cup: one code for the whole round, then a name to
- * tap out of twenty — "can you keep it to the foursome?". The code stays one
- * per round; what changes is the list, which is the round's matches, in draw
- * order. A four-ball match IS the foursome. Only the players the code already
- * lists are named, so it reveals nothing the flat list did not, beyond who is
- * drawn against whom.
- *
- * THE TEE SHEET: the round's OWN published one (`roundTeeSheet`), the same
- * reader the keeper takes its groups from, so the list and the keeper cannot
- * disagree. It once fell back to the tournament's other published sheet ("a
- * cup's second nine is the same four"); the Golf Pro ruled on 2026-11-05 that
- * a round's groups come from that round's sheet only — a four-ball session
- * with no sheet of its own lists its matches, each its own group. Null when
- * there is none.
- */
-async function publishedSheet(stageId: string, eventId: string): Promise<TeeSheetGroup[] | null> {
-  const sheet = await roundTeeSheet(eventId, stageId);
-  return sheet && sheet.groups.length > 0 ? sheet.groups : null;
-}
-
-/**
- * THE GROUPS A SCORER PICKS FROM (2026-11-04) — see `play-groups.ts`. A round
- * that draws matches, announced: each match, with its tee time where there is
- * a sheet. Otherwise the published sheet's groups. Otherwise none, and the
- * page keeps the names. A cup lineup the organizer has not announced is never
- * shown as matches: that is who is drawn against whom.
- */
-async function playGroups(
-  stage: { id: string; eventId: string; type: string; format: string; scoreInput: string | null; matchKeptBy: string | null; lineupPublished: boolean | null },
-  players: Array<{ id: string; name: string }>,
-): Promise<PlayGroup[]> {
-  const names = new Map(players.map((p) => [p.id, p.name]));
-  const sheet = await publishedSheet(stage.id, stage.eventId);
-  const hidden = lineupHidden(stage);
-  const matches = hidden
-    ? []
-    : await prisma.match.findMany({
-        where: { stageId: stage.id },
-        orderBy: [{ round: "asc" }, { id: "asc" }],
-        select: { id: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
-      });
-  const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id !== "");
-  const members = teamIds.length
-    ? await prisma.teamMember.findMany({
-        where: { teamId: { in: teamIds } },
-        orderBy: { position: "asc" },
-        select: { teamId: true, playerId: true },
-      })
-    : [];
-  const side = (playerId: string, teamId: string) =>
-    playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId);
-  // The one answer, shared with the print kit's signs (`groupsOfRound`).
-  const groups = groupsOfRound({
-    lineupHidden: hidden,
-    matches: matches.map((m) => ({ id: m.id, a: side(m.playerAId, m.teamAId), b: side(m.playerBId, m.teamBId) })),
-    names,
-    sheet,
-    // A match kept on stroke cards is four people's own cards; one kept by
-    // tapping is one card, the same whoever opens it.
-    oneMatch: matchKeptBy(stage) !== "cards",
-  });
-  if (sheet) return groups;
-  /**
-   * A ROUND WITH NO SHEET OF ITS OWN MAY STILL HAVE A TEE TIME (Ajay,
-   * 2026-10-16: "we already have foursome for this tournament" — a cup's second
-   * nine is the same four). Borrowed from another round's published group, the
-   * TIME ONLY and only when that group is exactly this match's players
-   * (`withBorrowedTeeTimes` / `samePlayers`); never its grouping or its name,
-   * which come from this round alone (`roundTeeSheet`).
-   */
-  return withBorrowedTeeTimes(groups, await otherRoundsTeeGroups(stage.eventId, stage.id), new Set(names.keys()));
-}
 
 export interface ClaimResult {
   ok: boolean;
@@ -291,41 +127,37 @@ function storedHoles(json: string): Array<"A" | "B" | "H" | null> {
  * without that, someone who once saw a valid code could keep claiming slots
  * after it was reissued.
  */
-export async function claimPlayerSlot(rawCode: string, playerId: string): Promise<ClaimResult> {
-  const code = normalizeAccessCode(rawCode);
-  if (!looksLikeAccessCode(code)) return { ok: false, error: "That code isn't valid." };
+export async function claimPlayerSlot(rawCode: unknown, playerId: unknown): Promise<ClaimResult> {
+  // Only a round code has a second step: a personal code, or no code, opens nothing here.
+  const shape = codeShapeOf(rawCode);
+  if (shape.shape !== "eight") return { ok: false, error: CODE_WORDS.opensNothing };
+  const code = shape.code;
 
-  // Rate limited on the same key as redeemRoundCode, and it must be: this
-  // performs the identical accessCode lookup, so without a limit here an
-  // attacker simply guesses codes through this action instead and the limit on
-  // the other one counts for nothing. Sharing the key means attempts against a
-  // code are capped however they arrive.
-  // The second limit: one client trying many codes (failed lookups only, never cleared).
-  const guess = await clientGuessGate("round-code-client", await clientAddress());
-  if (!guess.decision.allowed) return { ok: false, error: guess.decision.message };
+  // The door's own budgets, on the same keys, and they must be: this performs
+  // the door's lookup, so without them an attacker simply guesses codes through
+  // this action instead and the door's limit counts for nothing. Sharing the
+  // keys means attempts against a code are capped however they arrive.
+  const gate = await guessGate("eight", await clientAddress());
+  if (gate.refused) return { ok: false, error: gate.refused };
   const limit = await checkRateLimit("round-code", code);
   if (!limit.allowed) return { ok: false, error: limit.message };
 
-  const stage = await prisma.stage.findFirst({
-    where: { accessCode: code },
-    include: { event: true },
-  });
-  if (!stage || !usesAccessCodes(settingsOf(stage.event))) {
-    return { ok: false, error: "That code isn't valid." };
-  }
+  const found = await lookupEight(code);
+  if (!found) return { ok: false, error: CODE_WORDS.opensNothing };
+  const stage = found.stage;
 
   const player = await prisma.player.findFirst({
-    where: { id: playerId, eventId: stage.eventId, status: "confirmed" },
+    where: { id: typeof playerId === "string" ? playerId.slice(0, 64) : "", eventId: stage.eventId, status: "confirmed" },
     select: { id: true, name: true },
   });
   // Same message as a bad code. Saying "pick your name from the list" here
   // would confirm that the code was real — turning a failed claim into a
   // reliable oracle for which codes exist.
-  if (!player) return { ok: false, error: "That code isn't valid." };
+  if (!player) return { ok: false, error: CODE_WORDS.opensNothing };
 
   // A genuine claim resets the budget, so a fourball fumbling the code on the
   // first tee doesn't lock the group out of the round they're about to play.
-  await guess.succeeded();
+  await gate.opened();
   await clearRateLimit("round-code", code);
   // The stored code, not the typed one, so the session is bound to the row a
   // reissue will overwrite.
@@ -348,39 +180,13 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
 }
 
 /**
- * THE ROUND CODE WORKS BEFORE THE PAGE'S SCRIPT HAS ARRIVED (2026-10-25).
- *
- * Measured on slow 3G (`e2e/round-code-on-3g.spec.ts`): the code box was drawn
- * at 1.8 s and Continue could not be pressed until 7.8 s, because it waited for
- * the page's whole script, 193 KB of it, sharing one bar of signal with 105 KB
- * of fonts. So the box and the names are real forms now. A press made before
- * the script is held until it arrives (`HeldBeforeLoad`), and the page calls
- * `redeemRoundCode` and `claimPlayerSlot` itself, as it always did. With no
- * script — or none ten seconds after the press — the forms are posted to
- * these two the plain way and the server draws the next step. These call the
- * same two, so the answer — the names, the refusal in words, the session — is
- * one answer whichever way the press went.
- *
- * Shaped for `useActionState` (the state before, then the form), because that
- * is how the server hands the result of a plain post to the page it draws.
- */
-export interface RedeemFormState extends RedeemResult {
-  /** The code as it goes on to the name step, or as it was typed when refused. */
-  code: string;
-}
-
-export async function redeemRoundCodeForm(_before: RedeemFormState | null, form: FormData): Promise<RedeemFormState> {
-  const typed = String(form.get("code") ?? "").slice(0, 64);
-  const res = await redeemRoundCode(typed);
-  return { ...res, code: res.ok ? normalizeAccessCode(typed) : typed };
-}
-
-/**
  * A group or a name tapped with no script: the steps the page takes, drawn by
  * the server instead (2026-11-04). The one confirmation first ("You're keeping
  * Group 3 …" — `keepingSentence`), then, in a group of somebody's own cards,
  * whose card; then the session starts and the card is drawn, or the refusal is.
- * The same groups the page draws (`redeemRoundCode`), so the same answer.
+ * The same groups the page draws, from the same door (`openAnyCode`), so the
+ * same answer: a code that is not a round's is answered here exactly as in
+ * the box, and a personal code goes on to Today.
  */
 export interface ClaimFormState extends ClaimResult {
   /** The step to draw next: the confirmation, or whose card in the group. */
@@ -400,19 +206,22 @@ export async function claimPlayerSlotForm(_before: ClaimFormState | null, form: 
   const confirmed = form.get("confirmed") === "yes";
   let res: ClaimResult;
   if (!confirmed || (groupKey && !playerId)) {
-    const round = await redeemRoundCode(code);
-    if (!round.ok) return { ok: false, error: round.error };
+    const opened = await openAnyCode(form.get("code"), await clientAddress());
+    if (!opened.ok) return { ok: false, error: opened.error };
+    // Outside any try: `redirect` works by throwing.
+    if (opened.kind !== "round") redirect(opened.href);
+    const round = opened.round;
     const context = {
-      code: normalizeAccessCode(code),
+      code: opened.code,
       stageId: round.stageId,
       eventId: round.eventId,
       eventName: round.eventName,
       roundLabel: round.roundLabel,
       keepsGroups: round.keepsGroups,
     };
-    const group = groupKey ? round.groups?.find((g) => g.key === groupKey) : undefined;
-    const player = playerId ? round.players?.find((p) => p.id === playerId) : undefined;
-    if (!group && !player) return { ok: false, error: "That code isn't valid.", ...context };
+    const group = groupKey ? round.groups.find((g) => g.key === groupKey) : undefined;
+    const player = playerId ? round.players.find((p) => p.id === playerId) : undefined;
+    if (!group && !player) return { ok: false, error: CODE_WORDS.opensNothing, ...context };
     if (!confirmed) {
       const target: PlayTarget = group ? { kind: "group", group } : { kind: "player", id: player!.id, name: player!.name };
       return { ok: false, step: { kind: "confirm", target }, ...context };

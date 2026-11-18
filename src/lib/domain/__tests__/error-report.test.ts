@@ -88,3 +88,32 @@ describe("scrubText and the URL fragment", () => {
     }
   });
 });
+
+/**
+ * THE GUEST PLAYER LINK (J39/J40, the review's S3): its code is out of every
+ * report wherever it sits — the fragment the link carries, a path somebody
+ * typed it into, a query, or the printed dashed form quoted in a message.
+ */
+describe("scrubText and a player link code", () => {
+  const CODE = "K7QM2XRA9DTP";
+  it("leaves no code from the link, a typed path, a query or a quoted message", () => {
+    for (const u of [
+      `https://tourneyhq.club/p#${CODE}`,
+      `/p#${CODE}`,
+      `https://tourneyhq.club/p/${CODE}`,
+      `/p/${CODE}?x=1`,
+      `https://tourneyhq.club/p?code=${CODE}`,
+      "Error: couldn't open K7QM-2XRA-9DTP for this phone",
+      "typed k7qm-2xra-9dtp at the desk",
+    ]) {
+      const out = scrubText(u);
+      expect(out, u).not.toMatch(/K7QM|2XRA|9DTP/i);
+      expect(out, u).toContain("[redacted]");
+    }
+  });
+  it("CONTROL: /p alone, the round code's dashed pair and an ordinary dashed word are left alone", () => {
+    for (const u of ["/p", "https://tourneyhq.club/p?ended=1", "/play", "ABCD-EFGH", "tee-time-sheet", "2026-11-13"]) {
+      expect(scrubText(u), u).toBe(u);
+    }
+  });
+});

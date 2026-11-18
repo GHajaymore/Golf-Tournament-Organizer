@@ -285,8 +285,17 @@ function invariants(name: string, t: Facts, today = TODAY) {
   else if (j.action && j.enabled) expect(press, name).toMatchObject({ kind: "link", label: j.action, href: j.href });
   else expect(press.kind, name).toBe("none");
   // And What's next's first line for it, when it has one, is the same job (the home never lists a
-  // completed tournament: `secretaryHomeFor` leaves them out).
-  const home = t.status.step === "completed" ? undefined : whatsNext({ tournaments: [t], today, locale: "en-GB" })[0];
+  // completed tournament: `secretaryHomeFor` leaves them out). Setting up, the button is Launch at once
+  // while the home waits for the fortnight (the Tournament Director, 16 Nov), so there the two agree
+  // whenever the home has its launch line.
+  const lines = t.status.step === "completed" ? [] : whatsNext({ tournaments: [t], today, locale: "en-GB" });
+  const home = t.status.step === "setting-up" && !lines.some((l) => l.key === "launch") ? undefined : lines[0];
+  // The ruling, across every shape: setting up, the button is Launch — unless entries wait for approval, or a tee
+  // sheet is due before the first day (a round that cannot happen). Never a strokes line or anything later.
+  if (t.status.step === "setting-up" && t.status.nextAction?.kind === "launch") {
+    const early = j.key === "tee-sheet" && !!t.nextSheet?.day && !!t.startOn && t.nextSheet.day < t.startOn;
+    expect(j.key === "launch" || j.key === "entries" || early, `${name}: setting up, the button was ${j.key}`).toBe(true);
+  }
   if (home) {
     expect(home.key, `${name}: the home's first line`).toBe(j.key);
     if (j.key !== "launch" && j.key !== "results") expect(home.action, name).toBe(j.action);
@@ -366,11 +375,29 @@ describe("agreement over generated tournaments", () => {
 describe("the switch", () => {
   it("is off until Ajay's OK; ?stepper=1 previews it, and nothing else does", () => {
     expect(LIFECYCLE_STEPPER_ON).toBe(false);
-    expect(stepperShown("?stepper=1")).toBe(true);
-    expect(stepperShown("?view=timeline&stepper=1")).toBe(true);
-    expect(stepperShown("")).toBe(false);
-    expect(stepperShown("?view=timeline")).toBe(false);
-    expect(stepperShown("?stepper=0")).toBe(false);
+    const anybody = { owner: false };
+    expect(stepperShown("?stepper=1", anybody, "preview")).toBe(true);
+    expect(stepperShown("?view=timeline&stepper=1", anybody, "preview")).toBe(true);
+    expect(stepperShown("?stepper=1", anybody, undefined)).toBe(true);
+    expect(stepperShown("", anybody, "preview")).toBe(false);
+    expect(stepperShown("?view=timeline", anybody, "preview")).toBe(false);
+    expect(stepperShown("?stepper=0", anybody, "preview")).toBe(false);
+  });
+
+  it("in production the preview is an owner's only: anybody else adding ?stepper=1 sees today's console (Ajay, 14 Nov: no partial previews)", () => {
+    // A pilot club's staff member, running a real event, adds the query: nothing changes.
+    expect(stepperShown("?stepper=1", { owner: false }, "production")).toBe(false);
+    expect(stepperShown("?stepper=1&build=1", { owner: false }, "production")).toBe(false);
+    // CONTROL: the same query for an owner in production draws it, so the refusal is the owner gate's…
+    expect(stepperShown("?stepper=1", { owner: true }, "production")).toBe(true);
+    // …and an owner without the query sees today's console too.
+    expect(stepperShown("", { owner: true }, "production")).toBe(false);
+  });
+
+  it("the layout asks the owner gate for the stepper and for the redesign's screens", () => {
+    const layout = readSource("src/app/(app)/layout.tsx");
+    expect(layout).toMatch(/stepperShown\(asked\.get\("x-search"\) \?\? "", \{ owner: isOwner\(session\.email\) \}\)/);
+    expect(layout).toMatch(/mergesShown\(asked\.get\("x-search"\) \?\? "", \{ owner: isOwner\(session\.email\) \}\)/);
   });
 
   it("is open on the dashboard always, on Tournament details only while setting up, folded elsewhere", () => {

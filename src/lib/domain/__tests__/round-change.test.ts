@@ -300,7 +300,7 @@ describe("every round's refusal of one change — what Score entry draws its Tee
     expect(shut.get("r2")).toBeUndefined();
   });
   it("no card anywhere: nothing is shut — drawn, launched or not", () => {
-    for (const status of ["draft", "registration", "ready", "live"]) {
+    for (const status of ["draft", "live"]) {
       expect(roundRefusals(two(status, { teeSheetSaved: true, matches: 2 }), { kind: "round-tees" }, NONE).size, status).toBe(0);
     }
   });

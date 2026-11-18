@@ -403,7 +403,7 @@ export async function removeCupMatch(matchId: string): Promise<Result> {
 
 /**
  * POINTS OUTSIDE THE MATCHES (2026-10-19) — the first real cup's sixteenth
- * point, for the lower team net total, which CDG won and the app had nowhere
+ * point, for the lower team net total, which Pines won and the app had nowhere
  * to put. The organizer names a point and gives it a value; it counts in the
  * cup's total from the moment it exists, so the target is right before it is
  * decided, and in a team's score once it is awarded (`cupTally`).

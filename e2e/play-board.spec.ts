@@ -98,7 +98,7 @@ for (const visibility of ["public", "participants", "staff"] as const) {
       const p = await none.newPage();
       watchPageErrors(p, errors, `no session (${visibility})`);
       await p.goto(`/play/board?bust=${Date.now()}`);
-      await expect(p.getByLabel("Round code"), "/play/board drew something for a phone with no session").toBeVisible({ timeout: 30_000 });
+      await expect(p.getByLabel("Your code"), "/play/board drew something for a phone with no session").toBeVisible({ timeout: 30_000 });
       expect(new URL(p.url()).pathname).toBe("/play");
       await expect(p.getByRole("heading", { level: 1, name: club.eventName })).toHaveCount(0);
     } finally {

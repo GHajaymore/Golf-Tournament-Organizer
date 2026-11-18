@@ -81,8 +81,10 @@ describe("clone field policy", () => {
   });
 
   it("never copies lifecycle state", () => {
-    // A copy of a finished tournament is a draft, not a finished tournament.
-    for (const f of ["status", "launchedAt", "configUnlocked", "createdAt", "updatedAt", "id"]) {
+    // A copy of a finished tournament is a draft, not a finished tournament. And a copy of a row
+    // migration A045 moved is a new tournament with no old word (`legacyStatus`), so members see it
+    // only once its own sign-up link is published (state machine PR 8, the QA plan's S10).
+    for (const f of ["status", "legacyStatus", "launchedAt", "configUnlocked", "createdAt", "updatedAt", "id"]) {
       expect(CLONED_EVENT_FIELDS, `${f} must not be copied`).not.toContain(f);
     }
   });

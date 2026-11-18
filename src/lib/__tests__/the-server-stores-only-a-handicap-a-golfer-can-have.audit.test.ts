@@ -57,7 +57,6 @@ beforeAll(async () => {
       shareToken: `${TAG}-${process.pid}`,
       format: "stroke",
       capacity: 40,
-      configUnlocked: true,
     },
   });
   eventId = event.id;

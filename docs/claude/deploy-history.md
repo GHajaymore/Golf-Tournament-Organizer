@@ -135,7 +135,7 @@ Organizer or helper) has a tournament on today, never on a weekend morning, and 
 "sign-ins are held: only pilot clubs count". Once live: the 2026-10-23 rule unchanged, the reason
 beginning "accounts are live: every club counts". Why: a held production signs in only the owners
 and the allow-list, so before launch most tournaments are tests. Not all: round codes (`/play`) and
-public boards work while held, which is how the CDG/CVC cup was played, so a real event an owner runs
+public boards work while held, which is how the real team cup was played, so a real event an owner runs
 by round code can be on today — and before launch it does NOT hold a deploy. That is the ruling as
 given; whether such events should be covered is a question for Ajay, not built in. The first pilot
 club's organizer starts setting up on 20 Nov, which is why the freeze resumes then. A completed

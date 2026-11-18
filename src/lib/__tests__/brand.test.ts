@@ -9,7 +9,7 @@ import { brandLines, brandMonogram, isBrandDisplay, BRAND_DISPLAY, BRAND_DISPLAY
  */
 
 const FULL = "Cedar Dunes Golf & Country Club";
-const SHORT = "CDG";
+const SHORT = "CDN";
 
 describe("choosing the lines", () => {
   it("shows only what was asked for", () => {
@@ -52,9 +52,9 @@ describe("choosing the lines", () => {
 
 describe("the monogram, when there is no logo", () => {
   it("keeps an acronym intact", () => {
-    // "CDG" is already a monogram. Reducing it to "C" throws away the part
+    // "CDN" is already a monogram. Reducing it to "C" throws away the part
     // that identifies the club.
-    expect(brandMonogram(FULL, "CDG")).toBe("CDG");
+    expect(brandMonogram(FULL, "CDN")).toBe("CDN");
     expect(brandMonogram(FULL, "RGC")).toBe("RGC");
   });
 

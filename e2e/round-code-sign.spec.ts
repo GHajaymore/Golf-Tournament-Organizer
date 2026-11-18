@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { keepCardOf } from "./keep-on-play";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * A ROUND'S PRINTED SIGN, FROM THE ORGANIZER'S SCREEN TO A PLAYER'S THUMB (2026-10-17).
@@ -94,7 +95,7 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     watchPageErrors(player, errors);
     await player.goto(link!);
     await expect(player.getByRole("button", { name: somebody }), "the sign did not open the round's names").toBeVisible({ timeout: 20_000 });
-    await expect(player.getByLabel("Round code"), "the scanned phone was still asked to type the code").toHaveCount(0);
+    await expect(player.getByLabel("Your code"), "the scanned phone was still asked to type the code").toHaveCount(0);
     expect(new URL(player.url()).hash, "the code was left on the address").toBe("");
 
     // Tapping a group (or a name, on a round with none) and confirming it is the scorer's own act;
@@ -124,14 +125,14 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     await player.screenshot({ path: test.info().outputPath("asked.png") });
     await asked.getByRole("button", { name: "Keep scoring this one" }).click();
     await expect(asked).toHaveCount(0);
-    await expect(player.getByLabel("Round code"), "keeping the round left it anyway").toHaveCount(0);
+    await expect(player.getByLabel("Your code"), "keeping the round left it anyway").toHaveCount(0);
     await expect(scoring, "keeping the round lost the session").toBeVisible();
 
     // And switching opens the new code — which is nobody's round, so it is refused as if typed.
     await player.goto("about:blank");
     await player.goto(otherLink);
     await asked.getByRole("button", { name: "Switch to that round" }).click();
-    await expect(player.getByText(/That code isn.t valid/), "switching did not open the sign's code").toBeVisible({ timeout: 20_000 });
+    await expect(player.getByText(CODE_WORDS.opensNothing), "switching did not open the sign's code").toBeVisible({ timeout: 20_000 });
   } finally {
     await phone.close();
   }

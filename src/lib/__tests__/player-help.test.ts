@@ -42,6 +42,9 @@ const LABEL_SOURCE: Record<string, string> = {
   "Confirm my card": "src/components/PlayGroupKeeping.tsx",
   "Something’s wrong": "src/components/PlayGroupKeeping.tsx",
   "Leaderboard": "src/components/PlayClient.tsx",
+  // A guest's player link (J39/J40): /p and the guest's shell draw these from the link's one words module.
+  "Open my card": "src/lib/domain/player-link.ts",
+  "Forget me on this phone": "src/lib/domain/player-link.ts",
 };
 
 /** JSX writes an apostrophe as an entity; read the screen the way it renders. */

@@ -567,6 +567,11 @@ export const NOT_SWITCHED: readonly NotSwitched[] = [
     why: "Never held: a tournament is scored by code with accounts held.",
   },
   {
+    id: "player-links",
+    what: "A guest's personal player link at /p",
+    why: "Never held, like round codes: a guest needs no email and no account, so their tee time, card and board open before launch, as Ajay ruled on 7 Nov. It opens one entry in one event and is never a sign-in.",
+  },
+  {
     id: "entry-windows",
     what: "“Opens soon” on a tournament's entries",
     why: "A tournament's own entry window, set by its organizer.",
