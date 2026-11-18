@@ -27,7 +27,7 @@ describe("watchNavigations", () => {
       const r = req("http://x/print?signs=group&_rsc=abc");
       p.e.emit("request", r);
       let done = false;
-      const s = w.settled(10_000).then((v) => ((done = true), v));
+      const s = w.settled(10_000).then((v) => { done = true; return v; });
       await vi.advanceTimersByTimeAsync(700); // where the old crawl stopped looking
       expect(done).toBe(false);
       expect(w.pending()).toBe(1);
