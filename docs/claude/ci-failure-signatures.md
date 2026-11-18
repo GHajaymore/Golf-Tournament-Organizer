@@ -357,4 +357,4 @@ tens of ms after the press and answered after the crawl looked, it is this and n
 18 Nov 2026: the cup's `/print` signs choice, answered in 848 ms against a 700 ms guess; first seen G654-1, B83).
 Fixed at the root in `e2e/navigation-settle.ts`: `exercise()` waits, bounded to 10 s, for every non-prefetch RSC
 request the press started, and an unanswered one is `STUCK` with the address. A SILENT that remains has no
-such request in its trace, so it is a real silent control. Do not raise the 700 ms.
+such request in its trace, so it is a real silent control. After the answer it also waits (5 s) for the address the request went to, so an answer that landed just before the judge looked is not missed. Background polls (`router.refresh` in LiveRefresh and the like) are RSC requests too: a hung one reads STUCK on the control pressed, with its address in the note. Do not raise the 700 ms.
