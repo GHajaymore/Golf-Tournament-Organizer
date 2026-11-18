@@ -1,8 +1,11 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { Icon } from "./Icon";
-import { PLAYER_LINK_WORDS, normaliseLinkCode } from "@/lib/domain/player-link";
-import { openPlayerLink } from "@/app/actions/player-link";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
+import { normaliseLinkCode } from "@/lib/link-code-format";
+import { roundCodeLink } from "@/lib/code-format";
+import { boxStepFor, codeShapeOf } from "@/lib/domain/code-shape";
+import { openCode } from "@/app/actions/code-box";
 
 /**
  * /p — WHERE A GUEST'S PLAYER LINK OPENS (J39/J40 PR 1; the review's S1).
@@ -14,9 +17,15 @@ import { openPlayerLink } from "@/app/actions/player-link";
  * WebKit view that runs scripts, and mail scanners open links in headless
  * browsers; each would otherwise count as "opened on another phone" and, by
  * three, prompt the organizer to kill the guest's link (D3 through D6). Only
- * the tap posts the code (`openPlayerLink`), and only the tap records a browser.
+ * the tap posts the code (`openCode`, the one door for a typed code), and only
+ * the tap records a browser.
  *
- * The typed box needs a press too. Its input has no `name`, so a press made
+ * ONE CODE BOX (2026-11-17): the typed box takes a ROUND code too. Its shape
+ * is read here first (`boxStepFor(…, "p")`): no shape is refused with no
+ * request; a round code goes on to `/play#ABCD-EFGH`, which opens it as it
+ * opens a scanned sign (no extra press, and no code ever leaves in an address
+ * a server logs: it rides after the `#`); a personal code is posted on the
+ * press. The typed box needs a press too. Its input has no `name`, so a press made
  * before the page's script arrives posts nothing — never `?code=…` in an
  * address a server would log — and the buttons wait for the script anyway.
  */
@@ -41,9 +50,9 @@ export function PlayerLinkOpener({ ended }: { ended: boolean }) {
   const press = (code: string) =>
     start(async () => {
       setError("");
-      const r = await openPlayerLink(code);
-      if (r.ok) window.location.assign("/me");
-      else setError(r.error);
+      const r = await openCode(code);
+      if (!r.ok) setError(r.error);
+      else window.location.assign(r.kind === "round" ? roundCodeLink("", r.code) : r.href);
     });
 
   return (
@@ -78,12 +87,11 @@ export function PlayerLinkOpener({ ended }: { ended: boolean }) {
         method="post"
         onSubmit={(e) => {
           e.preventDefault();
-          const code = normaliseLinkCode(typed);
-          if (!code) {
-            setError(W.notACode);
-            return;
-          }
-          press(code);
+          const shape = codeShapeOf(typed);
+          const step = boxStepFor(shape, "p");
+          if (step.do === "refuse") setError(step.words);
+          else if (step.do === "go") window.location.assign(step.href);
+          else if (shape.shape === "twelve") press(shape.code);
         }}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >

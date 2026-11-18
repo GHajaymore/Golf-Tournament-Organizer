@@ -20,8 +20,9 @@ import { readSource } from "./source";
 const APP = join(process.cwd(), "src", "app");
 // The two route groups whose layouts supply the landmark.
 const GROUPED = ["(app)", "(player)"];
-// Internal, unlinked, and a catalogue of components rather than a page.
-const EXEMPT = new Set(["styleguide"]);
+// Internal, unlinked, and a catalogue of components rather than a page. And /start, the installed
+// app's start (J39/J40 PR 2, G3): it draws nothing and only redirects to a page that has its own.
+const EXEMPT = new Set(["styleguide", "start"]);
 
 function pages(dir: string, rel = ""): string[] {
   const out: string[] = [];

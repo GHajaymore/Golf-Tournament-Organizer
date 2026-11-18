@@ -1,6 +1,7 @@
 import { test, expect, type Page, type BrowserContext, type Browser, type TestInfo } from "./coverage";
 import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSession, dayIn, NAMES, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * A GUEST TAKES FULL PART, WITH NO EMAIL AND NO APP (J39/J40 PR 1; Ajay, 7 Nov).
@@ -21,7 +22,7 @@ import { watchPageErrors } from "./page-errors";
  *   G1  the committee suspends play and the guest's OPEN screen is told without a reload (the siren's
  *       poll, `currentPlayStatus`, answers for a link); resuming clears it
  *
- * Actions pressed: openPlayerLink, forgetThisPhone, choosePlayerView, playerLinkStatus, showPlayerLink,
+ * Actions pressed: openCode (the one code box), forgetThisPhone, choosePlayerView, playerLinkStatus, showPlayerLink,
  * newPlayerLink, turnOffPlayerLink — and the card's own saveScorecard and the siren's currentPlayStatus,
  * as a guest; suspendPlay and resumePlay, as the organizer.
  *
@@ -195,6 +196,8 @@ test.describe("a guest takes full part by a player link", () => {
       // The screen asks every twenty seconds. Nothing here reloads it.
       await expect(suspendedBanner, "a guest's open screen never noticed play was suspended (the siren's poll asked getSession)").toBeVisible({ timeout: 45_000 });
       await deskPage.getByRole("button", { name: "Resume play" }).click();
+      // Resuming asks first (#1149): the button, then "Resume play now".
+      await deskPage.getByRole("button", { name: "Resume play now" }).click();
       await expect(deskPage.getByRole("button", { name: "Suspend play" })).toBeVisible({ timeout: 20_000 });
       await expect(suspendedBanner, "a guest's open screen still says play is suspended after it resumed").toHaveCount(0, { timeout: 45_000 });
     } finally {
@@ -252,7 +255,7 @@ test.describe("a guest takes full part by a player link", () => {
       const c = await codeHolder.newPage();
       await c.goto("/play");
       await c.waitForLoadState("networkidle").catch(() => {});
-      await c.getByLabel("Round code").fill(ROUND_CODE);
+      await c.getByLabel("Your code").fill(ROUND_CODE);
       await c.getByRole("button", { name: "Continue" }).click();
       await expect(c.getByRole("button", { name: new RegExp(GUEST) }).first()).toBeVisible({ timeout: 20_000 });
     } finally {
@@ -268,7 +271,8 @@ test.describe("a guest takes full part by a player link", () => {
       const c = await phoneC.newPage();
       await typeCode(c, code2);
       // Not getByRole("alert"): Next's route announcer is an alert too.
-      await expect(c.locator('p[role="alert"]')).toContainText("This link no longer works.");
+      // One code box: a code that opens nothing is told the one sentence, whichever kind it is.
+      await expect(c.locator('p[role="alert"]')).toContainText(CODE_WORDS.opensNothing);
       expect(c.url()).not.toMatch(/\/me$/);
     } finally {
       await phoneC.close();

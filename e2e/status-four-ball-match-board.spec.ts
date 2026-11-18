@@ -33,7 +33,7 @@ test("a four-ball match round puts the side that won first on a player's board, 
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "fbmatch",
     players: 8,
-    event: { dates: "Sunday", format: "match", status: "live", configUnlocked: false },
+    event: { dates: "Sunday", format: "match", status: "live" },
     rounds: [{ type: "Round Robin", format: "Four-Ball", scoringBasis: "net" }],
   });
   const stageId = f.stageIds[0];

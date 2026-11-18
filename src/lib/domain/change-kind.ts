@@ -33,6 +33,10 @@ export const FIELD_ACTIONS = [
   "replaced",
   // A guest's player link (J39/J40): opened on a new phone, handed over, replaced, turned off.
   "player-link.opened", "player-link.handed", "player-link.new", "player-link.off",
+  // PR 2 (S8): a guest muted or unmuted in messages.
+  "player-link.muted", "player-link.unmuted",
+  // PR 3: player link slips printed, and a lost sheet's links replaced in one press.
+  "player-link.slips", "player-link.new-for-all",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];
@@ -56,6 +60,8 @@ const ROUND_ACTIONS = [
   // A term of a round changed after play — allowance, split, basis, tees — with what was
   // worked out again; and a drawn round's format changed (J12, state machine PR 7b).
   "round.recomputed", "round.format",
+  // A player with no handicap index given strokes after a round's first card, with the reason (lane N).
+  "strokes-corrected",
   // A published tee sheet changed (or taken back): by count, never by name (J12, state machine PR 7c).
   "tee-sheet.changed",
 ];

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { openCorrectionFor } from "./committee-correction";
 import {
   prisma,
   makeClub,
@@ -154,7 +155,6 @@ test("a tie at a round robin's cut line is settled by the committee's choice, no
     const { event, stages, players, flights } = await makeEvent(club, "Spring Groups", {
       status: "live",
       // The tie rule is part of the cut's terms, which lock with setup.
-      configUnlocked: true,
       stages: [
         { type: "Round Robin", format: "Match Play", scoringBasis: "gross" },
         { type: "Round Robin", format: "Match Play", scoringBasis: "gross" },
@@ -166,6 +166,8 @@ test("a tie at a round robin's cut line is settled by the committee's choice, no
       // the board marked nobody tied under it; `a-tie-at-a-round-robin-cut.audit`).
     });
     expect(event.format, "the fixture's Scoring, as the comment above says").toBe("stroke");
+    // The rounds opened by a committee correction (PR 9b: the blanket unlock is not read).
+    await openCorrectionFor(prisma, event.id, "rounds");
     const [first, second] = stages;
     await prisma.stage.update({ where: { id: second.id }, data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 2 } });
     const oneUp = (w: "A" | "B") => JSON.stringify([w, ...new Array(17).fill("H")]);
@@ -257,11 +259,12 @@ test("the play-off for third is between the two beaten semi-finalists, and is ma
   try {
     const { event, stages, players } = await makeEvent(club, "Club Knockout", {
       status: "live",
-      configUnlocked: true,
       stages: [{ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross" }],
       players: 4,
       event: KNOCKOUT,
     });
+    // The rounds opened by a committee correction, for the play-off's terms (PR 9b: the blanket unlock is not read).
+    await openCorrectionFor(prisma, event.id, "rounds");
     const ko = stages[0];
     // The semi-finals, played: the top seed through, and an upset — seed 3 beats seed 2.
     await prisma.bracketWinner.createMany({

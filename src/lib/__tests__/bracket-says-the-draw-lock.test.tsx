@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readSource } from "./source";
 
-vi.mock("@/app/actions/tournament", () => ({ setConfigUnlocked: async () => undefined, openCorrection: async () => ({ ok: true }), endCorrection: async () => ({ ok: true }) }));
+vi.mock("@/app/actions/tournament", () => ({ openCorrection: async () => ({ ok: true }), endCorrection: async () => ({ ok: true }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
 
 const { ScopeLockBanner } = await import("@/components/ScopeLockBanner");
@@ -46,7 +46,7 @@ describe("the Bracket's draw lock", () => {
     const { flightsNote } = bracketFlights;
     const lockOf = (f: ReturnType<typeof fko>) => scopeLockOf(locksFor(f), "draw");
     const lockBy = (l: ReturnType<typeof lockOf>) => (l && (l.by === "results" || l.by === "completed") ? l.by : null);
-    const done = (f: ReturnType<typeof fko>) => ({ ...f, status: "completed" as const, configUnlocked: false });
+    const done = (f: ReturnType<typeof fko>) => ({ ...f, status: "completed" as const });
     const cases = [
       { name: "open", f: fko(), banner: null, panel: "Each is its own knockout. You can move players, reseed and rename until the first result is recorded." },
       { name: "results", f: withResult(fko()), banner: "Locked because this knockout has results.", panel: "Results are in, so the flights are fixed. Each is its own knockout." },

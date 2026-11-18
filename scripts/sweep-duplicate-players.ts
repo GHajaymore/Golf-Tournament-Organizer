@@ -131,6 +131,7 @@ export const NOT_TIES: Readonly<Record<string, string>> = {
   "PlayerPass.playerId": "a guest's link belongs to that one entry; it goes with the row, never to another",
   "PlayerPass.createdBy": "the staff member's display name, not an id",
   "PlayerPass.revokedBy": "the staff member's display name, not an id",
+  "PlayerPass.mutedBy": "the staff member's display name, not an id",
   // `...By` columns that hold a display name or a setting, read from the schema's own comments:
   "Organization.defaultScoreEntryBy": "a setting (staff | players)",
   "Organization.defaultAttestBy": "a setting (marker | opponent | all)",

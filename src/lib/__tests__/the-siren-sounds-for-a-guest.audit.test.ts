@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /**
@@ -158,6 +158,65 @@ describe("the suspension siren follows the player screen's own event (G1)", () =
     await resume(aEvent);
     await suspend(bEvent, "Fog");
     expect((await currentPlayStatus()).suspended, "the link's event sounded on the account's screen").toBe(false);
+  });
+
+  /**
+   * WHEN THE LINK STOPS SPEAKING (#1132 review, PE-2 and SEC-1). The poll must keep asking the LIVE
+   * pass: a "cheaper" resolver for a 20-second poll is exactly how a dead link would start answering.
+   */
+  describe("a link that no longer speaks", () => {
+    afterEach(async () => {
+      await prisma.playerPass.updateMany({ where: { playerId: guest }, data: { revokedAt: null, revokedBy: "" } });
+      await prisma.player.update({ where: { id: guest }, data: { status: "confirmed" } });
+    });
+
+    it("turned off: a guest alone hears nothing of B; beside an account, the siren follows A", async () => {
+      await holdLink();
+      await prisma.playerPass.updateMany({ where: { playerId: guest }, data: { revokedAt: new Date(), revokedBy: "zz" } });
+      await suspend(bEvent, "Fog");
+      expect((await currentPlayStatus()).suspended, "a turned-off link still answered the siren").toBe(false);
+      expect(await createSession(memberUserId)).toBe(true);
+      await suspend(aEvent, "Club A only");
+      expect((await currentPlayStatus()).suspended, "the account's own event").toBe(true);
+      await resume(aEvent);
+      expect((await currentPlayStatus()).suspended, "B's suspension through a dead link").toBe(false);
+    });
+
+    it("replaced by New link: the old version answers nothing", async () => {
+      await holdLink();
+      const pass = await prisma.playerPass.findUniqueOrThrow({ where: { playerId: guest }, select: { version: true } });
+      await prisma.playerPass.updateMany({ where: { playerId: guest }, data: { version: pass.version + 1 } });
+      try {
+        await suspend(bEvent, "Fog");
+        expect((await currentPlayStatus()).suspended, "a replaced link still answered the siren").toBe(false);
+      } finally {
+        await prisma.playerPass.updateMany({ where: { playerId: guest }, data: { version: pass.version } });
+      }
+    });
+
+    it("a waiting guest's link answers only for its own event, never another's", async () => {
+      await prisma.player.update({ where: { id: guest }, data: { status: "pending" } });
+      await holdLink();
+      await suspend(aEvent, "Club A only");
+      expect((await currentPlayStatus()).suspended, "another club's suspension reached a waiting guest").toBe(false);
+      await suspend(bEvent, "Fog");
+      expect((await currentPlayStatus()).suspended, "its own event's fact, as its waiting card's layout would show").toBe(true);
+    });
+
+    it("D-1: an account that reaches the link's event acts as itself, so the siren follows the account's own event", async () => {
+      const { organizationId } = await prisma.event.findUniqueOrThrow({ where: { id: bEvent }, select: { organizationId: true } });
+      await prisma.organizationMember.create({ data: { organizationId: organizationId!, userId: memberUserId, role: "member" } });
+      try {
+        expect(await createSession(memberUserId)).toBe(true);
+        await holdLink();
+        await suspend(bEvent, "Fog");
+        expect((await currentPlayStatus()).suspended, "the link spoke beside an account that reaches its event").toBe(false);
+        await suspend(aEvent, "Club A only");
+        expect((await currentPlayStatus()).suspended).toBe(true);
+      } finally {
+        await prisma.organizationMember.deleteMany({ where: { organizationId: organizationId!, userId: memberUserId } });
+      }
+    });
   });
 
   it("an account alone: its own event, as before", async () => {

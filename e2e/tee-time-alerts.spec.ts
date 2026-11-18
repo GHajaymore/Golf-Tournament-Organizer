@@ -34,7 +34,15 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-/** A device that can be subscribed: permission granted, one push subscription kept in memory. */
+/**
+ * A device that can be subscribed: permission granted, one push subscription kept in memory.
+ *
+ * The device REPLACES the browser's own push objects rather than patching them: `serviceWorker` is
+ * defined on `navigator` and `Notification` on `window`. Patching them in place needs both to exist
+ * already, and in Playwright's WebKit iPhone one of them is missing, so there the patch threw, the
+ * page saw no push at all and Today rightly said alerts can't reach this iPhone (round G638-1).
+ * Same shape as the guest's device in `a-guest-in-messages.spec.ts`.
+ */
 async function giveThePageAPushDevice(page: Page, endpoint: string) {
   await page.addInitScript((endpointOfThisDevice: string) => {
     let kept: { endpoint: string; toJSON: () => unknown; unsubscribe: () => Promise<boolean> } | null = null;
@@ -54,12 +62,22 @@ async function giveThePageAPushDevice(page: Page, endpoint: string) {
         },
       },
     };
+    const serviceWorker = {
+      getRegistration: async () => registration,
+      getRegistrations: async () => [],
+      register: async () => registration,
+      ready: Promise.resolve(registration),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      controller: null,
+    };
+    Object.defineProperty(navigator, "serviceWorker", { configurable: true, get: () => serviceWorker });
     const w = window as unknown as Record<string, unknown>;
-    if (!("PushManager" in window)) w.PushManager = function PushManager() {};
-    Object.defineProperty(navigator.serviceWorker, "getRegistration", { configurable: true, value: async () => registration });
-    Object.defineProperty(navigator.serviceWorker, "ready", { configurable: true, get: () => Promise.resolve(registration) });
-    Object.defineProperty(Notification, "permission", { configurable: true, get: () => "granted" });
-    Notification.requestPermission = async () => "granted";
+    if (!("PushManager" in w)) w.PushManager = function PushManager() {};
+    Object.defineProperty(window, "Notification", {
+      configurable: true,
+      value: Object.assign(function Notification() {}, { permission: "granted", requestPermission: async () => "granted" }),
+    });
   }, endpoint);
 }
 

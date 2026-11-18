@@ -54,7 +54,7 @@ test("launch is refused in place for a scramble with no sides, and warns about t
         // "New Tournament" is the placeholder a blank name falls back to: not named yet,
         // which makes the fourth warning, so the dialog folds its third row.
         organizationId: org.id, name: "New Tournament", dates: "Nov 14–15", course: "Home", city: "", address: "", regDeadline: "",
-        status: "draft", shareToken: `zz-launchsetup-${size}-${Date.now()}`, configUnlocked: true,
+        status: "draft", shareToken: `zz-launchsetup-${size}-${Date.now()}`,
         customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
         customYards: JSON.stringify(new Array(18).fill(400)),
       },

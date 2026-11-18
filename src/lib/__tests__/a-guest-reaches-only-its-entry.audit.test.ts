@@ -51,7 +51,10 @@ import { ensurePass, rotatePass, revokePass, passForCode, livePass, lookupOf } f
 import { setGuestCookie, getGuestSession, choosePlayerViewCookie } from "@/lib/guest-auth";
 import { playerViewSwitch, guestViewer, guestActorFor, myPlayerIdsFor } from "@/lib/player-viewer";
 import { saveScorecard, certifyScorecard, disputeScorecard } from "@/app/actions/tournament";
-import { openPlayerLink, showPlayerLink, turnOffPlayerLink } from "@/app/actions/player-link";
+import { showPlayerLink, turnOffPlayerLink } from "@/app/actions/player-link";
+// One code box: the link opens through the one door for a typed code, whichever box it was typed in.
+import { openCode as openPlayerLink } from "@/app/actions/code-box";
+import { CODE_WORDS } from "@/lib/domain/code-shape";
 import { clientKeyFor } from "@/lib/rate-limit";
 import { createHash } from "node:crypto";
 
@@ -375,14 +378,14 @@ describe("a guest's player link reaches its own entry and nothing else", () => {
     const wrong = () => openPlayerLink(`${code.slice(0, 11)}${code.endsWith("Z") ? "Y" : "Z"}`);
     for (let i = 0; i < 19; i += 1) expect((await wrong()).ok).toBe(false);
     // The real link opens, and gives back only its own attempt: the 19 failures stay counted.
-    expect(await openPlayerLink(code)).toEqual({ ok: true });
-    expect(await wrong()).toEqual({ ok: false, error: "This link no longer works. Ask your organizer for a new one." });
+    expect(await openPlayerLink(code)).toEqual({ ok: true, kind: "player-link", href: "/me" });
+    expect(await wrong()).toEqual({ ok: false, error: CODE_WORDS.opensNothing });
     const refused = await wrong();
     expect(refused.ok).toBe(false);
-    expect(!refused.ok && refused.error).toMatch(/Too many link attempts/);
+    expect(!refused.ok && refused.error).toMatch(/Too many code attempts/);
     // Refused before the lookup: even the real code is refused now, by the same words.
     const real = await openPlayerLink(code);
-    expect(!real.ok && real.error).toMatch(/Too many link attempts/);
+    expect(!real.ok && real.error).toMatch(/Too many code attempts/);
     // SF-2: a client its own limit has refused feeds the platform alarm nothing more.
     const alarmCount = async () =>
       (await prisma.rateLimitHit.findUnique({ where: { key: clientKeyFor("player-link-alarm", "player-link-platform", Date.now()) } }))?.count ?? 0;
@@ -392,7 +395,7 @@ describe("a guest's player link reaches its own entry and nothing else", () => {
     expect(await alarmCount(), "refused requests still counted toward the platform alarm").toBeLessThanOrEqual(alarmBefore);
     // Another client is not blocked by this one.
     head.set("x-forwarded-for", `10.${r()}.${r()}.${r()}`);
-    expect(await openPlayerLink(code)).toEqual({ ok: true });
+    expect(await openPlayerLink(code)).toEqual({ ok: true, kind: "player-link", href: "/me" });
     const keys = (await prisma.rateLimitHit.findMany({ where: { key: { startsWith: "player-link" } }, select: { key: true } })).map((k) => k.key);
     const bare = createHash("sha256").update(code).digest("hex");
     for (const k of keys) {
@@ -405,7 +408,7 @@ describe("a guest's player link reaches its own entry and nothing else", () => {
   it("an open is recorded by browser and on the record, never with the code", async () => {
     head.set("x-forwarded-for", `172.16.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250) + 1}`);
     const before = await prisma.playerPassDevice.count({ where: { pass: { playerId: guest } } });
-    expect(await openPlayerLink(code)).toEqual({ ok: true });
+    expect(await openPlayerLink(code)).toEqual({ ok: true, kind: "player-link", href: "/me" });
     expect(await prisma.playerPassDevice.count({ where: { pass: { playerId: guest } } })).toBe(before + 1);
     expect(jar.get("ng_guest")).toBeTruthy();
     expect(jar.get("ng_guest")).not.toContain(code);

@@ -13,6 +13,7 @@ import { openedElsewhereSince } from "@/lib/services/player-link";
 import { deviceValueHere } from "@/lib/services/known-device";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
+import { SLIP_WORDS } from "@/lib/domain/player-link-slips";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { Icon } from "@/components/Icon";
@@ -460,6 +461,14 @@ export default async function PlayTodayPage() {
         <div className="page-kicker" data-testid="guest-event" style={{ marginBottom: 6 }}>
           {state.event.name}
         </div>
+      )}
+      {/* WHO THIS LINK IS FOR (J39/J40 PR 3, §3.1): a slip handed to the wrong person is caught
+          on the first screen after the tap; Forget me on this phone, in the header, undoes it
+          here. It adds no press to the way in. */}
+      {session.guest && (
+        <p data-testid="guest-not-you" style={{ fontSize: 14, lineHeight: 1.45, margin: "0 0 12px" }}>
+          {SLIP_WORDS.notYou(session.name, state.event.name)}
+        </p>
       )}
       {elsewhere && (
         <p role="status" className="card" style={{ fontSize: 13, margin: "0 0 12px", padding: "10px 12px" }}>
@@ -1117,6 +1126,7 @@ export default async function PlayTodayPage() {
           names what is in it. Nothing in here needs them to act. */}
       {moreParts.length === 0 ? (
         <div style={{ marginTop: 12 }}>
+          {/* A guest too (J39/J40 PR 2): their notices are their pass's (savePushSubscription admits the viewer). */}
           <PushToggle />
         </div>
       ) : (
@@ -1142,7 +1152,7 @@ export default async function PlayTodayPage() {
               group on a published sheet yet, and nothing on the card. */}
           {playWith && <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />}
           {/* Tee-time alerts. Self-hiding where push isn't available, one line
-              once they are on. */}
+              once they are on. A guest's are their pass's (J39/J40 PR 2). */}
           <PushToggle />
         </div>
       </details>

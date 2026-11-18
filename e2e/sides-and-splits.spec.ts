@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { openCorrectionFor } from "./committee-correction";
 import { prisma, makeClub, dropClub, makeEvent, signIn, gotoStages, openRound, centre, saidBeside } from "./rounds-fixture";
 
 /**
@@ -107,8 +108,10 @@ test("a round robin of four sides is drawn as six matches, and is not redrawn ov
     const regenerate = page.getByRole("button", { name: "Regenerate matches", exact: true });
     await expect(regenerate, "after a reload the round does not know it has its matches").toBeVisible();
 
-    // ── on the day: setup unlocked, and a card on the round ──
-    await prisma.event.update({ where: { id: event.id }, data: { status: "live", configUnlocked: true } });
+    // ── on the day: the sides opened by a committee correction, and a card on the round ──
+    // (PR 9b: the blanket unlock this used is not read; the redraw asks the sides' lock first.)
+    await prisma.event.update({ where: { id: event.id }, data: { status: "live" } });
+    await openCorrectionFor(prisma, event.id, "sides");
     await prisma.teamScorecard.create({
       data: { eventId: event.id, stageId: round.id, teamId: teams[0].id, matchId: drawn[0].id, strokes: JSON.stringify([4, 5, 3]) },
     });

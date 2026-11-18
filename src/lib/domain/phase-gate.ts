@@ -12,7 +12,7 @@
  * THE TRANSITIONS BETWEEN PHASES ARE A DIFFERENT QUESTION, and they were not
  * guarded at all. `launchTournament` checked nothing: a tournament with no
  * rounds and nobody in it would go live, and go live LOCKED, because launching
- * clears `configUnlocked`. The organizer's next move is then to unlock the
+ * locks it (setup is locked by launch). The organizer's next move is then to unlock the
  * thing they just locked in order to build the tournament they just published.
  *
  * So: guide within a phase, gate between them. That is the same line the rest

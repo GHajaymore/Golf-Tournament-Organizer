@@ -95,7 +95,6 @@ export async function makeEvent(
   name: string,
   opts: {
     status?: string;
-    configUnlocked?: boolean;
     stages: StageSpec[];
     players?: number;
     /** Split the field into this many flights, in entry order. */
@@ -117,7 +116,6 @@ export async function makeEvent(
        * that names a status gets that status and no old word.
        */
       ...(opts.status === undefined ? { legacyStatus: "registration" } : {}),
-      configUnlocked: opts.configUnlocked ?? false,
       shape: "single",
       format: "stroke",
       dates: "",

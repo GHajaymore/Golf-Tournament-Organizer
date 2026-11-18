@@ -16,37 +16,10 @@
  * sealing and the cookie live in `services/player-link.ts` and `guest-auth.ts`.
  */
 
-/** Crockford base32: 0-9 and A-Z without I, L, O and U. Thirty-two symbols, five bits each. */
-export const LINK_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-/** Twelve symbols: 60 bits (`player-link.test.ts` holds it). */
-export const LINK_CODE_LENGTH = 12;
+/** The alphabet, the length and the one reader of a typed code live in a small browser-safe module (one code box PR B, N1). */
+export { LINK_ALPHABET, LINK_CODE_LENGTH, MAX_CODE_INPUT, normaliseLinkCode } from "../link-code-format";
 /** Where a link opens. The code is never a path segment: there is no `/p/[code]` route. */
 export const LINK_PATH = "/p";
-
-/**
- * A code as somebody typed, pasted or read it, or null when it is not one.
- *
- * FORGIVING (design §2.1): case is ignored; spaces, dashes, dots and the middle
- * dot a code is read out with are dropped; O reads as 0, I and L as 1 (the
- * letters Crockford leaves out because they are mistaken for those digits). A
- * whole pasted link is read from its fragment. Anything else outside the
- * alphabet, or the wrong length, is not a code.
- */
-export function normaliseLinkCode(input: unknown): string | null {
-  if (typeof input !== "string") return null;
-  let text = input;
-  const hash = text.lastIndexOf("#");
-  if (hash >= 0) text = text.slice(hash + 1);
-  if (text.length > 64) return null;
-  const folded = text
-    .toUpperCase()
-    .replace(/[\s\-.·•_]/g, "")
-    .replace(/O/g, "0")
-    .replace(/[IL]/g, "1");
-  if (folded.length !== LINK_CODE_LENGTH) return null;
-  for (const ch of folded) if (!LINK_ALPHABET.includes(ch)) return null;
-  return folded;
-}
 
 /** `K7QM-2XRA-9DTP`: how a code is printed and typed. */
 export function groupedCode(code: string): string {
@@ -119,8 +92,10 @@ export type PassRefusal = "revoked" | "rotated" | "left" | "member" | "expired";
 
 /**
  * Why a pass does not open, or null when it does (design §2.6). Every one is
- * said to the guest in the SAME words (`PLAYER_LINK_WORDS.dead`), so a refusal
- * never confirms a code was once real.
+ * said to the guest in the SAME words, so a refusal never confirms a code was
+ * once real: a code typed or tapped is told the code boxes' one sentence
+ * (`CODE_WORDS.opensNothing`), and a link this phone held that has since ended
+ * `PLAYER_LINK_WORDS.dead` on /p?ended=1.
  *
  * `today` is the CLUB's day (`todayForEvent`), never the server's — a pass
  * ends on a day at the club, and an instant is never compared with it.
@@ -173,7 +148,12 @@ export function mayPlayThroughLink(entryStatus: string): boolean {
  * And it asks whether play is suspended in its own event, for the siren on an
  * open screen (`currentPlayStatus`, G1: Rule 5.7, a safety notice).
  *
- * Not yet on it (later PRs of the design): messages and push (PR 2), side-game
+ * PR 2: it reads and posts in the threads its entry puts it in, and marks them
+ * read (`messagingContextFor`, per target); turns its own direct messages off;
+ * and turns notices on and off in a browser (`pushOwnerNow`). It starts no
+ * direct thread (D7: `startDirectThread` stays account-only).
+ *
+ * Not yet on it (later PRs of the design): side-game
  * opt-in, withdrawing an entry, and a match card's hole-by-hole presses — a
  * guest's match is kept from the round code until then.
  */
@@ -185,6 +165,12 @@ export const GUEST_ACTIONS = [
   "forgetThisPhone",
   "choosePlayerView",
   "currentPlayStatus",
+  "readThread",
+  "sendMessage",
+  "markThreadRead",
+  "setMyMessagesOptOut",
+  "savePushSubscription",
+  "removePushSubscription",
 ] as const;
 
 /** What a guest viewer carries: one pass, one entry, one event. Never taken from an argument. */
@@ -254,6 +240,8 @@ export interface PassStatus {
   browsers: number;
   /** When it was last opened, as the club writes a day; "" when never. */
   lastOpened: string;
+  /** The organizer muted this guest in messages (PR 2, S8); they can still write to the organizers. */
+  muted?: boolean;
 }
 
 /** The panel's status line (design §4.1). "Phones or browsers": a private window is a new one. */
@@ -302,8 +290,8 @@ export const PLAYER_LINK_WORDS = {
   openButton: "Open my card",
   typeLabel: "Or type the code from your organizer",
   typeButton: "Open",
-  notACode: "That doesn't look like a player link code. It's 12 letters and numbers, like K7QM-2XRA-9DTP.",
-  /** Unknown, turned off, rotated, ended or expired: one answer (never confirms a code was real). */
+  /** A link THIS PHONE HELD has ended (/p?ended=1): true, and not a guess. A typed or tapped code that
+   *  opens nothing is told the code boxes' one sentence instead (`CODE_WORDS.opensNothing`). */
   dead: "This link no longer works. Ask your organizer for a new one.",
   noScript: "This page needs JavaScript to open your link. Turn it on, or ask your organizer to read the code out.",
   /** The organizer's panel. */
@@ -322,6 +310,13 @@ export const PLAYER_LINK_WORDS = {
   sendToOne: (name: string) => `Send it to ${firstNameOf(name) || "them"} only, not to a group.`,
   suggestNew: "Opened on several phones or browsers. If the link has travelled, press New link.",
   membersHaveEmail: "A member's own way in is their email. Player links are for guests.",
+  /** PR 2 (S8): quieten a guest's posts without ending the link; the desk stays open. */
+  mute: "Mute in messages",
+  unmute: "Unmute in messages",
+  /** Says the LINK, no more (the #1133 security review F-4): a mute is on the pass, so it does not
+   *  follow the person to an account they may sign in with after launch. */
+  mutedSaid: (name: string) => `${firstNameOf(name) || "They"} can't post in the event's threads from their player link now. They can still message the organizers.`,
+  unmutedSaid: (name: string) => `${firstNameOf(name) || "They"} can post in the event's threads again.`,
   /** The guest's own screens. */
   otherPhone: (day: string) => `Your link was opened on another phone or browser on ${day}. Not you? Ask the organizer for a new link.`,
   forget: "Forget me on this phone",

@@ -29,7 +29,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount, roundRobinCutAfter } from "@/lib/services/regroup";
-import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
+import { applyStrokeCut, applyCutLeftOwing, applyCutOwedInto, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds, myPlayerIdsFor } from "@/lib/services/me";
@@ -215,6 +215,7 @@ import { purgeEvent, purgeRound } from "@/lib/services/purge";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
+import { notifyRoundMoved } from "@/lib/services/round-moved-notify";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes, codesOnForAnEntryWithoutEmail } from "@/lib/services/round-codes";
@@ -2269,12 +2270,18 @@ export async function setStagePlayedOn(stageId: string, date: string): Promise<{
    * the save then failed, so a rain-out could not be recorded without first
    * unlocking the whole tournament's setup.
    */
+  // The day it had, read before the write: a MOVE is news to a field that could see it (J39/J40 PR 2).
+  const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
+  const after = cleanIsoDate(date);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { playedOn: cleanIsoDate(date) },
+    data: { playedOn: after },
   });
+  // Push to every entry that can be reached (a guest's link too); never throws. "" when nobody was told.
+  const noticesOff = before ? await notifyRoundMoved({ eventId, stageId, before: before.playedOn ?? "", after }) : "";
   await refresh();
-  return judged?.verdict.ok && judged.verdict.warn === "schedules" ? { ok: true, said: SCHEDULES_WORDS } : { ok: true };
+  const said = [judged?.verdict.ok && judged.verdict.warn === "schedules" ? SCHEDULES_WORDS : "", noticesOff].filter(Boolean).join(" ");
+  return said ? { ok: true, said } : { ok: true };
 }
 
 /**
@@ -2357,6 +2364,10 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
       cutPercent: Math.min(100, Math.max(1, Math.round(percent))),
     },
   });
+  // A cut set on a round whose round before is ALREADY closed (a committee
+  // correction after Round 1): closing is what makes a cut, and that press is
+  // in the past, so it is made now or never (`applyCutOwedInto`).
+  if (enabled) await applyCutOwedInto(eventId, stageId);
   await refresh();
   return { ok: true };
 }
@@ -3199,7 +3210,7 @@ export async function removeStage(stageId: string, force = false): Promise<{ ok:
   }
 
   // The id is this tournament's own round, or nothing is deleted.
-  const owned = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+  const owned = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, position: true } });
   if (!owned) return { ok: true as const };
 
   const flightsBefore = await flightDefaultFor(eventId);
@@ -3211,7 +3222,12 @@ export async function removeStage(stageId: string, force = false): Promise<{ ok:
    * the round and the person, never a player.
    */
   const words = await roundWordsFor(eventId, stageId);
-  if (await purgeRound(eventId, stageId)) await logAudit(eventId, "Round deleted", words);
+  if (await purgeRound(eventId, stageId)) {
+    await logAudit(eventId, "Round deleted", words);
+    // A cut that followed this round now follows the round before it; if that
+    // round is already closed, nothing else would ever make it (G3).
+    await applyCutLeftOwing(eventId, owned.position);
+  }
   await followFlightDefault(eventId, flightsBefore);
   await refresh();
   return { ok: true as const };
@@ -4400,33 +4416,31 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
   // (`tieNotReady` — the same rule a player's report is held to).
   const notReady = existing?.winnerId === winnerId ? null : tieNotReady(tie.match);
   if (notReady) return { ok: false, error: notReady };
+  // A result its winner has played on from is not changed or taken back here:
+  // the later result would leave the draw without a word (cut 3, 2026-11-14).
+  // The one rule, asked by Undo on Score entry too (`undoTieResult`).
+  const { clearTieResult, resultHeldBecause, syncThirdPlace, tieRoundWords } = await import("@/lib/services/knockout-result");
+  const held = existing ? resultHeldBecause(state!, key) : null;
+  if (held) return { ok: false, error: held.said };
 
+  // Every press on the draw is on the record: who (the actor), when, and from what to what.
+  const round = tieRoundWords(state!, key);
+  const was = existing ? `${resultLine(round, { ...tie.match, winnerId: existing.winnerId })}${marginWords(existing.result)}` : "";
   if (existing?.winnerId === winnerId) {
-    // Toggle off if the same slot is clicked again.
-    await prisma.bracketWinner.delete({ where: { id: existing.id } });
-    /**
-     * Clearing the last result re-opens the draw.
-     *
-     * Without this a frozen draw would be a one-way door: an organizer who
-     * recorded a result by mistake, undid it, and then fixed the qualifying
-     * scores would be stuck with a bracket seeded from the wrong standings and
-     * no way in the UI to say so. A bracket with no results has not started,
-     * so there is no draw to protect.
-     */
-    const remaining = await prisma.bracketWinner.count({ where: { eventId } });
-    if (remaining === 0) {
-      // A FLAT draw is what the first result wrote down, and is what this
-      // re-opens. A division into flights was made by the organizer before any
-      // result and is not a by-product of one: clearing the last result leaves
-      // it exactly as they arranged it.
-      const kept = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketDraw: true } });
-      if (!parseFlightPlan(kept?.bracketDraw)) {
-        await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
-      }
-    }
+    // Toggle off if the same slot is clicked again: the one delete, which
+    // re-opens a draw left with no results (`clearTieResult`).
+    await clearTieResult(eventId, key);
+    await logAudit(eventId, "knockout.undo", `${was}: taken back on the draw`);
   } else {
-    await recordBracketWinner(eventId, key, winnerId);
+    // A CHANGED winner does not inherit the margin: "3&2" was the other player's,
+    // and "B beat A 3&2" would be a false result (review of #1143). Recorded
+    // afresh it has none until the committee types one.
+    await recordBracketWinner(eventId, key, winnerId, existing ? "" : undefined);
+    const now = resultLine(round, { ...tie.match, winnerId });
+    await logAudit(eventId, "knockout.result", existing ? `${now}, changed on the draw (was: ${was})` : `${now}, recorded on the draw (it had no result)`);
   }
+  // A play-off for third not yet played follows the semi-finals it is made from.
+  if (existing) await syncThirdPlace(eventId);
   // Whatever a player reported for this tie, staff have now answered it
   // themselves — a report left behind would ask them the same question again.
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
@@ -4482,10 +4496,21 @@ async function recordBracketWinner(eventId: string, key: string, winnerId: strin
 
 export async function setBracketResult(key: string, result: string) {
   const eventId = await requireStaffEvent();
-  await prisma.bracketWinner.updateMany({
+  const before = await prisma.bracketWinner.findFirst({ where: { eventId, key }, select: { result: true } });
+  const now = cleanMargin(result);
+  const moved = await prisma.bracketWinner.updateMany({
     where: { eventId, key },
-    data: { result: cleanMargin(result) },
+    data: { result: now },
   });
+  // A margin is part of the result, so changing it is on the record too (review of
+  // #1143, F2): who, when, and from what to what. Nothing changed, nothing written.
+  if (moved.count > 0 && before && before.result !== now) {
+    const { tieRoundWords } = await import("@/lib/services/knockout-result");
+    const state = await loadEventState(eventId);
+    const round = (state && tieRoundWords(state, key)) || "A knockout tie";
+    // Worded "was … now …": the sweeps that read source take `from "…"` for an import.
+    await logAudit(eventId, "knockout.margin", `${round}: the result's margin was ${before.result || "none"}, now ${now || "none"}, changed on the draw`);
+  }
   await refresh();
 }
 
@@ -4534,9 +4559,13 @@ export async function recordTieResult(input: {
   await recordBracketWinner(eventId, key, winnerId, result);
   // A player's report of the same tie has been answered.
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
-  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const { drawRoundWords } = await import("@/lib/domain/knockout-ties");
+  const round = drawRoundWords(tie.draw, tie.round);
   const said = `${resultLine(round, { a: m.a, b: m.b, winnerId })}${marginWords(result)}`;
-  await logAudit(eventId, "knockout.result", `${said}, recorded from To play`);
+  // Said as what happened, from what to what: the screen that pressed it is not
+  // known here (To play on the Bracket, or Score entry's list), and it is only
+  // ever recorded on a tie with no result (refused above otherwise).
+  await logAudit(eventId, "knockout.result", `${said}, recorded (it had no result)`);
   await refresh();
   return { ok: true, said };
 }
@@ -5813,7 +5842,7 @@ export async function setEventStatus(
         "round-closed",
         `Completing the tournament closed ${open
           .map((st) => st.description || roundLabel(all, st.id))
-          .join(", ")}. Anybody without a card for a closed round no longer holds a place on a stroke board.`,
+          .join(", ")}. Anybody without a complete card for a closed round no longer holds a place on a stroke board.`,
       );
     }
   }
@@ -5836,7 +5865,7 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
 async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string }> {
   /**
    * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
-   * the tournament to its field and clears `configUnlocked`, so a tournament
+   * the tournament to its field and locks its setup, so a tournament
    * with no rounds and nobody in it went live AND locked. The organizer's next
    * move was to unlock the thing they had just locked, in order to build the
    * tournament they had just published.
@@ -5864,7 +5893,9 @@ async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string
   });
   await prisma.event.update({
     where: { id: eventId },
-    data: { status: "live", launchedAt: new Date(), configUnlocked: false },
+    // The retired blanket flag is neither read nor written since state machine PR 9b: launching
+    // locks setup because the machine says a launched tournament is locked (`setupLockedByLaunch`).
+    data: { status: "live", launchedAt: new Date() },
   });
   // THE TRAIL (PR 5b; panel 8.0 F1): launching wrote no line of its own, so
   // Recent changes could not say who declared the tournament live, or when.
@@ -5873,26 +5904,13 @@ async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string
   return { ok: true };
 }
 
-/**
- * THE BLANKET UNLOCK IS RETIRED (PR 5b; TD Q2, panel 8.1): it opened every
- * scope, recorded nothing and stayed open for weeks. What is left of it is the
- * way to LOCK AGAIN a tournament a legacy `configUnlocked` still holds open —
- * the dashboard offers that, and only that, while the flag is on. Opening is
- * refused in words; the committee correction (`openCorrection`) is the remedy.
- * The flag itself is read as the legacy correction until PR 9.
+/*
+ * THE BLANKET UNLOCK IS GONE (PR 5b retired opening it; state machine PR 9b
+ * deleted its last action, the dashboard's "Lock setup again"). Its flag on the
+ * row is no longer read — a tournament that held it is locked like any other —
+ * and the column is dropped after launch (9d). The committee correction below
+ * is the one way to change a launched tournament's setup.
  */
-export async function setConfigUnlocked(unlocked: boolean): Promise<{ ok: boolean; error?: string }> {
-  const gate = await adminEventOrRefusal();
-  if ("refused" in gate) return { ok: false, error: gate.refused };
-  const { eventId } = gate;
-  if (unlocked) {
-    return { ok: false, error: "Setup is no longer unlocked as a whole. Make a committee correction to open one part of it, with a reason." };
-  }
-  await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: false } });
-  await logAudit(eventId, "committee-correction", "Locked setup again — the old whole-tournament unlock is closed.");
-  await refresh();
-  return { ok: true };
-}
 
 /**
  * OPEN A COMMITTEE CORRECTION ON ONE SCOPE (PR 5b; TD Q2, panel 8.1).
@@ -8020,7 +8038,7 @@ export async function setRoundClosed(
     eventId,
     "round-closed",
     closed
-      ? `Closed ${which}. Anybody without a card for it no longer holds a place on a stroke board.`
+      ? `Closed ${which}. Anybody without a complete card for it no longer holds a place on a stroke board.`
       : `Re-opened ${which}.`,
   );
   /**

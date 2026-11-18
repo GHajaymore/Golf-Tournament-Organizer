@@ -58,7 +58,7 @@ import { checkoutUrl, DEMO_NOT_BILLED } from "@/lib/services/billing";
 import { otherOrganizationNamed } from "@/lib/services/organization";
 import { sendRegistrationEmail } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
-import { sendPushToEmails } from "@/lib/services/push";
+import { sendPushTo } from "@/lib/services/push";
 import { pricingOverrides } from "@/lib/plans";
 import { removeDemoClub, demoTestMark } from "../../../e2e/demo-fixture.mjs";
 
@@ -355,9 +355,9 @@ describe("the demo club is left out of what is about real clubs — each with a 
     const email = `${MARK}-device@example.org`;
     await prisma.pushSubscription.create({ data: { endpoint: `https://push.example.invalid/${MARK}`, p256dh: "k", auth: "a", email } });
     wire.pushes.length = 0;
-    await sendPushToEmails([email], { title: "t", body: "b" }, { eventId: demo.eventId });
+    await sendPushTo([email], { title: "t", body: "b" }, { eventId: demo.eventId });
     expect(wire.pushes, "the demo pushed a notification").toHaveLength(0);
-    await sendPushToEmails([email], { title: "t", body: "b" }, { eventId: real.eventId });
+    await sendPushTo([email], { title: "t", body: "b" }, { eventId: real.eventId });
     expect(wire.pushes, "CONTROL: a real club's push did not go").toHaveLength(1);
   });
 });

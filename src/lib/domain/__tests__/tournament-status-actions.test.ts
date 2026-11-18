@@ -8,6 +8,7 @@ import {
   ALREADY_LAUNCHED,
   NOT_LAUNCHED_TO_COMPLETE,
   NOT_COMPLETED_TO_REOPEN,
+  CASUAL_IS_NEVER_COMPLETED,
 } from "../tournament-status";
 import { cardsNotFinal, cutBlockers } from "../cut-ready";
 import { FAMILY_FIXTURES, FAMILIES, facts, round, launched, playedOut, completed } from "./tournament-facts-fixtures";
@@ -74,6 +75,26 @@ describe("a status move is asked of the machine", () => {
     const st = tournamentStatus(completed(FAMILY_FIXTURES.stroke()));
     expect(ask(st, "completed", "completed")).toEqual({ kind: "refuse", error: ALREADY_COMPLETED });
     expect(ask(st, "completed", "live")).toEqual({ kind: "reopen" });
+  });
+
+  it("a casual round is never completed — not live, not played out, not a second time (the Tournament Director, 16 Nov)", () => {
+    // No Committee signs its cards and it has no result to release: it is kept, or it ends when its time
+    // is up. No screen offers Complete; this is the public action's door.
+    const casual = FAMILY_FIXTURES.casual();
+    const holed = { ...casual, rounds: casual.rounds.map((r) => ({ ...r, hasResult: true, closed: true })) };
+    for (const [from, f] of [
+      ["live", casual],
+      ["live", holed],
+      ["completed", completed(casual)],
+    ] as const) {
+      const st = tournamentStatus(f);
+      expect(st.refusals.complete, `${from}`).toBe(CASUAL_IS_NEVER_COMPLETED);
+      expect(ask(st, from, "completed"), `${from}`).toEqual({ kind: "refuse", error: CASUAL_IS_NEVER_COMPLETED });
+      expect(st.nextAction, "still no button at all").toBeNull();
+      expect(st.asks.complete).toBeNull();
+    }
+    // CONTROL: the same moves on a stroke-play tournament played out are allowed, so the refusal is the family's.
+    expect(ask(tournamentStatus(playedOut(FAMILY_FIXTURES.stroke())), "live", "completed")).toEqual({ kind: "complete", asks: null });
   });
 
   it("'live' on a tournament already live is not a reopen", () => {

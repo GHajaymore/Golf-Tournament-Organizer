@@ -86,7 +86,6 @@ async function tournament(name: string, status: string, playedOn: string) {
       regDeadline: "",
       shareToken: `${TAG}-${name}-${Date.now()}`,
       status,
-      configUnlocked: false,
     },
   });
   const stage = await prisma.stage.create({

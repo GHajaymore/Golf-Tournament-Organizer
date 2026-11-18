@@ -16,7 +16,8 @@ import {
   LOCK_SCOPES,
   type LockScope,
 } from "../tournament-status";
-import { FAMILY_FIXTURES, FAMILIES, facts, launched, completed } from "./tournament-facts-fixtures";
+import { FAMILY_FIXTURES, FAMILIES, facts, launched, playedOut, completed } from "./tournament-facts-fixtures";
+import type { Family, TournamentFacts } from "../tournament-status";
 import { endOfClubDay } from "../club-clock";
 
 /**
@@ -26,14 +27,15 @@ import { endOfClubDay } from "../club-clock";
  * so an action asking whether it may write (`refuseIfLocked`) and the banner on
  * the screen (`ScopeLockBanner`) give the dashboard's answer. Worked by hand from
  * the panel's rulings (proposal 3 Nov, section 3 and 8.1–8.3), never by calling
- * `configurationLocked`, the reader the scopes replace.
+ * the predicate the scopes are built on (`setupLockedByLaunch` since PR 9b).
  */
 
 /** Every state a lock turns on, for one family's fixture. */
 const STATES = (base: ReturnType<typeof facts>) => [
   base,
   launched(base),
-  { ...launched(base), configUnlocked: true },
+  // PR 9b: the retired blanket flag is no state a lock turns on; a played-out tournament is.
+  playedOut(base),
   completed(base),
   { ...base, flightsConfirmed: true },
   { ...launched(base), flightsConfirmed: true },
@@ -58,7 +60,8 @@ describe("the lock facts are enough to know a lock (the panel's cost ruling on 5
     expect(narrow).not.toHaveProperty("confirmed");
     expect(narrow).not.toHaveProperty("missingCards");
     expect(narrow.rounds[0]).not.toHaveProperty("label");
-    expect(Object.keys(narrow).sort()).toEqual(["bracketMode", "configUnlocked", "correction", "flightsConfirmed", "league", "rounds", "shape", "status"]);
+    // No retired blanket flag among them since PR 9b: it is not a fact a lock reads.
+    expect(Object.keys(narrow).sort()).toEqual(["bracketMode", "correction", "flightsConfirmed", "league", "rounds", "shape", "status"]);
   });
 });
 
@@ -78,8 +81,9 @@ describe("one locked scope, as plain values a screen is handed", () => {
     });
   });
 
-  it("unlocked the old way, the sides open again (the legacy blanket Unlock, read until PR 9)", () => {
-    expect(scopeLockOf(locksFor({ ...launched(facts()), configUnlocked: true }), "sides")).toBeNull();
+  it("a casual round's sides are open while live: the family rule, not a flag (PR 9b; proposal 8.2)", () => {
+    expect(scopeLockOf(locksFor(FAMILY_FIXTURES.casual()), "sides")).toBeNull();
+    expect(scopeLockOf(locksFor(launched(FAMILY_FIXTURES.casual())), "sides")).toBeNull();
   });
 
   it("completed: Reopen is the way out, and no correction opens it (TD Q2)", () => {
@@ -256,5 +260,95 @@ describe("the correction is read off the row only while it stands", () => {
     const end = endOfClubDay("", at);
     expect(end.getTime()).toBeGreaterThan(at.getTime());
     expect(end.getTime() - at.getTime()).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
+  });
+});
+
+/**
+ * THE 8.2 TABLE, BY HAND (state machine PR 9b, test plan B2). Every family × the four steps ×
+ * every scope, each cell a literal — never built from `setupLockedByLaunch`, which would be
+ * the code agreeing with itself. From the proposal of 3 Nov, 8.2 ("Casual: locks none"; every
+ * other family locked from launch, the way out a committee correction) and 8.1 (completed is
+ * locked, the way out Reopen — Rule 20.2e), with the two rules 9b does not touch:
+ *
+ *   - money is under no lock at any step (it never was; PR L asks Ajay for its rule);
+ *   - the tee sheet was never under the launch lock: a completed tournament shuts it, every
+ *     family (PR 7c, `teeSheetChangeAllowed`) — a casual round's too, as today;
+ *   - a knockout in flights keeps its draw open while live until the first result (J07), so
+ *     its play-over row (every round played) is locked by results.
+ *
+ * Columns, in `LOCK_SCOPES` order: details, rounds, field, flights, draw, sides, cup, money, teeSheet.
+ * o = open, L = locked by launch, C = locked by completion, R = locked by results.
+ */
+type Cell = "o" | "L" | "C" | "R";
+type Row = readonly [Cell, Cell, Cell, Cell, Cell, Cell, Cell, Cell, Cell];
+const STEPS = ["setting-up", "live", "play-over", "completed"] as const;
+const ALL_OPEN: Row = ["o", "o", "o", "o", "o", "o", "o", "o", "o"];
+const LIVE_ROW: Row = ["L", "L", "L", "L", "L", "L", "L", "o", "o"];
+const DONE_ROW: Row = ["C", "C", "C", "C", "C", "C", "C", "o", "C"];
+
+const TABLE_8_2: Record<Family, Record<(typeof STEPS)[number], Row>> = {
+  stroke: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
+  stableford: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
+  match: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
+  roundRobinFlights: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
+  knockout: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
+  flightedKnockout: {
+    "setting-up": ALL_OPEN,
+    live: ["L", "L", "L", "L", "o", "L", "L", "o", "o"],
+    "play-over": ["L", "L", "L", "L", "R", "L", "L", "o", "o"],
+    completed: DONE_ROW,
+  },
+  teamCup: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
+  league: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
+  // 8.2: "Casual: locks none." Open at every step; only the tee sheet shuts once completed (see above).
+  casual: {
+    "setting-up": ALL_OPEN,
+    live: ALL_OPEN,
+    "play-over": ALL_OPEN,
+    completed: ["o", "o", "o", "o", "o", "o", "o", "o", "C"],
+  },
+};
+
+const BY: Record<Exclude<Cell, "o">, string> = { L: "launch", C: "completed", R: "results" };
+
+/** A family's fixture at one step, as the organizer gets it there. */
+function atStep(family: Family, step: (typeof STEPS)[number]): TournamentFacts {
+  const base = FAMILY_FIXTURES[family]();
+  if (step === "setting-up") return { ...base, status: "draft" };
+  if (step === "live") return launched(base);
+  if (step === "play-over") return playedOut(base);
+  return completed(base);
+}
+
+describe("the 8.2 table by hand: nine families × four steps × every scope (PR 9b, B2)", () => {
+  for (const family of Object.keys(TABLE_8_2) as Family[]) {
+    for (const step of STEPS) {
+      it(`${family}, ${step}`, () => {
+        const locks = locksFor(atStep(family, step));
+        const got = LOCK_SCOPES.map((s) => {
+          const l = locks[s];
+          return l.locked ? (Object.entries(BY).find(([, by]) => by === l.by)?.[0] ?? l.by) : "o";
+        });
+        expect(got, `${family} at ${step}, in the order ${LOCK_SCOPES.join(", ")}`).toEqual([...TABLE_8_2[family][step]]);
+      });
+    }
+  }
+
+  it("the way out: a committee correction while live, Reopen once completed — every family that locks", () => {
+    for (const family of Object.keys(TABLE_8_2) as Family[]) {
+      if (family === "casual") continue;
+      expect(scopeLockOf(locksFor(atStep(family, "live")), "details"), family).toMatchObject({ wayOut: { says: "Make a committee correction" }, correctable: true });
+      expect(scopeLockOf(locksFor(atStep(family, "completed")), "details"), family).toMatchObject({ wayOut: { says: "Reopen it on the dashboard" }, correctable: false });
+    }
+  });
+
+  it("CONTROL: the table covers every family and every scope the machine knows", () => {
+    expect(Object.keys(TABLE_8_2).sort()).toEqual([...FAMILIES].sort());
+    expect(LOCK_SCOPES).toEqual(["details", "rounds", "field", "flights", "draw", "sides", "cup", "money", "teeSheet"]);
+    // And each step's fixture IS that step, so a row is not read off the wrong one.
+    for (const family of FAMILIES) {
+      expect(tournamentStatus(atStep(family, "setting-up")).step, family).toBe("setting-up");
+      expect(tournamentStatus(atStep(family, "completed")).step, family).toBe("completed");
+    }
   });
 });

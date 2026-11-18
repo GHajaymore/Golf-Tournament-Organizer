@@ -4,6 +4,7 @@ import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
+import { expectLateEntryRefused } from "./status-late-entrant";
 
 /**
  * A TWO-TEAM CUP, WALKED THROUGH THE STATE MACHINE (J13; the team cup family).
@@ -35,14 +36,25 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  * Its own throwaway club (`zz-status-cup-*`), deleted in `finally`.
  */
 
+/**
+ * A LATE ENTRANT IN A TEAM CUP (PR 9c): REFUSED once launched, in the rule's words ("The sides are
+ * picked"). A player added now is on neither team. This is what `fieldChangeAllowed` answers today (a
+ * team cup is not in `LATE_ENTRY_FAMILIES`); the TD's ruling (8.1 Q3) was not in the record this was
+ * written from, so a change of that answer is the TD's to make, and this line is the one that goes red.
+ */
+const CUP_FIELD_FIXED = "The sides are picked, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.";
+
 test("a team cup says the same thing on every panel from the teams to the last session (J13)", async ({ browser, baseURL }, testInfo) => {
   test.setTimeout(420_000);
   const errors: string[] = [];
-  const day = dayFromNow(14);
+  // The home waits for the fortnight (LAUNCH_AHEAD_DAYS), counted from the CLUB's day: the seeded club is
+  // in New York, so on a UTC day that has not yet turned there, 14 days from the UTC date is 15 from the
+  // club's today and the line would not be drawn. Ten days leaves four either side, as the other families do.
+  const day = dayFromNow(10);
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "cup",
     players: 8,
-    event: { dates: "Autumn cup", startOn: day, endOn: dayFromNow(15), format: "match" },
+    event: { dates: "Autumn cup", startOn: day, endOn: dayFromNow(11), format: "match" },
     rounds: [
       { type: "Team Session", format: "Match Play", scoringBasis: "net" },
       { type: "Team Session", format: "Match Play", scoringBasis: "net" },
@@ -80,17 +92,22 @@ test("a team cup says the same thing on every panel from the teams to the last s
 
     // Everybody on a team: ready.
     await put(f.playerIds.slice(4, 8), whites.id);
-    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null, home: { text: "ready to launch", action: "Launch tournament" } });
 
     // Launched, nothing played.
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live" } });
     await expectTournamentSays(page, {
       chip: "Live",
       lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
+      home: null,
     });
+
+    // A late entrant (PR 9c): refused, the sides are picked; asking moves nothing.
+    await expectLateEntryRefused(page, f, "Idris Calloway", CUP_FIELD_FIXED);
+    expect(await f.status(), "a refused late entry changed the tournament").toBe("live");
 
     // One singles match under way in the first session (Blues' first v Whites' first): live.
     const carrier = await prisma.group.create({
@@ -107,7 +124,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
         holes: JSON.stringify(["A", "H", "H", ...new Array(15).fill(null)]),
       },
     });
-    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
 
     // Both sessions closed by the Committee: play over. One match of a cup's points is in, so it is not decided.
     await prisma.stage.updateMany({ where: { eventId: f.eventId }, data: { closedAt: new Date() } });
@@ -115,6 +132,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
       chip: "Play over",
       lock: "live",
       chipDetail: "Every session closed · results not released",
+      home: { text: "Every session closed · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });
@@ -123,7 +141,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
 
     // Reopened by the press: both sessions are still closed, so play is over again.
     await pressReopen(page);
@@ -132,6 +150,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
       chip: "Play over",
       lock: "live",
       chipDetail: "Every session closed · results not released",
+      home: { text: "Every session closed · results not released", action: "Complete tournament" },
       nextAction: "Complete tournament",
       refused: null,
     });

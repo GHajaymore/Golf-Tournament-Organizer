@@ -1,14 +1,13 @@
 "use client";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
 import { ScopeLockMark } from "./ScopeLockBanner";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { useAction } from "./useAction";
+import { useAction, useCaughtUp } from "./useAction";
 import { RescoreWarning } from "./RescoreWarning";
 import {
   createTeam,
@@ -18,7 +17,6 @@ import {
   removeTeamMember,
   autoDrawTeams,
   generateTeamMatches,
-  type TeamResult,
 } from "@/app/actions/teams";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -130,18 +128,15 @@ export function TeamsClient({
   league?: boolean;
 }) {
   const { pending, error, setError, run, startTransition } = useAction();
-  const router = useRouter();
   /**
    * A PRESS REFUSED BY THE LOCK (PR 5a). This screen was drawn before it — the
    * tournament launched in another tab, or setup was locked again — so its
    * controls were live. The refusal is said like any other (the sentence names
    * the reason and the way out), and the screen is drawn again, so the banner
    * arrives and the controls shut rather than inviting a second refused press.
+   * The one catch-up (`useCaughtUp`), which also moves focus to the banner (PR 9b).
    */
-  const caughtUp = <T extends TeamResult>(res: T): T => {
-    if (!res.ok && res.lock) router.refresh();
-    return res;
-  };
+  const caughtUp = useCaughtUp();
   /** A side's rename refused, said under that side's name. */
   const [nameSaid, setNameSaid] = useState<{ id: string; text: string } | null>(null);
   const saveStatus = useSaveStatus(pending);

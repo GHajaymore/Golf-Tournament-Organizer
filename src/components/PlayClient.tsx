@@ -15,7 +15,9 @@ import { keepingRole } from "@/lib/domain/keeping-words";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { usePageIsLive } from "./usePageIsLive";
 import { HeldBeforeLoad, takeHeldPress, dropHeldPress } from "./HeldBeforeLoad";
-import { redeemRoundCode, claimPlayerSlot, redeemRoundCodeForm, claimPlayerSlotForm, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
+import { openCode as askTheDoor, openCodeForm } from "@/app/actions/code-box";
+import { boxStepFor, codeShapeOf, CODE_WORDS } from "@/lib/domain/code-shape";
+import { claimPlayerSlot, claimPlayerSlotForm, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
@@ -425,12 +427,12 @@ function PlayScreens(props: Props) {
    * (`HeldBeforeLoad`) and taken up the moment it is (`takeHeldPress`, below),
    * because a plain post would be a new page and start the scripts again.
    * With no script at all — or none ten seconds after the press — each form
-   * posts the plain way (`redeemRoundCodeForm`, `claimPlayerSlotForm`) and the
+   * posts the plain way (`openCodeForm`, `claimPlayerSlotForm`) and the
    * server draws the next step; these two hooks are how it hands this page
    * what a plain post answered. Every way round, the same actions underneath
    * (`openCode`, `claimName`), so the same answer.
    */
-  const [posted, postCode] = useActionState(redeemRoundCodeForm, null);
+  const [posted, postCode] = useActionState(openCodeForm, null);
   const [claimPosted, postName] = useActionState(claimPlayerSlotForm, null);
   const live = usePageIsLive();
   const [code, setCode] = useState(() => posted?.code ?? claimPosted?.code ?? "");
@@ -693,21 +695,40 @@ function PlayScreens(props: Props) {
    */
   const openCode = (typed: string, wantGroup?: string | null) => {
     setError("");
+    /**
+     * ONE CODE BOX (2026-11-17): a round code OR a guest's player link code. The
+     * shape is read first (`boxStepFor(…, "play")`), so a code of no shape is told
+     * so with no request; anything else asks the one door (`openCode` in
+     * actions/code-box.ts). A player link ends in the guest's Today.
+     */
+    const shape = codeShapeOf(typed);
+    const box = boxStepFor(shape, "play");
+    if (box.do === "refuse") {
+      setError(box.words);
+      return;
+    }
     startTransition(async () => {
-      const res = await redeemRoundCode(typed);
-      if (!res.ok) {
-        setError(res.error ?? "That code isn't valid.");
+      const opened = await askTheDoor(typed);
+      if (!opened.ok) {
+        setError(opened.error);
         return;
       }
-      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "", keepsGroups: res.keepsGroups };
-      setPlayers(res.players ?? []);
-      setGroups(res.groups ?? []);
+      if (opened.kind !== "round") {
+        window.location.assign(opened.href);
+        return;
+      }
+      const res = opened.round;
+      const at = { code: opened.code, stageId: res.stageId, eventId: res.eventId, keepsGroups: res.keepsGroups };
+      setPlayers(res.players);
+      setGroups(res.groups);
       // In the same render as the list, so the full list is never drawn for a moment before "Last time".
-      setLast(rememberedIn(at.eventId, res.groups ?? []));
+      setLast(rememberedIn(at.eventId, res.groups));
       setShowAll(false);
-      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: at.stageId, eventId: at.eventId, keepsGroups: res.keepsGroups });
+      setContext({ eventName: res.eventName, roundLabel: res.roundLabel, stageId: at.stageId, eventId: at.eventId, keepsGroups: res.keepsGroups });
       setStep(null);
-      const want = wantGroup ? res.groups?.find((g) => g.key === wantGroup) : undefined;
+      // A pasted sign address names its group too (`codeShapeOf`).
+      const group = wantGroup ?? (shape.shape === "eight" ? shape.group : null);
+      const want = group ? res.groups.find((g) => g.key === group) : undefined;
       if (want) choose({ kind: "group", group: want }, at);
     });
   };
@@ -813,7 +834,7 @@ function PlayScreens(props: Props) {
             )}
             {/* Plain forms, so the same two answers work with no script: yes is
                 posted as confirmed (`claimPlayerSlotForm`), no asks for the list
-                again (`redeemRoundCodeForm`). With a script, both are taken here.
+                again (`openCodeForm`). With a script, both are taken here.
                 `data-plain-post` tells `HeldBeforeLoad` this page works without
                 script, so on a walk whose scripts never came it is stopped and
                 painted (Safari) rather than left waiting for them. */}
@@ -1154,7 +1175,7 @@ function PlayScreens(props: Props) {
               not exist. "Whoever set the round up" covers a club secretary and
               a mate equally, and the tee sheet is kept as the second half,
               where it is an example rather than the instruction. */}
-          <MoreInfo short="Type the round code you were given." style={{ marginTop: 6 }}>
+          <MoreInfo short={CODE_WORDS.boxHint} style={{ marginTop: 6 }}>
             Whoever set the round up will have read it out, or it may be on the tee sheet.
           </MoreInfo>
         </div>
@@ -1162,7 +1183,7 @@ function PlayScreens(props: Props) {
         {/* A FORM THAT TAKES A PRESS THE MOMENT IT IS DRAWN. Before the page's
             script has arrived the press is held and taken up when it has
             (`HeldBeforeLoad`); with no script, it posts the plain way
-            (`redeemRoundCodeForm`) and the server draws the names, or says what
+            (`openCodeForm`) and the server draws the names, or says what
             is wrong with the code beside the button; once the page is live the
             press is taken here (`openCode`). So Continue is pressable from the
             first paint, and greyed only by a live page, over an empty box or
@@ -1179,10 +1200,11 @@ function PlayScreens(props: Props) {
           }}
         >
           <div className="field">
-            <label htmlFor="play-round-code">Round code</label>
+            <label htmlFor="play-round-code">{CODE_WORDS.boxLabel}</label>
             <input
               id="play-round-code"
               name="code"
+              autoComplete="off"
               className="input"
               value={code}
               autoCapitalize="characters"

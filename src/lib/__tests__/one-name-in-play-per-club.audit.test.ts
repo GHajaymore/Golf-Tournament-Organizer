@@ -42,7 +42,7 @@ async function tournament(name: string, status: string, org = orgId) {
   const event = await prisma.event.create({
     data: {
       organizationId: org, name, status, dates: "", course: "", city: "", address: "", regDeadline: "",
-      shareToken: `${TAG}-${process.pid}-${seq}`, configUnlocked: true, shape: "single",
+      shareToken: `${TAG}-${process.pid}-${seq}`, shape: "single",
     },
   });
   await prisma.account.create({ data: { eventId: event.id, email: EMAIL, name: session.name, role: "admin" } });
@@ -109,13 +109,19 @@ describe("rename", () => {
     expect((await prisma.event.findUnique({ where: { id: mine.id } }))?.name).toBe(`${TAG} Seniors`);
   });
 
-  it("CONTROL: keeping its own name, and renaming a completed one to a held name, are both allowed", async () => {
+  it("CONTROL: keeping its own name is allowed; a completed one is not renamed at all — by its lock, not by the name rule", async () => {
     const mine = await tournament(`${TAG} Juniors`, "draft");
     session.eventId = mine.id;
     expect(await saveEvent(details(`${TAG} Juniors`))).toMatchObject({ ok: true });
+    // Until state machine PR 9b this fixture held the retired blanket flag, which kept a completed
+    // tournament's details open. They are locked by completion now (8.1; Reopen is the way out), so
+    // the rename is refused by the LOCK — and never with the name rule's words: a completed
+    // tournament holds no name.
     const old = await tournament(`${TAG} Juniors 2025`, "completed");
     session.eventId = old.id;
-    expect(await saveEvent(details(`${TAG} Juniors`))).toMatchObject({ ok: true });
+    const res = await saveEvent(details(`${TAG} Juniors`));
+    expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/^Locked because the tournament is completed\. .*Reopen it on the dashboard/) });
+    expect(res.error, "refused by the name rule").not.toMatch(/\bname\b/i);
   });
 });
 

@@ -43,6 +43,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { generateNextRound, settleCutTie, setStageCutTies } from "@/app/actions/tournament";
 import { loadEventState, standingRows } from "@/lib/services/tournament";
+import { correctionColumns } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "zz-rr-cut-tie";
@@ -71,8 +72,9 @@ beforeAll(async () => {
         name: `${TAG} Spring Round Robin`,
         organizationId: orgId,
         status: "live",
-        // Unlocked: the tie rule is part of the cut's terms and locks with setup.
-        configUnlocked: true,
+        // The rounds opened by a committee correction: the tie rule is part of the cut's terms and
+        // locks with setup (PR 9b: the blanket unlock is not read).
+        ...correctionColumns(`${TAG} Spring Round Robin`, "rounds"),
         format: "match",
         dates: "",
         course: "",

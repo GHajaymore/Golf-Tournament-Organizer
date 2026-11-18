@@ -64,7 +64,6 @@ test("a round robin takes a late entrant only with a flight, and draws their mat
   // Launched and locked, as `launchTournament` leaves it. Four entered, two flights of two (read back below, never assumed).
   const made = await makeEvent(club, "Spring Round Robin", {
     status: "live",
-    configUnlocked: false,
     stages: [{ type: "Round Robin", format: "Match Play" }],
     players: 4,
     flights: 2,
@@ -139,7 +138,6 @@ test("a knockout refuses a late entrant once drawn, and takes them as a reserve 
   test.setTimeout(180_000);
   const made = await makeEvent(club, "Club Knockout", {
     status: "live",
-    configUnlocked: false,
     stages: [{ type: "Bracket Stage", format: "Match Play" }],
     players: 4,
   });

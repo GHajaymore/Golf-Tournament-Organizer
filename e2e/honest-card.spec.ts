@@ -122,7 +122,7 @@ async function phone(browser: Browser, baseURL: string | undefined, use: { viewp
 async function enter(page: Page, name: string) {
   await page.goto("/play");
   await page.waitForLoadState("networkidle").catch(() => {});
-  await page.getByLabel("Round code").fill(CODE);
+  await page.getByLabel("Your code").fill(CODE);
   await page.getByRole("button", { name: "Continue" }).click();
   // Their group, or their name where the round has none, confirmed once (2026-11-04).
   await keepCardOf(page, name);

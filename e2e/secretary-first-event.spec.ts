@@ -14,13 +14,14 @@ import { clubToday } from "../src/lib/domain/club-clock";
  *
  *   J1  secretary-first-event     the front door to a tournament whose entry link WORKS — opened by
  *                                 somebody else, signed out, it shows the entry form with the
- *                                 tournament's name: sign up as a golf club → the emailed code → add
- *                                 the first member (a club is asked for its members before its first
- *                                 tournament) → name the club and the first tournament, "a single
- *                                 round" → Entries → publish the sign-up link → the link, opened
- *   J2  secretary-playable-event  a first event somebody can PLAY: J1's sign-up, then the date and the
- *                                 course from the catalogue, the round, eight members by a file, the
- *                                 launch, the tee sheet drawn and published — until a member, signed
+ *                                 tournament's name: sign up as a golf club → the emailed code → name
+ *                                 the club and the first tournament, "a single round", on the screen
+ *                                 the code lands on (event-first, Cut A: no members step before the
+ *                                 first event) → Entries → publish the sign-up link → the link, opened
+ *   J2  secretary-playable-event  a first event somebody can PLAY: J1's sign-up and create, then eight
+ *                                 members by a file on Entries, where the create lands; the date and
+ *                                 the course from the catalogue, the round, the launch, the tee sheet
+ *                                 drawn and published — until a member, signed
  *                                 in on another phone, sees their tee time on Today. The ten-minute
  *                                 promise is held here.
  *   J3  secretary-copy-last-event a returning secretary: last summer's medal copied from the home with
@@ -103,29 +104,17 @@ async function signUpAsClub(walk: Journey, page: Page, email: string) {
   await page.waitForURL(/\/choose/, { timeout: 60_000 });
 }
 
-/** The club is asked for its members before its first tournament, and says so: one member, by the form. */
-async function addFirstMember(walk: Journey, page: Page, mark: string) {
-  await walk.settle();
-  await walk.press(visible(page.getByRole("link", { name: /Add your members/ })), "“Add your members”");
-  await page.waitForURL(/\/roster/, { timeout: 30_000 });
-  await walk.settle();
-  await walk.press(page.getByRole("button", { name: "Add member" }).first(), "“Add member”");
-  await walk.type(page.getByLabel("Name", { exact: true }), "Isla Penhallow", "Name");
-  await walk.type(page.getByLabel(/^Email/).first(), `${mark}-member@example.invalid`, "Email");
-  await walk.type(page.getByLabel("Handicap index"), "14.2", "Handicap index");
-  await walk.press(page.getByRole("button", { name: "Add member" }).last(), "“Add member”, to save the member");
-  await expect(page.locator("main")).toContainText("Isla Penhallow", { timeout: 20_000 });
-}
-
 /**
- * Names the club and its first tournament, "a single round". The club's kind is pressed only when the
- * screen has not already chosen it: the person said "A golf club or course" at sign-up, and a choice the
- * screen made is not a press the person made (Fable's fault 3, 14 Nov).
+ * Names the club and its first tournament, "a single round", on /choose, where the emailed code lands: the
+ * form is open there and nothing is asked first (event-first, Cut A, Ajay 15 Nov: the members list is asked
+ * for at the draw and offered on Entries, never before the first event). The club's kind is pressed only
+ * when the screen has not already chosen it: the person said "A golf club or course" at sign-up, and a
+ * choice the screen made is not a press the person made (Fable's fault 3, 14 Nov).
  */
 async function createFirstTournament(walk: Journey, page: Page, names: { tournament: string; club: string }) {
-  await walk.press(visible(page.getByRole("link", { name: /Create your first tournament/ })), "“Create your first tournament”");
-  await page.waitForURL(/\/choose/, { timeout: 30_000 });
   await walk.settle();
+  // CONTROL: no members step stands between the code and the first tournament (the old gate's link).
+  await expect(page.getByRole("link", { name: /Add your members/ })).toHaveCount(0);
   await walk.type(page.getByLabel("Tournament name"), names.tournament, "Tournament name");
   await walk.press(page.getByRole("button", { name: /^A single round/ }), "“A single round”");
   // A club is named once, here, on the way to its first tournament.
@@ -139,7 +128,8 @@ async function createFirstTournament(walk: Journey, page: Page, names: { tournam
     await expect(kind.locator("input")).toBeChecked();
   }
   await walk.press(page.getByRole("button", { name: "Create tournament" }), "“Create tournament”");
-  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+  // The create ends where entries are opened (journey budgets, cut B).
+  await page.waitForURL(/\/registration/, { timeout: 60_000 });
 }
 
 /** A console screen, opened from the sidebar as a secretary at a desk opens it. */
@@ -155,8 +145,11 @@ async function fromTheSidebar(walk: Journey, page: Page, href: string) {
 /** Entries → Open entries, and the sign-up link read off the screen. */
 async function publishTheLink(walk: Journey, page: Page): Promise<string> {
   await walk.settle();
-  await walk.press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })), "“Entries”");
-  await page.waitForURL(/\/registration/, { timeout: 30_000 });
+  // A new tournament's create already ends on Entries; a copy opens on the dashboard and goes there.
+  if (!new URL(page.url()).pathname.startsWith("/registration")) {
+    await walk.press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })), "“Entries”");
+    await page.waitForURL(/\/registration/, { timeout: 30_000 });
+  }
   await walk.settle();
   await walk.press(page.getByRole("button", { name: /^Open entries/ }), "“Open entries”");
   await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
@@ -185,7 +178,6 @@ test("J1: a new club secretary has a tournament with a working entry link", asyn
   try {
     walk.start();
     await test.step("signs up, as a golf club", () => signUpAsClub(walk, page, email));
-    await test.step("adds the club's first member", () => addFirstMember(walk, page, mark));
     await test.step("names the club and its first tournament", () => createFirstTournament(walk, page, { tournament, club: `${mark} Golf Club` }));
     await test.step("publishes the sign-up link", async () => {
       link = await publishTheLink(walk, page);
@@ -279,8 +271,23 @@ test("J2: a new club secretary has a first event somebody can PLAY, in under ten
   try {
     walk.start();
     await test.step("signs up, as a golf club", () => signUpAsClub(walk, page, email));
-    await test.step("adds the club's first member", () => addFirstMember(walk, page, mark));
     await test.step("names the club and its first tournament", () => createFirstTournament(walk, page, { tournament: `${mark} Opening Medal`, club: `${mark} Golf Club` }));
+
+    // On Entries, where the create lands (cut B), with the members file in hand: so nothing sends the
+    // secretary back to Entries later (cut A). The file also fills the club's Members list.
+    await test.step("the field: eight members, from a file, on Entries", async () => {
+      await walk.settle();
+      await expect(page.getByRole("button", { name: "Download template" })).toBeVisible({ timeout: 20_000 });
+      await walk.pick(
+        page.locator('input[type="file"][accept*="csv"]'),
+        (l) => l.setInputFiles({ name: "members.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") }),
+        "a file of eight members (CSV)",
+      );
+      const preview = page.getByTestId("csv-preview");
+      await expect(preview.getByText("Check the list")).toBeVisible({ timeout: 20_000 });
+      await walk.press(preview.getByRole("button", { name: "Import 8 players" }), "“Import 8 players”");
+      await expect(page.getByText(/Imported 8/)).toBeVisible({ timeout: 20_000 });
+    });
 
     await test.step("the day and the course", async () => {
       await fromTheSidebar(walk, page, "/event");
@@ -312,20 +319,6 @@ test("J2: a new club secretary has a first event somebody can PLAY, in under ten
       // A new round starts on net — a club medal is played off handicap. Pressed only if it has not.
       const net = page.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).first();
       if (!(await net.locator("input").isChecked())) await walk.press(net, "“Net”");
-    });
-
-    await test.step("the field: eight members, from a file", async () => {
-      await fromTheSidebar(walk, page, "/registration");
-      await expect(page.getByRole("button", { name: "Download template" })).toBeVisible({ timeout: 20_000 });
-      await walk.pick(
-        page.locator('input[type="file"][accept*="csv"]'),
-        (l) => l.setInputFiles({ name: "members.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") }),
-        "a file of eight members (CSV)",
-      );
-      const preview = page.getByTestId("csv-preview");
-      await expect(preview.getByText("Check the list")).toBeVisible({ timeout: 20_000 });
-      await walk.press(preview.getByRole("button", { name: "Import 8 players" }), "“Import 8 players”");
-      await expect(page.getByText(/Imported 8/)).toBeVisible({ timeout: 20_000 });
     });
 
     await test.step("launch", async () => {

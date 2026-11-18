@@ -49,7 +49,6 @@ test.describe("tee sheet replace: a league week", () => {
     club = await makeClub(MARK, { timeZone: ZONE });
     const made = await makeEvent(club, "Thursday League", {
       status: "live",
-      configUnlocked: false,
       stages: [{ playedOn: addDays(dayIn(ZONE), 1) }],
       players: 8,
       event: { attendanceMode: "opt-out" },

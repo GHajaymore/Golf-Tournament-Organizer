@@ -32,9 +32,13 @@ export function formatAccessCode(code: string): string {
  * Someone who types O might have meant Q or D, and guessing wrong fails
  * exactly the same way as not guessing — so a clear rejection they can retype
  * beats silent cleverness that mangles input which was already correct.
+ *
+ * NEVER CUT TO LENGTH (one code box, 2026-11-17). It ended `.slice(0, 8)`, so
+ * a 12-character player link code typed at /play was looked up by its first 8
+ * characters (design §2.3). The whole input is kept; `codeShapeOf` decides.
  */
 export function normalizeAccessCode(input: string): string {
-  return input.toUpperCase().replace(/[\s-]/g, "").slice(0, CODE_LENGTH);
+  return input.toUpperCase().replace(/[\s-]/g, "");
 }
 
 /** Whether a string could be a code at all — checked before hitting the
@@ -56,7 +60,11 @@ export function roundCodeLink(origin: string, code: string, group?: string): str
   // A group key (`match:<id>`, `tee:<n>`) rides after a dot: `#ABCD-EFGH.t3`.
   // One that is neither shape is left off, and the link opens the round's list.
   const part = group ? groupFragment(group) : null;
-  return `${origin}/play#${formatAccessCode(code)}${part ? `.${part}` : ""}`;
+  // ESCAPED, every part after the `#` (one code box, 2026-11-17): /p's box builds this address from what
+  // somebody TYPED (`boxStepFor`) and the browser then goes there. A real code and group are letters,
+  // digits and a dash, which escaping leaves exactly as they were; anything else cannot become markup
+  // or a scheme on the way.
+  return `${origin}/play#${encodeURIComponent(formatAccessCode(code))}${part ? `.${encodeURIComponent(part)}` : ""}`;
 }
 
 /** What a sign's address carries: the round's code, and the group when it names one. */

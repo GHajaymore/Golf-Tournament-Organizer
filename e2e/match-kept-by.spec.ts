@@ -55,9 +55,13 @@ test.beforeAll(async () => {
       organizationId: org.id,
       name: `${MARK} Autumn Cup`,
       status: "live",
-      // The organizer has opened setup again to make the choice — after launch
-      // a round's setup is locked, as it should be.
-      configUnlocked: true,
+      // The organizer has opened the rounds with a committee correction to make the
+      // choice — after launch a round's setup is locked, as it should be (PR 9b: the
+      // blanket unlock is not read). Stored as `openCorrection` stores it.
+      correctionScope: "rounds",
+      correctionReason: "zz spec: how the matches are kept",
+      correctionBy: "Zz Organizer",
+      correctionUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
       shape: "single",
       format: "match",
       dates: "",
@@ -221,7 +225,7 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
       watchPageErrors(p, errors, "Edda, by the code");
       await p.goto("/play");
       await p.waitForLoadState("networkidle").catch(() => {});
-      await p.getByLabel("Round code").fill(CODE);
+      await p.getByLabel("Your code").fill(CODE);
       await p.getByRole("button", { name: "Continue" }).click();
       // Her match is the group; on cards, she then picks her own card in it (2026-11-04).
       await keepCardOf(p, "Zz Edda");

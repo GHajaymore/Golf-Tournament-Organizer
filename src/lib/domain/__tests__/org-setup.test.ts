@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
-import { orgSetupState, SETUP_HREF, type OrgSetupFacts } from "../org-setup";
+import { orgSetupState, membersAsked, peopleEntered, SETUP_HREF, type OrgSetupFacts } from "../org-setup";
 
 /**
  * Every route this app serves, read off the filesystem.
@@ -418,13 +418,60 @@ describe("the blocked note speaks each organization's own language", () => {
     expect(s.outstanding).toEqual([]);
   });
 
-  it("names the steps it is waiting for, rather than saying 'finish setup'", () => {
-    // Three club answers could be outstanding at once. "Complete your setup
-    // first" over three of them leaves somebody hunting for which.
+  it("names the step it is waiting for, rather than saying 'finish setup'", () => {
+    // "Complete your setup first" leaves somebody hunting for which part.
     const s = orgSetupState(facts({ kind: "community", country: "GB", eventCount: 0, named: false, memberCount: 0 }));
     expect(s.blockedByClubSetup).toContain("name your society");
-    expect(s.blockedByClubSetup).toContain("add your members");
-    expect(s.outstanding.map((x) => x.key)).toEqual(["profile", "roster"]);
+    expect(s.outstanding.map((x) => x.key)).toEqual(["profile"]);
+  });
+});
+
+/**
+ * EVENT-FIRST (Cut A, Ajay 15 Nov 2026): the members list is never a step or a
+ * gate before the first event. It is asked for at the draw (`membersAsked`)
+ * and offered on Entries; once a first event exists it is an ordinary step
+ * that holds nothing back.
+ */
+describe("event-first: no members step before the first event", () => {
+  for (const kind of ["club", "community"]) {
+    it(`a ${kind} with no members and no event is not asked for them, and is not held back`, () => {
+      const s = orgSetupState(facts({ kind, eventCount: 0, named: true, memberCount: 0, moneyAnswered: false }));
+      expect(s.steps.map((x) => x.key), "a members step before the first event").not.toContain("roster");
+      expect(s.outstanding).toEqual([]);
+      expect(s.blockedByClubSetup).toBe("");
+      // Unnamed, the name is the one thing waited on — answered on the create form itself.
+      const unnamed = orgSetupState(facts({ kind, eventCount: 0, named: false, memberCount: 0 }));
+      expect(unnamed.outstanding.map((x) => x.key)).toEqual(["profile"]);
+      expect(unnamed.blockedByClubSetup).not.toMatch(/member/i);
+    });
+  }
+
+  it("lists the members once a first event exists, as a step that holds nothing back", () => {
+    const s = orgSetupState(facts({ kind: "club", eventCount: 1, memberCount: 0 }));
+    const roster = s.steps.find((x) => x.key === "roster");
+    expect(roster?.done).toBe(false);
+    expect(roster?.required).toBe(false);
+    expect(s.outstanding).toEqual([]);
+  });
+
+  it("the draw asks for the members only when the field AND the club's list are empty, of an outfit that keeps one", () => {
+    const at = (over: Partial<Parameters<typeof membersAsked>[0]>) =>
+      membersAsked({ kind: "club", memberCount: 0, fieldSize: 0, ...over });
+    expect(at({})).toBe(true);
+    expect(at({ kind: "community", country: "GB" })).toBe(true);
+    // Somebody is entered: the draw has players.
+    expect(at({ fieldSize: 4 })).toBe(false);
+    // The club has a list: pick from it on Entries, not asked again.
+    expect(at({ memberCount: 30 })).toBe(false);
+    // A one-off outing with friends keeps no shared list, so is never asked for one.
+    expect(at({ kind: "personal" })).toBe(false);
+  });
+
+  it("entries awaiting approval or waitlisted count as entered, so an empty list is not asked for", () => {
+    expect(peopleEntered(0, 3, 0)).toBe(3);
+    expect(membersAsked({ kind: "club", memberCount: 0, fieldSize: peopleEntered(0, 3, 0) })).toBe(false);
+    expect(membersAsked({ kind: "club", memberCount: 0, fieldSize: peopleEntered(0, 0, 2) })).toBe(false);
+    expect(membersAsked({ kind: "club", memberCount: 0, fieldSize: peopleEntered(0, 0, 0) })).toBe(true);
   });
 
   it("never waits on a convenience", () => {

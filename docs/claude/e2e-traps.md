@@ -64,7 +64,7 @@ page was slow; the button simply had to wait for everything. Three things were f
 
 - **Continue takes a press from the first paint (1.9 s), and a press made before the page is live
   is HELD on the page** (`HeldBeforeLoad`, a tiny inline script) and taken up the moment React is
-  there. The box and the names are also real forms (`redeemRoundCodeForm`, `claimPlayerSlotForm`,
+  there. The box and the names are also real forms (`openCodeForm` since one code box, `claimPlayerSlotForm`,
   through `useActionState`), posted the plain way with JavaScript off, or if the page has still not
   woken ten seconds after the press.
   **The plain post was built first and MEASURED WORSE**: it put the names on screen at 3.3 s instead
@@ -218,3 +218,12 @@ guest-link spec), each written by an engineer who could not run Playwright. Find
 own element and role — `p`, `div` or `span[role="alert"]`, e.g. `page.locator('[role="alert"]:not(#__next-route-announcer__)')` — or better by its text with `.filter({ hasText })`; inside a card,
 section or dialog locator the plain role is fine. `src/lib/__tests__/no-page-wide-alert-locator.test.ts`
 refuses the page-wide form.
+
+- **A press right after a save lands before the redraw (Firefox, 17 Nov).** A server action writes the row, then the
+  page is redrawn with the new data; a database poll or the card's own "goes through" line is true BEFORE that
+  redraw. Playwright's click checks the button is stable, then presses where it was; if the redraw then moves it (a
+  sentence above appears, or a two-line sentence becomes one) the press falls on text and the handler never runs, with
+  no error. Two specs failed this way on Firefox in nightly 44124418761 (`seasons.spec.ts` "Start another season",
+  `organizer-knockout-report.spec.ts` "Change result") and passed on the four nightlies before. Before pressing a
+  button the previous press may have moved, wait for the SCREEN's answer (the next button's name, the sentence that
+  changes), not for the database row.

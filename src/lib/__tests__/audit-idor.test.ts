@@ -225,7 +225,6 @@ const EXEMPT: Record<string, string> = {
   "auth.ts:claimPassword": "pre-auth; the token is the authorization",
   "auth.ts:resetPassword": "pre-auth; the token is the authorization",
   "auth.ts:signUp": "pre-auth; creates the scope rather than entering one",
-  "play.ts:redeemRoundCode": "the code IS the credential; rate limited separately",
   "play.ts:claimPlayerSlot": "same code-based auth, same shared rate limit",
   "teams.ts:removeTeamMember:playerId":
     "the delete is bounded by teamId, which is scoped; a foreign playerId can only fail to match a row inside this event's team",

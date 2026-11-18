@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
 
 /**
  * A LOCKED SIDE IS REFUSED IN WORDS, NOT AN ERROR PAGE (state machine PR 5a; J10).
@@ -61,7 +62,6 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
   const ev = club.events.find((e) => e.slug === "fourball")!;
   const event = await prisma.event.findUniqueOrThrow({ where: { id: ev.id } });
   expect(event.status, "the seeded four-ball is not launched").toBe("live");
-  expect(event.configUnlocked, "the seeded four-ball's setup is already unlocked").toBe(false);
   const stage = await prisma.stage.findFirstOrThrow({ where: { eventId: ev.id, position: 0 } });
   expect(stage.format, "the seeded four-ball's first round is not a four-ball").toBe("Four-Ball");
   const side = await prisma.team.findFirstOrThrow({
@@ -77,7 +77,13 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
   const reserve = await prisma.player.create({
     data: { eventId: ev.id, name: "Zz Reserve", email: "zz-sm5a-reserve@example.invalid", seed: 999, status: "confirmed", handicap: 12 },
   });
-  const setupUnlocked = (unlocked: boolean) => prisma.event.update({ where: { id: ev.id }, data: { configUnlocked: unlocked } });
+  /**
+   * One part opened "in another tab" by a committee correction, then closed (state machine PR 9b: the
+   * blanket unlock this spec used is not read). The sides for the team presses; the rounds for the
+   * round card's settings.
+   */
+  const partOpen = (scope: "sides" | "rounds") => openCorrectionFor(prisma, ev.id, scope);
+  const partClosed = () => endCorrectionFor(prisma, ev.id);
 
   try {
     await context.addCookies([
@@ -96,11 +102,11 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
      * said and in view, nothing written, the screen still there, and caught up.
      */
     const pressedAfterTheLock = async (label: string, press: () => Promise<void>, stored: () => Promise<unknown>) => {
-      await setupUnlocked(true);
+      await partOpen("sides");
       await open(teamsPath);
       await expect(page.getByRole("region", { name: "Locked" }), `${label}: the screen was drawn locked`).toHaveCount(0);
       const before = await stored();
-      await setupUnlocked(false);
+      await partClosed();
       await press();
       const said = page.getByText(REFUSED);
       await expect(said, `${label}: the refusal was not said`).toBeVisible({ timeout: 20_000 });
@@ -181,12 +187,12 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
         said: "Locked because the tournament is live. Make a committee correction to change how many scores count.",
       },
     ]) {
-      await setupUnlocked(true);
+      await partOpen("rounds");
       const card = await openRound();
       const before = await pricing();
       await changeBeside(card, step.words).click();
       await step.set(card);
-      await setupUnlocked(false);
+      await partClosed();
       // The Save beside THIS setting's box, not any Save on the card: a team round's card can hold
       // more than one editor, and a card-wide "Save" would be ambiguous (strict mode) or the wrong one.
       // `has` is matched from inside each div, so the inner locator must not start at the card
@@ -202,7 +208,7 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
 
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
-    await setupUnlocked(false);
+    await partClosed();
     await prisma.teamMember.deleteMany({ where: { playerId: reserve.id } });
     await prisma.team.deleteMany({ where: { id: spare.id } });
     await prisma.player.deleteMany({ where: { id: reserve.id } });

@@ -103,9 +103,9 @@
  * The server's door is `fieldRefusal` (services/field-change.ts); every field
  * action asks it, and the Entries screen draws its controls from `fieldDoors`.
  */
-import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
+import { isFinished, isLaunched } from "./lifecycle-state";
 import { minutesOfTeeTime } from "./tee-sheet";
-import { knockoutHasResults, tournamentFamily, type Family, type LockScope, type RoundFacts, type ScopeLock, type TournamentFacts, type WayOut } from "./tournament-status";
+import { knockoutHasResults, setupLockedByLaunch, tournamentFamily, type Family, type LockScope, type RoundFacts, type ScopeLock, type TournamentFacts, type WayOut } from "./tournament-status";
 
 /**
  * The changes. `add-to-flight` is a late entry made WITH a flight (the add
@@ -119,7 +119,7 @@ export type FieldChange = (typeof FIELD_CHANGES)[number];
  * THE J12 COLUMN THE FIELD STANDS IN (section 3 of the proposal), for the
  * field and flights rows:
  *
- *   before-draw   nothing is locked: before launch (or a legacy unlock), and —
+ *   before-draw   nothing is locked: before launch, and —
  *                 for a knockout — no knockout result yet;
  *   after-draw    launched, and late entries still open (Round 1's last tee
  *                 time not reached, no card in); for a knockout, launched with
@@ -164,8 +164,6 @@ export interface FieldClock {
 export interface FieldFacts extends FieldClock {
   /** Stored status: draft | registration | ready | live | completed. */
   status: string;
-  /** Today's blanket Unlock. */
-  configUnlocked: boolean;
   /**
    * The one scope a committee correction holds open (`TournamentFacts.correction`,
    * read off the row only while it stands), or null. REQUIRED, so no caller can
@@ -236,7 +234,6 @@ export const ROUND_ROBIN_APPROVAL_NEEDS_A_FLIGHT =
 export function fieldFactsOf(f: TournamentFacts, clock: FieldClock): FieldFacts {
   return {
     status: f.status,
-    configUnlocked: f.configUnlocked,
     correction: f.correction ? { scope: f.correction.scope } : null,
     family: tournamentFamily(f),
     playedRound: f.rounds.find((r) => r.hasResult)?.label ?? null,
@@ -253,9 +250,9 @@ export function fieldStepOf(f: FieldFacts): FieldStep {
   if (isFinished(f.status)) return "completed";
   if (KNOCKOUTS.includes(f.family)) {
     if (f.knockoutDrawn) return "after-scores";
-    return configurationLocked(f) ? "after-draw" : "before-draw";
+    return setupLockedByLaunch(f.status, f.family) ? "after-draw" : "before-draw";
   }
-  if (!configurationLocked(f)) return "before-draw";
+  if (!setupLockedByLaunch(f.status, f.family)) return "before-draw";
   return lateEntryClosed(f) ? "after-scores" : "after-draw";
 }
 
@@ -348,7 +345,7 @@ export function partOf(change: FieldChange, family: Family): FieldPart {
  *      refusal below names, taken);
  *   4. a confirmed draw refuses a move, and a placement where flights make the
  *      pairings;
- *   5. before the draw (not launched, or a legacy unlock) everything else is
+ *   5. before the draw (not launched) everything else is
  *      open — exactly the behaviour before this rule;
  *   6. otherwise the day-of table and the panel's families (header).
  *
@@ -367,7 +364,7 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
   const knockout = KNOCKOUTS.includes(facts.family);
   if (knockout && step === "after-scores" && ENTERS.includes(change)) return no(KNOCKOUT_DRAWN, RESERVE);
 
-  const locked = configurationLocked(facts);
+  const locked = setupLockedByLaunch(facts.status, facts.family);
   /**
    * THE CORRECTION OPENS WHAT NAMED IT (panel review of 5b, must-fix 1). Only
    * while locked: before launch nothing is locked and none can be opened
@@ -469,8 +466,8 @@ function warnFor(f: FieldFacts, change: FieldChange, step: FieldStep): FieldWarn
 }
 
 /**
- * WHO CAN UNLOCK, AND WHERE (panel review of #1028, must-fix 2). Only the
- * primary Organizer can unlock (`setConfigUnlocked` is admin-only), and on the
+ * WHO CAN OPEN IT, AND WHERE (panel review of #1028, must-fix 2). Only the
+ * primary Organizer can make a committee correction (`openCorrection` is admin-only), and on the
  * morning the person reading a refusal is as likely to be an Assistant — so
  * every refusal that ends in Unlock names who can, in words true for both
  * readers, and the place the guide names ("Make a committee correction"). It
@@ -510,7 +507,7 @@ export function fieldDoors(facts: FieldFacts): Record<FieldChange, string | null
  * verdicts, so it never promises an add the rule refuses.
  */
 export function fieldBanner(facts: FieldFacts): string[] | null {
-  if (!isLaunched(facts.status) || isFinished(facts.status) || !configurationLocked(facts)) return null;
+  if (!isLaunched(facts.status) || isFinished(facts.status) || !setupLockedByLaunch(facts.status, facts.family)) return null;
   // A correction open on the field: the banner's own line says who and why (`CorrectionOpenLine`); this says what it opened.
   if (facts.correction?.scope === "field") {
     return ["The field is open for a correction: late entries, players’ details and imports go through.", "The format and rounds stay locked."];

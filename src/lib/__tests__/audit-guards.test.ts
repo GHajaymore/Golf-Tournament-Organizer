@@ -91,7 +91,12 @@ describe("every server action is guarded", () => {
     ],
     // The two `…Form` actions are the same two as plain forms (a press made
     // before the page's script arrived), and do nothing but call them.
-    "play.ts": ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"],
+    "play.ts": ["claimPlayerSlot", "claimPlayerSlotForm", "leavePlay"],
+    // One code box (2026-11-17): the press of every code box, round code or player link. The code is its
+    // own authorization, as both always were: the one door (services/code-door.ts) counts the client's
+    // guesses by the code's shape before its one lookup, and never makes an account's session
+    // (one-code-door.audit.test.ts).
+    "code-box.ts": ["openCode", "openCodeForm"],
     // Open (self-service) registration is public by design: a stranger on a
     // shared link, no account. Its own defences replace a session guard, and
     // they are asserted separately below — token-shape check, a rate limit on
@@ -115,7 +120,7 @@ describe("every server action is guarded", () => {
     // A guest's player link (J39/J40). Forgetting it clears this browser's own cookie and touches no
     // row. Opening it is its own authorization, like a round code: a 60-bit code looked up by keyed
     // hash, behind a per-client limit that is never cleared (a-guest-reaches-only-its-entry.audit.test.ts).
-    "player-link.ts": ["openPlayerLink", "forgetThisPhone"],
+    "player-link.ts": ["forgetThisPhone"],
   };
 
   const GUARDS = [
@@ -123,6 +128,9 @@ describe("every server action is guarded", () => {
     // The player screens' viewer: an account's session, or a live guest pass re-read from the
     // database (J39/J40). Null for anybody else, and every reader asks only the viewer's own event.
     "getPlayerViewer",
+    // Messaging's one resolver per target, and push's owner: both the viewer, never an argument (PR 2).
+    "requireActor",
+    "pushOwnerNow",
     "requireEvent",
     "requireAdminEvent",
     "requireStaffEvent",
@@ -240,8 +248,10 @@ describe("round code guessing", () => {
   });
 
   it("shares one budget across both entry points", () => {
-    // Separate keys would give an attacker two budgets per code.
-    const kinds = [...play.matchAll(/checkRateLimit\("([^"]+)"/g)].map((m) => m[1]);
+    // Separate keys would give an attacker two budgets per code. The two entry points are the one
+    // door for a typed code (services/code-door.ts) and the round's second step (play.ts).
+    const door = readSource("src", "lib", "services", "code-door.ts");
+    const kinds = [...(play + door).matchAll(/checkRateLimit\("([^"]+)"/g)].map((m) => m[1]);
     expect(kinds.length).toBeGreaterThanOrEqual(2);
     expect(new Set(kinds).size).toBe(1);
   });
@@ -931,10 +941,16 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // The gate belongs on the write. Refusing the code itself would break
     // every staff-scored tournament that uses codes for sign-in, which is
     // precisely the tournament this whole guard exists to protect.
-    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"]) {
+    for (const fn of ["claimPlayerSlot", "claimPlayerSlotForm", "leavePlay"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
       expect(body, fn).not.toMatch(/canEnterScores\(|entryRefusal\(/);
     }
+    // The first step is the one door for a typed code: neither its press nor the door asks the setting.
+    for (const fn of ["openCode", "openCodeForm"]) {
+      const body = actions("code-box.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).not.toMatch(/canEnterScores\(|entryRefusal\(/);
+    }
+    expect(readSource("src", "lib", "services", "code-door.ts")).not.toMatch(/canEnterScores\(|entryRefusal\(/);
   });
 });
 

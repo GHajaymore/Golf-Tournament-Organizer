@@ -133,7 +133,7 @@ async function signedOut(browser: Browser, baseURL: string | undefined) {
 async function enter(page: Page, roundCode: string, name: string) {
   await page.goto("/play");
   await page.waitForLoadState("networkidle").catch(() => {});
-  await page.getByLabel("Round code").fill(roundCode);
+  await page.getByLabel("Your code").fill(roundCode);
   await page.getByRole("button", { name: "Continue" }).click();
   // Their group, or their name where the round has none, confirmed once (2026-11-04).
   await keepCardOf(page, name);

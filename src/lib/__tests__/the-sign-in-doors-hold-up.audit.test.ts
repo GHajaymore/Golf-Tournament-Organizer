@@ -66,6 +66,21 @@ import { confirmEntryCode, registerForEvent } from "@/app/actions/register";
 import { RATE_LIMITS } from "@/lib/domain/rate-limit";
 
 const prisma = new PrismaClient();
+
+/**
+ * The limiter counts in FIXED windows (windowFor: floor(now / windowMs)) and reads Date.now() itself, so a
+ * loop of limit+1 sends that straddles a boundary restarts its count and the last send is allowed (CI, 15 Nov,
+ * twice). Before a burst, wait out the rest of the window if less than SPARE_MS of it is left. The width comes
+ * from the limiter's own policy, never a copied number. Waits at most SPARE_MS.
+ */
+const SPARE_MS = 60_000;
+async function roomInWindow(...kinds: (keyof typeof RATE_LIMITS)[]) {
+  for (const kind of kinds) {
+    const { windowMs } = RATE_LIMITS[kind];
+    const left = windowMs - (Date.now() % windowMs);
+    if (left < SPARE_MS) await new Promise((r) => setTimeout(r, left + 250));
+  }
+}
 const STEM = "zz-doors";
 const MARK = `${STEM}-${process.pid}`;
 const at = (who: string) => `${MARK}-${who}@example.invalid`;
@@ -212,6 +227,7 @@ describe("M2: the same answer for an address that is nobody, invited, or proved"
 
 describe("M3: a client spraying many addresses is stopped; a stranger cannot lock a person out of their own browser", () => {
   it("the 21st failed sign-in from one connection is refused, whatever the address; another connection is not", async () => {
+    await roomInWindow("signin-client");
     newBrowser("203.0.113.7");
     const { limit } = RATE_LIMITS["signin-client"];
     let last: { ok: boolean; error?: string } = { ok: false };
@@ -231,6 +247,7 @@ describe("M3: a client spraying many addresses is stopped; a stranger cannot loc
   });
 
   it("six wrong tries on an address lock a NEW browser out, but not the one the person already uses", async () => {
+    await roomInWindow("signin");
     const mine = newBrowser("198.51.100.1");
     await signInWithPassword(at("victim"), PASSWORD); // this browser is known from now on
     expect(signedIn()).not.toBe("");
@@ -385,6 +402,7 @@ describe("review fixes (2026-11-13)", () => {
   });
 
   it("3b. one connection cannot make more than sixty codes go out, to anybody", async () => {
+    await roomInWindow("code-send-client");
     newBrowser("192.0.2.77");
     const { limit } = RATE_LIMITS["code-send-client"];
     let last: { ok: boolean; error?: string; needsCode?: boolean } = { ok: false };
@@ -392,7 +410,7 @@ describe("review fixes (2026-11-13)", () => {
     expect(last.error).toMatch(/several codes from this connection/);
     newBrowser("192.0.2.78");
     expect((await signUp("Zz Burst", at("burst-0"), "Chosen-Pass-77-golf", "club")).needsCode).toBe(true);
-  });
+  }, 180_000);
 
   it("3c. a code that comes back proved gives its send back: more than sixty members entering on one clubhouse wifi all get in", async () => {
     // Found by round G623-1 (scenario a): a society's field entering from one
@@ -406,6 +424,7 @@ describe("review fixes (2026-11-13)", () => {
       },
     });
     const { limit } = RATE_LIMITS["code-send-client"];
+    await roomInWindow("code-send-client");
     for (let i = 0; i <= limit + 4; i++) {
       newBrowser("192.0.2.79"); // each member's own phone, the clubhouse's one address
       const who = `wifi-${i}`;
@@ -416,6 +435,7 @@ describe("review fixes (2026-11-13)", () => {
       expect(done.ok, `member ${i + 1} was not entered`).toBe(true);
     }
     // CONTROL: the same connection's sends still count when nobody proves them.
+    await roomInWindow("code-send-client");
     newBrowser("192.0.2.80");
     let last: { ok: boolean; error?: string } = { ok: false };
     for (let i = 0; i <= limit; i++) last = await registerForEvent(wifiToken, { name: "Zz Spray", email: at(`spray-${i}`), handicap: "12", handicapType: "18", phone: "15551234567" });

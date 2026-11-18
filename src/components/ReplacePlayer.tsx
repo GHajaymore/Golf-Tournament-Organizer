@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { replaceInTeeSheet } from "@/app/actions/tee-sheet";
 import { NO_INDEX, readHandicapIndex, indexFigure } from "@/lib/domain/handicap-label";
+import { isNetBasis } from "@/lib/domain/match-entry";
 import {
   REPLACE_REASONS,
   REPLACE_REASON_WORDS,
@@ -78,6 +79,8 @@ export function ReplacePlayer({
   const ready = !pending && (guest ? guestName.trim().length > 0 && !guestBad && !needsFigure : !!member);
   const subName = guest ? guestName.trim() : member?.name ?? "";
   const subIndex = guest ? guestIndexWords : member?.index ?? "";
+  // The committee's strokes for this round, which the round plays off before any index (a guest has none yet).
+  const subFigure = member ? (world.figures[member.id] ?? null) : null;
 
   const press = () => {
     setError("");
@@ -146,7 +149,7 @@ export function ReplacePlayer({
             Handicap index
             <input className="input" style={{ minWidth: 0, minHeight: 44 }} inputMode="decimal" value={guestIndex} autoComplete="off" disabled={pending} onChange={(e) => setGuestIndex(e.target.value)} />
             <span className="text-muted">
-              {scoringBasis === "gross" ? "Leave blank: they play gross only." : `Type the handicap the committee gives ${guestName.trim() || "the guest"} — this round is scored net.`}
+              {!isNetBasis(world.scoringBasis) ? "Leave blank: they play gross only." : `Type the handicap the committee gives ${guestName.trim() || "the guest"} — this round is scored net.`}
             </span>
           </label>
           {guestBad && <p className="form-error" role="alert" style={{ margin: 0 }}>Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap.</p>}
@@ -162,7 +165,7 @@ export function ReplacePlayer({
       </label>
       {ready && (
         <p role="note" className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
-          {replaceWillSay({ absentee: player.name, sub: subName, group: group.name, time: group.time, handicap: subIndex, inSides, weekly })}
+          {replaceWillSay({ absentee: player.name, sub: subName, group: group.name, time: group.time, handicap: subIndex, figure: subFigure, inSides, weekly })}
         </p>
       )}
       {error && <p className="form-error" role="alert" style={{ margin: 0 }}>{error}</p>}

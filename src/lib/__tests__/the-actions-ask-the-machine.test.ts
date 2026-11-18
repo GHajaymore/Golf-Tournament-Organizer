@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readSource } from "./source";
 import { importedNames } from "./imported-names";
+import { RETIRED_BY_PR4 } from "./retired-readers";
 
 /**
  * THE ACTIONS ASK THE STATE MACHINE (proposal 3 Nov, PR 4).
@@ -20,7 +21,6 @@ import { importedNames } from "./imported-names";
  * the action files now, by name.
  */
 
-const RETIRED_BY_PR4 = ["launchCheckFor", "statusMove", "finishRefusal", "completingCheckFor", "playRefusalFor", "playRefusal"] as const;
 const ACTIONS = ["src/app/actions/tournament.ts", "src/app/actions/play.ts"];
 
 const retiredIn = (src: string) => importedNames(src).filter((n) => (RETIRED_BY_PR4 as readonly string[]).includes(n));

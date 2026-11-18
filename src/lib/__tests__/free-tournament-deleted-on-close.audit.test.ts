@@ -77,7 +77,7 @@ const exists = async (id: string) => (await prisma.event.count({ where: { id } }
  * These tests are about what completing KEEPS, so they complete a launched one.
  */
 async function launched(id: string) {
-  await prisma.event.update({ where: { id }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
+  await prisma.event.update({ where: { id }, data: { status: "live", launchedAt: new Date() } });
 }
 
 /** Complete it, confirmed, and report whether the action deleted and redirected. */

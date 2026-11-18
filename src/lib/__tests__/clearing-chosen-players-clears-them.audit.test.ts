@@ -27,6 +27,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
 
 const { clearRoundScores } = await import("@/app/actions/tournament");
+const { correctionColumns } = await import("./correction-fixture");
 
 const id: Record<string, string> = {};
 const FULL = JSON.stringify(new Array(18).fill(4));
@@ -44,7 +45,8 @@ beforeAll(async () => {
       organizationId: org.id,
       name: `${TAG} matchplay`,
       status: "live",
-      configUnlocked: true,
+      // The rounds opened by a committee correction: clearing scores asks the rounds' lock (PR 9b).
+      ...correctionColumns(`${TAG} matchplay`, "rounds"),
       shape: "single",
       format: "match",
       dates: "",

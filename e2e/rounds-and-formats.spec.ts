@@ -16,6 +16,7 @@ import {
   addDays,
   dayIn,
   NAMES,
+  CARD_PARS,
 } from "./rounds-fixture";
 
 /**
@@ -48,6 +49,9 @@ import {
  *   handicap to     a figure for one round reaches the next eighteen-hole
  *   later rounds    round and NOT a nine (Rules of Handicapping 6.1: a course
  *                   handicap belongs to one length of round)
+ *   which nine      choosing Which nine keeps the tees the round was given on
+ *   keeps the tees  Score entry (`setStageCourse` wrote them as null on every call
+ *                   that did not restate them, 14 Nov)
  *
  * WHAT IT CANNOT SEE: a card being scored off any of these (the boards are
  * held to the Rules by `boards-by-the-rules.spec.ts` and the stroke-cut by
@@ -463,6 +467,86 @@ test("a handicap set for one round is used in the later eighteen-hole round and 
     const nineLine = card.locator("div", { has: page.locator("span", { hasText: who.name }) }).last();
     await expect(nineLine, "the nine says a figure was set for it").not.toContainText("set for this round");
     expect(NAMES).toContain(who.name);
+  } finally {
+    await dropClub(mark);
+  }
+  expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * WHICH NINE KEEPS THE ROUND'S TEES (QA Director, item 1, 14 Nov). The secretary sets a
+ * nine-hole round's tees on Score entry, then chooses Which nine on Rounds & formats. That
+ * screen sends the course and the nine and no tees, and `setStageCourse` used to write the
+ * tees as null on every such call: the round fell back to the tournament's set, and a player
+ * of 18.4 played off 10 where the committee's Blue gives 12 (worked in
+ * `a-rounds-tees-survive-its-nine.audit.test.ts`). Read back from the database and from
+ * Score entry after the nine changes, both ways.
+ */
+test("choosing Which nine keeps the tees the round was given on Score entry", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+  const errors: string[] = [];
+  watchPageErrors(page, errors, "secretary");
+  const mark = markFor("ninetees", testInfo.project.name);
+  const club = await makeClub(mark);
+  try {
+    const course = await prisma.course.create({
+      data: {
+        organizationId: club.orgId,
+        name: `${mark} Ferny Rigg`,
+        pars: JSON.stringify(CARD_PARS),
+        yards: JSON.stringify(CARD_PARS.map((p) => p * 100)),
+        strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+    });
+    const set = (name: string, courseRating: number, slopeRating: number, position: number) =>
+      prisma.tee.create({ data: { courseId: course.id, name, courseRating, slopeRating, par: 72, position } });
+    const [blue, white] = await Promise.all([set("Blue", 73.4, 135, 0), set("White", 71.2, 126, 1)]);
+    const { event, stages } = await makeEvent(club, "Twilight Nine", {
+      status: "live",
+      stages: [{ holes: 9, format: "Stableford" }],
+      event: { courseId: course.id, defaultTeeId: white.id, course: course.name },
+    });
+    await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
+    const round = stages[0];
+    await prisma.stage.update({ where: { id: round.id }, data: { courseId: course.id, nine: "front" } });
+    const stored = async () => prisma.stage.findUniqueOrThrow({ where: { id: round.id }, select: { nine: true, teeId: true, courseId: true } });
+    // Read from the fixture: a nine on the front, at the course, on no tees of its own, no card in.
+    expect(await stored()).toEqual({ nine: "front", teeId: null, courseId: course.id });
+    expect(await prisma.scorecard.count({ where: { stageId: round.id } })).toBe(0);
+    await signIn(context, baseURL!, club, event.id);
+
+    /** Score entry's Tees box for the round. */
+    const entryTees = async () => {
+      await page.goto(`/entry?round=${round.id}&bust=${Date.now()}`);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(page.locator("main h1")).toBeVisible();
+      const tees = page.locator("main label").filter({ hasText: "decides the shots" }).locator("select");
+      await expect(tees, "Score entry draws no Tees box for this round").toHaveCount(1);
+      await centre(tees);
+      return tees;
+    };
+
+    // Score entry: the round goes on Blue.
+    let tees = await entryTees();
+    await expect(tees).toBeEnabled();
+    await tees.selectOption(blue.id);
+    await expect.poll(async () => (await stored()).teeId, { timeout: 20_000, message: "Score entry did not store Blue" }).toBe(blue.id);
+
+    // Rounds & formats: Which nine → Back, then → Front.
+    for (const nine of ["back", "front"]) {
+      await gotoStages(page);
+      const card = await openRound(page, round.id);
+      const which = card.getByLabel("Which nine");
+      await centre(which);
+      await expect(which).toBeEnabled();
+      await which.selectOption(nine);
+      await expect.poll(async () => (await stored()).nine, { timeout: 20_000, message: `the ${nine} nine was not stored` }).toBe(nine);
+      expect((await stored()).teeId, `choosing the ${nine} nine wiped the round's tees`).toBe(blue.id);
+    }
+
+    // And Score entry still names Blue, not the tournament's White.
+    tees = await entryTees();
+    await expect(tees, "Score entry no longer shows the tees the round was given").toHaveValue(blue.id);
   } finally {
     await dropClub(mark);
   }

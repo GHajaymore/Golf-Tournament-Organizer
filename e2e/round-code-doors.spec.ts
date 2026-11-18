@@ -72,7 +72,7 @@ test("a group link skips the list and asks the one question; a link that is not 
 
     // ASKED ONCE PER PHONE: out, and the same group's link again goes straight to the card.
     await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page.getByLabel("Round code")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByLabel("Your code")).toBeVisible({ timeout: 20_000 });
     await page.goto("about:blank");
     await page.goto(groupLink(round(0).code, round(0).match));
     await expect(page.getByRole("group", { name: /^Who won hole/ }).first(), "the group this phone confirmed asked again").toBeVisible({ timeout: 30_000 });
@@ -92,8 +92,8 @@ test("a group link skips the list and asks the one question; a link that is not 
       await p.goto("about:blank");
       await p.goto(bad);
       await p.waitForLoadState("networkidle").catch(() => {});
-      await expect(p.getByLabel("Round code"), `${bad}: the page left the code prompt`).toBeVisible();
-      await expect(p.getByLabel("Round code"), `${bad}: the code was typed in from a fragment that is not a sign's`).toHaveValue("");
+      await expect(p.getByLabel("Your code"), `${bad}: the page left the code prompt`).toBeVisible();
+      await expect(p.getByLabel("Your code"), `${bad}: the code was typed in from a fragment that is not a sign's`).toHaveValue("");
       await expect(p.getByText("Tap your group to start scoring.")).toHaveCount(0);
       await expect(p.getByRole("heading", { name: /^You're keeping / })).toHaveCount(0);
     }
@@ -126,13 +126,13 @@ test("a phone is offered the group it kept last time, in the next round of the t
   const typeCode = async (code: string) => {
     await page.goto("/play");
     await page.waitForLoadState("networkidle").catch(() => {});
-    await page.getByLabel("Round code").fill(code);
+    await page.getByLabel("Your code").fill(code);
     await page.getByRole("button", { name: "Continue" }).click();
   };
   const lastTime = page.getByRole("button", { name: `Last time: Match 1 — ${SIDE_A} v ${SIDE_B}` });
   const signOut = async () => {
     await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page.getByLabel("Round code")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByLabel("Your code")).toBeVisible({ timeout: 20_000 });
   };
   try {
     // Round 1: nothing to remember yet — the list, and the group kept by the link.
@@ -186,7 +186,7 @@ test("a phone is offered the group it kept last time, in the next round of the t
     watchPageErrors(p, errors, "another phone");
     await p.goto("/play");
     await p.waitForLoadState("networkidle").catch(() => {});
-    await p.getByLabel("Round code").fill(round(1).code);
+    await p.getByLabel("Your code").fill(round(1).code);
     await p.getByRole("button", { name: "Continue" }).click();
     await expect(playGroups(p)).toHaveCount(1, { timeout: 20_000 });
     await expect(p.getByRole("button", { name: /^Last time:/ })).toHaveCount(0);

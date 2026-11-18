@@ -85,8 +85,22 @@ describe("stored hashed, never the code (design §2.3)", () => {
     expect(unsealCode(sealed, "plabc12345", 1)).toBe(CODE);
     expect(unsealCode(sealed, "plabc12345", 2), "a rotated pass's old seal opened").toBeNull();
     expect(unsealCode(sealed, "plother9999", 1), "a seal copied to another pass opened").toBeNull();
-    expect(unsealCode(sealed.slice(0, -2) + "AA", "plabc12345", 1), "a tampered seal opened").toBeNull();
     expect(sealCode(CODE, "plabc12345", 1), "the nonce is fresh each time").not.toBe(sealed);
+  });
+  it("one flipped bit anywhere in the seal (nonce, auth tag or ciphertext) stops it opening", () => {
+    // Layout: 12-byte nonce, 16-byte auth tag, then the ciphertext. Flipping a real bit in
+    // decoded bytes is always a change, unlike overwriting base64 characters (which can be a no-op).
+    const sealed = sealCode(CODE, "plabc12345", 1);
+    const raw = Buffer.from(sealed, "base64url");
+    expect(raw.length).toBe(12 + 16 + CODE.length);
+    for (const [part, at] of [["nonce", 3], ["auth tag", 12 + 5], ["ciphertext", 28 + 2]] as const) {
+      const bent = Buffer.from(raw);
+      bent[at] ^= 0x01;
+      const tampered = bent.toString("base64url");
+      expect(tampered, `${part}: the tamper changed nothing`).not.toBe(sealed);
+      expect(unsealCode(tampered, "plabc12345", 1), `a seal with its ${part} altered opened`).toBeNull();
+    }
+    expect(unsealCode(sealed, "plabc12345", 1), "the untouched seal still opens").toBe(CODE);
   });
   it("a browser's hash is the link's own, not the device cookie's own hash", () => {
     expect(deviceHashOf("browser-value")).toBe(deviceHashOf("browser-value"));

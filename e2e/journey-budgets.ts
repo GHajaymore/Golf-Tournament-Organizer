@@ -35,19 +35,31 @@ export const JOURNEY_BUDGETS: Record<string, JourneyBudget> = {
   // was the spec's: "club" is already chosen on /choose from the sign-up), 5 screens over 6 visits (the
   // return is /choose after /roster), 9 boxes, 211 characters, 81–82 s. Seconds: Fable's 120.
   "secretary-first-event": {
-    ceiling: { presses: 12, screens: 5, visits: 6, returns: 1, boxes: 9, chars: 211, seconds: 120 },
-    target: { presses: 7, screens: 4, visits: 5, returns: 1, boxes: 9, seconds: 70 },
-    by: "cuts A′ (roster opens ready and hands back), B (open entries where create ended), C (the kind asked once), D (the code submits itself), E (a single round already chosen)",
+    // Cut B (#1145): the create ends on Entries, so no Home and no "Entries" press: 11 presses, 4 screens,
+    // 5 visits (/ → /choose → /roster → /choose → /registration).
+    // Cut A (event-first, Ajay 15 Nov): no members step before the first event, so no "Add your members",
+    // no "Add member" twice, no "Create your first tournament" back on /choose (the form is open where the
+    // code lands), and the member's three boxes (name, address, index: 14 + 45 + 4 characters) are gone:
+    // 7 presses, 3 screens over 3 visits (/ → /choose → /registration), 0 returns, 6 boxes, 148 characters.
+    // Desk-counted from the spec; CI's JOURNEY line confirms it.
+    ceiling: { presses: 7, screens: 3, visits: 3, returns: 0, boxes: 6, chars: 148, seconds: 120 },
+    target: { presses: 5, screens: 3, visits: 3, returns: 0, boxes: 5, seconds: 70 },
+    by: "cuts D (the code submits itself: no Confirm, no code box) and E (a single round already chosen); A and B are in",
   },
   // J2. Measured on #1140 at 0a29c5e4, desktop: 24 presses, 8 screens over 10 visits, 2 returns
   // (/choose after /roster, /dashboard after /registration), 13 boxes, 216 characters, 130 s against a
   // pace floor of about 120 s. Route: / → /choose → /roster → /choose → /dashboard → /event → /stages →
   // /registration → /dashboard → /foursomes. Seconds: 180, as J1's 120 sits over its 81 (Principal
   // Engineer, 14 Nov); the ten-minute promise is the target, and the spec asserts it on its own.
+  // Cut A (event-first, Ajay 15 Nov): the members step goes (4 presses, 3 boxes, 62 characters: 14 + 44 + 4,
+  // and /roster with its return to /choose), and the eight members' file is chosen on Entries, where the
+  // create lands (cut B), so the later sidebar press back to Entries and its return go too: 19 presses,
+  // 7 screens over 7 visits (/ → /choose → /registration → /event → /stages → /dashboard → /foursomes),
+  // 0 returns, 10 boxes, 154 characters. Desk-counted from the spec; CI's JOURNEY line confirms it.
   "secretary-playable-event": {
-    ceiling: { presses: 24, screens: 8, visits: 10, returns: 2, boxes: 13, chars: 216, seconds: 180 },
-    target: { screens: 8, returns: 0, seconds: 600 },
-    by: "console step 3 (the draw on one screen per round), row 6b (the day asked once), row 7, P4 (first score entry launches); under ten minutes at the panel's pace",
+    ceiling: { presses: 19, screens: 7, visits: 7, returns: 0, boxes: 10, chars: 154, seconds: 180 },
+    target: { screens: 7, returns: 0, seconds: 600 },
+    by: "console step 3 (the draw on one screen per round), row 6b (the day asked once), row 7, P4 (first score entry launches); cut A (no members step) is in; under ten minutes at the panel's pace",
   },
   // J3. Measured on #1140 at 25a0ffa0 and 0a29c5e4, desktop and phone alike: 3 presses (Create the copy,
   // Entries, Open entries), 2 screens, 1 box (the day), 14–16 s. Fable's desk estimate was 4 presses;

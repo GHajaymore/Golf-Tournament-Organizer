@@ -326,8 +326,9 @@ export function sharedClientRefusal(dir, env = process.env) {
     "Shared Prisma client: this worktree's prisma/schema.prisma differs from the main checkout's, and every worktree shares " +
       "the main checkout's node_modules, so `prisma generate` here would replace the client under every other engineer " +
       '(their tsc and audit tests fail with "The column ... does not exist"). Do not generate from a branch with a schema change. ' +
-      "Run `node scripts/prisma-client-check.mjs` (read-only) to see whose schema the shared client holds, say in your report that " +
-      "the client is stale, and leave regenerating to the main session after merge. If you are sure nobody else is mid-run, repeat " +
+      "To TYPE-CHECK this branch against its own schema, run `node scripts/qa/typecheck-own-client.mjs`: it generates this " +
+      "schema's client into a private folder and leaves the shared one alone. `node scripts/prisma-client-check.mjs` (read-only) " +
+      "says whose schema the shared client holds; regenerating it is the main session's job after merge. If you are sure nobody else is mid-run, repeat " +
       "the command with PRISMA_SHARED_CLIENT_OK=1 in front of it. Long form: docs/claude/migrations.md.",
   );
 }

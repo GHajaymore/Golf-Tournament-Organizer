@@ -43,6 +43,15 @@ of the command overrides, only when nobody else is mid-run. A true per-worktree 
 of `@prisma/client` and `.prisma/client` in each worktree (Node resolves the real path of a symlink) —
 heavier than the problem, and not done.
 
+**Type-checking a schema change no longer waits for CI (2026-11-17).** "Client stale" left a branch that adds
+a column with no local type check, and the main session's train-tip check had started skipping tsc for one
+(train D: #1158's `slipPrintedAt`). `node scripts/qa/typecheck-own-client.mjs` is the fix: when the
+checkout's schema differs from the shared client's it generates that schema's client into
+`.qa/tmp/own-client` (a custom `output`), points `@prisma/client` at it with a private tsconfig extending the
+real one, runs tsc, and hashes the shared client's schema copy before and after (changed = exit 2). Measured
+on train D's tip: 58 s, its new column accepted, an invented column refused, the shared client untouched. It
+covers TYPES only; an audit test that reads a new column still needs the migration applied to the database.
+
 **An index Prisma cannot express lives in SQL alone (2026-11-01).** `A036_a_name_in_play_is_the_clubs_once`
 makes `Event_name_in_play_key`, a partial unique index on an expression (one name in play per club;
 the rule is `domain/tournament-name.ts`). It is not in `schema.prisma`, only a comment beside

@@ -108,21 +108,24 @@ Ajay, 2026-10-21: "go with your recommendations". Three rules, each held at one 
 
 Ajay, 7 Nov: members and organizers need an email; a **guest** needs no email and no app. A guest
 entry gets a personal player link — `/p#<12-character code>` (Crockford base32, 60 bits), or the code
-typed at `/p` — opening that one entry in that one event: Today, My card (where the event lets a player
+typed into any code box (`/p` or `/play`, one code box, 2026-11-17) — opening that one entry in that one event: Today, My card (where the event lets a player
 keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest player link (J39-J40) 12 Nov.md`.
 
-- **Not a sign-in, and not held.** `openPlayerLink` never calls `createSession`; `guest-auth.ts` never
+- **Not a sign-in, and not held.** The one door for a typed code (`openAnyCode`, `services/code-door.ts`,
+  pressed through `actions/code-box.ts`) never calls `createSession`; `guest-auth.ts` never
   asks `maySignInNow` / `signInsHeld` — links work before launch, like round codes (`NOT_SWITCHED`
   `player-links`, pinned by `go-live-switch.test.tsx`).
 - **A tap opens it, never a load (S1).** `/p` reads and strips the fragment and waits for "Open my card";
   only that POST records a browser (`PlayerPassDevice`, hashed under the link's own key) and sets
   `ng_guest` = `sign("guest1~<passId>:<version>:<issued>")` — exact prefix, 180 days held server-side,
   version-checked, re-verified against the row on every request (`getGuestSession`).
-- **Guessing (S2):** `player-link-client`, 20 FAILED opens per client in 15 minutes through `clientGuessGate`
+- **Guessing (S2):** the budget is CHOSEN BY THE CODE'S SHAPE in `openAnyCode`'s `guessGate`, never by the box it
+  was typed in (a 12-character code never reaches the round code's per-code key). `player-link-client`, 20 FAILED
+  opens per client in 15 minutes through `clientGuessGate`
   (never keyed on the code, never cleared; a real open gives back one); one shared bucket where no client
   address can be read; past 200 failed opens an hour platform-wide (counted only for requests the client's
   own limit let through) every client is held to three failed opens in 15 minutes and one error is logged
-  per window. Twenty stays the per-client figure (Security Lead review N-1: 60 bits carries it; the cost of a
+  per window (one code box PR B gave the 8-character round code the same two steps with its own figures: `eight-char-alarm`, 300 failed lookups an hour platform-wide, then `eight-char-slow`, 12 failed per client in 15 minutes while it stands, set for a code a whole field TYPES off a card; and where no address can be read the round code now shares one bucket too, where it had none). Twenty stays the per-client figure (Security Lead review N-1: 60 bits carries it; the cost of a
   tighter one falls on a clubhouse wifi or a carrier's shared address).
 - **Stored hashed:** `PlayerPass.lookup` (HMAC under `derivedKey("player-link-lookup")`) and `sealed`
   (AES-256-GCM, bound to `passId:version`), so the organizer can show the same link again (re-sending is
@@ -140,4 +143,34 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
   phone, choose view. Every other action still calls `getSession()` and refuses a guest.
 - **Analytics and reports (S3):** `/p` renders no analytics and `pageViewFor` drops a view of it;
   `scrubText` redacts the code in a fragment, a `/p/` path, a query or its printed dashed form.
-- A spec reaches a guest by the real door (`/p`, a tap or the typed box), never a hand-made `ng_guest`.
+- A spec reaches a guest by the real door (a tap at `/p`, or the code typed in any code box), never a hand-made `ng_guest`.
+- **One code box (plan row 4c, 2026-11-17):** a round code typed at `/p` goes on to `/play#ABCD-EFGH` (after the `#`,
+  no extra press); a personal code typed at `/play` opens the guest's Today. Every code of the right shape that opens
+  nothing says one sentence (`CODE_WORDS.opensNothing`) and every code throttle another (`CODE_WORDS.tooMany`);
+  `PLAYER_LINK_WORDS.dead` is said only on `/p?ended=1`, of a link this phone held. `e2e/one-code-box.spec.ts`.
+- **A link's messages and notices (PR 2):** a guest is `guest:<playerId>` in messaging (never an address),
+  reads and posts in the threads its entry puts it in (never the club's), writes to the organizers
+  (`desk:<playerId>`), and starts no direct thread (D7: `startDirectThread` is account-only). Every messaging
+  action asks `messagingContextFor(target)`, which picks the link only for the target's own event, by PR 1's
+  precedence. Its notices go by push only, to `PlayerPassPush` rows bound to the pass's VERSION: New link,
+  Turn off, withdrawal and expiry stop them at once (`sendPushTo` asks `livePass`). **Forget me on this phone**
+  changes no version, so it deletes the held pass's row for this browser's endpoint itself (`forgetPassHere`;
+  #1133 review SEC-1). The player's **Turn off** deletes the caller's OWN row on its endpoint and nobody
+  else's (`turnOffHere`; the #1133 security review F-3 replaced SEC-2's every-row delete), then unsubscribes
+  the browser, so the push service's 410 clears any other row on that phone at the next send. Turn on and
+  Turn off are budgeted per pass or address (`push-device`, 10 in 15 minutes), a link holds at most
+  `GUEST_PUSH_ROWS` (5) phones with the oldest dropped, and every send has `PUSH_SEND_TIMEOUT_MS` (3 s), so
+  one dead host cannot hold a "play suspended" press (F-1). A link-only browser asking about another event's
+  thread is answered in its own event, exactly as for a missing id (F-2). The organizer can Mute a guest in
+  messages from their link (the link stays live; a mute is on the pass, F-4). The installed app starts at
+  `/start`: an account goes home, a live link to Today, anybody else to `/p` with "Have an account? Sign in".
+- **Slips (PR 3, 2026-11-14):** the Print kit prints one slip per CONFIRMED guest (`slipsFor`,
+  `domain/player-link-slips.ts`, which asks `passRefusal`), the guest's one link made on first use exactly as
+  Show QR makes it. The codes leave the server only as the answer to a staff press (`printPlayerLinkSlips`,
+  budgeted `link-slips`, 6 an hour per staff member per event, audited by who and how many, never a code); the
+  page renders counts only and the sheet is dropped after printing. `PlayerPass.slipPrintedVersion` says a
+  printed slip went stale on New link; `newPlayerLinksFor` rotates a lost sheet in one press. No shared print
+  (tee sheet, signs, cards, posters) builds a link (`a-player-link-is-never-on-a-shared-print.test.ts`).
+  Today names who the link is for ("Not you? Hand this back to the desk."). Guest self-entry, the typed entry
+  code (`Event.registrationCode`, `guestEntryOpen`: columns in A047, unused until PR 3B) and the stand-in's
+  link are not built yet.

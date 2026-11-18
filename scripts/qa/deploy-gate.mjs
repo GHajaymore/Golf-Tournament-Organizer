@@ -37,7 +37,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed, nightlyNeeded } from "./deploy-rules.mjs";
+import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed, nightlyNeeded, retryTransient, verdictCheckPath, verdictJobsForRun, nightliesWorthAsking } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
 const args = process.argv.slice(2);
@@ -49,20 +49,14 @@ const WINDOW_URL = process.env.DEPLOY_WINDOW_URL || "https://tourneyhq.club/api/
 const WINDOW_TOKEN = process.env.DEPLOY_WINDOW_TOKEN || "";
 
 const run = (cmd, a) => spawnSync(cmd, a, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-const git = (...a) => run("git", a);
-// GitHub's own hiccups (a 5xx, a dropped connection) are asked again, up to
-// four times over about a minute, before the gate says it could not ask: on
-// 2026-11-02 one HTTP 502 failed a deploy job that had nothing wrong with it.
-// A 4xx is an answer, and is not asked again.
-const isPassingFault = (text) =>
-  /HTTP 5\d\d|Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset|TLS handshake timeout/i.test(text);
-const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+// GitHub's own hiccups (a 5xx, "stream error ... CANCEL", a dropped connection) are asked again, up to four
+// attempts (5 s, 15 s, 45 s between), before the gate says it could not ask: on 2026-11-02 one HTTP 502 and
+// twice on 2026-11-16 a stream error failed a deploy whose round was green. A 4xx is an answer, never asked again.
+const asked = (cmd, a) => retryTransient(() => run(cmd, a), { what: `${cmd} ${a.join(" ")}`.slice(0, 80), sleep, log: (m) => console.log(`deploy-gate: ${m}`) });
+const git = (...a) => asked("git", a);
 function gh(...a) {
-  let r = run("gh", a);
-  for (let attempt = 1; attempt <= 4 && r.status !== 0 && isPassingFault(`${r.stderr}${r.stdout}`); attempt += 1) {
-    pause(5000 * attempt);
-    r = run("gh", a);
-  }
+  const r = asked("gh", a);
   if (r.status !== 0) throw new Error(`gh ${a.join(" ")}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
   return r.stdout.trim() ? JSON.parse(r.stdout) : null;
 }
@@ -121,8 +115,12 @@ function waitingCommitsSince(deployed, sha) {
   );
 }
 
-/** The commits a Nightly round was clean on: its Verdict job succeeded. */
-function cleanNightlies() {
+/**
+ * The commits a Nightly round was clean on: its Verdict succeeded. Only nightlies on a commit that contains
+ * `oldest` (the oldest commit waiting) are asked, and each is asked for its Verdict CHECK RUN, never for all
+ * its jobs — see NIGHTLY_VERDICT_CHECK in deploy-rules.mjs for the measurements behind that.
+ */
+function cleanNightlies(oldest) {
   let runs = [];
   try {
     runs = gh("run", "list", "-R", REPO, "--workflow", "nightly.yml", "--branch", "main", "--limit", "20", "--json", "databaseId,headSha") ?? [];
@@ -130,10 +128,11 @@ function cleanNightlies() {
     return [];
   }
   const withJobs = [];
-  for (const r of runs) {
-    // Not filtered to completed runs: the round asking is still running (its deploy job is this very step).
-    const view = gh("run", "view", String(r.databaseId), "-R", REPO, "--json", "jobs");
-    withJobs.push({ headSha: r.headSha, jobs: view?.jobs ?? [] });
+  for (const r of nightliesWorthAsking(runs, (head) => isAncestor(oldest, head))) {
+    // Not filtered to completed runs: the round asking is still running (its deploy job is this very step),
+    // and its Verdict check run is already written when the deploy job starts.
+    const checks = gh("api", verdictCheckPath(REPO, r.headSha));
+    withJobs.push({ headSha: r.headSha, jobs: verdictJobsForRun(checks?.check_runs ?? [], r.databaseId) });
   }
   return cleanNightlyShas(withJobs);
 }
@@ -164,7 +163,7 @@ try {
   const alreadyThere = Boolean(deployed) && isAncestor(SHA, deployed.sha);
   const green = verifyGreen(SHA);
   const coreCommits = alreadyThere ? [] : waitingCommitsSince(deployed?.sha ?? null, SHA);
-  const nightlies = coreCommits.length || !deployed ? cleanNightlies() : [];
+  const nightlies = coreCommits.length || !deployed ? cleanNightlies(coreCommits[0]?.sha ?? SHA) : [];
   const covered = (c) => nightlies.some((n) => isAncestor(c, n));
   const facts = {
     sha: SHA,

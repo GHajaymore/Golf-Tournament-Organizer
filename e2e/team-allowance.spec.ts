@@ -143,7 +143,6 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   expect(stage.format, "the seeded round is not a four-ball").toBe("Four-Ball");
   expect(stage.type, "the seeded four-ball is not a stroke-play round").toBe("Stroke Play Round");
   expect(stage.handicapAllowance, "the seeded round carries an allowance of the committee's own").toBe(0);
-  expect(event.configUnlocked, "the seeded four-ball's setup is already unlocked").toBe(false);
 
   // ── The round, read from the rows: tees, card, sides, and each ball's card ──
   const strokeIndex = JSON.parse(event.customStrokeIndex) as number[];

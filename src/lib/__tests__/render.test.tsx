@@ -7373,7 +7373,8 @@ describe("the setup checklist", () => {
 
   it("lists what is left and marks the next one", async () => {
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
-    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
+    // `eventCount: 1`: since Cut A (15 Nov) the members step exists only once a first event does.
+    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />);
     expect(html).toContain("Add your members");
     expect(html).toContain("Next");
   });
@@ -7475,9 +7476,9 @@ describe("the setup checklist", () => {
      */
     expect(html, "/event").not.toContain('href="/event"');
     expect(html).toContain('href="/organization"');
-    expect(html).toContain('href="/roster"');
+    // EVENT-FIRST (Cut A, 15 Nov 2026): no members step before the first event at all.
+    expect(html).not.toContain("Add your members");
     // The rows are still THERE, and each blocked one says why it is not a link.
-    expect(html).toContain("Add your members");
     expect(html).toContain("Opens once you have a tournament");
     // And the promise the screen was breaking is not made.
     expect(html).not.toContain("nothing here is locked");
@@ -7504,7 +7505,8 @@ describe("the setup checklist", () => {
      */
     expect(html.indexOf("Name your")).toBeLessThan(chip);
     expect(html.lastIndexOf("Create your first tournament")).toBeGreaterThan(chip);
-    expect(html.indexOf("Add your members")).toBeGreaterThan(chip);
+    // Event-first (Cut A): nothing about members before the first event.
+    expect(html).not.toContain("Add your members");
   });
 
   it("does not say a step costs something it cannot yet be blamed for", async () => {
@@ -7531,10 +7533,10 @@ describe("the setup checklist", () => {
     const open = render(<OrgSetupChecklist state={await state({ hasCourse: false, eventCount: 1 })} />);
     expect(open).toContain("re-entered on every tournament");
 
-    // The roster's own consequence is the control: it is shown now, on the
-    // same no-tournament render, because that step CAN be acted on.
+    // The roster's own consequence is the control: shown once the step exists
+    // (a first event, since Cut A), because that step CAN be acted on.
     expect(
-      render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />),
+      render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />),
       "the members step can be acted on, so it keeps its consequence",
     ).toContain("empty field");
   });
@@ -7553,7 +7555,7 @@ describe("the setup checklist", () => {
     expect(html).not.toContain("You do this one on this page");
   });
 
-  it("does not link the tournament while the club still owes an answer", async () => {
+  it("links the tournament when the only answer owed is the name, which the create form takes", async () => {
     /**
      * THE ROW THE COMPLAINT WAS ABOUT. "How come create your first tournament
      * is complete and enabled when club settings are not complete?" — raised
@@ -7572,10 +7574,13 @@ describe("the setup checklist", () => {
         state={await state({ named: false, memberCount: 0, eventCount: 0 })}
       />,
     );
-    expect(html).not.toContain(`href="${SETUP_HREF.tournament}"`);
-    // And it says WHICH answers, rather than greying out in silence.
-    expect(html).toContain("name your club");
-    expect(html).toContain("add your members");
+    /**
+     * EVENT-FIRST (Cut A, Ajay 15 Nov 2026). The members list is no longer
+     * owed before the first event, so the one answer left is the club's name,
+     * and the create form asks for it in the same breath: the row is live.
+     */
+    expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
+    expect(html).not.toContain("add your members");
     // The promise the header makes has to follow the rows it describes.
     expect(html).not.toContain("nothing here is locked");
   });
@@ -7935,7 +7940,6 @@ describe("the lifecycle button names the phase, not the link", () => {
       <LifecycleBar
         status={cardFor(status)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
       />,
     );
@@ -8012,7 +8016,6 @@ describe("a Par tournament is offered the upgrade before it is deleted", () => {
       <LifecycleBar
         status={cardFor(status, 3, 8)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
         deletesOnComplete={deletes}
         keepOffer={deletes ? offer : undefined}
@@ -8060,7 +8063,6 @@ describe("a draft that is already being played", () => {
       <LifecycleBar
         status={cardFor(status, played)}
         isAdmin={isAdmin}
-        configUnlocked={false}
         summary={summary}
       />,
     );

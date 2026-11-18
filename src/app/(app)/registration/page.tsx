@@ -1,6 +1,8 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
+import { needsStrokesNoteFor } from "@/lib/services/committee-figure";
+import { NeedsStrokesNote } from "@/components/NeedsStrokesNote";
 import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { ladiesTeeFor, ladiesTeeOn, teeIdFor } from "@/lib/domain/handicap";
 import { redirect } from "next/navigation";
@@ -133,6 +135,9 @@ export default async function RegistrationPage() {
   return (
     <>
       <SetupFlowRail flow={flow} href="/registration" />
+      {/* Every door on this screen (the roster pick, a late entry, a CSV import, an approval) lands its
+          player here, so the note is said here, after the write, for as long as it is true (lane N). */}
+      <NeedsStrokesNote note={await needsStrokesNoteFor(session.eventId, session.viewRole === "admin" || session.viewRole === "assistant")} />
     <RegistrationClient
       handicapBody={{ id: body.id, label: bodyShortLabel(body), prose: bodyInProse(body), number: body.number }}
       noFormatYet={state.stages.length === 0 && state.confirmed.length === 0}
