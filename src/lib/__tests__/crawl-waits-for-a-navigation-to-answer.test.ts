@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { readSource } from "./source";
-import { isNavigationRequest, watchNavigations } from "../../../e2e/navigation-settle";
+import { isNavigationRequest, targetOf, watchNavigations } from "../../../e2e/navigation-settle";
 
 /**
  * THE CRAWL JUDGES A NAVIGATING PRESS WHEN THE SERVER HAS ANSWERED (nightly G60-1, 18 Nov 2026).
@@ -57,10 +57,27 @@ describe("watchNavigations", () => {
       await vi.advanceTimersByTimeAsync(10_001);
       const v = await s;
       expect(v.ok).toBe(false);
-      expect(!v.ok && v.waiting).toBe("/print?signs=group&");
+      expect(!v.ok && v.waiting).toBe("/print?signs=group");
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("a navigation that answered BEFORE the judge looked is still remembered, so the crawl waits for its address", async () => {
+    const p = fakePage();
+    const w = watchNavigations(p);
+    const r = req("http://x/print?round=2&signs=group&_rsc=abc");
+    p.e.emit("request", r);
+    p.e.emit("requestfinished", r); // answered at ~650 ms; the screen is not drawn yet
+    expect(w.pending()).toBe(0);
+    expect(await w.settled(10_000)).toEqual({ ok: true });
+    expect(w.seen()).toEqual(["/print?round=2&signs=group"]);
+  });
+
+  it("targetOf strips the host and _rsc wherever it sits", () => {
+    expect(targetOf("http://x/a?_rsc=1")).toBe("/a");
+    expect(targetOf("http://x/a?_rsc=1&b=2")).toBe("/a?b=2");
+    expect(targetOf("http://x/a?b=2&_rsc=1")).toBe("/a?b=2");
   });
 
   it("a failed request ends the wait too", async () => {
@@ -91,6 +108,9 @@ describe("the console crawl uses it", () => {
     expect(spec).toMatch(/watchNavigations\(page\)/);
     const after = spec.slice(spec.indexOf("waitForTimeout(700)"), spec.indexOf("if (picker) return"));
     expect(after).toMatch(/navigations\.settled\(/);
+    expect(after).toMatch(/navigations\.seen\(\)/);
+    expect(after).toMatch(/waitForURL\(/);
+    expect(after).not.toMatch(/waitForTimeout\(300\)/);
     expect(after).toMatch(/outcome: "stuck"/);
     expect(spec).toMatch(/navigations\.stop\(\)/);
   });

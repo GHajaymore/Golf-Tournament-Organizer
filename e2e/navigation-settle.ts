@@ -28,14 +28,26 @@ export function isNavigationRequest(r: Req): boolean {
   return h["rsc"] !== undefined || /[?&]_rsc=/.test(r.url());
 }
 
+/** `/print?signs=group` from a full RSC address: no host, no `_rsc`, no trailing `?` or `&`. */
+export function targetOf(url: string): string {
+  return url
+    .replace(/^https?:\/\/[^/]+/, "")
+    .replace(/([?&])_rsc=[^&]*&?/, "$1")
+    .replace(/[?&]$/, "");
+}
+
 export function watchNavigations(page: Pageish) {
   const inFlight = new Set<Req>();
+  const seenTargets: string[] = [];
   const waiters: Array<() => void> = [];
   const drained = () => {
     if (inFlight.size === 0) for (const w of waiters.splice(0)) w();
   };
   const onRequest = (r: Req) => {
-    if (isNavigationRequest(r)) inFlight.add(r);
+    if (isNavigationRequest(r)) {
+      inFlight.add(r);
+      seenTargets.push(targetOf(r.url()));
+    }
   };
   const onDone = (r: Req) => {
     if (inFlight.delete(r)) drained();
@@ -44,6 +56,8 @@ export function watchNavigations(page: Pageish) {
   page.on("requestfinished", onDone);
   page.on("requestfailed", onDone);
   return {
+    /** Every navigation target (path and query, `_rsc` stripped) sent since watching began, answered or not. */
+    seen: () => [...seenTargets],
     /** How many navigation requests have been sent and not answered. */
     pending: () => inFlight.size,
     /** Resolves `{ ok: true }` once nothing is in flight; `{ ok: false, waiting }` if one is still unanswered after `ms`. */
@@ -59,7 +73,7 @@ export function watchNavigations(page: Pageish) {
       if (ok) return { ok: true };
       const first = [...inFlight][0];
       const u = first ? first.url() : "";
-      return { ok: false, waiting: u.replace(/^https?:\/\/[^/]+/, "").replace(/([?&])_rsc=[^&]*/, "$1").slice(0, 120) };
+      return { ok: false, waiting: targetOf(u).slice(0, 120) };
     },
     stop() {
       page.off("request", onRequest);

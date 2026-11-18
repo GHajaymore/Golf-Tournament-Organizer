@@ -502,10 +502,16 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
     await page.waitForTimeout(700);
     // A navigation the press started (`router.push` sends an RSC request) is waited for, bounded:
     // 848 ms on a slow runner read as "silent" on nightly G60-1. One that never answers is its own finding.
-    const waited = navigations.pending() > 0;
     const answered = await navigations.settled(10_000);
     if (!answered.ok) return { outcome: "stuck", note: `the press started a navigation (${answered.waiting}) and it was not answered in 10s` };
-    if (waited) await page.waitForTimeout(300); // the answer is drawn and the address changes a moment after it lands
+    // An answer lands a moment before the screen is drawn and the address changes: wait for the address the
+    // navigation went to, however early it answered. A request to the address we are on (router.refresh) has none to wait for.
+    const here = (u: URL) => u.pathname + u.search;
+    const targets = navigations.seen().filter((t) => t !== here(new URL(startUrl)));
+    if (targets.length) {
+      const drawn = await page.waitForURL((u) => targets.includes(here(u)), { timeout: 5_000 }).then(() => true, () => false);
+      if (!drawn) return { outcome: "stuck", note: `the press started a navigation to ${targets[0]} and the address never reached it in 5s` };
+    }
     if (picker) return { outcome: "view", note: `chooses ${picker}` };
     const builder = BUILDERS[`${path}|${c.label}`];
     if (builder) return { outcome: "in a form", note: builder };
