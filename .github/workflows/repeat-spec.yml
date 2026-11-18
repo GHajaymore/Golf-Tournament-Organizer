@@ -80,6 +80,8 @@ jobs:
           PROJECT: ${{ inputs.project }}
           REPEAT: ${{ inputs.repeat }}
           E2E_EVERYTHING: ${{ inputs.everything && '1' || '' }}
+        # The container's default shell is sh, which has no `pipefail`.
+        shell: bash
         run: |
           set -o pipefail
           npx playwright test "$SPEC" --project="$PROJECT" --grep "$TITLE" --repeat-each="$REPEAT" --trace on --reporter=list | tee repeat-output.txt
