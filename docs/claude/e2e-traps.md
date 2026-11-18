@@ -227,3 +227,11 @@ refuses the page-wide form.
   `organizer-knockout-report.spec.ts` "Change result") and passed on the four nightlies before. Before pressing a
   button the previous press may have moved, wait for the SCREEN's answer (the next button's name, the sentence that
   changes), not for the database row.
+
+## Judge a press when the server answers, not after a guess
+
+`waitForLoadState("networkidle")` belongs to the document load and does not re-arm for a client-side
+`router.push`, so a fixed wait plus `networkidle` reads a slow RSC answer as "nothing happened". Anything that
+decides a press did nothing must first wait for the navigation requests it started (`watchNavigations` in
+`e2e/navigation-settle.ts`, bounded, an unanswered one reported as its own failure). Test it with a delayed
+fake, as `crawl-waits-for-a-navigation-to-answer.test.ts` does.

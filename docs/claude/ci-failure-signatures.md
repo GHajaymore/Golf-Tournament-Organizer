@@ -348,3 +348,13 @@ CI. If it fails again BEFORE this lands, add the entry to `e2e/quarantine.json` 
 `e2e/organizer-rounds-screen.spec.ts`, test "a match-play championship in groups, then a knockout", owner
 Test Engineer, reason "click never returns, cause unexplained; see ci-failure-signatures", expiry at most 7
 days out). Once it lands, a recurrence explains itself and the next engineer fixes what the table says.
+
+## `SILENT` on a control that navigates (console crawl)
+
+`SILENT · <screen> · <control> → <choice>` ("nothing was sent and nothing changed") on a radio, link-like choice
+or button that goes to another address (`router.push`). Open the trace: if a `GET …&_rsc=…` was sent a few
+tens of ms after the press and answered after the crawl looked, it is this and not the app (nightly G60-1,
+18 Nov 2026: the cup's `/print` signs choice, answered in 848 ms against a 700 ms guess; first seen G654-1, B83).
+Fixed at the root in `e2e/navigation-settle.ts`: `exercise()` waits, bounded to 10 s, for every non-prefetch RSC
+request the press started, and an unanswered one is `STUCK` with the address. A SILENT that remains has no
+such request in its trace, so it is a real silent control. Do not raise the 700 ms.
