@@ -24,6 +24,7 @@ const LAZY: Array<{ client: string; panels: string[] }> = [
   { client: "src/components/EntryModes.tsx", panels: ["ScoreImport", "ClearScores"] },
   { client: "src/components/TeamScoreImport.tsx", panels: ["ScoreImport"] },
   { client: "src/components/StagesClient.tsx", panels: ["MatchTiebreakControl", "RoundHandicaps"] },
+  { client: "src/components/CourseLibrary.tsx", panels: ["CardImport", "CourseSearch"] },
 ];
 
 describe("the rounds screen loads the cut's tie panel when a tie is drawn", () => {
