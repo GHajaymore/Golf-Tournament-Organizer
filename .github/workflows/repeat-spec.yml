@@ -80,11 +80,13 @@ jobs:
           PROJECT: ${{ inputs.project }}
           REPEAT: ${{ inputs.repeat }}
           E2E_EVERYTHING: ${{ inputs.everything && '1' || '' }}
+          # The whole crawl writes a trace of hundreds of MB, and saving it overran the 30 s test timeout (run 44279889531).
+          TRACE: ${{ inputs.everything && 'retain-on-failure' || 'on' }}
         # The container's default shell is sh, which has no `pipefail`.
         shell: bash
         run: |
           set -o pipefail
-          npx playwright test "$SPEC" --project="$PROJECT" --grep "$TITLE" --repeat-each="$REPEAT" --trace on --reporter=list | tee repeat-output.txt
+          npx playwright test "$SPEC" --project="$PROJECT" --grep "$TITLE" --repeat-each="$REPEAT" --trace "$TRACE" --reporter=list | tee repeat-output.txt
           # A run that tested nothing must not read green: every test skipped, or the grep matched none,
           # exits 0 with no "N passed" line (run 44265180233 on the crawl passed on 0 tests).
           if ! grep -Eq '^[[:space:]]*[1-9][0-9]* passed' repeat-output.txt; then
