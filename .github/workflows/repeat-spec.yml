@@ -29,6 +29,11 @@ on:
         description: How many times to run it
         required: true
         default: "20"
+      everything:
+        description: Set E2E_EVERYTHING=1 (the console crawl, every-control.spec.ts, skips itself without it)
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -74,8 +79,16 @@ jobs:
           TITLE: ${{ inputs.title }}
           PROJECT: ${{ inputs.project }}
           REPEAT: ${{ inputs.repeat }}
+          E2E_EVERYTHING: ${{ inputs.everything && '1' || '' }}
         run: |
-          npx playwright test "$SPEC" --project="$PROJECT" --grep "$TITLE" --repeat-each="$REPEAT" --trace on --reporter=list
+          set -o pipefail
+          npx playwright test "$SPEC" --project="$PROJECT" --grep "$TITLE" --repeat-each="$REPEAT" --trace on --reporter=list | tee repeat-output.txt
+          # A run that tested nothing must not read green: every test skipped, or the grep matched none,
+          # exits 0 with no "N passed" line (run 44265180233 on the crawl passed on 0 tests).
+          if ! grep -Eq '^[[:space:]]*[1-9][0-9]* passed' repeat-output.txt; then
+            echo "::error::Playwright ran 0 tests that passed (skipped, or no test matched). Set the 'everything' input for every-control.spec.ts."
+            exit 1
+          fi
 
       - name: Keep every trace
         if: ${{ !cancelled() }}
