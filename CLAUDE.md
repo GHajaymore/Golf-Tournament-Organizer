@@ -55,7 +55,26 @@ A fixture that signs itself in signs `signedInNow(user.id)` (from `scripts/sessi
 
 ## Sign-ins until launch: production is held
 
-Ajay, 2026-10-17 and 2026-10-21: block sign-up and sign-in until he says launch. **Production holds itself** (`src/lib/sign-in-gate.ts`): only `OWNER_EMAILS` / `SIGNIN_ALLOW_EMAILS` may sign in or keep a session; everyone else sees the "opens soon" front door, and the held page says sign-ups "paused", never "closed". Every door asks `maySignInNow` / `signInsHeld` / `launchState`, so a new door must too. No session for an unproved address; every new password goes through `passwordRefusal`. Launch, the words and the signing-in rules: `docs/claude/sign-ins.md`.
+Ajay, 2026-10-17 and 2026-10-21: block sign-up and sign-in until he says launch. `src/lib/sign-in-gate.ts`.
+**Production holds itself:** only the owners on `OWNER_EMAILS` (and anybody on `SIGNIN_ALLOW_EMAILS`) may
+sign in, set or reset a password, sign up, or keep a session; everybody else sees the "opens soon" front
+door (sign-in only, `/play` for a player, every button to `/interest`). Previews, dev, CI and e2e are not
+production and stay open. **To launch:** Go live on the Accounts card of `/owner` (`services/signins-switch.ts`),
+or `SIGNINS=open` in Vercel — ONE press takes every held place live, Hold again holds them all; the places are
+`LAUNCH_SURFACES` in `src/lib/go-live.ts` (= `docs/go-live-switch.md`), each screen takes `LaunchState` as a
+REQUIRED argument, and once live the card sends the early-list codes on the owner's press (`services/early-list.ts`).
+**Every door asks `maySignInNow` / `signInsHeld` / `launchState`** (`createSession`, `getSession`,
+the sign-in actions, the public pages), so a new door must too. The held page's words are
+`HELD_FRONT_DOOR` / `SIGNINS_CLOSED_NOTICE`: sign-ups "paused" (never "under development"), never the word
+"closed" on screen, and the free plan's "Free for fields of up to 10" and "No card" stay down until launch.
+It is held only while `OWNER_EMAILS` names somebody, so it can never lock everyone out.
+
+**Signing in (2026-10-21):** no session for an address nobody has proved (`createSession` refuses a null
+`emailVerifiedAt`; a fixture that signs in through it sets `emailVerifiedAt: new Date()`, a spec that signs
+up or claims through the form calls `verifyByCode(page, email)` from `e2e/verify-by-code.ts`); every new
+password goes through `passwordRefusal` (`services/password-breach.ts`); club staff on a browser not seen
+before are sent a code (`KnownDevice`) — sign a STAFF fixture in with `signedInNow`, not the password form.
+Long form: `docs/claude/sign-ins.md`.
 
 ## The club's clock: "today" is asked of the club, never of the server
 
@@ -81,7 +100,10 @@ because …". And **ask Ajay** when a change might deserve a place on the landin
 capability, a claim that has changed, a better screen to show. Do not decide silently that it
 needs nothing.
 
-**The landing page** is its own stylesheet, and two sections are green on a phone as Ajay's TEST: change nothing there on anybody's word but his. Read `docs/claude/landing-page.md` before touching it.
+**The landing page** (`src/app/page.tsx`, `src/lib/landing/home-styles.ts`) is its own stylesheet and its
+chrome also dresses `/faq`, `/privacy`, `/terms`. Pictures are unedited captures with an invented demo
+club. Two sections are green on a phone as Ajay's TEST — never extend, restyle or remove them on
+anybody's word but his; after go-live nothing changes without his preview. **Read `docs/claude/landing-page.md` before touching it.**
 
 Stale help is tested (`player-help.test.ts`, `guide-steps.test.ts`, `guide-search.test.ts`); a flow that works differently under the same button names is not, and is yours.
 
@@ -91,7 +113,13 @@ The secretary's home (**What's next**) and **Copy last event** were approved by 
 
 ## End-to-end means across the board
 
-Ajay, 2026-10-10: the e2e "should cover EVERYTHING IN THE APP". A browser-test result is never reported without its reach (`node scripts/e2e-coverage.mjs`), and a mutation check starts from a commit. Long form: `docs/claude/e2e-across-the-board.md`.
+Ajay, 2026-10-10: the e2e "should cover EVERYTHING IN THE APP". **A browser-test result is never reported
+without its reach**: `node scripts/e2e-coverage.mjs` (`--reset` empties the ledger before a run) prints what
+was reached and, by name, what never was; the first measurement was 36 of 263 server actions. "A round" is
+the whole suite and is "clean" only with its reach stated beside it. A screen every walk opens and nobody
+uses is not a tested screen; a refusal is said where the press was; a step that did not run says so. A
+finding from reading code becomes a browser test, not only a fix. **Commit before any mutation check** so
+`git checkout -- <file>` is exactly right. Long form: `docs/claude/e2e-across-the-board.md`.
 
 ## Verification
 
@@ -140,6 +168,10 @@ any functionality." That is `scripts/qa/` and `docs/testing.md`, and three habit
 
 Since 2026-10-23 the pipeline is the testing panel's (`docs/testing-panel-2026-10-23.md`; manual `docs/testing.md`): rounds by tier, the nightly and weekly, zero retries, `e2e/quarantine.json`. **Two sessions on one machine share one e2e fixture and a Playwright run in either wipes the other's:** send "fixture turn: starting" and wait for "go". A round stopped with TaskStop is not stopped; kill what is left. Read `docs/claude/testing-pipeline.md`.
 
+- **The machine is not the app**: a part the runner, the setup, the build download or the browser
+  install stopped makes the verdict `INCOMPLETE — re-run`, never NOT CLEAN, and `round-waiter.yml`
+  re-runs it. A crashed browser or a timed-out test is still a finding.
+
 **TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN IN EITHER WIPES THE
 OTHER'S.** Every run seeds the e2e fixture at its start and tears it down at its end, under one
 mark, in the one development database — whichever worktree it is started from. On 2026-10-13 a
@@ -155,6 +187,27 @@ nothing.
 ## What gates a merge, and what gates a deploy
 
 The `verify` check (ruleset "main must be green") gates a merge; `deploy.yml` gates a deploy (verify green, nightly cleared, no freeze) and never builds: Vercel does. Read WHICH JOB failed first: `verify` red is your change, `deploy` red on a green `verify` is the token, database or allowance. **A green PR is not a green commit:** tie the verdict to the head SHA (`--match-head-commit`). Only the main session merges. Long form, signatures and commands: `docs/claude/deploy-history.md`.
+
+Since 2026-10-23 a green deploy job may also be a HOLD (a core change waiting for the nightly, or
+the freeze): its summary starts "Deploy gate: hold" and says why. "Merged" is "live" only when the
+gate said deploy, or when a GitHub deployment to `tourneyhq-production` names that commit or a
+later one.
+
+**SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
+panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
+verdict), an hourly schedule and *Run workflow*. `scripts/qa/deploy-gate.mjs` deploys a commit
+only when `verify` is green on it, every core commit since the last deploy is inside a clean
+nightly round, and no club is in its FREEZE. **Ajay, 2026-11-06:** the freeze is OFF until 20 Nov 2026
+(`FREEZE_RESUMES`, 20 Nov 00:00 in UTC+14); then, while sign-ins are held, only a PILOT club (one
+where somebody on `SIGNIN_ALLOW_EMAILS` is staff) playing today freezes, never a weekend morning;
+once live, a tournament on today at any club in its own time, or a weekend morning 05:00–14:00 in
+any club's zone (`deployWindowFor`; old wording in `docs/claude/retired.md`). The freeze is asked of the APP
+(`/api/deploy-window`, bearer `DEPLOY_WINDOW_TOKEN`, answering only `{frozen, reason}`), because
+this runner must never hold production's database credentials (below); unreachable means not
+frozen, said in the summary. A HOLD IS GREEN — the gate working — and the hourly run ships it
+later. *Override freeze* is for emergencies and overrides only the freeze. What production holds
+is recorded as a GitHub deployment to `tourneyhq-production`. The job's check is now named
+`Deploy to production / Deploy to production`, so read it with `endswith`, as below.
 
 **The deploy job does not build.** It uploads the source and Vercel builds it; `vercel-build` runs
 `prisma migrate deploy` against PRODUCTION, so never build on the runner or ship `--prebuilt` (it would put
@@ -233,7 +286,22 @@ Windows. Both PowerShell and Git Bash are available and take different syntax �
 (a PowerShell here-string in bash silently becomes part of the string). Node needs
 `PATH="/c/Program Files/nodejs:$PATH"` under Git Bash.
 
-**Never rewrite a source file with PowerShell:** it adds a BOM and mojibakes em-dashes; use the Edit tool. The READ corrupts too, a `node -e` replace on CRLF does nothing quietly, and anything with a backslash goes through Write or Edit. More: `docs/claude/shell-traps.md`.
+**Never rewrite a source file with PowerShell.** `Set-Content -Encoding utf8` adds a BOM and
+re-encodes every em-dash and curly quote as mojibake. It corrupted `stage-types.ts` once and
+seven page files later the same day, both times invisibly — the code still compiled and the
+tests still passed. Use the Edit tool, however many files it takes. The tell is
+`git diff --stat`: a one-line change showing seventy.
+
+Also, each learned the hard way (`docs/claude/shell-traps.md`): **the READ corrupts, not the write**
+(`Get-Content -Raw` decodes ANSI) — PowerShell may READ a source file and never write one back; use `git` to
+restore (`git checkout -- <file>`, after committing). **A `node -e` string replace on a CRLF checkout does
+nothing and says so quietly** — print `before !== after` and `grep -c` before and after, or use Edit.
+**Anything containing a backslash goes through the Write or Edit tool**, never a heredoc or `node -e`
+(`\b` becomes a backspace; prefer `indexOf` / `includes` / `split`). A rebase that refuses over a file with no
+diff: `git add --renormalize prisma/migrations/migration_lock.toml` (never `git stash`). A sweep that finds
+nothing needs a CONTROL; a script that fetches an authenticated screen asserts status 200 before reading the
+body (a 307 is a success that looks like the app working); know which session the browser holds before
+believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`).
 
 ## Index: if your task touches X, read this first
 
