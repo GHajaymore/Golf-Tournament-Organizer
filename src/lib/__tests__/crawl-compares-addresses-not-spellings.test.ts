@@ -31,6 +31,14 @@ describe("sameAddress", () => {
     expect(sameAddress("/print?a=1&a=2", "/print?a=1")).toBe(false);
     expect(sameAddress("/Print", "/print")).toBe(false);
   });
+  it("Next re-encodes a query: a space as + or %20 and an encoded slash are one address", () => {
+    expect(sameAddress("/p?name=a%20b", "/p?name=a+b")).toBe(true);
+    expect(sameAddress("/p?d=a%2Fb", "/p?d=a/b")).toBe(true);
+  });
+  it("control: the crawl judge holds no other exact address compare", () => {
+    const spec = readSource("e2e/every-control.spec.ts");
+    expect(spec).not.toMatch(/(page\.url\(\)|u\.href|startUrl)\s*[!=]==\s*(startUrl|targets|page\.url\(\))/);
+  });
   it("keeps an encoded value apart from its neighbour", () => {
     expect(sameAddress("/p?q=a%26b", "/p?q=a&b")).toBe(false);
     expect(addressKey("/p?b=2&a=1")).toBe("/p?a=1&b=2");
