@@ -30,3 +30,16 @@ single reader must be pinned to the RULES, because readers that agree by
 construction agree whether or not they are right; and a dead twin of a live rule
 (`courseHandicapForPlayer`, deleted that day with no callers) is a second copy
 waiting to be used.
+
+## Moved from CLAUDE.md (20 Nov 2026): One rule, one place
+
+Ajay, 2026-10-13: "make sure the underlying pieces/modules are in line and built as shareable vs every
+screen/function/round using different logic or their own way." Two screens answering one question
+differently is the class a screen test cannot see. `docs/one-rule-one-place.md` is the inventory. For each
+rule: (1) ONE function holds it and takes what it needs as REQUIRED arguments, so the compiler lists every
+caller the day the rule grows; (2) ONE test worked from the Rules of Golf by a route the code does not take,
+on the axis the fixtures missed; (3) ONE sweep that refuses a second copy, with a control proving it can see
+one. A single reader must be pinned to the RULES (readers that agree by construction agree whether or not
+they are right); a dead twin of a live rule is a second copy waiting to be used. Ban the shape, not the
+spelling. Long form: `docs/claude/one-rule-one-place-rationale.md`.
+
