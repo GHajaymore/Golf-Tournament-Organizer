@@ -29,10 +29,11 @@
  * ruling of 3 Nov (section 8): which steps HOLD launch per format family, when
  * a family's play is over, and the lock's reason and way out.
  */
-import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
+import { isFinished, isLaunched } from "./lifecycle-state";
 import { formatDayAt } from "./locale";
 import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
-import { unratedTeesTodo, type LaunchCheck, type UnratedTees } from "./launch-check";
+import { needsStrokesWarning, unratedTeesTodo, type LaunchCheck, type UnratedTees } from "./launch-check";
+import { SINK_LIVE, needsFigureTodo, type NeedsStrokes } from "./committee-figure";
 import { completingCheckFor, finishRefusal, playRefusal, statusMove } from "./phase-gate";
 import type { BracketView } from "./bracket";
 import { screenName } from "@/lib/nav";
@@ -96,12 +97,15 @@ export type LockScope = (typeof LOCK_SCOPES)[number];
 export interface TournamentFacts {
   /** The club's day (`clubDayForEvent`), never the server's. */
   today: string;
-  /** Stored: draft | registration | ready | live | completed. Legacy values allowed until J14. */
+  /**
+   * Stored: draft | live | completed (state machine PR 8, J14: migration A045
+   * moved the old ladder's two later words to `draft`). The old word a row kept
+   * (`Event.legacyStatus`) is not a fact of the machine: the step is Setting up
+   * either way, and the one thing it still decides, whether members may see the
+   * tournament, is asked of the row by `openToMembers`. It was a placeholder
+   * here, "" on every tournament and read by nothing, and left with PR 8.
+   */
   status: string;
-  /** The old value of a row moved to `draft` by J14's migration; "" until it lands (PR 8). */
-  legacyStatus: "" | "registration" | "ready";
-  /** Today's blanket Unlock. Read as the legacy correction until PR 9. */
-  configUnlocked: boolean;
   /**
    * A committee correction open on one scope (panel 8.1, TD Q2). Null until
    * PR 5b adds its columns; the shape is here so nothing changes when it does.
@@ -148,6 +152,8 @@ export interface TournamentFacts {
   missingCards: { stageId: string; label: string; course: string }[];
   /** Tees with no rating under a round that scores off a handicap (`unratedTeesFact`); a launch warning only. */
   unratedTees?: UnratedTees | null;
+  /** Players with no handicap index in a net round, with no strokes yet (`needsStrokesFact`); a launch warning and a to-do only. */
+  needsStrokes?: NeedsStrokes | null;
   /** A knockout's draws and its play-off for third; null when there is no Bracket Stage. */
   knockout: { draws: DrawFacts[]; thirdPlace: { on: boolean; decided: boolean } } | null;
   /** A cup's verdict is no longer "open"; null when not a cup or not read. */
@@ -685,6 +691,15 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
       done = !holdsNow && f.groups > 0 && f.unplacedInFlights === 0;
       if (!holdsNow && f.groups === 0) missing = "Optional — one field.";
       else if (!holdsNow && f.unplacedInFlights > 0) missing = `${playersAre(f.unplacedInFlights)} in no flight.`;
+    } else if (s.key === "registration") {
+      done = !holdsNow && s.done;
+      // Lane N: players with no handicap index in a round scored net are a to-do on the field's own
+      // step, never a hold (the launch dialog warns of the same fact, `needsStrokesWarning`).
+      const strokes = f.needsStrokes;
+      if (done && strokes && strokes.players > 0 && !isFinished(f.status)) {
+        done = false;
+        missing = needsFigureTodo(strokes.players, strokes.rounds, SINK_LIVE);
+      }
     } else {
       done = !holdsNow && s.done;
     }
@@ -721,7 +736,7 @@ const CORRECTION_WAY_OUT: WayOut = { says: "Make a committee correction", href: 
 const REOPEN_WAY_OUT: WayOut = { says: "Reopen it on the dashboard", href: DASHBOARD };
 
 /**
- * THE FACTS A LOCK IS DECIDED ON — the status, the legacy unlock, an open
+ * THE FACTS A LOCK IS DECIDED ON — the status, the family, an open
  * correction, a confirmed draw, and of each round only its kind and whether
  * it has a result (the family, and a flighted knockout's first result). An
  * action asking "may I write" reads this much (`lockFactsFor`), not the whole
@@ -731,7 +746,7 @@ const REOPEN_WAY_OUT: WayOut = { says: "Reopen it on the dashboard", href: DASHB
  * `scoped-locks.test.ts` holds `locksFor` of either to the same answer.
  */
 export type LockRoundFacts = Pick<RoundFacts, "type" | "playing" | "stableford" | "hasResult">;
-export interface LockFacts extends Pick<SetupSideFacts, "status" | "configUnlocked" | "correction" | "flightsConfirmed" | "shape" | "league" | "bracketMode"> {
+export interface LockFacts extends Pick<SetupSideFacts, "status" | "correction" | "flightsConfirmed" | "shape" | "league" | "bracketMode"> {
   rounds: readonly LockRoundFacts[];
 }
 
@@ -739,7 +754,6 @@ export interface LockFacts extends Pick<SetupSideFacts, "status" | "configUnlock
 export function lockFactsOf(f: SetupSideFacts): LockFacts {
   return {
     status: f.status,
-    configUnlocked: f.configUnlocked,
     correction: f.correction,
     flightsConfirmed: f.flightsConfirmed,
     shape: f.shape,
@@ -747,6 +761,21 @@ export function lockFactsOf(f: SetupSideFacts): LockFacts {
     bracketMode: f.bracketMode,
     rounds: f.rounds.map((r) => ({ type: r.type, playing: r.playing, stableford: r.stableford, hasResult: r.hasResult })),
   };
+}
+
+/**
+ * IS SETUP LOCKED BY LAUNCH — the one predicate (state machine PR 9b). Launched,
+ * and not a casual round: the proposal's table says "Casual: locks none" (8.2)
+ * and a casual round is "created live and unlocked" (2e) — two people who
+ * decide on the first tee to play nine instead of eighteen ARE the field's
+ * expectations. Until 9b this was `configurationLocked`, launched AND not
+ * unlocked by the retired blanket flag, and a casual round was open only because
+ * `createMatch` wrote that flag: nothing here said so. Now the rule says it, and
+ * the flag is not read. Both arguments are REQUIRED, so the compiler lists every
+ * caller the day the rule grows (`one-definition-of-launched.test.ts`).
+ */
+export function setupLockedByLaunch(status: string, family: Family): boolean {
+  return isLaunched(status) && family !== "casual";
 }
 
 /**
@@ -758,8 +787,8 @@ function locksOf(f: LockFacts, family: Family): Record<LockScope, Lock> {
   const open: Lock = { locked: false };
   const out = Object.fromEntries(LOCK_SCOPES.map((s) => [s, open])) as Record<LockScope, Lock>;
   const finished = isFinished(f.status);
-  // The shared predicate, not a second spelling of it (one-definition-of-launched.test.ts).
-  const blanket = configurationLocked(f);
+  // The one predicate, not a second spelling of it (one-definition-of-launched.test.ts).
+  const blanket = setupLockedByLaunch(f.status, family);
   for (const scope of BLANKET) {
     if (!blanket) continue;
     out[scope] = finished
@@ -806,7 +835,7 @@ export function knockoutHasResults(rounds: readonly Pick<RoundFacts, "type" | "h
 
 /**
  * THE LOCKS, FROM THE SETUP SIDE OF THE FACTS ALONE (PR 5a). A lock asks the
- * status, the blanket unlock, a confirmed draw, the family and whether a
+ * status, a confirmed draw, the family and whether a
  * knockout round has a result — never the club's day, a knockout's draws, a
  * cup's verdict or the review queue — so an action that only needs to know
  * whether it may write does not pay for those. The same `locksOf` the whole
@@ -823,8 +852,9 @@ export function locksFor(f: LockFacts): Record<LockScope, Lock> {
  * scores to invalidate (section 3, "Add a round"). `addStage` and
  * `applySetupProposal` ask THIS, the one rule, and nothing else: until PR 5b
  * one refused while live and the other refused nothing, not even completed.
- * Read off the rounds lock so a completed tournament a legacy unlock holds open
- * is open here too, as it is for every other round setting.
+ * Read off the rounds lock, so it is refused exactly where the rounds are locked
+ * by completion: since PR 9b no retired flag holds a completed tournament open,
+ * and Reopen is the way out (Rule 20.2e).
  */
 export function addRoundLockOf(locks: Record<LockScope, Lock>): ScopeLock | null {
   const l = scopeLockOf(locks, "rounds");
@@ -1002,6 +1032,15 @@ export const ALREADY_LAUNCHED = "This tournament has already been launched, so t
 export const ALREADY_COMPLETED = "This tournament is already completed. To change a result, reopen it on the dashboard.";
 export const NOT_LAUNCHED_TO_COMPLETE = "This tournament hasn’t been launched yet, so there is nothing to complete. Launch it from the dashboard first.";
 export const NOT_COMPLETED_TO_REOPEN = "This tournament isn’t completed, so there is nothing to reopen.";
+/**
+ * A CASUAL ROUND IS NEVER COMPLETED (Tournament Director, 16 Nov). It has no
+ * Committee to sign its cards off and no result to release: it is kept, or it
+ * ends when its time runs out (`playIsOver`). No screen offers Complete for
+ * one, but `setEventStatus` is a public action, and completing one there
+ * closed every round and left no Reopen. Asked first, so a casual round
+ * already completed is told this rather than "reopen it on the dashboard".
+ */
+export const CASUAL_IS_NEVER_COMPLETED = "A casual round is not completed: keep it, or it ends when its time is up.";
 /** The launch dialog's warning for a tournament whose last day has gone by unlaunched — and the Tournaments list's word (PR 6). */
 export const DATES_PASSED_UNLAUNCHED = "Its dates have passed and it was never launched.";
 
@@ -1034,12 +1073,15 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
           new Set(f.rounds.filter((r) => r.hasResult).map((r) => r.id)),
         )
       : null;
-  const refusalComplete = finished
-    ? ALREADY_COMPLETED
-    : !launched
-      ? NOT_LAUNCHED_TO_COMPLETE
-      : (finishRefusal({ pendingConfirmations: f.review.pendingConfirmations, disputed: f.review.disputed }) ??
-        (completing && "refuse" in completing ? completing.refuse : null));
+  const refusalComplete =
+    family === "casual"
+      ? CASUAL_IS_NEVER_COMPLETED
+      : finished
+        ? ALREADY_COMPLETED
+        : !launched
+          ? NOT_LAUNCHED_TO_COMPLETE
+          : (finishRefusal({ pendingConfirmations: f.review.pendingConfirmations, disputed: f.review.disputed }) ??
+            (completing && "refuse" in completing ? completing.refuse : null));
   const refusals = {
     launch: refusalLaunch,
     play: playRefusalOf(f),
@@ -1105,6 +1147,11 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
   /* warnings: what is open and does not hold */
   const warnings: StatusWarning[] = [];
   if (!launched && todayLaunch) {
+    // Lane N: a player with no handicap index in a round scored net. A wrong result outranks everything
+    // else open, so it is the FIRST row, and it is about a player, not the rounds: no hold on Rounds &
+    // formats, no missing step and no league rewording below may drop it (`needsStrokesWarning`).
+    const strokes = needsStrokesWarning(f.needsStrokes, screenName("/stages"));
+    if (strokes) warnings.push(strokes);
     for (const w of todayLaunch.warnings) {
       // A hold is a refusal, not a warning; and a step not shown warns about nothing.
       if (steps.some((s) => s.holds && s.href === w.href)) continue;

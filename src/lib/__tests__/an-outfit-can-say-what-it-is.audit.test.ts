@@ -78,7 +78,7 @@ beforeAll(async () => {
       data: {
         organizationId: orgId,
         name: `${TAG} Week 1`,
-        status: "registration", shape: "series", format: "stroke", formationRule: "balanced",
+        status: "draft", shape: "series", format: "stroke", formationRule: "balanced",
         // Its own money setting, so changing the kind moves none of its money
         // and this file stays about the ROSTER. A tournament that follows the
         // kind is asked a question of its own:

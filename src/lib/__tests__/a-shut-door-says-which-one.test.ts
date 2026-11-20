@@ -17,7 +17,7 @@ import { eventBand, bandLabelFor, BAND_LABEL, type EventBand } from "@/lib/domai
 
 const shut = (regState: string) =>
   bandLabelFor(
-    eventBand({ eventStatus: "registration", regState, canEnter: false, entered: false }),
+    eventBand({ eventStatus: "draft", regState, canEnter: false, entered: false }),
     regState,
   );
 
@@ -59,7 +59,7 @@ describe("the label says which door is shut", () => {
      * band said CLOSED over a card reading "You're on the waiting list".
      */
     const waiting = eventBand({
-      eventStatus: "registration",
+      eventStatus: "draft",
       regState: "full",
       canEnter: false,
       entered: false,

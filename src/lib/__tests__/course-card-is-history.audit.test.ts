@@ -96,7 +96,7 @@ async function venue(played: boolean) {
     data: {
       organizationId: orgId,
       name: `${TAG} medal ${Math.random()}`,
-      status: "complete", shape: "series", format: "stroke", formationRule: "balanced",
+      status: "live", shape: "series", format: "stroke", formationRule: "balanced",
       dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
       courseId: course.id,
       shareToken: `audit-course-${Date.now()}-${Math.random()}`,

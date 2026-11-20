@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { focusScopeLockBanner } from "./scope-lock-focus";
 
 /**
  * Call a server action, keep the screen disabled while it runs, and say so if
@@ -53,7 +54,11 @@ import { useRouter } from "next/navigation";
 export function useCaughtUp() {
   const router = useRouter();
   return <T extends { ok: boolean; lock?: unknown }>(res: T): T => {
-    if (!res.ok && res.lock) router.refresh();
+    if (!res.ok && res.lock) {
+      router.refresh();
+      // And the press ends at the way out (state machine PR 9b, design §4f): the banner, with its button.
+      focusScopeLockBanner();
+    }
     return res;
   };
 }

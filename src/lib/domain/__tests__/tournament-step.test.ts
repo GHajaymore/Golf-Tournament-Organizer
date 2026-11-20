@@ -58,13 +58,13 @@ describe("the Tournaments list's status word", () => {
     // The rule, by hand: last = endOn || startOn; passed when last < today and not launched.
     const cases: { startOn: string; endOn: string; status: string; passed: boolean }[] = [
       { startOn: "2026-09-26", endOn: "2026-09-26", status: "draft", passed: true },
-      { startOn: "2026-07-30", endOn: "2026-09-26", status: "registration", passed: true },
+      { startOn: "2026-07-30", endOn: "2026-09-26", status: "draft", passed: true },
       // The last day itself is still today's.
       { startOn: "2026-11-03", endOn: "2026-11-03", status: "draft", passed: false },
       // A multi-day event whose first day went by but last day has not.
       { startOn: "2026-11-01", endOn: "2026-11-05", status: "draft", passed: false },
       // No end day: the first day is the last.
-      { startOn: "2026-11-02", endOn: "", status: "ready", passed: true },
+      { startOn: "2026-11-02", endOn: "", status: "draft", passed: true },
       // Undated has passed nothing.
       { startOn: "", endOn: "", status: "draft", passed: false },
       // Launched: never "not launched".

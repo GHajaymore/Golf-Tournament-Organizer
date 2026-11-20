@@ -181,6 +181,11 @@ test("a season is started, ruled, given a tournament, finished and reopened — 
   await expect.poll(async () => (await season(FIRST_FIXED))?.status, { timeout: 20_000, message: "the season was not reopened" }).toBe("active");
   await page.getByRole("button", { name: "Add this tournament to the season" }).click();
   await expect.poll(inSeason, { timeout: 20_000, message: "a reopened season does not take the tournament" }).toBe(first.id);
+  // The row in the database is written BEFORE the screen is redrawn. Press the next button on that row alone and,
+  // on a slow Firefox, the redraw lands after the press: "not finished yet" comes back above the buttons, they
+  // move down a line, and the press (made where the button WAS) falls on the sentence (nightly 44124418761).
+  // The screen's own answer, not the row, is what says the page has settled.
+  await expect(page.getByRole("button", { name: "Remove this tournament from the season" }), "the screen is not redrawn with the tournament in the season").toBeVisible({ timeout: 20_000 });
 
   // ── a second season, beside the first ─────────────────────────────────────
   await page.getByRole("button", { name: "Start another season" }).click();

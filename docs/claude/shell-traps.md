@@ -110,3 +110,23 @@ other file, and it does not go near the shared stash stack.
 
 Read the shape rather than the filename: **any tool that rewrites a file it
 also owns** can do this. Prisma is simply the one that did.
+
+## Moved from CLAUDE.md (20 Nov 2026): Shell
+
+**Never rewrite a source file with PowerShell.** `Set-Content -Encoding utf8` adds a BOM and
+re-encodes every em-dash and curly quote as mojibake. It corrupted `stage-types.ts` once and
+seven page files later the same day, both times invisibly — the code still compiled and the
+tests still passed. Use the Edit tool, however many files it takes. The tell is
+`git diff --stat`: a one-line change showing seventy.
+
+Also, each learned the hard way (`docs/claude/shell-traps.md`): **the READ corrupts, not the write**
+(`Get-Content -Raw` decodes ANSI) — PowerShell may READ a source file and never write one back; use `git` to
+restore (`git checkout -- <file>`, after committing). **A `node -e` string replace on a CRLF checkout does
+nothing and says so quietly** — print `before !== after` and `grep -c` before and after, or use Edit.
+**Anything containing a backslash goes through the Write or Edit tool**, never a heredoc or `node -e`
+(`\b` becomes a backspace; prefer `indexOf` / `includes` / `split`). A rebase that refuses over a file with no
+diff: `git add --renormalize prisma/migrations/migration_lock.toml` (never `git stash`). A sweep that finds
+nothing needs a CONTROL; a script that fetches an authenticated screen asserts status 200 before reading the
+body (a 307 is a success that looks like the app working); know which session the browser holds before
+believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`).
+

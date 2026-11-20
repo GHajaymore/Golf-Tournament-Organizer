@@ -30,8 +30,6 @@ export function facts(over: Partial<TournamentFacts> = {}): TournamentFacts {
   return {
     today: "2026-11-03",
     status: "draft",
-    legacyStatus: "",
-    configUnlocked: false,
     correction: null,
     shape: "single",
     league: false,
@@ -116,7 +114,6 @@ export const FAMILY_FIXTURES: Record<Family, () => TournamentFacts> = {
     facts({
       shape: "match",
       status: "live",
-      configUnlocked: true,
       confirmed: 4,
       groups: 0,
       moneyAnswered: false,
@@ -128,7 +125,7 @@ export const FAMILIES = Object.keys(FAMILY_FIXTURES) as Family[];
 
 /** Launched, as `launchTournament` leaves it: live, configuration locked. */
 export function launched(f: TournamentFacts): TournamentFacts {
-  return { ...f, status: "live", configUnlocked: false };
+  return { ...f, status: "live" };
 }
 
 /** Every playing round played and closed, and — for a knockout — every Final decided. */

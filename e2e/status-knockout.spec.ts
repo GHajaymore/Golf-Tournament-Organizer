@@ -4,6 +4,19 @@ import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
+import { expectLateEntryRefused } from "./status-late-entrant";
+
+/**
+ * A LATE ENTRANT IN A KNOCKOUT (PR 9c; `field-change.ts`): REFUSED once launched, whether or not a tie
+ * has been played, and the RESERVE is the way out. Before any result the draw is the field and an
+ * Organizer's committee correction would open it; after the first result the draw is made, and the way
+ * to draw again is clearing the results on the Bracket. Each sentence is the rule's, written out.
+ */
+const KNOCKOUT_LAUNCHED =
+  "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. An Organizer can open the field with a committee correction.";
+const KNOCKOUT_DRAWN =
+  "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. To draw it again, clear its results on the Bracket.";
+const LATE = "Idris Calloway";
 
 /**
  * AN EIGHT-PLAYER CLUB KNOCKOUT, WALKED THROUGH THE STATE MACHINE (J13; the
@@ -41,6 +54,8 @@ test("a knockout says the same thing on every panel from the draw to the Final (
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "knockout",
     players: 8,
+    // The reserve is typed and saved on Entries: a save spec blocks the service worker.
+    saves: true,
     event: { shape: "knockout", qualifyMode: "overall", qualifyOverall: 8, bracketMode: "single" },
     rounds: [{ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross" }],
   });
@@ -66,7 +81,7 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
 
     // Launched (what the Launch press leaves behind): the draw is made, no tie played.
-    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", configUnlocked: false } });
+    await prisma.event.update({ where: { id: f.eventId }, data: { status: "live" } });
     await expectTournamentSays(page, {
       chip: "Live",
       lock: "live",
@@ -75,10 +90,26 @@ test("a knockout says the same thing on every panel from the draw to the Final (
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
 
+    // A late entrant (PR 9c): refused, with the reserve as the way out, and the reserve is taken.
+    await expectLateEntryRefused(page, f, LATE, KNOCKOUT_LAUNCHED);
+    await page.getByRole("button", { name: "Add as a reserve" }).click();
+    await expect
+      .poll(async () => (await prisma.player.findFirst({ where: { eventId: f.eventId, name: LATE }, select: { status: true } }))?.status ?? "", {
+        timeout: 20_000,
+        message: "the reserve was not taken",
+      })
+      .toBe("waitlisted");
+    await expect(page.getByRole("status").filter({ hasText: `${LATE} is on the waiting list as a reserve. The draw does not change.` })).toBeVisible({ timeout: 20_000 });
+    // Waiting is not entering: the tournament is where it was, the draw unchanged. The reserve goes so the walk is the eight's.
+    expect(await f.status()).toBe("live");
+    await prisma.player.deleteMany({ where: { eventId: f.eventId, name: LATE } });
+
     // Two quarter-finals in (seed 1 beats 8, seed 4 beats 5): live, and Complete is allowed.
     await win("winners-0-0", p1, "3&2");
     await win("winners-0-1", p4, "1 up");
     await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    // The draw now made at its first result: still refused, in the words that say how to draw again.
+    await expectLateEntryRefused(page, f, LATE, KNOCKOUT_DRAWN);
 
     // All four quarter-finals: the semi-finals are drawn and unplayed, the Final is TBD. Still live.
     await win("winners-0-2", p3, "2&1");

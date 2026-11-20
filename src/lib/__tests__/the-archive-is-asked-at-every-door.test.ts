@@ -83,7 +83,7 @@ describe("the archive is asked at every door", () => {
  * Extend PRESSED_WITH_WORDS when a new button on those screens calls an action.
  */
 const PRESSED_WITH_WORDS = [
-  "setRoundClosed", "settleCutTie", "setEventStatus", "launchTournament", "setConfigUnlocked",
+  "setRoundClosed", "settleCutTie", "setEventStatus", "launchTournament",
   "setStageDeadline", "setStageCarry", "setStageScoringBasis", "setStageScoreInput", "setStageMatchKeptBy",
   "setStageScoring", "setStageFormat", "setStageHoles", "setStagePlayedOn", "addStage", "removeStage",
   "generateNextRound", "setStageOptDeadline", "setStageCourse", "suspendPlay", "resumePlay",

@@ -1626,5 +1626,125 @@
  {
   "h": "f446e2634f466937",
   "t": "**HOW A DRAW IS SHOWN is the panel's ruling of 2026-10-23** (`docs/bra"
+ },
+ {
+  "h": "9bf7a2b96561703a",
+  "t": "**This is the CORE every session reads. The long lessons (incidents, m"
+ },
+ {
+  "h": "66d7a3452713115b",
+  "t": "**Rules 2–6 are also enforced, not only written** (2026-11-04): `.clau"
+ },
+ {
+  "h": "8553c8920ebce026",
+  "t": "Ajay, 2026-10-17 and 2026-10-21: block sign-up and sign-in until he sa"
+ },
+ {
+  "h": "46933773353b52b1",
+  "t": "**Signing in (2026-10-21):** no session for an address nobody has prov"
+ },
+ {
+  "h": "36f7bfc139ec73a6",
+  "t": "A deadline is a DAY and a day belongs to a place. `Organization.timeZo"
+ },
+ {
+  "h": "c4dd6b5acea77c00",
+  "t": "- **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown "
+ },
+ {
+  "h": "e27a5ea6b72d648c",
+  "t": "**The landing page** (`src/app/page.tsx`, `src/lib/landing/home-styles"
+ },
+ {
+  "h": "7e7dd9485853f323",
+  "t": "## The secretary's home: what's next, and copy last event"
+ },
+ {
+  "h": "ea42bc1bba5c076d",
+  "t": "The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **W"
+ },
+ {
+  "h": "04227cca6617a824",
+  "t": "**Copy last event** is `cloneEvent` given a first day: `copiedCalendar"
+ },
+ {
+  "h": "509589f48fecc215",
+  "t": "Ajay, 2026-10-10: the e2e \"should cover EVERYTHING IN THE APP\". **A br"
+ },
+ {
+  "h": "fcb8ba573e6148b6",
+  "t": "- **`npm run smoke`** GETs every route against a running server (defau"
+ },
+ {
+  "h": "36d5000de11857c4",
+  "t": "- **`npm run qa:changed` first, on every finished change.** It reads t"
+ },
+ {
+  "h": "fd281f6be3fec747",
+  "t": "- **Rounds by tier**: tests, words and the front door need none; funct"
+ },
+ {
+  "h": "a7ebd9f17d3648c1",
+  "t": "`ci.yml` is the only workflow that runs on its own — every PR, and eve"
+ },
+ {
+  "h": "f6dab67c3dc8f7ed",
+  "t": "**What stops a bad deploy**, since 2026-09-04: the `deploy` job in `ci"
+ },
+ {
+  "h": "cde51a9980a4e1a3",
+  "t": "**SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A "
+ },
+ {
+  "h": "5099b5fc10d9da8f",
+  "t": "**The deploy job does not build.** It uploads the source and Vercel bu"
+ },
+ {
+  "h": "836c363061463769",
+  "t": "Also: `--delete-branch` from a worktree fails with `'main' is already "
+ },
+ {
+  "h": "6479b4a1662f742f",
+  "t": "Several test files exist to make a whole class of mistake impossible —"
+ },
+ {
+  "h": "3bc0eccd1f3c5504",
+  "t": "`money-layout.ts` opens with the rule — **final only, never live.** As"
+ },
+ {
+  "h": "95356ce75c38ac83",
+  "t": "## Golf rules that have bitten (read the long form before touching the"
+ },
+ {
+  "h": "a9e7f13cd30fa976",
+  "t": "- **Handicaps** (`docs/claude/handicaps-and-tees.md`): an allowance is"
+ },
+ {
+  "h": "e1b04626db21d829",
+  "t": "Ajay, 2026-10-13: \"make sure the underlying pieces/modules are in line"
+ },
+ {
+  "h": "cdae36ffefdc8a48",
+  "t": "## Combination sweep"
+ },
+ {
+  "h": "d78a21d2c3b6d115",
+  "t": "For any change to scoring, draw, cut, bracket or handicap code add the"
+ },
+ {
+  "h": "236b66eb05c8e1f3",
+  "t": "`schema.prisma` splits the datasource: `url` pooled, `directUrl` direc"
+ },
+ {
+  "h": "54e571ba0a39094e",
+  "t": "Two grounds, one set of tokens (`DARK_GROUND`, `LIGHT_GROUND` in `src/"
+ },
+ {
+  "h": "b3430112f0aa0280",
+  "t": "Also, each learned the hard way (`docs/claude/shell-traps.md`): **the "
+ },
+ {
+  "h": "f43db1abf9bdfaaa",
+  "t": "## Index: if your task touches X, read this first"
  }
 ]

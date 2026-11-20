@@ -46,6 +46,10 @@ tsconfig.tsbuildinfo
 .vercel
 .env*
 
+# The main session's id, read by .claude/hooks/guard.mjs (only that session merges or
+# pushes a round). Local to this machine and rewritten by each new main session.
+/.claude/main-session
+
 # Throwaway QA scripts written during test passes — never part of the app.
 .qa-*.mjs
 

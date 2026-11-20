@@ -3,6 +3,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
 import { importedNames } from "./imported-names";
+import { WHERE_IT_IS_READERS } from "./retired-readers";
 
 /**
  * THE COURSE DAY TIMELINE READS THE MACHINE, AND NOTHING ELSE (state machine PR 5c, J16).
@@ -45,14 +46,8 @@ const NOT_THE_MACHINE = [
   "isLaunched",
   "isFinished",
   "isSetupLocked",
-  // the old readers of where a tournament is
-  "nextLifecycleAction",
-  "tournamentPhase",
-  "lifecycleMismatch",
-  "datesPassedUnlaunched",
-  "playOverOf",
-  "setupChecklist",
-  "isUnstarted",
+  // the old readers of where a tournament is — the one list every sweep reads (PR 9a)
+  ...WHERE_IT_IS_READERS,
   // the launch facts and the setup flow beneath the machine
   "launchCheck",
   "launchCheckFor",

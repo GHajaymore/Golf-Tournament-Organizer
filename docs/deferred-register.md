@@ -1423,6 +1423,17 @@ none. To do it properly a tee (or the course card per tee) needs its par by nine
 Until then a committee can set a player's handicap for the round by hand, on the
 round's card.
 
+**A nine is rated as half its set's eighteen, front or back** (seen 2026-11-14,
+fixing Which nine wiping a round's tees, `teeAfterVenue` in `domain/venue.ts`).
+A tee stores one Course Rating and Slope for eighteen holes, and `nineHoleTee`
+halves the rating and par for either nine, so the front and the back of one set
+price a player alike. Where a club has published its own nine-hole ratings
+(Rule 6.1b allows them, and they often differ by a few tenths between the nines)
+the app cannot hold them: that needs a rating and slope per nine on the tee, a
+schema change, and its own decision. The tees the ROUND is played from are now
+kept when the nine changes (`a-rounds-tees-survive-its-nine.audit.test.ts`, and a
+`matrix.test.ts` cell); which nine-hole figures those tees carry is this entry.
+
 **A side that shares one ball gives none either** (foursomes, greensomes, a
 scramble). Appendix C says how the side's handicap is taken from its players';
 what a difference in pars adds to a SIDE is a committee procedure the app does

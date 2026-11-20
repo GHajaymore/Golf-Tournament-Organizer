@@ -37,11 +37,12 @@ describe("the rule", () => {
   });
 
   it("holds a name in every step before launch and live, and never once completed", () => {
-    for (const s of ["draft", "registration", "ready", "live"]) expect(holdsItsName({ status: s, shape: "single" }), s).toBe(true);
+    for (const s of ["draft", "live"]) expect(holdsItsName({ status: s, shape: "single" }), s).toBe(true);
     expect(holdsItsName({ status: "completed", shape: "single" })).toBe(false);
-    // Every status the app can write is one or the other, and the list is the index's four words.
+    // Every status the app can write is one or the other. Two words since A045 (state machine PR 8)
+    // moved the old ladder's two later ones off every row; the index still lists those (below).
     expect(EVENT_STATUSES.filter((s) => !holdsItsName({ status: s, shape: "series" }))).toEqual(["completed"]);
-    expect([...NAME_HOLDING_STATUSES].sort()).toEqual(["draft", "live", "ready", "registration"]);
+    expect([...NAME_HOLDING_STATUSES].sort()).toEqual(["draft", "live"]);
   });
 
   it("never counts a casual round, which is named after whoever is in it", () => {
@@ -232,7 +233,15 @@ describe("the sweeps", () => {
     const sql = readVerbatim("prisma/migrations/A036_a_name_in_play_is_the_clubs_once/migration.sql");
     const listed = [...sql.matchAll(/"status" IN \(([^)]*)\)/g)].map((m) => m[1].replace(/'/g, "").split(/,\s*/).sort());
     expect(listed.length).toBe(2);
-    for (const l of listed) expect(l).toEqual([...NAME_HOLDING_STATUSES].sort());
+    /**
+     * THE RULE'S WORDS, PLUS ONLY THE TWO A045 RETIRED. A036 was written while the old ladder's
+     * two later words were still stored; A045 (state machine PR 8) moved every such row to
+     * `draft`, so the index covers exactly the rows the rule does. It is left as it is: rebuilding
+     * a guarded index on production to drop two words no row holds is a risk for nothing. Any
+     * OTHER difference — a word the rule holds that the index does not — still fails here.
+     */
+    const RETIRED_BY_A045 = ["ready", "registration"];
+    for (const l of listed) expect(l).toEqual([...NAME_HOLDING_STATUSES, ...RETIRED_BY_A045].sort());
     expect(sql).toMatch(/"shape" <> 'match'/);
     expect(sql).toMatch(/lower\(btrim\(regexp_replace\("name", '\\s\+', ' ', 'g'\)\)\)/);
   });

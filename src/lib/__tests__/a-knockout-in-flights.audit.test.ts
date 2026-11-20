@@ -240,7 +240,7 @@ describe("a knockout in several flights", () => {
     // LAUNCHED, SETUP LOCKED. The arrangement is setup and is locked with it; the division is the
     // draw and is not — a qualifying round is played after launch, and the field is divided after
     // that. Renamed and renamed back, so the division is left exactly as it was found.
-    await prisma.event.update({ where: { id: eventId }, data: { status: "live", configUnlocked: false } });
+    await prisma.event.update({ where: { id: eventId }, data: { status: "live" } });
     // Refused in words, never thrown (state machine PR 5b, J10), by the ROUNDS' lock: the draw's stays open here.
     expect(await setBracketMode("single"), "the arrangement is setup").toMatchObject({
       ok: false,

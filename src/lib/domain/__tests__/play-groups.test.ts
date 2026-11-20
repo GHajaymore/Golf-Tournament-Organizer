@@ -3,10 +3,10 @@ import { keepingSentence, keepingYes, matchPlayGroups, sheetPlayGroups, targetKe
 
 /** Pick your group, not your name (2026-11-04) — see `play-groups.ts`. */
 const names = new Map([
-  ["r", "Rakesh Rao"],
-  ["s", "Snehal Shah"],
-  ["u", "Subhas Sen"],
-  ["p", "Prashant Pai"],
+  ["r", "Sam Hill"],
+  ["s", "Alex Lake"],
+  ["u", "Jo Park"],
+  ["p", "Max Dale"],
   ["a", "Ann Lee"],
   ["b", "Bea Ray"],
 ]);
@@ -23,7 +23,7 @@ describe("a match round's groups", () => {
       oneMatch: true,
     });
     expect(groups?.map((g) => [g.title, g.names, g.tee])).toEqual([
-      ["Match 1", "Rakesh Rao & Snehal Shah v Subhas Sen & Prashant Pai", ""],
+      ["Match 1", "Sam Hill & Alex Lake v Jo Park & Max Dale", ""],
       ["Match 2", "Ann Lee v Bea Ray", ""],
     ]);
     expect(groups?.[0].players.map((x) => x.id)).toEqual(["r", "s", "u", "p"]);
@@ -89,19 +89,19 @@ describe("the one confirmation", () => {
   const group = {
     key: "match:m1",
     title: "Group 3",
-    names: "Rakesh & Snehal v Subhas & Prashant",
+    names: "Sam & Alex v Jo & Max",
     tee: "12:54 off the 10th",
     players: [],
     oneMatch: true,
   };
 
   it("says back the group in full, as the UX Writer wrote it", () => {
-    expect(keepingSentence({ kind: "group", group })).toBe("You're keeping Group 3: Rakesh & Snehal v Subhas & Prashant · 12:54 off the 10th");
+    expect(keepingSentence({ kind: "group", group })).toBe("You're keeping Group 3: Sam & Alex v Jo & Max · 12:54 off the 10th");
     expect(keepingYes({ kind: "group", group })).toBe("Yes, that's my group");
   });
 
   it("leaves the tee out where there is no tee sheet", () => {
-    expect(keepingSentence({ kind: "group", group: { ...group, title: "Match 2", tee: "" } })).toBe("You're keeping Match 2: Rakesh & Snehal v Subhas & Prashant");
+    expect(keepingSentence({ kind: "group", group: { ...group, title: "Match 2", tee: "" } })).toBe("You're keeping Match 2: Sam & Alex v Jo & Max");
   });
 
   it("a name, on a round with no groups, is confirmed too", () => {

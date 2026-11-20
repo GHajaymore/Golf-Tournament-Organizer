@@ -180,7 +180,8 @@ export function SettingsTabs({
           // Sticky, as the jump links were: the question "where else can I
           // go" is still asked from half way down a long section.
           position: "sticky",
-          top: 0,
+          // Below the console's sticky band (Suspend play, on a day of play), never under it.
+          top: "var(--console-sticky-top, 0px)",
           zIndex: 2,
           marginBottom: 16,
           gap: 8,

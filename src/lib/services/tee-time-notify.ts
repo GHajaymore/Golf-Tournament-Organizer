@@ -2,7 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { teeTimeNotices } from "@/lib/domain/tee-time-notice";
 import type { TeeSheet } from "@/lib/domain/tee-sheet";
-import { sendPushToEmails } from "@/lib/services/push";
+import { sendPushTo } from "@/lib/services/push";
+import { whoKeysForEntry } from "@/lib/domain/messaging";
 import { startHoleNumber } from "@/lib/domain/hole-number";
 
 /**
@@ -39,17 +40,18 @@ export async function notifyTeeTimesPublished(opts: {
 
     const players = await prisma.player.findMany({
       where: { eventId: opts.eventId, id: { in: notices.map((n) => n.playerId) } },
-      select: { id: true, email: true },
+      select: { id: true, email: true, standing: true },
     });
-    const emailById = new Map(players.map((p) => [p.id, (p.email ?? "").trim()]));
+    // Who-keys (J39/J40 PR 2): an account's email, and a guest's link — guests are told too.
+    const keysById = new Map(players.map((p) => [p.id, whoKeysForEntry(p)]));
 
     const round = opts.roundLabel ? `${opts.roundLabel} · ` : "";
     const event = opts.eventName || "your tournament";
 
     await Promise.all(
       notices.map((n) => {
-        const email = emailById.get(n.playerId);
-        if (!email) return Promise.resolve();
+        const keys = keysById.get(n.playerId) ?? [];
+        if (keys.length === 0) return Promise.resolve();
         const when = n.time || "your tee time";
         // A position on the card, said as the course's hole: "from the 12th"
         // on a back-nine shotgun, not "from the 3rd".
@@ -58,7 +60,7 @@ export async function notifyTeeTimesPublished(opts: {
         const body = `${round}${when}${hole} · ${event}`;
         // One tag per stage per player collapses a quick correction into a
         // single, latest notification rather than a stack of them.
-        return sendPushToEmails([email], { title, body, url: "/me", tag: `tee-${opts.stageId}` }, { eventId: opts.eventId });
+        return sendPushTo(keys, { title, body, url: "/me", tag: `tee-${opts.stageId}` }, { eventId: opts.eventId });
       }),
     );
   } catch (e) {

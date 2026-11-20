@@ -145,7 +145,6 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
   expect(stage.type).toBe("Stroke Play Round");
   expect(stage.scoringBasis, "the seeded medal is not a net competition").toBe("net");
   expect(stage.handicapAllowance, "the seeded medal carries an allowance of the committee's own").toBe(0);
-  expect(event.configUnlocked, "the seeded medal's setup is already unlocked").toBe(false);
   expect(await prisma.roundHandicap.count({ where: { stageId: stage.id } }), "the seeded round holds frozen or overridden handicaps this spec does not model").toBe(0);
 
   // ── the round, read from the rows ──────────────────────────────────────────

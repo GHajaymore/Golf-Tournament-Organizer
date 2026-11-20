@@ -211,10 +211,19 @@ describe("the screens draw the lock their actions ask", () => {
   it("every refused press catches the screen up: once in useAction, and in each bespoke body", () => {
     const hook = readSource("src", "components", "useAction.ts");
     expect(hook).toMatch(/export function useCaughtUp\(\)/);
-    expect(hook).toMatch(/if \(!res\.ok && res\.lock\) router\.refresh\(\);/);
+    // Refreshed, and the press ends at the banner's way out (PR 9b, design §4f; test plan B20).
+    expect(hook).toMatch(/if \(!res\.ok && res\.lock\) \{\s*router\.refresh\(\);\s*focusScopeLockBanner\(\);/);
     expect(hook).toMatch(/const res = caughtUp\(await fn\(\)\);/);
-    // The 5a client keeps its own, pinned by the same line.
-    expect(readSource("src", "components", "TeamsClient.tsx")).toMatch(/if \(!res\.ok && res\.lock\) router\.refresh\(\);/);
+    // The 5a client's own copy is gone (PR 9b): it takes the one catch-up.
+    const teams = readSource("src", "components", "TeamsClient.tsx");
+    expect(teams).toMatch(/const caughtUp = useCaughtUp\(\);/);
+    expect(teams).not.toMatch(/res\.lock\) router\.refresh/);
+    // And the move itself: focus to the banner, waiting for the redraw to draw it.
+    const focus = readSource("src", "components", "scope-lock-focus.ts");
+    expect(focus).toMatch(/export const SCOPE_LOCK_BANNER_ID = "scope-lock-banner";/);
+    expect(focus).toMatch(/banner\.focus\(/);
+    expect(focus).toMatch(/scrollIntoView\(/);
+    expect(focus).toMatch(/new MutationObserver\(/);
     // A bespoke body wraps its await; none calls a lock-refusing action bare.
     const BESPOKE: Record<string, string[]> = {
       "src/components/StagesClient.tsx": ["generateNextRound", "setStageCarry", "setStageFormat", "setStageHoles", "setStageScoringBasis", "setStageMatchKeptBy", "removeStage", "setStageScoreInput"],
@@ -251,6 +260,6 @@ describe("the screens draw the lock their actions ask", () => {
     expect(banner).toMatch(/\{l\.wayOut\.says\}/);
     expect(banner).toMatch(/locks\.slice\(0, 3\)/);
     expect(banner).toMatch(/<CorrectionButton scopes=\{correctable\} \/>/);
-    expect(banner).not.toMatch(/setConfigUnlocked|Unlock setup/);
+    expect(banner).not.toMatch(/Unlock setup/);
   });
 });

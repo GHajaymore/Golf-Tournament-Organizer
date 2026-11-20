@@ -6,7 +6,7 @@ import Link from "next/link";
 import { isMatch } from "@/lib/tournament-shape";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, standingRows, settingsOf, cutLineNote, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
@@ -66,7 +66,7 @@ export default async function PlayBoardPage({
 }: {
   searchParams: Promise<{ round?: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePlayingViewer();
   const loaded = await loadEventState(session.eventId);
   if (!loaded) redirect("/");
   /**
@@ -400,7 +400,9 @@ export default async function PlayBoardPage({
   // Which row is theirs, by the registration email — the same linkage every
   // score guard uses, rather than matching on a name two people can share.
   const me = state.players.find(
-    (p) => p.email.trim().toLowerCase() === session.email.trim().toLowerCase(),
+    // A guest by the pass's own entry, never by an address: "" would match every
+    // entry made without one (the byAddress("") hazard, J39/J40).
+    (p) => (session.guest ? p.id === session.guest.playerId : !!session.email.trim() && p.email.trim().toLowerCase() === session.email.trim().toLowerCase()),
   );
 
   const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));

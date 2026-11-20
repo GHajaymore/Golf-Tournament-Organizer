@@ -384,8 +384,16 @@ export const LIFECYCLE_STEPPER_ON = false;
 /** The preview's query: its own name, so it never collides with Rounds & formats' `?view=timeline`. */
 export const STEPPER_PREVIEW = "stepper";
 
-export function stepperShown(search: string): boolean {
+/**
+ * NO PARTIAL PREVIEWS IN PRODUCTION (Ajay, 14 Nov): there the preview's query draws the stepper
+ * for an owner on `OWNER_EMAILS` only, and anybody else is shown today's console without a word —
+ * a pilot club's staff run real events. Previews, dev and CI are not production and stay open to the
+ * query. `deployment` is read from the server's environment, so this is called on the SERVER only
+ * (`console-merges.test.ts` holds every caller to that), and the layout passes `isOwner`.
+ */
+export function stepperShown(search: string, viewer: { owner: boolean }, deployment: string | undefined = process.env.VERCEL_ENV): boolean {
   if (LIFECYCLE_STEPPER_ON) return true;
+  if (deployment === "production" && !viewer.owner) return false;
   return new URLSearchParams(search).get(STEPPER_PREVIEW) === "1";
 }
 

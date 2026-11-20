@@ -53,9 +53,13 @@ test.beforeAll(async () => {
       organizationId: org.id,
       name: `${MARK} Singles Matchplay`,
       status: "live",
-      // Setup opened again: clearing scores refuses a locked tournament, which
-      // `ClearScores` says rather than offers (walked elsewhere).
-      configUnlocked: true,
+      // The rounds opened by a committee correction: clearing scores refuses locked
+      // rounds, which `ClearScores` says rather than offers (walked elsewhere). PR 9b:
+      // the blanket unlock is not read. Stored as `openCorrection` stores it.
+      correctionScope: "rounds",
+      correctionReason: "zz spec: clearing a wrong result",
+      correctionBy: "Zz Organizer",
+      correctionUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
       shape: "single",
       format: "match",
       dates: "",

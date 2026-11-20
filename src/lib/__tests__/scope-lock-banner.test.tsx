@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-vi.mock("@/app/actions/tournament", () => ({ setConfigUnlocked: async () => undefined, openCorrection: async () => ({ ok: true }), endCorrection: async () => ({ ok: true }) }));
+vi.mock("@/app/actions/tournament", () => ({ openCorrection: async () => ({ ok: true }), endCorrection: async () => ({ ok: true }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
 
 const { ScopeLockBanner, ScopeLockMark, SCOPE_LOCK_BANNER_ID } = await import("@/components/ScopeLockBanner");

@@ -109,9 +109,11 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 const { tournamentFactsFor, tournamentFactsForMany, tournamentStepsFor } = await import("@/lib/services/tournament-facts");
 const { loadEventState } = await import("@/lib/services/tournament");
-const { launchCheckFor } = await import("@/lib/services/setup-flow");
 // The rail is the state machine's since PR 3 (`setupRailFor`), from the same request-cached read.
 const { setupRailFor } = await import("@/lib/services/tournament-status");
+// The dashboard's launch dialog reads the rail's own verdict (`setupRailFor(id).launch`); it read
+// `launchCheckFor`, the setup flow's own, until state machine PR 9a deleted it.
+const launchDialog = async (id: string) => (await setupRailFor(id))?.launch ?? null;
 const { secretaryHomeFor } = await import("@/lib/services/whats-next");
 const { tournamentStatus } = await import("@/lib/domain/tournament-status");
 const { isFinished } = await import("@/lib/domain/lifecycle-state");
@@ -284,7 +286,7 @@ describe("the cost of the one read, per family", () => {
       const facts = await request(() => tournamentFactsFor(ids[which], TODAY));
       const state = await request(() => loadEventState(ids[which]));
       const flow = await request(() => setupRailFor(ids[which]));
-      const launch = await request(() => launchCheckFor(ids[which]));
+      const launch = await request(() => launchDialog(ids[which]));
       // The dashboard's request: the state it always builds, then the facts beside it.
       const dashboard = await request(async () => {
         await loadEventState(ids[which]);
@@ -293,15 +295,15 @@ describe("the cost of the one read, per family", () => {
       line(`${which}: tournamentFactsFor, alone`, facts);
       line(`${which}: loadEventState, alone`, state);
       line(`${which}: setupRailFor`, flow);
-      line(`${which}: launchCheckFor`, launch);
+      line(`${which}: the launch dialog (setupRailFor(id).launch)`, launch);
       line(`${which}: loadEventState then the facts (one request)`, dashboard);
       line(`${which}:   so the facts add, on the dashboard`, { ms: Math.round((dashboard.ms - state.ms) * 10) / 10, queries: dashboard.queries - state.queries });
       // A set-up dashboard asks the rail AND the gate in one request: one read since PR 2.
       const both = await request(async () => {
         await setupRailFor(ids[which]);
-        await launchCheckFor(ids[which]);
+        await launchDialog(ids[which]);
       });
-      line(`${which}: setupRailFor + launchCheckFor (one request)`, both);
+      line(`${which}: setupRailFor + the launch dialog (one request)`, both);
       expect(both.queries, "the rail and the gate share the request's one read").toBe(flow.queries);
       expect(facts.queries, "a read that sends no query read nothing").toBeGreaterThan(0);
       // The machine reads it as what it is: live, and its family.

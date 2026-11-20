@@ -56,6 +56,23 @@ Added after the move (the list above is the original, kept whole by `claude-md-i
   plants each banned shape as a control. A legitimate await on something that is not the database
   goes in `KNOWN_OFF_CLIENT` with its reason; nothing is there. On the `main` of that morning it
   named exactly the nightly's defect, at the two calls that awaited `prizeWinnerNames` without `tx`.
+- `the-tournament-is-asked-one-way.test.ts` (a WALL since state machine PR 9a, 2026-11-14; it was a
+  ratchet over the screens until PR 5b emptied `KNOWN_STRAYS`) — "where is this tournament, what is
+  next, what is locked" is asked of `tournamentStatus(facts)` and nothing else, over every non-test
+  file in `src/app`, `src/components` AND `src/lib`, in four classes whose names live in ONE list,
+  `src/lib/__tests__/retired-readers.ts` (the actions' and the timeline's sweeps read it too):
+  **A** a deleted reader's name as an identifier anywhere in `src` (tests included), `e2e` or
+  `scripts` — read by the TypeScript parser, so a comment or string naming it is history, while a
+  declaration or `const { x } = await import(…)` is caught (two audit tests reached a dead twin that
+  way). Since PR 9b (2026-11-15) class A holds the retired blanket unlock too — `configurationLocked`,
+  `setConfigUnlocked` and the flag `configUnlocked` — named nowhere but the column's two files
+  (`GONE_WITH_THE_COLUMN`, deleted with the column after launch); a test that needs a part open makes
+  a committee correction (`correction-fixture.ts`, `e2e/committee-correction.ts`), and an old-flag row
+  is written in SQL. `no-unlock-word.test.ts` keeps the word "unlock" off every screen, refusal, the
+  guide and Help: "committee correction" is the one word; **B** the old modules' live rules (`statusMove`, `launchRefusal`, `PRE_LAUNCH_STATUSES` …)
+  asked only by the machine and the old modules, one named exception; **C** the nine step-reading
+  files decide nothing about the step; **D** a stored status compared by hand with "draft" or "live",
+  three named files with exact counts, capped at three. Each class has a planted control.
 
 **WHEN A CORRECT CHANGE MAKES AN EXISTING GUARD FAIL, READ THE GUARD BEFORE UPDATING IT.** A guard
 that goes red on a change you have already proven right was asserting something false, and the
@@ -131,3 +148,37 @@ blanks lines starting with a marker leaves the body of any doc block written as 
 prose behind as dangling text, and three files stop parsing. And `git checkout -- src` afterwards
 restores far more than the experiment — it discards every other uncommitted change in the
 directory, which on 2026-09-05 cost a day's worth of conversions that had to be redone.
+
+## Moved from CLAUDE.md (20 Nov 2026): The guard hook
+
+**Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
+every Bash and PowerShell command (`.claude/settings.json`) and refuses `git add -A`/`.`, any `git stash`,
+a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number or a
+local path (`C:\Users\<you>`), PowerShell writing a source file, `gh run watch`, a merge or `round/*` push from
+any session but the one named in the untracked `.claude/main-session` (or from a subagent), a migration applied
+to the shared dev database from anywhere but the main checkout (`--create-only` is fine), and — on the
+Windows desktop only — builds, dev servers and Playwright.
+A refusal names its rule. Text in quotes and heredocs is never read as a command. To change what it
+allows, edit the script with `src/lib/__tests__/claude-guard-hook.test.ts`.
+
+## Moved from CLAUDE.md (20 Nov 2026): How help goes stale
+
+Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
+no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
+`guide-steps.test.ts`), and a search result with nowhere to jump (`guide-search.test.ts`). The
+fourth is not testable and is yours: a flow that works differently under the same button names.
+The day this rule was written, the guide already held a sentence that morning's work had made
+false — "Only Manual lets you … set tees per flight".
+
+## Moved from CLAUDE.md (20 Nov 2026): What the tests enforce
+
+Several test files exist to make a whole class of mistake impossible — extend them rather than working
+around them; the list is in `docs/claude/what-the-tests-enforce.md` (`audit-idor`, `club-actions-check-the-role`,
+`every-action-says-who-may-call-it`, `source-guard`, `round-number-source`, `themes`, `brand-consistency`, …).
+**A test that searches source reads it through `readSource`** (`src/lib/__tests__/source.ts`, which strips
+comments). **When a correct change makes a guard fail, read the guard before updating it** — pin the
+GUARANTEE, not the expression. **Prove a new test can fail:** revert the fix (commit first), watch it go red,
+put it back; when a mutation stays green suspect your theory of the defect before the harness. Enumerate a
+string column's real values (`groupBy`) before narrowing a test on one. `TypeScript types are erased at
+runtime` — a `"use server"` export is a public endpoint; validate payloads at the boundary (`score-payload.ts`).
+

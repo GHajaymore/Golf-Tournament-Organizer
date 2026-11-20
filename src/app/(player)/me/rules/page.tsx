@@ -2,7 +2,7 @@ import { cutAfterRound } from "@/lib/domain/cut-ready";
 import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, scoringFrom } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
 import {
@@ -65,7 +65,7 @@ function RuleLink({ rule }: { rule: RuleRef }) {
  * as reference.
  */
 export default async function PlayRulesPage() {
-  const session = await requireSession();
+  const session = await requirePlayingViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 

@@ -33,3 +33,17 @@ today), while the server stays where it is. Without it the walk cannot tell a se
 the club from one that asks itself. The audit test picks its zone by the hour — Kiritimati or
 Pago Pago, whichever is on another calendar day right now — and reports the other direction as
 SKIPPED rather than passed.
+
+## Moved from CLAUDE.md (20 Nov 2026): The club's clock
+
+A deadline is a DAY and a day belongs to a place. `Organization.timeZone` is an IANA name (or `""` = keep
+the server's day). `src/lib/domain/club-clock.ts` is the rule: `clubToday(zone)`, `clubDay(zone)`; on the
+server get the zone through `state.today` / `state.timeZone`, or `clubDayForEvent(eventId)`. The day helpers
+(`todayIso`, `deadlinePassed`, `deadlineState`, `playerMayChange`, `registrationStatus`) must be TOLD the
+day; never hand them `new Date()`. An INSTANT (timestamp, expiry, "3 minutes ago") is still the server's
+clock; `clubDay(zone)` is NOT an instant — never compare it with a stored timestamp. **`E2E_TZ`**
+(`E2E_TZ=Pacific/Auckland`) puts the browser AND the seeded club in another zone while the server stays
+put — the only way a walk tells a server that asks the club from one that asks itself. Dates the app writes
+go through `date-words.ts`; amounts typed in a club's language are read with `minorUnitsFrom` /
+`decimalPoint` (see the index). Long form: `docs/claude/club-clock.md`, `docs/claude/dates-and-figures.md`.
+

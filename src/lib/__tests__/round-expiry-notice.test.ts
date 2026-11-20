@@ -274,8 +274,10 @@ describe("what the code screen says it is asking for", () => {
      * sheet". A quick round has neither, and since one started issuing codes
      * this is the screen its players arrive on.
      */
+    // Anchored on the box's hint (one code box, 2026-11-17: "Round code or player link code").
     const src = readSource("src/components/PlayClient.tsx");
-    const screen = src.slice(src.indexOf("Type the round code"), src.indexOf("Type the round code") + 240);
+    const screen = src.slice(src.indexOf("CODE_WORDS.boxHint"), src.indexOf("CODE_WORDS.boxHint") + 240);
+    expect(src.indexOf("CODE_WORDS.boxHint"), "the code screen's hint moved").toBeGreaterThan(0);
     expect(screen).not.toMatch(/your organizer gave you/);
     expect(screen).toMatch(/whoever set the round up/i);
   });
@@ -284,7 +286,7 @@ describe("what the code screen says it is asking for", () => {
     // The tee sheet is kept as an example rather than dropped — a club medal's
     // players really do read it off one.
     const src = readSource("src/components/PlayClient.tsx");
-    const screen = src.slice(src.indexOf("Type the round code"), src.indexOf("Type the round code") + 240);
+    const screen = src.slice(src.indexOf("CODE_WORDS.boxHint"), src.indexOf("CODE_WORDS.boxHint") + 240);
     expect(screen).toMatch(/tee sheet/);
   });
 });

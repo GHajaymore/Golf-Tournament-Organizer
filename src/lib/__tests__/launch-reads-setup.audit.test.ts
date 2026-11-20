@@ -29,7 +29,19 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
  */
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { launchTournament } from "@/app/actions/tournament";
-import { launchCheckFor } from "@/lib/services/setup-flow";
+import { setupRailFor } from "@/lib/services/tournament-status";
+
+/**
+ * WHAT THE DASHBOARD'S LAUNCH DIALOG SAYS — the machine's refusal and warnings, read
+ * through the rail every set-up screen draws (`setupRailFor(id).launch`, built by
+ * `launchDialogOf` from `refusals.launch`). It was `launchCheckFor`, the setup flow's own
+ * verdict, deleted with the other old readers in state machine PR 9a.
+ */
+async function launchDialog(eventId: string) {
+  const rail = await setupRailFor(eventId);
+  if (!rail) throw new Error(`no rail for ${eventId}`);
+  return rail.launch;
+}
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-LAUNCH-SETUP";
@@ -112,8 +124,8 @@ describe("launch reads setup", () => {
     await setActiveEvent(eventId);
     expect(await launchTournament()).toEqual({ ok: false, error: NO_SIDES });
     expect(await statusOf(eventId)).toBe("draft");
-    // The dashboard's button asks the same function, so it says the same thing.
-    expect((await launchCheckFor(eventId)).refusal).toBe(NO_SIDES);
+    // The dashboard's dialog reads the same refusal, so it says the same thing.
+    expect((await launchDialog(eventId)).refusal).toBe(NO_SIDES);
   });
 
   it("launches the same scramble once its sides are made", async () => {
@@ -131,7 +143,7 @@ describe("launch reads setup", () => {
   it("launches an ordinary medal, and what it only warns about never stops it", async () => {
     const { eventId } = await tournament("medal", "Stroke Play");
     await setActiveEvent(eventId);
-    const check = await launchCheckFor(eventId);
+    const check = await launchDialog(eventId);
     expect(check.refusal).toBeNull();
     // No tee sheet saved and no flights: said, not refused.
     expect(check.warnings.map((w) => w.href)).toEqual(expect.arrayContaining(["/grouping", "/foursomes"]));
@@ -150,19 +162,19 @@ describe("launch reads setup", () => {
     await prisma.tee.create({ data: { courseId: course.id, name: "Zz Unused", courseRating: 0, slopeRating: 0, par: 72, position: 1 } });
     await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: blue.id } });
     await setActiveEvent(eventId);
-    const quiet = await launchCheckFor(eventId);
+    const quiet = await launchDialog(eventId);
     expect(quiet.warnings.some((x) => /Slope/.test(x.says)), "an unrated tee nobody plays off was warned about").toBe(false);
 
     // Put one player on the unrated set (policy "own") and it is now in play.
     await prisma.player.update({ where: { id: players[0] }, data: { teeId: (await prisma.tee.findFirstOrThrow({ where: { courseId: course.id, name: "Zz Unused" } })).id } });
-    const loud = await launchCheckFor(eventId);
+    const loud = await launchDialog(eventId);
     expect(loud.warnings.find((x) => /Slope/.test(x.says))?.says).toContain("Zz Unused");
 
     // Players choose their course: nothing about missing tees (there are none to set up).
     await prisma.eventCourse.deleteMany({ where: { eventId } });
     await prisma.course.delete({ where: { id: course.id } });
     await prisma.event.update({ where: { id: eventId }, data: { courseMode: "open", course: "" } });
-    const open = await launchCheckFor(eventId);
+    const open = await launchDialog(eventId);
     expect(open.warnings.some((x) => /no tees/i.test(x.says)), "told a choose-your-own-course event that no tees are set up").toBe(false);
   });
 
@@ -175,7 +187,7 @@ describe("launch reads setup", () => {
     await prisma.eventCourse.create({ data: { eventId, courseId: course.id } });
     await prisma.tee.create({ data: { courseId: course.id, name: "Zz White", courseRating: 0, slopeRating: 0, par: 72, position: 0 } });
     await setActiveEvent(eventId);
-    const check = await launchCheckFor(eventId);
+    const check = await launchDialog(eventId);
     expect(check.refusal, "an unrated tee must never refuse a launch").toBeNull();
     const w = check.warnings.find((x) => /Slope/.test(x.says));
     expect(w?.says, "launch said nothing about the unrated tee").toContain("Zz White");
@@ -183,7 +195,7 @@ describe("launch reads setup", () => {
 
     // CONTROL: rate the tee and the warning goes.
     await prisma.tee.updateMany({ where: { courseId: course.id }, data: { courseRating: 71.2, slopeRating: 128 } });
-    const rated = await launchCheckFor(eventId);
+    const rated = await launchDialog(eventId);
     expect(rated.warnings.some((x) => /Slope/.test(x.says))).toBe(false);
 
     await prisma.tee.updateMany({ where: { courseId: course.id }, data: { courseRating: 0, slopeRating: 0 } });

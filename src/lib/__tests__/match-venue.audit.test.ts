@@ -33,6 +33,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { setMatchCourse } from "@/app/actions/courses";
+import { loadEventState } from "@/lib/services/tournament";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-VENUE";
@@ -290,5 +291,124 @@ describe("staff", () => {
     expect((await prisma.match.findUniqueOrThrow({ where: { id: theirMatchId } })).courseId).toBe(
       awayCourseId,
     );
+  });
+});
+
+/**
+ * A MATCH'S TEES GO WITH ITS COURSE (QA Director, item 2, 14 Nov).
+ *
+ * `setMatchCourse` wrote `{ courseId, nine }` and never touched `Match.teeId`.
+ * A match named at one course off a set there, then moved, kept that set. At
+ * the new course `teeForPlay` steps past it, so the figure there was right and
+ * only the row was untrue — but with NO course (an open-course tournament, the
+ * venue put back to "Not set") `teeForPlay` lets every rung through, and the old
+ * course's set priced a match played nowhere in particular.
+ *
+ * Worked from Rule 6.1b in whole numbers (an index in tenths, everything over
+ * 1130), index 18.4, singles match play at 100% (Appendix C):
+ *
+ *   Ridge Blue 74.0 / 140 / 72: 18.4 × 140/113 + 2.0 = 24.80 → 25
+ *   away Gold  70.0 / 115 / 72: 18.4 × 115/113 − 2.0 = 16.73 → 17
+ */
+describe("a match's tees go with its course", () => {
+  const ch1130 = (index10: number, rating10: number, slope: number, par: number) => index10 * slope + (rating10 - 10 * par) * 113;
+  const halfUp = (num: number, den: number) => Math.floor((2 * num + den) / (2 * den));
+  const OFF_RIDGE = halfUp(ch1130(184, 740, 140, 72), 1130);
+  const OFF_AWAY = halfUp(ch1130(184, 700, 115, 72), 1130);
+  let ridgeId = "";
+  let ridgeBlue = "";
+  let awayGold = "";
+
+  const row = async () => prisma.match.findUniqueOrThrow({ where: { id: myMatchId }, select: { courseId: true, teeId: true } });
+  const strokes = async () => (await loadEventState(eventId))!.matchHandicapFor(player.meddler, myMatchId);
+  /** Where nameMatchVenue leaves a match: at the ridge, off its Blue. */
+  const namedAtTheRidge = () => prisma.match.update({ where: { id: myMatchId }, data: { courseId: ridgeId, teeId: ridgeBlue } });
+
+  beforeAll(async () => {
+    const ridge = await prisma.course.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} ridge`,
+        city: "",
+        pars: JSON.stringify(new Array(18).fill(4)),
+        yards: JSON.stringify(new Array(18).fill(400)),
+        strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+    });
+    ridgeId = ridge.id;
+    await prisma.eventCourse.create({ data: { eventId, courseId: ridgeId } });
+    ridgeBlue = (await prisma.tee.create({ data: { courseId: ridgeId, name: "Blue", courseRating: 74.0, slopeRating: 140, par: 72 } })).id;
+    awayGold = (await prisma.tee.create({ data: { courseId: awayCourseId, name: "Gold", courseRating: 70.0, slopeRating: 115, par: 72 } })).id;
+    await prisma.player.update({ where: { id: player.meddler }, data: { handicap: 18.4 } });
+  });
+
+  it("the worked figures, by hand: 25 off the ridge's Blue, 17 off the away Gold", () => {
+    expect([OFF_RIDGE, OFF_AWAY]).toEqual([25, 17]);
+  });
+
+  it("restating the same course keeps the set the match was played from", async () => {
+    await namedAtTheRidge();
+    await signIn("meddler");
+    expect(await setMatchCourse(myMatchId, ridgeId)).toEqual({ ok: true });
+    expect(await row()).toEqual({ courseId: ridgeId, teeId: ridgeBlue });
+    expect(await strokes()).toBe(OFF_RIDGE);
+  });
+
+  it("moved to another course, the old course's set is cleared, and it is priced off the new one's", async () => {
+    await namedAtTheRidge();
+    await signIn("meddler");
+    expect(await setMatchCourse(myMatchId, awayCourseId)).toEqual({ ok: true });
+    expect(await row(), "the match kept a set from the course it left").toEqual({ courseId: awayCourseId, teeId: null });
+    expect(await strokes()).toBe(OFF_AWAY);
+  });
+
+  /**
+   * AND WITH A TOURNAMENT AT A HOME COURSE OF ITS OWN (Fable's review of #1159): the round is
+   * then at the ridge, off the tournament's White (71.2 / 126: 18.4 x 126/113 - 0.8 = 19.72 -> 20),
+   * and a match moved away with no set named fell to the ROUND's map — 20, a set on a course the
+   * match is not at, where the away Gold gives 17. The case above cannot see it: with no
+   * tournament course the round lands on "any set", which happened to be the Gold.
+   */
+  it("moved away from a tournament at a home course, it is priced off the away course, not the home White", async () => {
+    const OFF_HOME_WHITE = halfUp(ch1130(184, 712, 126, 72), 1130);
+    expect(OFF_HOME_WHITE).toBe(20);
+    const white = await prisma.tee.create({ data: { courseId: ridgeId, name: "White", courseRating: 71.2, slopeRating: 126, par: 72, position: 1 } });
+    await prisma.event.update({ where: { id: eventId }, data: { courseId: ridgeId, defaultTeeId: white.id } });
+    try {
+      await namedAtTheRidge();
+      await signIn("meddler");
+      expect(await setMatchCourse(myMatchId, awayCourseId)).toEqual({ ok: true });
+      expect(await row()).toEqual({ courseId: awayCourseId, teeId: null });
+      const state = await loadEventState(eventId);
+      // CONTROL: the round itself is at the ridge, off the tournament's White.
+      expect(state!.strokeHandicapFor(player.meddler, stageId)).toBe(OFF_HOME_WHITE);
+      expect(state!.matchHandicapFor(player.meddler, myMatchId), "a match at the away course priced off the home set").toBe(OFF_AWAY);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { courseId: null, defaultTeeId: null } });
+      await prisma.tee.delete({ where: { id: white.id } });
+    }
+  });
+
+  it("the open-course edge: venue put back to Not set, the old set no longer prices it", async () => {
+    // No event course, no round course: the round prices off the tournament's
+    // own set, here the away Gold. A match that still held the ridge's Blue
+    // would be priced at 25 off a course it is no longer at.
+    expect((await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { courseId: true } })).courseId).toBeNull();
+    expect((await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { courseId: true } })).courseId).toBeNull();
+    await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: awayGold } });
+    try {
+      await namedAtTheRidge();
+      await signIn("meddler");
+      expect(await setMatchCourse(myMatchId, null)).toEqual({ ok: true });
+      expect(await row()).toEqual({ courseId: null, teeId: null });
+      const state = await loadEventState(eventId);
+      expect(state!.matchHandicapFor(player.meddler, myMatchId), "the match is priced as its round is").toBe(
+        state!.strokeHandicapFor(player.meddler, stageId),
+      );
+      expect(await strokes()).toBe(OFF_AWAY);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: null } });
+      await prisma.match.update({ where: { id: myMatchId }, data: { courseId: awayCourseId, teeId: null } });
+    }
   });
 });

@@ -619,6 +619,75 @@ jobs:
             echo "The controls no test changed are listed by screen in the log of this step."
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # ── The front door on WebKit, on every pull request (2026-11-14) ──────────
+  #
+  # CI runs Chromium and nothing else, and most players hold an iPhone. Round G636 found
+  # a front-door fault on WebKit only AFTER the push: a round of 2 h 43 min to learn what one
+  # minute of WebKit would have said here. So the one spec that walks the front door
+  # (e2e/front-door.spec.ts: sign up, the code, log in, a wrong password, forgot and reset, SIGN OUT
+  # and being turned away again) runs on the iPhone profile (`phone` project, E2E_ENGINE=webkit),
+  # against the same bundle the shards take.
+  #
+  # The rules in docs/claude/e2e-traps.md come with it: the server is started with
+  # E2E_PLAIN_HTTP=1 (WebKit sends no Secure cookie to plain http, so nothing signs in), and the
+  # spec awaits landingSettled(page) before it presses. Push is not covered on WebKit
+  # (e2e/coverage.ts takes PushManager away).
+  #
+  # COST: about 22 s of test (scripts/qa/spec-durations.json) plus the container, the setup and the
+  # seeded fixture, so about 3 to 4 minutes on a machine of its own, beside the shards (24 to 25
+  # minutes), never on the critical path. Its own PostgreSQL service and fixture, like every shard.
+  # Not part of the e2e matrix, so `e2e-cover` neither counts nor needs it; `verify` does.
+  e2e-webkit-door:
+    name: Front door on WebKit
+    runs-on: ubuntu-latest
+    needs: e2e-build
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --ipc=host --user 1001
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          database-host: postgres
+      - name: Check the image holds this Playwright's WebKit
+        run: node scripts/ci/check-browsers-present.mjs webkit
+      - name: Take the build
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-build
+          path: .next-e2e
+      - name: The front door and signing out, on WebKit
+        env:
+          AUTH_SECRET: ci-e2e-secret
+          E2E_PREBUILT: "1"
+          E2E_ENGINE: webkit
+          E2E_PLAIN_HTTP: "1"
+        # Desktop AND phone: in round G636-1 the WebKit iPhone parts ran this spec green on the broken head
+        # and only [desktop] froze (a091d17c, src/lib/push-client.ts). Reverting that fix turns the desktop
+        # run red; to prove it once, push a throwaway commit to this PR that reverts push-client.ts and read this step.
+        run: npx playwright test --project=desktop --project=phone e2e/front-door.spec.ts
+      - name: Keep the trace of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-webkit-door
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   # ── The gate ─────────────────────────────────────────────────────────────
   #
   # Does nothing. Exists because "verify" is the check name the branch ruleset
@@ -640,7 +709,7 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
-    needs: [unit, build, e2e-build, e2e, e2e-cover]
+    needs: [unit, build, e2e-build, e2e, e2e-cover, e2e-webkit-door]
     if: ${{ !cancelled() }}
     timeout-minutes: 5
     steps:

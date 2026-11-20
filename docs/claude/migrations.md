@@ -43,6 +43,15 @@ of the command overrides, only when nobody else is mid-run. A true per-worktree 
 of `@prisma/client` and `.prisma/client` in each worktree (Node resolves the real path of a symlink) —
 heavier than the problem, and not done.
 
+**Type-checking a schema change no longer waits for CI (2026-11-17).** "Client stale" left a branch that adds
+a column with no local type check, and the main session's train-tip check had started skipping tsc for one
+(train D: #1158's `slipPrintedAt`). `node scripts/qa/typecheck-own-client.mjs` is the fix: when the
+checkout's schema differs from the shared client's it generates that schema's client into
+`.qa/tmp/own-client` (a custom `output`), points `@prisma/client` at it with a private tsconfig extending the
+real one, runs tsc, and hashes the shared client's schema copy before and after (changed = exit 2). Measured
+on train D's tip: 58 s, its new column accepted, an invented column refused, the shared client untouched. It
+covers TYPES only; an audit test that reads a new column still needs the migration applied to the database.
+
 **An index Prisma cannot express lives in SQL alone (2026-11-01).** `A036_a_name_in_play_is_the_clubs_once`
 makes `Event_name_in_play_key`, a partial unique index on an expression (one name in play per club;
 the rule is `domain/tournament-name.ts`). It is not in `schema.prisma`, only a comment beside
@@ -54,3 +63,32 @@ holds two in-play tournaments of one name, so production's real events are never
 blocked; where it was skipped the app's own check still holds, and its SQL can be run again by
 hand with `prisma db execute --file` (it is idempotent) once the clubs have resolved their duplicates. Check whether it exists
 with `select indexname from pg_indexes where indexname = 'Event_name_in_play_key'`.
+
+**A CHECK Prisma cannot express, the same way (state machine PR 8, 2026-11-13).**
+`A045_old_setting_up_rows_keep_their_word` moved every `Event` stored as `registration` or `ready` to
+`draft`, keeping the old word in `Event.legacyStatus` (read by `openToMembers`), and then adds
+`Event_status_is_one_the_app_writes`: `CHECK ("status" IN ('draft', 'live', 'completed'))`. From then on
+`isLaunched` is "not `draft`", so a row written in any other word would read as LAUNCHED; the CHECK
+refuses the writer. It is not in `schema.prisma` (a comment beside `status` says so). So that the deploy
+cannot fail on a word nobody expected (Ajay, 14 Nov: the only real risk is a deploy that fails partway,
+P3009), every other status is first MAPPED by one written rule: `live` (what the old code read any such
+word as), or `completed` where `live` would share a name in play under A036's index; the word is kept
+in `legacyStatus`. The CHECK is still GUARDED like A036 (a NOTICE, never a failure), and every
+statement is safe to run twice. Rollback is the CODE first, then the reversal in the file's comment
+(it touches only rows still `draft`), then deleting A045's `_prisma_migrations` row; a failed apply is
+`prisma migrate resolve --rolled-back` by the owner. So a fixture, seed or audit test that writes an invented status (`"active"`, `"complete"`
+were found in twelve audit files and moved to `"live"`) now fails at the insert, loudly. Check it with
+`select pg_get_constraintdef(oid) from pg_constraint where conname = 'Event_status_is_one_the_app_writes'`.
+The proof is `a-legacy-row-keeps-its-word.audit.test.ts`, which runs the file's own text against a
+scratch copy of a zz- club's rows.
+
+## Moved from CLAUDE.md (20 Nov 2026): Migrations
+
+`schema.prisma` splits the datasource: `url` pooled, `directUrl` direct; migrations need the direct URL.
+Read the SQL a migration generated — fix the *schema* if an unrelated `DROP DEFAULT` rides along. **Name a new
+migration folder `A001_…`, `A002_…` (`A0NN`) — never `100_`, never Prisma's timestamp** (a fresh database
+replays folders in text order; `migrations-replay-in-the-order-written.test.ts` refuses anything else).
+`prisma migrate dev --create-only` then rename the folder; apply with `prisma migrate deploy`; never a reset
+(Hard rule 6). After a new model: `npx prisma generate` and RESTART the dev server (a running Next process
+holds the old client: `prisma.yourNewModel` is `undefined`). `docs/claude/migrations.md`.
+

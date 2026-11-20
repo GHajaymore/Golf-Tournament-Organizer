@@ -1,7 +1,10 @@
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { sideNamesOf } from "@/lib/services/side-names";
-import { getPlaySession } from "@/lib/play-auth";
+import { getPlaySession, type PlaySession } from "@/lib/play-auth";
+import { playStatusForScreen } from "@/lib/services/play-status-screen";
+import { PlaySuspendedBanner } from "@/components/PlaySuspendedBanner";
+import { SuspensionAlarm } from "@/components/SuspensionAlarm";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
 import { allowsAutoConfirm, isLeaderboardPublic, mayOpenBoard } from "@/lib/tournament-settings";
 import { playerEntryRefusal, roundScoring, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
@@ -49,6 +52,42 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   // No session yet — show the code prompt.
   if (!session) return <PlayClient stage="code" />;
 
+  /**
+   * PLAY SUSPENDED, ON A ROUND CODE TOO (2026-11-14, safety sweep G-1; Rule
+   * 5.7a). This page is the phone a group's scorer keeps the whole group's card
+   * on, and the door a player with no email is sent to — and it drew no banner
+   * and sounded no siren, so a group could play on through lightning. The
+   * banner and the siren's poll both ask `playStatusForScreen("play")`, the
+   * round this phone's code opened, so they cannot disagree.
+   *
+   * The banner's slot is always the first child, drawn or `false`, so a
+   * refresh that adds or removes it never remounts the card below it and a
+   * score being typed is kept.
+   */
+  const status = await playStatusForScreen("play");
+  const organizer = status.suspended && status.eventId ? (await golfTermsForEvent(status.eventId)).organizer : undefined;
+  return (
+    <>
+      {status.suspended ? (
+        <section
+          aria-label="Play suspended"
+          // `calc` keeps the page's 16px gutter on a phone: /play's padding is inside its <main>, and this sits above it.
+          style={{ maxWidth: 560, width: "calc(100% - 32px)", margin: "16px auto 0" }}
+        >
+          <PlaySuspendedBanner status={status} organizer={organizer} />
+        </section>
+      ) : (
+        false
+      )}
+      <SuspensionAlarm screen="play" suspended={status.suspended} />
+      {/* Awaited here rather than drawn as an async child, so the page is one finished tree — as the
+          audit tests that render it (`renderToStaticMarkup(await PlayPage(…))`) need. */}
+      {await playRound({ session, searchParams })}
+    </>
+  );
+}
+
+async function playRound({ session, searchParams }: { session: PlaySession; searchParams: Promise<{ m?: string }> }) {
   /**
    * EVERY MATCH THIS PLAYER HAS IN THE ROUND, not an arbitrary one.
    *

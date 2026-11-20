@@ -36,7 +36,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
    * the leaderboard. That is false, and the comment thirty lines below says so
    * from a measurement: on 2026-09-11, as a player on a `draft` tournament,
    * the board rendered, the card rendered, and it offered to certify.
-   * `launchTournament` writes status, launchedAt and configUnlocked and
+   * `launchTournament` writes status and launchedAt and
    * nothing else; visibility is `leaderboardVisibility`, which is a different
    * setting on a different screen.
    *
@@ -102,7 +102,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
 
             Measured on 2026-09-11 as a player on a `draft` tournament — the
             board rendered, the card rendered, and it offered to certify.
-            `launchTournament` writes status, launchedAt and configUnlocked and
+            `launchTournament` writes status and launchedAt and
             nothing else; `canSeeLeaderboard` reads `leaderboardVisibility`.
             See `LAUNCH_DOES` in domain/lifecycle-state.ts, which both this and
             the dashboard warning now read so they cannot drift apart again. */}

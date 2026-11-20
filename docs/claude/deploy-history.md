@@ -135,8 +135,91 @@ Organizer or helper) has a tournament on today, never on a weekend morning, and 
 "sign-ins are held: only pilot clubs count". Once live: the 2026-10-23 rule unchanged, the reason
 beginning "accounts are live: every club counts". Why: a held production signs in only the owners
 and the allow-list, so before launch most tournaments are tests. Not all: round codes (`/play`) and
-public boards work while held, which is how the CDG/CVC cup was played, so a real event an owner runs
+public boards work while held, which is how the real team cup was played, so a real event an owner runs
 by round code can be on today — and before launch it does NOT hold a deploy. That is the ruling as
 given; whether such events should be covered is a question for Ajay, not built in. The first pilot
 club's organizer starts setting up on 20 Nov, which is why the freeze resumes then. A completed
 tournament never freezes.
+
+## Moved from CLAUDE.md (20 Nov 2026): What gates a merge, and what gates a deploy
+
+`ci.yml` is the only workflow that runs on its own — every PR, and every push to `main` (since
+2026-11-02 a branch push alone runs nothing: open a PR, even a draft, to get its checks). It does the
+command above plus the smoke pass and Playwright.
+
+**What stops a bad merge** is a RULESET named "main must be green", not classic branch
+protection. Branch protection is OFF, so `/repos/.../branches/main/protection` returns 404
+and tells you nothing; ask `/rules/branches/main` instead. It requires the `verify` check
+and blocks deletion and force-push on `main`. `strict` is off, so a branch need not be
+rebased onto `main` to merge.
+
+**What stops a bad deploy**, since 2026-09-04: the `deploy` job in `ci.yml`, which
+`needs: verify` and runs only on a push to `main`. Nothing reaches production until the
+whole gate is green. Vercel's own Git deploy for `main` is off — `vercel.json` sets
+`git.deploymentEnabled.main = false` — so that job is the only route in. Preview deploys
+on `claude/*` branches are untouched, since a PR's reviewer needs one. **`round/*`, `breaks/*`
+and `dependabot/*` build no preview** (2026-10-30): a round builds its own server on the runner
+and never opened the preview, and 170 round branches had filled Function Storage past the free
+plan's 10 GB, the point at which Vercel may refuse a production deploy.
+
+**SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
+panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
+verdict), an hourly schedule and *Run workflow*. `scripts/qa/deploy-gate.mjs` deploys a commit
+only when `verify` is green on it, every core commit since the last deploy is inside a clean
+nightly round, and no club is in its FREEZE. **Ajay, 2026-11-06:** the freeze is OFF until 20 Nov 2026
+(`FREEZE_RESUMES`, 20 Nov 00:00 in UTC+14); then, while sign-ins are held, only a PILOT club (one
+where somebody on `SIGNIN_ALLOW_EMAILS` is staff) playing today freezes, never a weekend morning;
+once live, a tournament on today at any club in its own time, or a weekend morning 05:00–14:00 in
+any club's zone (`deployWindowFor`; old wording in `docs/claude/retired.md`). The freeze is asked of the APP
+(`/api/deploy-window`, bearer `DEPLOY_WINDOW_TOKEN`, answering only `{frozen, reason}`), because
+this runner must never hold production's database credentials (below); unreachable means not
+frozen, said in the summary. A HOLD IS GREEN — the gate working — and the hourly run ships it
+later. *Override freeze* is for emergencies and overrides only the freeze. What production holds
+is recorded as a GitHub deployment to `tourneyhq-production`. The job's check is now named
+`Deploy to production / Deploy to production`, so read it with `endswith`, as below.
+
+**The deploy job does not build.** It uploads the source and Vercel builds it; `vercel-build` runs
+`prisma migrate deploy` against PRODUCTION, so never build on the runner or ship `--prebuilt` (it would put
+production database credentials on GitHub). **A red `deploy` on a green `verify` is not the code:** the
+`VERCEL_TOKEN` (check `vercel whoami` FIRST), the production database unreachable, the 100-deployments-a-day
+allowance (every push counts, not every merge — batch work into fewer, larger PRs and push each branch once),
+or CANCELLED after a long `Completing…` (the deploy may be Ready — check the Vercel dashboard for that SHA
+before re-running). `android-release.yml` / `ios-testflight.yml` are scaffolding with no secrets. Long
+form and the signatures: `docs/claude/deploy-history.md`.
+
+So read WHICH JOB failed before reading anything else. `verify` red is your change; `deploy` red
+on a green `verify` is the token, the database, or the allowance, and the message names which.
+A BUILD that fails inside `next/font` is none of them and is not yours either.
+Nothing shipped unverified either way — `deploy` has `needs: verify` — but a commit CAN sit
+undeployed until the next merge, so do not read "merged" as "live" without checking the run:
+
+```bash
+gh run view <run-id> --json jobs -q '.jobs[] | select(.name|endswith("Deploy to production")) | .conclusion'
+```
+
+Since 2026-10-23 a green deploy job may also be a HOLD (a core change waiting for the nightly, or
+the freeze): its summary starts "Deploy gate: hold" and says why. "Merged" is "live" only when the
+gate said deploy, or when a GitHub deployment to `tourneyhq-production` names that commit or a
+later one.
+
+**AND A GREEN PR IS NOT A GREEN COMMIT.** `gh pr checks <n>` answers "is this
+PR green". On 2026-09-20 an auto-merge read it seconds after a second commit
+was pushed to the branch, counted the PREVIOUS head's sixteen green checks,
+merged, and `main` took the first commit only. The PR closed, the work looked
+shipped, and nothing in the output said otherwise — it was found because a file
+on the new `main` was missing a function it should have had.
+
+Tie the verdict to a SHA at both ends:
+
+```bash
+head=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
+gh api "repos/$REPO/commits/$head/check-runs" -q '.check_runs[] | .status + ":" + (.conclusion // "pending")'
+gh pr merge "$PR" --squash --match-head-commit "$head"
+```
+
+Also: `--delete-branch` from a worktree fails with `'main' is already used by worktree` on a merge that
+SUCCEEDED — take the verdict from `gh pr view --json state` and confirm with `git show origin/main:<file>`.
+Merge one at a time and let each `verify` finish when the history must mean something (a batch merge
+leaves a wall of `cancelled`); ask for a commit's run with `gh run list --branch main --json headSha,conclusion`.
+`main` auto-deploys (Hard rule 3).
+

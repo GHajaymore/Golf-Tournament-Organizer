@@ -54,9 +54,26 @@ const PINNED: [label: string, file: string][] = [
   ["Print…", "src/app/(app)/cup/page.tsx"],
   // Member or guest (the no-email player identity, PR 1): the CSV preview's buttons.
   ["Download template", "src/components/RegistrationClient.tsx"],
+  // Cut A (event-first, 15 Nov): the members list asked for at the draw and offered on Entries.
+  ["Import members", "src/components/ImportMembers.tsx"],
+  ["Add a player", "src/components/ImportMembers.tsx"],
+  ["Create tournament", "src/components/CreateFirstTournament.tsx"],
   ["Make guest", "src/components/RegistrationClient.tsx"],
   ["Make member", "src/components/RegistrationClient.tsx"],
   ["Choose another file", "src/components/RegistrationClient.tsx"],
+  // A guest's player link panel (J39/J40): its words are the link's one module, drawn by PlayerLinkPanel.
+  ["Player link", "src/lib/domain/player-link.ts"],
+  ["Show QR", "src/lib/domain/player-link.ts"],
+  ["Read it out", "src/lib/domain/player-link.ts"],
+  ["Copy link", "src/lib/domain/player-link.ts"],
+  ["New link", "src/lib/domain/player-link.ts"],
+  ["Turn off link", "src/lib/domain/player-link.ts"],
+  // PR 2 (S8): the panel's mute, from the same words module.
+  ["Mute in messages", "src/lib/domain/player-link.ts"],
+  ["Unmute in messages", "src/lib/domain/player-link.ts"],
+  // PR 3: player link slips on the Print kit, from the slips' one words module.
+  ["Make new links for all", "src/lib/domain/player-link-slips.ts"],
+  ["Print the new slips", "src/lib/domain/player-link-slips.ts"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

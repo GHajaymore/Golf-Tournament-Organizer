@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SCOPE_WORDS, wayOutIsOrganizers, type CorrectionFacts, type LockScope, type ScopeLock } from "@/lib/domain/tournament-status";
 import { CorrectionButton, CorrectionOpenLine } from "./CommitteeCorrection";
 import { Icon } from "./Icon";
+import { SCOPE_LOCK_BANNER_ID } from "./scope-lock-focus";
 
 /**
  * WHAT IS LOCKED ON THIS SCREEN, AND WHY (state machine PR 5a; UI/UX, panel 8.3 Q3).
@@ -28,9 +29,11 @@ import { Icon } from "./Icon";
  * is gone.
  *
  * Focusable (`tabIndex={-1}`) so a padlock on a locked control (`ScopeLockMark`)
- * can move focus here: the reason is said once, not on every control.
+ * can move focus here: the reason is said once, not on every control. A press
+ * refused by the lock moves focus here too (`focusScopeLockBanner`, PR 9b).
+ * The id lives in `scope-lock-focus.ts`, with that move.
  */
-export const SCOPE_LOCK_BANNER_ID = "scope-lock-banner";
+export { SCOPE_LOCK_BANNER_ID };
 
 /**
  * THE BANNER'S WORDS, FOR A CONTROL IT SHUTS (console sweep, J51). The reason is

@@ -95,7 +95,6 @@ export async function makeEvent(
   name: string,
   opts: {
     status?: string;
-    configUnlocked?: boolean;
     stages: StageSpec[];
     players?: number;
     /** Split the field into this many flights, in entry order. */
@@ -107,8 +106,16 @@ export async function makeEvent(
     data: {
       organizationId: club.orgId,
       name: `${club.mark} ${name}`,
-      status: opts.status ?? "registration",
-      configUnlocked: opts.configUnlocked ?? false,
+      status: opts.status ?? "draft",
+      /**
+       * THE DEFAULT IS A TOURNAMENT ITS MEMBERS CAN SEE BEFORE LAUNCH. It was stored as the old
+       * ladder's "taking entries" word until migration A045 (state machine PR 8), which moved every
+       * such row to `draft` and kept the word in `legacyStatus` — the one thing `openToMembers` still
+       * asks of it. The default keeps exactly that, so the specs that take it (a member's /me on
+       * country-words, the club's list on club-settings-words) see what they always saw. A caller
+       * that names a status gets that status and no old word.
+       */
+      ...(opts.status === undefined ? { legacyStatus: "registration" } : {}),
       shape: "single",
       format: "stroke",
       dates: "",

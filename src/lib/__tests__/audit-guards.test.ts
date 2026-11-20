@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, stripComments } from "./source";
 import { drawBrackets } from "@/lib/domain";
+import { JOBS, type AiJob } from "@/lib/ai-config";
 
 /**
  * Guard checks that read the source rather than the behaviour.
@@ -91,7 +92,12 @@ describe("every server action is guarded", () => {
     ],
     // The two `…Form` actions are the same two as plain forms (a press made
     // before the page's script arrived), and do nothing but call them.
-    "play.ts": ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"],
+    "play.ts": ["claimPlayerSlot", "claimPlayerSlotForm", "leavePlay"],
+    // One code box (2026-11-17): the press of every code box, round code or player link. The code is its
+    // own authorization, as both always were: the one door (services/code-door.ts) counts the client's
+    // guesses by the code's shape before its one lookup, and never makes an account's session
+    // (one-code-door.audit.test.ts).
+    "code-box.ts": ["openCode", "openCodeForm"],
     // Open (self-service) registration is public by design: a stranger on a
     // shared link, no account. Its own defences replace a session guard, and
     // they are asserted separately below — token-shape check, a rate limit on
@@ -112,10 +118,20 @@ describe("every server action is guarded", () => {
     // turns a script away, and a rate limit on the address before any write —
     // held against real rows in `interest-is-kept-and-copied.audit.test.ts`.
     "interest.ts": ["registerInterest"],
+    // A guest's player link (J39/J40). Forgetting it clears this browser's own cookie and touches no
+    // row. Opening it is its own authorization, like a round code: a 60-bit code looked up by keyed
+    // hash, behind a per-client limit that is never cleared (a-guest-reaches-only-its-entry.audit.test.ts).
+    "player-link.ts": ["forgetThisPhone"],
   };
 
   const GUARDS = [
     "getSession",
+    // The player screens' viewer: an account's session, or a live guest pass re-read from the
+    // database (J39/J40). Null for anybody else, and every reader asks only the viewer's own event.
+    "getPlayerViewer",
+    // Messaging's one resolver per target, and push's owner: both the viewer, never an argument (PR 2).
+    "requireActor",
+    "pushOwnerNow",
     "requireEvent",
     "requireAdminEvent",
     "requireStaffEvent",
@@ -137,6 +153,10 @@ describe("every server action is guarded", () => {
     // authorises anything. Verified by reading it, per the note above.
     "requireMembership",
     "getPlaySession",
+    // play-status.ts (`currentPlayStatus`): `getSession` or `getPlaySession`, chosen by the kind of screen
+    // and never by an event the caller names, then one read of that event's suspension. Verified against
+    // real rows in `the-siren-reaches-a-round-code.audit.test.ts`.
+    "playStatusForScreen",
     "effectiveAccess",
     /**
      * skins.ts: the one guard here that is deliberately NOT staff-only.
@@ -229,8 +249,10 @@ describe("round code guessing", () => {
   });
 
   it("shares one budget across both entry points", () => {
-    // Separate keys would give an attacker two budgets per code.
-    const kinds = [...play.matchAll(/checkRateLimit\("([^"]+)"/g)].map((m) => m[1]);
+    // Separate keys would give an attacker two budgets per code. The two entry points are the one
+    // door for a typed code (services/code-door.ts) and the round's second step (play.ts).
+    const door = readSource("src", "lib", "services", "code-door.ts");
+    const kinds = [...(play + door).matchAll(/checkRateLimit\("([^"]+)"/g)].map((m) => m[1]);
     expect(kinds.length).toBeGreaterThanOrEqual(2);
     expect(new Set(kinds).size).toBe(1);
   });
@@ -920,10 +942,16 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // The gate belongs on the write. Refusing the code itself would break
     // every staff-scored tournament that uses codes for sign-in, which is
     // precisely the tournament this whole guard exists to protect.
-    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"]) {
+    for (const fn of ["claimPlayerSlot", "claimPlayerSlotForm", "leavePlay"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
       expect(body, fn).not.toMatch(/canEnterScores\(|entryRefusal\(/);
     }
+    // The first step is the one door for a typed code: neither its press nor the door asks the setting.
+    for (const fn of ["openCode", "openCodeForm"]) {
+      const body = actions("code-box.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).not.toMatch(/canEnterScores\(|entryRefusal\(/);
+    }
+    expect(readSource("src", "lib", "services", "code-door.ts")).not.toMatch(/canEnterScores\(|entryRefusal\(/);
   });
 });
 
@@ -1510,18 +1538,30 @@ describe("which model each AI call uses", () => {
    *
    * The prose calls stay on Sonnet deliberately: they are low-volume and their
    * output is read by a person as writing.
+   *
+   * Since 2026-11-03 a caller names a JOB and `src/lib/ai-config.ts` names the
+   * model for it, so the account and the models are configuration. This pins
+   * both halves: which job each file asks for, and which model family each job
+   * is on.
    */
-  const MODEL_FOR: Record<string, string> = {
-    "card-photo.ts": "claude-haiku-4-5",
-    "commentary.ts": "claude-sonnet-5",
-    "draft-message.ts": "claude-sonnet-5",
-    "setup-suggest.ts": "claude-sonnet-5",
+  const JOB_FOR: Record<string, AiJob> = {
+    "card-photo.ts": "cardReading",
+    "commentary.ts": "commentary",
+    "draft-message.ts": "messageDraft",
+    "setup-suggest.ts": "setupSuggest",
   };
 
-  for (const [file, expected] of Object.entries(MODEL_FOR)) {
-    it(`${file} calls ${expected}`, () => {
+  it("reads cards on Haiku and writes on Sonnet", () => {
+    expect(JOBS.cardReading.model).toMatch(/^claude-haiku-/);
+    for (const job of ["commentary", "messageDraft", "setupSuggest"] as const) {
+      expect(JOBS[job].model, job).toMatch(/^claude-sonnet-/);
+    }
+  });
+
+  for (const [file, expected] of Object.entries(JOB_FOR)) {
+    it(`${file} asks for ${expected}`, () => {
       const src = stripComments(read(file));
-      const found = [...src.matchAll(/model:\s*"([^"]+)"/g)].map((m) => m[1]);
+      const found = [...src.matchAll(/job:\s*"([^"]+)"/g)].map((m) => m[1]);
       // Distinct models, not calls. A file may hold more than one call —
       // card-photo.ts reads a single card and a whole group — and what
       // matters is that every one of them is on the model decided above.
@@ -1529,17 +1569,18 @@ describe("which model each AI call uses", () => {
       // like a cost regression when it is the opposite: one call for a
       // fourball in place of four.
       expect(found.length, `${file} should call a model at all`).toBeGreaterThan(0);
-      expect([...new Set(found)], `${file} uses one model throughout`).toEqual([expected]);
+      expect([...new Set(found)], `${file} uses one job throughout`).toEqual([expected]);
     });
   }
 
   it("has no AI call this guard has not been told about", () => {
     // So a new model call cannot be added without a deliberate decision about
-    // which model it should use and what that costs per invocation.
+    // which model it should use and what that costs per invocation. Every
+    // call goes through askClaude now, so that is what is looked for.
     const unlisted = readdirSync(ACTIONS_DIR)
-      .filter((f) => f.endsWith(".ts") && !MODEL_FOR[f])
-      .filter((f) => /api\.anthropic\.com/.test(stripComments(read(f))));
-    expect(unlisted, "add it to MODEL_FOR with a note on why that model").toEqual([]);
+      .filter((f) => f.endsWith(".ts") && !JOB_FOR[f])
+      .filter((f) => /askClaude\(|api\.anthropic\.com/.test(stripComments(read(f))));
+    expect(unlisted, "add it to JOB_FOR with a note on why that model").toEqual([]);
   });
 });
 

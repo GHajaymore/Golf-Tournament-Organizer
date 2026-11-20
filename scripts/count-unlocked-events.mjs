@@ -5,7 +5,9 @@
  * State machine PR 5b retires "Unlock configuration". A production event that is
  * live today with `configUnlocked = true` would find its setup read as the legacy
  * correction (still open) — the Ops risk of panel 8.5 — so Ops counts those rows
- * BEFORE the PR merges, through the owner's tools:
+ * BEFORE the PR merges, through the owner's tools. State machine PR 9b stops reading
+ * the flag, so it counts again before 9b, split by casual round or not (design-sm-pr9
+ * 4c: a notice in the PR body, not a gate):
  *
  *   node --env-file=.env scripts/count-unlocked-events.mjs
  *   node --env-file=.env.production scripts/count-unlocked-events.mjs --i-am-ops
@@ -37,11 +39,15 @@ if (!local && !ops) {
 
 const prisma = new PrismaClient();
 try {
-  const [unlocked, byStatus, liveToday, corrections, total] = await Promise.all([
+  const [unlocked, byStatus, liveToday, liveCasual, casualFlagFalse, corrections, total] = await Promise.all([
     prisma.event.count({ where: { configUnlocked: true } }),
     prisma.event.groupBy({ by: ["status"], where: { configUnlocked: true }, _count: true }),
-    // Live (launched, not completed) and unlocked: the rows an Organizer would find read as a legacy correction mid-event.
-    prisma.event.count({ where: { configUnlocked: true, status: "live" } }),
+    // Live, NOT casual, and holding the flag: the rows state machine PR 9b locks (a correction opens one part).
+    prisma.event.count({ where: { configUnlocked: true, status: "live", shape: { not: "match" } } }),
+    // Live casual rounds holding it: unchanged by 9b — the family rule keeps a casual round open.
+    prisma.event.count({ where: { configUnlocked: true, status: "live", shape: "match" } }),
+    // Casual rounds WITHOUT it (launched again, or made before the flag was written): locked before 9b, open after.
+    prisma.event.count({ where: { configUnlocked: false, shape: "match", status: { not: "draft" } } }),
     prisma.event.count({ where: { correctionScope: { not: null } } }).catch(() => null),
     prisma.event.count(),
   ]);
@@ -49,7 +55,9 @@ try {
   console.log(`tournaments: ${total}`);
   console.log(`configUnlocked = true: ${unlocked}`);
   for (const row of byStatus.sort((a, b) => a.status.localeCompare(b.status))) console.log(`  status ${row.status}: ${row._count}`);
-  console.log(`live and unlocked (the Ops risk, panel 8.5): ${liveToday}`);
+  console.log(`live, not casual, holding the flag (locked by PR 9b): ${liveToday}`);
+  console.log(`live casual rounds holding the flag (unchanged by 9b): ${liveCasual}`);
+  console.log(`casual rounds launched without the flag (open after 9b): ${casualFlagFalse}`);
   console.log(`committee corrections open: ${corrections === null ? "n/a (A040 not applied here)" : corrections}`);
 } finally {
   await prisma.$disconnect();

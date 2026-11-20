@@ -73,7 +73,7 @@ async function season(mode: "opt-out" | "everyone", how: "new" | "picked") {
   const event = await prisma.event.create({
     data: {
       organizationId: orgId, seriesId: series.id, name: `${TAG} Week ${key}`, dates: "", course: "", city: "", address: "", regDeadline: "",
-      shareToken: `${TAG}-${key}-${Date.now()}`, status: "live", configUnlocked: false, attendanceMode: mode, format: "stroke",
+      shareToken: `${TAG}-${key}-${Date.now()}`, status: "live", attendanceMode: mode, format: "stroke",
     },
   });
   const eventId = event.id;

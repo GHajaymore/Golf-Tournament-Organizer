@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scrubAnalyticsEvent, analyticsEnabled } from "@/lib/domain/analytics-event";
+import { scrubAnalyticsEvent, analyticsEnabled, pageViewFor, isPlayerLinkPage } from "@/lib/domain/analytics-event";
 import { readSource } from "./source";
 
 /**
@@ -45,6 +45,38 @@ describe("analytics is off unless switched on", () => {
     const layout = readSource("src", "app", "layout.tsx");
     expect(layout).toMatch(/analyticsEnabled\(process\.env\.NEXT_PUBLIC_ANALYTICS\)\s*&&\s*<SiteAnalytics/);
     const component = readSource("src", "components", "SiteAnalytics.tsx");
-    expect(component).toMatch(/"beforeSend",[\s\S]{0,80}?scrubAnalyticsEvent\(/);
+    // Through `pageViewFor`, which drops the player link's page and scrubs every other.
+    expect(component).toMatch(/"beforeSend",[\s\S]{0,80}?pageViewFor\(/);
+    const domain = readSource("src", "lib", "domain", "analytics-event.ts");
+    expect(domain).toMatch(/function pageViewFor[\s\S]{0,200}?return scrubAnalyticsEvent\(event\)/);
+  });
+});
+
+/**
+ * A GUEST'S PLAYER LINK PAGE IS NEVER COUNTED (J39/J40, the review's S3). The
+ * code rides in /p's fragment until the page strips it, and a beacon can race
+ * that: two locks — no script renders on /p, and a page view of /p is dropped.
+ */
+describe("the player link's page", () => {
+  const CODE = "K7QM2XRA9DTP";
+  it("is dropped, with or without its code, a query or a trailing slash", () => {
+    for (const url of [`https://tourneyhq.club/p#${CODE}`, "https://tourneyhq.club/p", "https://tourneyhq.club/p?ended=1", `https://tourneyhq.club/p/${CODE}`]) {
+      expect(pageViewFor({ type: "pageview", url }), url).toBeNull();
+      expect(isPlayerLinkPage(url), url).toBe(true);
+    }
+  });
+  it("and its code is redacted by the shared scrubber wherever it sits, if it were ever counted", () => {
+    for (const url of [`https://tourneyhq.club/p#${CODE}`, `https://tourneyhq.club/p/${CODE}`, `https://tourneyhq.club/me?code=${CODE}`]) {
+      expect(scrubAnalyticsEvent({ type: "pageview", url }).url, url).not.toContain(CODE);
+    }
+  });
+  it("CONTROL: a page whose path merely starts with p is counted", () => {
+    for (const url of ["https://tourneyhq.club/play", "https://tourneyhq.club/privacy", "https://tourneyhq.club/pricing"]) {
+      expect(pageViewFor({ type: "pageview", url })?.url, url).toBe(url);
+    }
+  });
+  it("SiteAnalytics renders nothing on /p", () => {
+    const component = readSource("src", "components", "SiteAnalytics.tsx");
+    expect(component).toMatch(/if \(isPlayerLinkPage\(path \?\? "\/"\)\) return null;/);
   });
 });

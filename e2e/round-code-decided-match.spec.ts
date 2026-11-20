@@ -93,7 +93,7 @@ test("a match decided 5&4 on a round code is handed in at the fourteenth, not he
   try {
     await page.goto("/play");
     await page.waitForLoadState("networkidle").catch(() => {});
-    await page.getByLabel("Round code").fill(CODE);
+    await page.getByLabel("Your code").fill(CODE);
     await page.getByRole("button", { name: "Continue" }).click();
     // The match is the group (2026-11-04): tapped, then confirmed once.
     await keepCardOf(page, "Zz Decider");

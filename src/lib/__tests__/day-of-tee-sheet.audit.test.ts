@@ -86,7 +86,6 @@ async function tournament(name: string, status: string, playedOn: string) {
       regDeadline: "",
       shareToken: `${TAG}-${name}-${Date.now()}`,
       status,
-      configUnlocked: false,
     },
   });
   const stage = await prisma.stage.create({
@@ -237,7 +236,7 @@ describe("a drawn player withdrawn before teeing off is DNS", () => {
   });
 
   it("before launch a withdrawn row with no card is not a DNS (the control)", async () => {
-    await prisma.event.update({ where: { id: medal }, data: { status: "registration" } });
+    await prisma.event.update({ where: { id: medal }, data: { status: "draft" } });
     try {
       const state = (await loadEventState(medal))!;
       expect(resultsSheetRows(state).some((r) => r.didNotStart)).toBe(false);

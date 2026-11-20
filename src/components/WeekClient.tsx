@@ -391,7 +391,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                   {view.results.map((r) => (
                     <tr key={r.playerId}>
                       <td style={{ ...td, fontVariantNumeric: "tabular-nums", fontWeight: r.position === 1 ? 700 : 400 }}>
-                        {ordinal(r.position)}
+                        {r.position === null ? "—" : ordinal(r.position)}
                       </td>
                       <td style={{ ...td, fontWeight: r.position === 1 ? 600 : 400 }}>
                         {r.name}

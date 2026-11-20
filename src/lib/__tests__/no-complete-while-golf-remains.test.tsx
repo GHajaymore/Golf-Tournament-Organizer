@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("@/app/actions/tournament", () => ({
   setEventStatus: async () => ({ ok: true }),
   launchTournament: async () => ({ ok: true }),
-  setConfigUnlocked: async () => ({ ok: true }),
 }));
 
 const { LifecycleBar } = await import("@/components/LifecycleBar");
@@ -50,7 +49,7 @@ function card(f: TournamentFacts, over: Partial<TournamentJobFacts> = {}) {
   };
   const job = tournamentJob(t, TODAY, (iso) => shortDate(iso, "en-GB"));
   return renderToStaticMarkup(
-    <LifecycleBar status={statusCardOf(f, status)} job={job} endEarly={endEarlyOf(status, job)} isAdmin configUnlocked={false} summary={summary} />,
+    <LifecycleBar status={statusCardOf(f, status)} job={job} endEarly={endEarlyOf(status, job)} isAdmin summary={summary} />,
   );
 }
 
@@ -87,7 +86,7 @@ describe("the dashboard's card never offers Complete while golf remains to be pl
     expect('<button type="button" class="btn btn-secondary" aria-expanded="false" aria-controls="y">More <svg></svg></button>').toMatch(MORE_BUTTON);
     // And a card handed no job (the old contract) still draws the machine's Complete mid-play.
     const old = renderToStaticMarkup(
-      <LifecycleBar status={statusCardOf(launched(medal({ rounds: [r1({ hasResult: true }), r2()] })))} isAdmin configUnlocked={false} summary={summary} />,
+      <LifecycleBar status={statusCardOf(launched(medal({ rounds: [r1({ hasResult: true }), r2()] })))} isAdmin summary={summary} />,
     );
     expect(old).toMatch(COMPLETE_BUTTON);
   });

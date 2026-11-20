@@ -77,8 +77,8 @@ function allBy(by: LockBy, except: LockScope[] = []): Locked {
   return Object.fromEntries(scopes.filter((s) => !except.includes(s)).map((s) => [s, by])) as Locked;
 }
 
-const live = (f: TournamentFacts): TournamentFacts => ({ ...f, status: "live", configUnlocked: false });
-const done = (f: TournamentFacts): TournamentFacts => ({ ...f, status: "completed", configUnlocked: false });
+const live = (f: TournamentFacts): TournamentFacts => ({ ...f, status: "live" });
+const done = (f: TournamentFacts): TournamentFacts => ({ ...f, status: "completed" });
 /** Patch round i (in play order) with `patches[i]`; rounds past the list are untouched. */
 const patch = (f: TournamentFacts, patches: Partial<RoundFacts>[]): TournamentFacts => ({
   ...f,
@@ -190,11 +190,12 @@ walk("stroke", "a 36-hole club championship from first screen to reopened", [
     rounds: ["under-way", "not-started"],
   },
   {
-    name: "the committee unlocks setup mid-round to correct an entry: still live, the blanket lock is open",
-    f: { ...patch(live(medal()), [{ hasResult: true }]), configUnlocked: true },
+    // Until state machine PR 9b the committee could unlock the whole setup here (the blanket flag); it opens one part now.
+    name: "the committee opens the details mid-round to correct the course's name: still live, only the details open",
+    f: { ...patch(live(medal()), [{ hasResult: true }]), correction: { scope: "details", by: "A. Organizer", reason: "The course was named wrongly", until: "2026-11-14T05:00:00.000Z" } },
     step: "live",
     next: { kind: "complete", enabled: true },
-    locked: {},
+    locked: allBy("launch", ["details"]),
   },
   {
     name: "round 1 closed, round 2 under way: nothing left to ask about",
@@ -910,7 +911,7 @@ walk("league", "eight clubs over six weeks", [
  * deleted. So it never has a next action, never "plays over", never locks.
  */
 const casual = (over: Partial<TournamentFacts> = {}): TournamentFacts =>
-  facts({ shape: "match", status: "live", configUnlocked: true, confirmed: 4, groups: 0, moneyAnswered: false, rounds: [round({ id: "c1", position: 0, teeSheetSaved: null })], ...over });
+  facts({ shape: "match", status: "live", confirmed: 4, groups: 0, moneyAnswered: false, rounds: [round({ id: "c1", position: 0, teeSheetSaved: null })], ...over });
 
 walk("casual", "a round among friends", [
   { name: "just created: live, no setup, no button, nothing locked", f: casual(), step: "live", next: null, locked: {}, rounds: ["not-started"] },
@@ -964,7 +965,7 @@ describe("what the next action may and may not offer — swept over every stage 
   for (const { family, stage } of ALL) {
     describe(`${family} · ${stage.name}`, () => {
       const st = tournamentStatus(stage.f);
-      const launched = stage.f.status !== "draft" && stage.f.status !== "registration" && stage.f.status !== "ready";
+      const launched = stage.f.status !== "draft";
       const scored = stage.f.rounds.some((r) => r.hasResult);
 
       it("offers only what the step allows", () => {
@@ -1092,7 +1093,8 @@ describe("the rules since the walks — the lock's words, a round's own settings
       const st = tournamentStatus(f);
       const completed = f.status === "completed";
       const launched = f.status === "live" || completed;
-      const locked = launched && !f.configUnlocked;
+      // 8.2: every family locks at launch but a casual round (state machine PR 9b; no flag decides it).
+      const locked = launched && family !== "casual";
 
       it("a locked scope says its reason in words and its way out — the committee correction after launch, never an Unlock (5b)", () => {
         for (const scope of LOCK_SCOPES) {
@@ -1156,7 +1158,7 @@ describe("the scoring gate — play is refused only before launch, and never onc
   for (const { family, stage } of ALL) {
     it(`${family} · ${stage.name}`, () => {
       const st = tournamentStatus(stage.f);
-      const launched = !["draft", "registration", "ready"].includes(stage.f.status);
+      const launched = stage.f.status !== "draft";
       const scored = stage.f.rounds.some((r) => r.hasResult);
       if (launched || scored) expect(st.refusals.play).toBeNull();
       else expect(st.refusals.play).toMatch(/hasn’t been launched yet/);
@@ -1197,9 +1199,9 @@ describe("what each stage locks — the blanket, the confirmed draw, the correct
     expect(lockedNow(tournamentStatus(live(stroke({ flightsConfirmed: true }))))).toEqual(allBy("launch"));
   });
 
-  it("live and unlocked by the committee: a confirmed draw is STILL confirmed until it is reopened on Flights", () => {
-    const f = { ...live(stroke({ flightsConfirmed: true })), configUnlocked: true };
-    expect(lockedNow(tournamentStatus(f))).toEqual({ flights: "draw" });
+  it("live, a correction on another part: a confirmed draw's flights stay locked by launch (PR 9b: no blanket opens them)", () => {
+    const f = { ...live(stroke({ flightsConfirmed: true })), correction: { scope: "field" as LockScope, by: "A. Organizer", reason: "A wrong handicap on one entry", until: "2026-11-04" } };
+    expect(lockedNow(tournamentStatus(f))).toEqual(allBy("launch", ["field"]));
   });
 
   it("a committee correction opens exactly the scope it names, and only if that lock is correctable", () => {

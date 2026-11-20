@@ -87,7 +87,7 @@ beforeAll(async () => {
   leagueEventId = (
     await prisma.event.create({
       data: {
-        organizationId: leagueId, name: `${TAG} Week 1`, status: "registration", shape: "series", format: "stroke",
+        organizationId: leagueId, name: `${TAG} Week 1`, status: "draft", shape: "series", format: "stroke",
         formationRule: "balanced", dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
         shareToken: `${lower}-share-1`, registrationToken: `${lower}-reg-1`,
       },
