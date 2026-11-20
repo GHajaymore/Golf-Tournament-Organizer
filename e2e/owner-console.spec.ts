@@ -135,7 +135,7 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
    * job, with a key, is the owner's press on the preview (`docs/ai-account.md`).
    */
   await test.step("Check AI: one line per job, each saying why it is off when there is no key", async () => {
-    await open();
+    await open("accounts");
     const card = page.getByRole("region", { name: "AI account" });
     await expect(card).toContainText("Sends each AI job one tiny real request.");
     await card.getByRole("button", { name: "Check AI" }).click();
@@ -162,7 +162,7 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     const KEY = "ai-budget-cents";
     const row = async () => (await prisma.platformSetting.findUnique({ where: { key: KEY } }))?.value ?? null;
     await prisma.platformSetting.deleteMany({ where: { key: KEY } });
-    await open();
+    await open("accounts");
     let card = page.getByRole("region", { name: "AI account" });
     await expect(card.locator("p", { hasText: "spent of" })).toContainText("spent of $20.00");
     let box = card.getByLabel("Monthly AI budget (US dollars)");
@@ -178,7 +178,7 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     await card.getByRole("button", { name: "Save budget" }).click();
     await expect(card.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
     await expect.poll(row).toBe("1234");
-    await open();
+    await open("accounts");
     card = page.getByRole("region", { name: "AI account" });
     await expect(card.locator("p", { hasText: "spent of" })).toContainText("spent of $12.34");
     box = card.getByLabel("Monthly AI budget (US dollars)");
