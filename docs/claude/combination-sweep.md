@@ -221,3 +221,13 @@ The multi-agent exploratory audit that produced all this is a RELEASE GATE or
 post-feature pass, not a per-change step — it costs over a million tokens. Use
 it to find unknown classes of bug; use the sweep above to stop known ones
 coming back.
+
+## Moved from CLAUDE.md (20 Nov 2026): Combination sweep
+
+For any change to scoring, draw, cut, bracket or handicap code add the cell to
+`src/lib/__tests__/matrix.test.ts` (format x stage type x field sizes starting at ONE; invariants, not
+features), assert against the Rules of Golf with the citation, and mutate what a cell covers to watch it
+go red. A constant offset on every row is invisible to ordering tests: check one row against the Rules.
+Ask which table (Scorecard, TeamScorecard, Match, BracketWinner) a round files its result in before
+believing any count. `docs/claude/combination-sweep.md`.
+

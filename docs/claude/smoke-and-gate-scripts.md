@@ -198,3 +198,38 @@ the public board as a `<li>` list, so accept both rather than making a screen ma
 So a green `npm run smoke` says every route renders for the demo, and says nothing about the
 other six. Run them too — against the same server, in that order — whenever you change copy,
 move a control, or touch a screen that reads a list which can be empty.
+
+## Moved from CLAUDE.md (20 Nov 2026): Verification: smoke, counts, Playwright
+
+- **`npm run smoke`** GETs every route against a running server (default `http://localhost:3000`; set
+  `SMOKE_BASE_URL`) and fails on a 5xx. In a worktree check `preview_list`'s `cwd` first: `preview_start`
+  reuses a dev server running from the MAIN checkout and every route then passes against code you did not write.
+- **`npm run smoke:all`** is CI's whole "Smoke-test every route" step locally (SEVEN scripts: `smoke-routes`,
+  `verify-round-controls`, `verify-drafting`, `verify-week-view`, `verify-lifecycle`, `verify-player-states`,
+  `verify-public-boards`) against a BUILT server in `.next-ci` on 3102; `-- --no-build` reuses the build. Run
+  it when you change copy, move a control, or touch a screen that reads a list that can be empty — five of
+  the scripts pin user-facing strings. `FAIL 0` / `fetch failed` means NO SERVER (the dev server restarts
+  itself at a memory threshold), not a broken route: restart and run the set again.
+- **Capture the counts, not the tail.** `| tail` swallows an exit code and a failing vitest still prints
+  `Duration`. Grep `Test Files|Tests ` and record the command's own status:
+  `npx vitest run 2>&1 | grep -E "Test Files|Tests " >> "$O"; echo "unit exit=${PIPESTATUS[0]}" >> "$O"`.
+  A check whose failure looks like its success is not a check.
+- **Playwright is the sixth part of the gate:** `AUTH_SECRET=local-e2e-secret npx playwright test` (needs a
+  database it may write — the development one only). Never say a branch or `main` is verified having skipped
+  it. It builds into `.next-e2e` (no clash with the dev server), but **`reuseExistingServer` is `!CI`**: a
+  killed run leaves `next start` listening on 3101 and the next run tests the OLD build. Before believing a
+  local e2e result: `ls -la --time-style=full-iso .next-e2e/BUILD_ID` (older than your last edit = stale) and
+  `curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3101/` (200 before you start = stale). Cleanup:
+  kill the listener on 3101 (`powershell -c "Get-NetTCPConnection -LocalPort 3101 -State Listen | %{ Stop-Process -Id \$_.OwningProcess -Force }"`)
+  and `rm -rf .next-e2e`. Failures that all take the same time, cascade across unrelated files and carry no
+  expected/received value mean the server under them died.
+- **Reading a change in the browser: bust the URL** (`?bust=1`) or assert against `fetch(url, { cache: "no-store" })`.
+- **WebKit** (`E2E_ENGINE=webkit`) needs the server started with `E2E_PLAIN_HTTP=1`; await `landingSettled(page)`
+  before measuring or pressing on the front door. More in `docs/claude/e2e-traps.md`.
+- **A red CI job your change cannot explain** is one of five known faults — Chromium `SEGV_MAPERR` (signal 11,
+  desktop), `Could not find the module … in the React Client Manifest`, `next/font`, the `offline.spec.ts`
+  card-chooser click, or React #418. Open the log, name which, and `gh run rerun <id> --failed`; do NOT add
+  `retries` and do not edit application code on the strength of one. After the hydration backport a
+  `[hydration #418]` line is a REAL mismatch — fix the element it names. See `docs/claude/ci-failure-signatures.md`,
+  `docs/claude/offline-chooser-flake.md`, `docs/claude/hydration-418.md`.
+
