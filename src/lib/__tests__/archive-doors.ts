@@ -59,7 +59,7 @@ export const NOT_A_DOOR: Record<string, string> = {
   readCourseCardPhoto: "club",
   // business
   setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business", saveOffers: "business",
-  createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business", refreshDemoClub: "business", loadCourseCatalogue: "business",
+  createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business", refreshDemoClub: "business", loadCourseCatalogue: "business", checkAiAccount: "business", setAiBudget: "business",
   // new
   createEvent: "new", createEventFromAnswers: "new", cloneEvent: "new", createMatch: "new",
   // own data
