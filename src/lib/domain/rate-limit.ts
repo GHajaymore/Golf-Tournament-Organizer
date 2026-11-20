@@ -84,6 +84,7 @@ export type RateLimitKind =
   | "interest"
   | "course-search"
   | "course-search-staff"
+  | "ai-check"
   | "guest-post"
   | "push-device";
 
@@ -260,6 +261,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * it. Searching and importing both draw on it — see `directoryBudget`.
    */
   "course-search-staff": { limit: 120, windowMs: 60 * MINUTE },
+  /**
+   * The owner's Check AI (2026-11-03): one real request per AI job, paid for.
+   * One press a minute — enough to check after an account swap, not enough
+   * for a stuck button to run up a bill.
+   */
+  "ai-check": { limit: 1, windowMs: MINUTE },
   /** A guest's posts through a player link (J39/J40 PR 2; S8), keyed on the PASS, never cleared:
    *  a forwarded link must not flood the round's thread. Twenty in fifteen minutes is more than a
    *  person writes between shots; the organizer can also Mute or Turn off the link. */
@@ -475,6 +482,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many registration attempts. Wait ${wait} and try again.`;
     case "join-request":
       return `Too many requests to join. Wait ${wait} and try again.`;
+    case "ai-check":
+      return `One AI check a minute. Try again in ${wait}.`;
     case "guest-post":
       return `Too many messages just now. Wait ${wait} and try again.`;
     case "push-device":
