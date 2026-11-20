@@ -22,11 +22,16 @@ const MODEL_ID = /["'`]claude-(?:opus|sonnet|haiku|fable|mythos|instant)-[0-9][a
 /** An AI provider's key or the account label, named anywhere in code (a read, a message, a lookup). */
 const KEY_NAME = /\b(?:ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|AI_ACCOUNT_LABEL|GROQ_API_KEY|XAI_API_KEY|AI_GATEWAY_API_KEY)\b/;
 
+/** A key set to the empty string, as an object entry. */
+const BLANKED_KEY = /\b(?:ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|GROQ_API_KEY|XAI_API_KEY|AI_GATEWAY_API_KEY)\s*:\s*(?:""|'')/g;
+
 function aiConfigOffences(code: string): string[] {
   const found: string[] = [];
   const m = code.match(MODEL_ID);
   if (m) found.push(`model id ${m[0]}`);
-  const k = code.match(KEY_NAME);
+  // A test server's environment BLANKS a key (`ANTHROPIC_API_KEY: ""`, scripts/qa/round.mjs): that
+  // reads no key and names no account, so it is not an offence. Any other mention still is.
+  const k = code.replace(BLANKED_KEY, "").match(KEY_NAME);
   if (k) found.push(`key or label ${k[0]}`);
   return found;
 }
@@ -49,6 +54,9 @@ describe("the AI account is decided in one place", () => {
     expect(aiConfigOffences(`const m = "claude-haiku-5-5";`)).toEqual(['model id "claude-haiku-5-5"']);
     expect(aiConfigOffences("const k = process.env.ANTHROPIC_API_KEY;")).toEqual(["key or label ANTHROPIC_API_KEY"]);
     expect(aiConfigOffences(`askClaude({ model: 'claude-sonnet-5', x: env.AI_ACCOUNT_LABEL })`)).toHaveLength(2);
+    // A test server's environment blanking the key reads nothing; giving it a value is still an offence.
+    expect(aiConfigOffences(`env({ ANTHROPIC_API_KEY: "" })`)).toEqual([]);
+    expect(aiConfigOffences(`env({ ANTHROPIC_API_KEY: "x" })`)).toEqual(["key or label ANTHROPIC_API_KEY"]);
     // Read the way the sweep reads a file: a comment naming them is not an offence.
     expect(aiConfigOffences(stripComments("// set ANTHROPIC_API_KEY, model \"claude-haiku-5-5\"\nconst a = 1;"))).toEqual([]);
     // And it reads the config file itself, which is the one place they are allowed.
