@@ -84,7 +84,7 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
   const answer = await askClaude({
-    model: "claude-sonnet-5",
+    job: "messageDraft",
     maxTokens: 800,
     content: draftPrompt(DRAFT_KINDS[kind as DraftKind], facts.eventName, facts.text, note),
   });
@@ -99,7 +99,7 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
       return {
         ok: false,
         configured: false,
-        error: "Drafting isn't switched on. You can still write and send from Communications.",
+        error: `${answer.why ?? "Drafting isn't switched on."} You can still write and send from Communications.`,
       };
     }
     if (answer.reason === "unreachable") {

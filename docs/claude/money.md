@@ -37,3 +37,18 @@ hole on it. That is loose enough for "which round are we on" and far too loose t
 What a player may still see mid-round is their EXPOSURE — `stakeFor`, which reads membership and
 never touches a card. That half is honest, it is what the player walking to the first tee
 actually wants, and it must stay.
+
+## Moved from CLAUDE.md (20 Nov 2026): Money: what may be reported while a round is live
+
+`money-layout.ts` opens with the rule — **final only, never live.** Ask "can the amount still change", not
+"has the event happened": a birdie pot, low gross and low net change as cards come in; a Nassau's completed
+segments are paid live. Enforce at the SINK (`gameNets`, as `standingRows` returns `[]` for a manual
+format) so a caller written later cannot forget. `matchSettled` is too loose to release money. A player may
+still see their EXPOSURE (`stakeFor`). **TourneyHQ calculates and records money; it never moves it** (Hard
+rule 7).
+
+**The app says "side game", never "bet"** (Ajay, 2026-10-21: "side games will resonate with our
+moto of no gambling"). On every screen, in the guide and in the player's Help, not only on the
+public pages that ads land on. `public-pages-never-say-bet.test.ts` sweeps the whole of `src` for
+the phrases a sentence makes of the word; `bet` as a code NAME (`bet.name`, `renameBet`) is fine.
+

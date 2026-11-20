@@ -174,3 +174,37 @@ keep their own), the board, Help. Design: `TourneyHQ Documents/Design - Guest pl
   Today names who the link is for ("Not you? Hand this back to the desk."). Guest self-entry, the typed entry
   code (`Event.registrationCode`, `guestEntryOpen`: columns in A047, unused until PR 3B) and the stand-in's
   link are not built yet.
+
+## Moved from CLAUDE.md (20 Nov 2026): Test fixtures: signing a fixture in
+
+**A fixture that signs itself in signs `signedInNow(user.id)`**, from
+`scripts/session-cookie.mjs` — never the bare user id. Since 2026-10-11 a session cookie
+carries when it was issued (`src/lib/domain/session-token.ts`): the server holds a sign-in to
+seven days itself, and a password reset ends every earlier one. A cookie made the old way is
+refused, and a refused fixture does not fail loudly — every screen answers 307 to the sign-in
+page, which a route walk reads as the app working. `session-token.test.ts` sweeps `e2e/` and
+`scripts/` for the old spellings.
+
+## Moved from CLAUDE.md (20 Nov 2026): Sign-ins until launch
+
+Ajay, 2026-10-17 and 2026-10-21: block sign-up and sign-in until he says launch. `src/lib/sign-in-gate.ts`.
+**Production holds itself:** only the owners on `OWNER_EMAILS` (and anybody on `SIGNIN_ALLOW_EMAILS`) may
+sign in, set or reset a password, sign up, or keep a session; everybody else sees the "opens soon" front
+door (sign-in only, `/play` for a player, every button to `/interest`). Previews, dev, CI and e2e are not
+production and stay open. **To launch:** Go live on the Accounts card of `/owner` (`services/signins-switch.ts`),
+or `SIGNINS=open` in Vercel — ONE press takes every held place live, Hold again holds them all; the places are
+`LAUNCH_SURFACES` in `src/lib/go-live.ts` (= `docs/go-live-switch.md`), each screen takes `LaunchState` as a
+REQUIRED argument, and once live the card sends the early-list codes on the owner's press (`services/early-list.ts`).
+**Every door asks `maySignInNow` / `signInsHeld` / `launchState`** (`createSession`, `getSession`,
+the sign-in actions, the public pages), so a new door must too. The held page's words are
+`HELD_FRONT_DOOR` / `SIGNINS_CLOSED_NOTICE`: sign-ups "paused" (never "under development"), never the word
+"closed" on screen, and the free plan's "Free for fields of up to 10" and "No card" stay down until launch.
+It is held only while `OWNER_EMAILS` names somebody, so it can never lock everyone out.
+
+**Signing in (2026-10-21):** no session for an address nobody has proved (`createSession` refuses a null
+`emailVerifiedAt`; a fixture that signs in through it sets `emailVerifiedAt: new Date()`, a spec that signs
+up or claims through the form calls `verifyByCode(page, email)` from `e2e/verify-by-code.ts`); every new
+password goes through `passwordRefusal` (`services/password-breach.ts`); club staff on a browser not seen
+before are sent a code (`KnownDevice`) — sign a STAFF fixture in with `signedInNow`, not the password form.
+Long form: `docs/claude/sign-ins.md`.
+

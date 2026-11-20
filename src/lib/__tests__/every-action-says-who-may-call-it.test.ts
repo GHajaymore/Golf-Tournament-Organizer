@@ -132,7 +132,7 @@ const WHO: Record<string, string> = {
   broadcastToScope: "organizer", previewSmsBroadcast: "organizer", broadcastWithText: "organizer",
   // the business
   setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business", saveOffers: "the business",
-  createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business", sendEarlyListCodes: "the business", refreshDemoClub: "the business",
+  createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business", sendEarlyListCodes: "the business", refreshDemoClub: "the business", checkAiAccount: "the business", setAiBudget: "the business",
   loadCourseCatalogue: "the business",
 };
 

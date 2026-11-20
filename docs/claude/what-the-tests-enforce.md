@@ -148,3 +148,37 @@ blanks lines starting with a marker leaves the body of any doc block written as 
 prose behind as dangling text, and three files stop parsing. And `git checkout -- src` afterwards
 restores far more than the experiment — it discards every other uncommitted change in the
 directory, which on 2026-09-05 cost a day's worth of conversions that had to be redone.
+
+## Moved from CLAUDE.md (20 Nov 2026): The guard hook
+
+**Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
+every Bash and PowerShell command (`.claude/settings.json`) and refuses `git add -A`/`.`, any `git stash`,
+a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number or a
+local path (`C:\Users\<you>`), PowerShell writing a source file, `gh run watch`, a merge or `round/*` push from
+any session but the one named in the untracked `.claude/main-session` (or from a subagent), a migration applied
+to the shared dev database from anywhere but the main checkout (`--create-only` is fine), and — on the
+Windows desktop only — builds, dev servers and Playwright.
+A refusal names its rule. Text in quotes and heredocs is never read as a command. To change what it
+allows, edit the script with `src/lib/__tests__/claude-guard-hook.test.ts`.
+
+## Moved from CLAUDE.md (20 Nov 2026): How help goes stale
+
+Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
+no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
+`guide-steps.test.ts`), and a search result with nowhere to jump (`guide-search.test.ts`). The
+fourth is not testable and is yours: a flow that works differently under the same button names.
+The day this rule was written, the guide already held a sentence that morning's work had made
+false — "Only Manual lets you … set tees per flight".
+
+## Moved from CLAUDE.md (20 Nov 2026): What the tests enforce
+
+Several test files exist to make a whole class of mistake impossible — extend them rather than working
+around them; the list is in `docs/claude/what-the-tests-enforce.md` (`audit-idor`, `club-actions-check-the-role`,
+`every-action-says-who-may-call-it`, `source-guard`, `round-number-source`, `themes`, `brand-consistency`, …).
+**A test that searches source reads it through `readSource`** (`src/lib/__tests__/source.ts`, which strips
+comments). **When a correct change makes a guard fail, read the guard before updating it** — pin the
+GUARANTEE, not the expression. **Prove a new test can fail:** revert the fix (commit first), watch it go red,
+put it back; when a mutation stays green suspect your theory of the defect before the harness. Enumerate a
+string column's real values (`groupBy`) before narrowing a test on one. `TypeScript types are erased at
+runtime` — a `"use server"` export is a public endpoint; validate payloads at the boundary (`score-payload.ts`).
+

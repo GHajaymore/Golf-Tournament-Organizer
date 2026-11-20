@@ -81,3 +81,14 @@ were found in twelve audit files and moved to `"live"`) now fails at the insert,
 `select pg_get_constraintdef(oid) from pg_constraint where conname = 'Event_status_is_one_the_app_writes'`.
 The proof is `a-legacy-row-keeps-its-word.audit.test.ts`, which runs the file's own text against a
 scratch copy of a zz- club's rows.
+
+## Moved from CLAUDE.md (20 Nov 2026): Migrations
+
+`schema.prisma` splits the datasource: `url` pooled, `directUrl` direct; migrations need the direct URL.
+Read the SQL a migration generated — fix the *schema* if an unrelated `DROP DEFAULT` rides along. **Name a new
+migration folder `A001_…`, `A002_…` (`A0NN`) — never `100_`, never Prisma's timestamp** (a fresh database
+replays folders in text order; `migrations-replay-in-the-order-written.test.ts` refuses anything else).
+`prisma migrate dev --create-only` then rename the folder; apply with `prisma migrate deploy`; never a reset
+(Hard rule 6). After a new model: `npx prisma generate` and RESTART the dev server (a running Next process
+holds the old client: `prisma.yourNewModel` is `undefined`). `docs/claude/migrations.md`.
+
