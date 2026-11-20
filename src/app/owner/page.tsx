@@ -163,9 +163,10 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
   // The AI account in words: on/off, label, models. Never the key (src/lib/ai-config.ts).
   const ai = aiAccount();
   // And what it has cost this UTC month against the owner's budget (services/ai-spend.ts).
-  const aiSpend = await aiSpendSummary();
+  // Only the Accounts tab draws it, so only that tab asks the database.
+  const aiSpend = tab === "accounts" ? await aiSpendSummary() : null;
   const centsUp = (micro: number) => Math.ceil(micro / MICRO_USD_PER_CENT);
-  const aiBudget = {
+  const aiBudget = aiSpend && {
     monthWords: "This month (UTC)",
     spentWords: money(centsUp(aiSpend.spentMicroUsd), "USD"),
     budgetWords: money(aiSpend.budgetCents, "USD"),
@@ -296,7 +297,7 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
             );
           })}
         <OwnerAiCheck />
-        <OwnerAiBudget {...aiBudget} />
+        {aiBudget ? <OwnerAiBudget {...aiBudget} /> : null}
       </section>
       </>)}
 

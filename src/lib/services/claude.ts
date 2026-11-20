@@ -65,7 +65,7 @@ export async function askClaude({
   try {
     const res = await post(key, job, maxTokens, content);
     // This month's AI budget is spent: off, in words, exactly as a missing key is.
-    if (res.kind === "stopped") return { ok: false, reason: "not-configured", why: res.why };
+    if (res.kind === "stopped") return { ok: false, reason: "not-configured", why: "AI help is paused just now." };
 
     // The status, never the body. See the note above — this is the whole point.
     if (!res.ok) return { ok: false, reason: "refused", status: res.status };

@@ -7,6 +7,7 @@ import { loadEventState, computeHighlights } from "@/lib/services/tournament";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { askClaude } from "@/lib/services/claude";
 import { aiJobOn } from "@/lib/ai-config";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 async function requireStaff() {
   const session = await getSession();
@@ -51,6 +52,11 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
   const entitled = await entitlementForEvent(session.eventId, "aiAssist");
   if (!entitled.allowed) return { text: "", configured: false };
 
+  // The AI budget is ONE account for every club: an unthrottled loop here would spend it for all of
+  // them. Same bucket as the other staff AI actions (card photos), per user.
+  const limit = await checkRateLimit("card-photo", session.userId);
+  if (!limit.allowed) return { text: limit.message, configured: true };
+
   const key = aiJobOn("commentary");
   const state = await loadEventState(session.eventId);
   if (!state) return { text: "", configured: !!key };
@@ -82,6 +88,6 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
   // board is worse than no line.
   if (answer.reason === "empty") return { text: "", configured: true };
   // Off: no key (nothing to say), or this month's AI budget is spent (say so).
-  if (answer.reason === "not-configured") return { text: answer.why ?? "", configured: false };
+  if (answer.reason === "not-configured") return { text: "", configured: false };
   return { text: `Claude API error (${answer.status}). Check the key.`, configured: true };
 }
