@@ -75,7 +75,7 @@ const WRITES = [".create(", ".createMany(", ".update(", ".updateMany(", ".upsert
 const WHO: Record<string, string> = {
   // anyone
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
-  signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", confirmEntryCode: "anyone", getVapidPublicKey: "anyone",
+  signUp: "anyone", registerAsGuest: "anyone", guestEntryFor: "anyone", startGuestEntry: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", confirmEntryCode: "anyone", getVapidPublicKey: "anyone",
   claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
   // One code box (2026-11-17): a round code or a guest's player link code, typed in any box or tapped
   // on /p. The code is its own authorization, behind the one door's budgets (services/code-door.ts).

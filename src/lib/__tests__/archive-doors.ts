@@ -43,6 +43,9 @@ export const NOT_A_DOOR: Record<string, string> = {
   // An archived tournament stays open to players to view; every write still meets the scoring gate's archive check.
   // One code box (2026-11-17): a typed code opens through `openCode` / `openCodeForm` — a link's cookie on this
   // browser, or a round's field to pick from (a read); neither writes to a tournament.
+  // J39/J40 PR 3B: the sign-up page's own code box and the press that sets the device cookie before the form: neither
+  // writes to a tournament (the code door opens a page, or refuses; `registerAsGuest` asks the archive itself).
+  guestEntryFor: "person", startGuestEntry: "person",
   openCode: "person", openCodeForm: "person", forgetThisPhone: "person", choosePlayerView: "person",
   // club
   checkDiscountCode: "club", startCheckout: "club", openBillingPortal: "club", deleteClub: "club",

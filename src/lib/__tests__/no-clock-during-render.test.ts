@@ -58,6 +58,10 @@ const ALLOWED: Record<string, { reads: number; why: string }> = {
     reads: 1,
     why: "mount-only state inside useEffect; PromotedBadge draws nothing until there is a clock",
   },
+  "src/components/GuestWaitingCard.tsx": {
+    reads: 1,
+    why: "the time of the last check, read in the effect and in the Check now handler, never while rendering (`stamp`)",
+  },
   "src/components/FoursomeMaker.tsx": {
     reads: 2,
     why: "stamping savedAt inside save handlers, which run only on the client and never during render",

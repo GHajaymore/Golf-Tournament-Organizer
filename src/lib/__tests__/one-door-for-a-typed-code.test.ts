@@ -41,7 +41,7 @@ describe("one reader of a round code", () => {
     expect(where(READS_ACCESS_CODE)).toEqual([DOOR_FILE]);
   });
   it("the minting checks count, and are where codes are made", () => {
-    expect(where(COUNTS_ACCESS_CODE)).toEqual(["src/app/actions/match-setup.ts", "src/app/actions/settings.ts", "src/lib/services/round-codes.ts"]);
+    expect(where(COUNTS_ACCESS_CODE)).toEqual(["src/app/actions/match-setup.ts", "src/app/actions/settings.ts", "src/lib/services/guest-entry.ts", "src/lib/services/round-codes.ts"]);
   });
   it("CONTROL: a second reader is seen; a no-code filter and a count are not readers", () => {
     expect(READS_ACCESS_CODE.test("await prisma.stage.findFirst({ where: { accessCode: code }, include: { event: true } })")).toBe(true);
@@ -90,7 +90,8 @@ describe("the door is entered only from its press and the round's second step", 
     const actions = SRC.filter(({ text }) => /^\s*["']use server["']/.test(text));
     const importers = actions.filter(({ text }) => /from "@\/lib\/services\/code-door"/.test(text)).map(({ f }) => f).sort();
     expect(actions.length, "the sweep sees the actions").toBeGreaterThan(20);
-    expect(importers).toEqual(["src/app/actions/code-box.ts", "src/app/actions/play.ts"]);
+    // And the sign-up page's own code box (J39 PR 3B, `guestEntryFor`): the same door, a third press.
+    expect(importers).toEqual(["src/app/actions/code-box.ts", "src/app/actions/guest-entry.ts", "src/app/actions/play.ts"]);
   });
   it("nothing exported by the door takes a box: the answer cannot depend on which page asked (item 2)", () => {
     const door = readSource(DOOR_FILE);

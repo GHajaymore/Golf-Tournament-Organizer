@@ -23,13 +23,25 @@ import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
-import { awaitingApproval } from "@/lib/registration";
+import { awaitingApproval, formatDeadline, parseDeadlineIso } from "@/lib/registration";
+import { isGuest } from "@/lib/domain/entry-standing";
+import { anyRoundNet } from "@/lib/domain/guest-entry";
+import { isPlayingRound } from "@/lib/stage-types";
+import { indexFigure } from "@/lib/domain/handicap-label";
+import { prisma } from "@/lib/db";
+import { zoneOfEvent } from "@/lib/services/club-clock";
+import { formatClock } from "@/lib/domain/locale";
 import { fieldFactsFor } from "@/lib/services/field-change";
 import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, fieldLockSaid, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
 import { WithdrawnList } from "@/components/WithdrawnList";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
 
 export const metadata = screenMetadata("/registration");
+
+/** "08:12", the club's own clock, for "asked 08:12" on a waiting guest's row. */
+function clubClock(at: Date, zone: string, locale: string): string {
+  return formatClock(at, locale, { hour: "2-digit", minute: "2-digit", timeZone: zone || undefined });
+}
 
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");
@@ -71,6 +83,31 @@ export default async function RegistrationPage() {
   state.groups.forEach((g, i) => {
     for (const p of state.confirmed) if (p.groupId === g.id) flightByPlayer.set(p.id, flightLabel(g.name, i));
   });
+
+  /**
+   * GUESTS WAITING (J39/J40 PR 3B): each with when they asked, who invited them and whether the name is already in the
+   * field. Staff only; a waiting row is never public. In a net event the committee's figure is asked at approval.
+   */
+  const waitingGuests = awaitingApproval(state.players).filter((p) => isGuest(p));
+  const guestPasses = waitingGuests.length
+    ? await prisma.playerPass.findMany({ where: { eventId: session.eventId, playerId: { in: waitingGuests.map((g) => g.id) } }, select: { playerId: true, entryNote: true, createdAt: true } })
+    : [];
+  const zone = await zoneOfEvent(session.eventId);
+  const formatting = await formattingForEvent(session.eventId);
+  const inField = state.players.filter((p) => p.status === "confirmed" || p.status === "waitlisted");
+  const guestRows = waitingGuests.map((g) => {
+    const pass = guestPasses.find((x) => x.playerId === g.id);
+    const same = inField.find((p) => p.name.trim().toLowerCase() === g.name.trim().toLowerCase());
+    return {
+      id: g.id,
+      name: g.name,
+      askedAt: pass ? clubClock(pass.createdAt, zone, formatting.locale) : "",
+      invitedBy: pass?.entryNote ?? "",
+      declared: g.handicapSource === "none" ? "" : indexFigure(g.handicap),
+      sameNameAs: same ? same.name : "",
+    };
+  });
+  const netEvent = anyRoundNet(state.stages.filter((s) => isPlayingRound(s.type)));
 
   const eventTees = await teesForEvent(state.event.id);
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
@@ -179,12 +216,17 @@ export default async function RegistrationPage() {
         // the form cannot say "required" where the server lets in no mobile.
         requirePhone: phoneRequiredFor(state.event.requirePhone),
         registrationToken: state.event.registrationToken,
+        guestEntryOpen: state.event.guestEntryOpen,
+        closeWords: parseDeadlineIso(state.event.regDeadline) ? formatDeadline(state.event.regDeadline, (await formattingForEvent(session.eventId)).locale) : "",
+        startOn: state.event.startOn,
         locale: (await formattingForEvent(session.eventId)).locale,
         today: state.today,
       }}
       confirmed={state.confirmed.map(asRow)}
       waitlist={state.waitlist.map(asRow)}
-      pendingEntries={awaitingApproval(state.players).map(asRow)}
+      pendingEntries={awaitingApproval(state.players).filter((p) => !isGuest(p)).map(asRow)}
+      guestRows={guestRows}
+      netEvent={netEvent}
       locked={locked}
       fieldLocks={fieldFacts ? field.locks.map((l) => fieldLockSaid(fieldFacts, l)) : field.locks}
       correction={field.correction}

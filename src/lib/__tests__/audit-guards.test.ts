@@ -98,6 +98,12 @@ describe("every server action is guarded", () => {
     // guesses by the code's shape before its one lookup, and never makes an account's session
     // (one-code-door.audit.test.ts).
     "code-box.ts": ["openCode", "openCodeForm"],
+    // A guest enters themselves on the one sign-up link (J39/J40 PR 3B): public by design, as `registerForEvent` is, and
+    // asserted separately in the-guest-door-makes-no-sign-in.test.ts and the audit tests. `registerAsGuest` takes the
+    // 114-bit token only, counts the token, the browser and the network before any write, and writes a WAITING entry
+    // nobody can use until a staff press. `guestEntryFor` is the typed code, through the one door. `startGuestEntry`
+    // sets a cookie and writes nothing.
+    "guest-entry.ts": ["registerAsGuest", "guestEntryFor", "startGuestEntry"],
     // Open (self-service) registration is public by design: a stranger on a
     // shared link, no account. Its own defences replace a session guard, and
     // they are asserted separately below — token-shape check, a rate limit on
@@ -3179,7 +3185,7 @@ describe("every field action asks the one field rule", () => {
     applyManualCount: "the field limit, an entry term, never a lock",
   };
   // `tx` as well as `prisma` since J46: addSignup creates under the intake lock, on the transaction client.
-  const FIELD_WRITE = /\b(?:prisma|tx)\.player\.(create|createMany|delete|deleteMany)\(|prisma\.player\.update(Many)?\(\{[^;]*data: \{ (status|groupId)\b|\bremoveSignup\(|\bintoFlight\(/;
+  const FIELD_WRITE = /\b(?:prisma|tx)\.player\.(create|createMany|delete|deleteMany)\(|prisma\.player\.update(Many)?\(\{[^;]*data: \{ (status|groupId)\b|\btx\.player\.update\(\{[^;]*data: \{\s*status\b|\bremoveSignup\(|\bintoFlight\(/;
   const fieldActions = [...actions("tournament.ts"), ...actions("roster.ts")].filter((a) => FIELD_WRITE.test(a.body));
   const MUST = ["addSignup", "removeSignup", "removeSignups", "reinstateWithdrawn", "approveSignup", "movePlayerToGroup", "placeInFlight", "importCsvSignups", "addMembersToEvent"];
 

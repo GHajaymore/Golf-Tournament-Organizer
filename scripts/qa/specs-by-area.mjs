@@ -304,6 +304,8 @@ export const FULL_ONLY = [
   "e2e/a-guest-in-messages.spec.ts",
   // J39/J40 PR 3: player link slips printed at the desk, reprinted new, replaced after a lost sheet (access: shared ground).
   "e2e/player-link-slips.spec.ts",
+  // J39/J40 PR 3B: a guest enters themselves on the one sign-up link and is approved at the desk (registration: who gets in).
+  "e2e/guest-enters-on-the-link.spec.ts",
   // One code box (plan row 4c, cut 1): either code in either box, one sentence for every wrong one (access: shared ground).
   "e2e/one-code-box.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",

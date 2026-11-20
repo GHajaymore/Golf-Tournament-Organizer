@@ -127,7 +127,8 @@ describe("S2: the limit is the client's, never the code's", () => {
     // Every per-code call in the door is the round code's.
     const all = DOOR.match(/\b(check|clear)RateLimit\(/g)?.length ?? 0;
     const eights = EIGHT.match(/\b(check|clear)RateLimit\(/g)?.length ?? 0;
-    expect(eights).toBe(2);
+    // The check, and the two clears: a round that opened and an entry page that opened (J39 PR 3B).
+    expect(eights).toBe(3);
     expect(all).toBe(eights);
   });
   it("counts the client before the lookup, and gives back only on a found pass", () => {

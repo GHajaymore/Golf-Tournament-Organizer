@@ -5,6 +5,7 @@ import { DeniedNotice } from "@/components/DeniedNotice";
 import { ArchiveBanner } from "@/components/ArchiveBanner";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { requirePlayerViewer, guestIsWaiting } from "@/lib/page-helpers";
+import { GuestWaitingCard } from "@/components/GuestWaitingCard";
 import { playerViewSwitch } from "@/lib/player-viewer";
 import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
 import { GuestForget, PlayerViewSwitchLine } from "@/components/GuestLinkControls";
@@ -118,7 +119,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   const gateEvent = session.eventId
     ? await prisma.event.findUnique({
         where: { id: session.eventId },
-        select: { name: true, status: true, legacyStatus: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
+        select: { name: true, dates: true, status: true, legacyStatus: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
       })
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
@@ -317,14 +318,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
           /* S5: A PENDING OR WAITLISTED GUEST'S LINK OPENS THIS AND NOTHING ELSE.
              No card, no board, no money until the entry is confirmed; every
              write refuses them on the server too (`myPlayerIdsFor`). */
-          <div className="card elev-sm" style={{ gap: 10, textAlign: "center", padding: "28px 20px" }}>
-            <h1 className="page-title" style={{ fontSize: 17, margin: 0 }}>
-              {gateEvent?.name ?? "Your event"}
-            </h1>
-            <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-              {PLAYER_LINK_WORDS.waiting}
-            </p>
-          </div>
+          <GuestWaitingCard eventName={gateEvent?.name ?? "Your event"} dates={gateEvent?.dates ?? ""} extra={PLAYER_LINK_WORDS.waiting} />
         ) : (
           <>
             {/* A console screen a member followed a link to says why it did not

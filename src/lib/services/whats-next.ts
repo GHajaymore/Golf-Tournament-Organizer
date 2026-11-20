@@ -17,6 +17,7 @@ import { tournamentStatusFor } from "./tournament-status";
 import { roundLabel } from "../domain/round-label";
 import { isPlayingRound } from "../stage-types";
 import { TEAM_SESSION } from "./cup";
+import { entriesClosedFact } from "./registration";
 import { needsStrokesFor, playersNeedingFigure, type NeedsStrokesRound } from "./committee-figure";
 
 /**
@@ -82,7 +83,8 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
       endOn: true,
       archivedAt: true,
       createdAt: true,
-      stages: { select: { type: true, closedAt: true } },
+      guestEntryOpen: true,
+      stages: { select: { type: true, closedAt: true, playedOn: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -149,6 +151,8 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
       endOn: e.endOn,
       strokes: strokesJobFactsOf(strokes.get(e.id) ?? []),
       scratch: scratchJobFactsOf(strokes.get(e.id) ?? []),
+      // Only the club's own people with the buttons are reminded (`mayAct`); everybody else reads the same lines with none.
+      guestMorning: mayAct ? await guestMorningOf(e, today) : null,
     };
     /**
      * THE ROUND FACTS ARE THE TOURNAMENT'S OWN STATE — `loadEventState`, the
@@ -166,6 +170,23 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
   }
 
   return { jobs: whatsNext({ tournaments, today, locale: formatting.locale }), mayAct, copyable, today };
+}
+
+/**
+ * THE MORNING REMINDER'S FACT (J39/J40 PR 3B, A16b, N3): guests may enter themselves, entries are not open, and today is
+ * a day of play at the club. Judged here, on the club's day; `whatsNext` only words and orders it.
+ */
+async function guestMorningOf(
+  e: { id: string; startOn: string; endOn: string; guestEntryOpen: boolean; stages: { playedOn: string | null }[] },
+  today: string,
+): Promise<{ closedDay: string } | null> {
+  if (!e.guestEntryOpen) return null;
+  const first = e.startOn;
+  const last = e.endOn || e.startOn;
+  const dayOfPlay = (!!first && first <= today && today <= last) || e.stages.some((st) => st.playedOn === today);
+  if (!dayOfPlay) return null;
+  const fact = await entriesClosedFact(e.id);
+  return fact.closed ? { closedDay: fact.day } : null;
 }
 
 type EventState = NonNullable<Awaited<ReturnType<typeof loadEventState>>>;

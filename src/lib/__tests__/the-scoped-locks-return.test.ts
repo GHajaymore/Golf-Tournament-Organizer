@@ -54,6 +54,8 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   setMatchTiebreakers: { file: TOURNAMENT, scope: "rounds", what: "change the match tie-breakers" },
   saveEntryTerms: { file: TOURNAMENT, scope: "field", what: "change the entry terms" },
   setRegistrationApproval: { file: TOURNAMENT, scope: "field", what: "change how entries are approved" },
+  // J39/J40 PR 3B: the one tick box on Entries.
+  setGuestEntry: { file: TOURNAMENT, scope: "field", what: "change who can enter" },
   setStageCutScope: { file: TOURNAMENT, scope: "rounds", what: "change the cut" },
   setStageCutTies: { file: TOURNAMENT, scope: "rounds", what: "change the cut" },
   clearRoundScores: { file: TOURNAMENT, scope: "rounds", what: "clear scores" },
@@ -128,7 +130,7 @@ describe("the scoped locks return, never throw", () => {
         if (/refuseIfLocked\(/.test(part)) expect(listed.has(name), `${name} asks a lock and is not pinned here`).toBe(true);
       }
     }
-    expect(listed.size).toBe(30);
+    expect(listed.size).toBe(31);
   });
 
   /**
@@ -234,6 +236,7 @@ describe("the screens draw the lock their actions ask", () => {
       "src/components/EntryTermsCard.tsx": ["saveEntryTerms", "setRegistrationApproval"],
       "src/components/ClearScores.tsx": ["clearRoundScores"],
       "src/components/RegistrationClient.tsx": ["setRequirePhone"],
+      "src/components/GuestEntryStaff.tsx": ["setGuestEntry"],
       "src/components/SingleMatchRulePicker.tsx": ["setSingleMatchRule"],
       "src/components/ThirdPlaceControl.tsx": ["setThirdPlace"],
       "src/components/BracketModePicker.tsx": ["setBracketMode"],

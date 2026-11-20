@@ -2,7 +2,9 @@ import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 import { brandForEvent, type EventBrand } from "./organization";
-import { entriesOpen } from "../registration";
+import { entriesOpen, formatDeadline, parseDeadlineIso } from "../registration";
+import type { Event } from "@prisma/client";
+import { archiveRefusalFor } from "./club-archive";
 import { clubDay } from "../domain/club-clock";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { fieldLimitFor } from "./waitlist";
@@ -64,6 +66,90 @@ export interface PublicRegistrationView {
    * after the rest of the app had learned not to (walked 2026-09-28).
    */
   organizer: string;
+  /** The club's name, for the one line under the member form and the guest button ("Not a member of ‹club›?"). */
+  clubName: string;
+  /**
+   * J39/J40 PR 3B: whether the GUEST BUTTON is open (`guestEntryRefusal`): the organizer's switch, entries
+   * open on the club's day, and a club that is not archived. False for every event whose organizer has not
+   * ticked "Let guests enter themselves" (the member page then says nothing about guests).
+   */
+  guestEntry: boolean;
+}
+
+/**
+ * THE ONE JUDGEMENT OF "ARE ENTRIES OPEN ON THE LINK", asked by the member page, by the closed-link page and by the
+ * typed entry code (one rule, one place): `entriesOpen`, told the club's day.
+ */
+async function judgeEntries(event: Event & { organization: { timeZone: string | null } | null }) {
+  const confirmedCount = await prisma.player.count({ where: { eventId: event.id, status: "confirmed" } });
+  const capacity = await fieldLimitFor(event);
+  const entries = entriesOpen({
+    registrationOpen: event.registrationOpen,
+    eventStatus: event.status,
+    deadline: event.regDeadline,
+    opens: event.regOpens,
+    capacity,
+    confirmedCount,
+    override: event.registrationOverride,
+    now: clubDay(event.organization?.timeZone),
+  });
+  return { entries, capacity, confirmedCount };
+}
+
+/**
+ * IS THE SIGN-UP LINK, OR ITS TYPED CODE, OPEN FOR THIS EVENT (C4.4): the same judgement the member page makes,
+ * answered as a yes or a no. The typed code asks this BEFORE it redirects anywhere, so a closed code never reaches
+ * a page that names its event.
+ */
+export async function entryLinkIsOpen(eventId: string): Promise<boolean> {
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: { organization: { select: { timeZone: true } } } });
+  if (!event || !event.registrationOpen || !event.registrationToken) return false;
+  if (await archiveRefusalFor(event.id, "player")) return false;
+  return (await judgeEntries(event)).entries.open;
+}
+
+/**
+ * ARE THIS EVENT'S ENTRIES CLOSED, AND ON WHAT DAY (the secretary's morning reminder, N3): the same judgement again.
+ * `closed` only for a published link that is shut by the deadline or by hand; `day` is the closing day in the club's
+ * words, "" where it was stopped by hand.
+ */
+export async function entriesClosedFact(eventId: string): Promise<{ closed: boolean; day: string }> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { organization: { select: { locale: true, country: true, golfTerms: true, timeZone: true } } },
+  });
+  if (!event || !event.registrationOpen) return { closed: false, day: "" };
+  const { entries } = await judgeEntries(event);
+  if (entries.open || (entries.state !== "closed-deadline" && entries.state !== "closed-manual")) return { closed: false, day: "" };
+  const iso = entries.state === "closed-deadline" ? parseDeadlineIso(event.regDeadline) : "";
+  return { closed: true, day: iso };
+}
+
+/**
+ * A REAL TOKEN WHOSE ENTRIES HAVE CLOSED (J39/J40 PR 3B, C4.1; Security Lead, 14 Nov): the event's name and the day,
+ * and NOTHING ELSE (no venue, dates, count, organizer's brand or form). Only a 114-bit token comes here, never the
+ * 38-bit code (C4.4). Unknown, rotated, deleted, not-yet-open and archived-club tokens are null: they keep today's
+ * neutral page, which names nobody. The day is the closing day in the club's own words; "" where the organizer
+ * stopped entries by hand.
+ */
+export async function closedRegistrationFor(token: string): Promise<{ eventName: string; day: string; organizer: string } | null> {
+  if (!token) return null;
+  const event = await prisma.event.findFirst({
+    where: { registrationToken: token },
+    include: { organization: { select: { locale: true, country: true, golfTerms: true, timeZone: true } } },
+  });
+  if (!event || !event.registrationOpen) return null;
+  if (await archiveRefusalFor(event.id, "player")) return null;
+  const { entries } = await judgeEntries(event);
+  if (entries.open) return null;
+  if (entries.state !== "closed-deadline" && entries.state !== "closed-manual") return null;
+  const locale = resolveLocale(event.organization, event);
+  const day = entries.state === "closed-deadline" && parseDeadlineIso(event.regDeadline) ? formatDeadline(event.regDeadline, locale) : "";
+  return {
+    eventName: event.name,
+    day,
+    organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
+  };
 }
 
 export function venueOf(course: string, city: string): string {
@@ -139,14 +225,10 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     // listed in the order they are played.
     include: {
       stages: { select: { type: true, format: true }, orderBy: { position: "asc" } },
-      organization: { select: { locale: true, country: true, golfTerms: true, timeZone: true } },
+      organization: { select: { name: true, locale: true, country: true, golfTerms: true, timeZone: true } },
     },
   });
   if (!event || !event.registrationOpen) return null;
-
-  const confirmedCount = await prisma.player.count({
-    where: { eventId: event.id, status: "confirmed" },
-  });
 
   // The same open/closed/full judgement the organizer console shows, so the two
   // never disagree. A passed deadline or a manual close both come back as "not
@@ -159,17 +241,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
    * entries" to the eleventh person and then told them they were on the
    * waitlist (walked 2026-09-30).
    */
-  const capacity = await fieldLimitFor(event);
-  const entries = entriesOpen({
-    registrationOpen: event.registrationOpen,
-    eventStatus: event.status,
-    deadline: event.regDeadline,
-    opens: event.regOpens,
-    capacity,
-    confirmedCount,
-    override: event.registrationOverride,
-    now: clubDay(event.organization?.timeZone),
-  });
+  const { entries, capacity, confirmedCount } = await judgeEntries(event);
   if (!entries.open) return null;
   const status = entries.status;
 
@@ -192,6 +264,9 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     requirePhone: phoneRequiredFor(event.requirePhone),
     brand,
     organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
+    clubName: event.organization?.name ?? "",
+    // Entries are open (above), so the guest button is the switch, asked of a club that is not archived (`guestEntryRefusal`).
+    guestEntry: event.guestEntryOpen && !(await archiveRefusalFor(event.id, "player")),
   };
 }
 
