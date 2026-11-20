@@ -166,7 +166,7 @@ describe("the AI budget", () => {
     // Over the line: the job says it is off, in words, and is NOT sent.
     const next = await askClaude({ job: "commentary", maxTokens: 10, content: "zz" });
     expect(next).toMatchObject({ ok: false, reason: "not-configured" });
-    expect(next.ok ? "" : "why" in next ? next.why : "").toMatch(/^This month's AI budget is used up; it starts again on .+ \(UTC\)\.$/);
+    expect(next.ok ? "" : "why" in next ? next.why : "").toBe("AI help is paused just now.");
     // Card reading too: one gate for every job.
     expect(await askClaude({ job: "cardReading", maxTokens: 10, content: "zz" })).toMatchObject({ ok: false, reason: "not-configured" });
     // And the owner's Check AI, which costs money too.
@@ -181,7 +181,7 @@ describe("the AI budget", () => {
     expect(await setAiBudget("0")).toMatchObject({ ok: true, cents: 0 });
     sent = 0;
     const r = await askClaude({ job: "messageDraft", maxTokens: 10, content: "zz" });
-    expect(r.ok ? "" : "why" in r ? r.why : "").toMatch(/set to \$0/);
+    expect(r.ok ? "" : "why" in r ? r.why : "").toBe("AI help is paused just now.");
     expect(sent).toBe(0);
   });
 });
