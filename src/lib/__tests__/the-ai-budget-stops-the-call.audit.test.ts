@@ -76,7 +76,14 @@ beforeAll(async () => {
   // Not a key: nothing leaves, `fetch` is the counter below.
   process.env.ANTHROPIC_API_KEY = `${TAG}-not-a-key`;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input).includes("api.anthropic.com")) {
+    const host = (() => {
+      try {
+        return new URL(String(input)).hostname;
+      } catch {
+        return "";
+      }
+    })();
+    if (host === "api.anthropic.com") {
       sent += 1;
       return reply();
     }
