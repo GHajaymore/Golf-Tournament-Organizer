@@ -162,6 +162,54 @@ describe("a Nassau: three bets, each paid when it is decided", () => {
       RUNS,
     );
   });
+
+  // Uneven sides (a fourball that plays short, a withdrawal). A segment moves one stake for each player on
+  // the SMALLER side; the smaller side carries a stake each, the larger side shares that same total with the
+  // odd cents to its lowest ids (the one cent rule, `splitExactly`, as #1058 fixed it). Worked here in whole
+  // number division and a count of who is first in id order, not by calling the rule.
+  it("uneven sides of one to four: every segment sums to nought and the odd cent goes to the lowest ids", () => {
+    const ids = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+    fc.assert(
+      fc.property(
+        card,
+        fc.integer({ min: 1, max: 5000 }),
+        fc.integer({ min: 1, max: 4 }),
+        fc.integer({ min: 1, max: 4 }),
+        fc.boolean(),
+        (holes, stake, na, nb, reversed) => {
+          const sideA = ids("a", na);
+          const sideB = ids("b", nb);
+          // The order the ids arrive in must make no difference.
+          const nets = nassauNets({
+            matchId: "m",
+            sideA: reversed ? [...sideA].reverse() : sideA,
+            sideB: reversed ? [...sideB].reverse() : sideB,
+            holes,
+            stakeCents: stake,
+          });
+          expect(total(nets)).toBe(0);
+
+          const expected = new Map<string, number>([...sideA, ...sideB].map((id) => [id, 0]));
+          const small = Math.min(na, nb);
+          const moved = small * stake;
+          for (const seg of [holes.slice(0, 9), holes.slice(9, 18), holes]) {
+            const r = playMatch(seg);
+            if (!r.over || (r.winner !== "A" && r.winner !== "B")) continue;
+            const [winners, losers] = r.winner === "A" ? [sideA, sideB] : [sideB, sideA];
+            for (const [side, sign] of [[winners, 1], [losers, -1]] as const) {
+              const n = side.length;
+              // Everybody on the side has the whole-cent share; the first (moved mod n) in id order one more.
+              const whole = Math.floor(moved / n);
+              const extra = moved - whole * n;
+              side.forEach((id, i) => expected.set(id, expected.get(id)! + sign * (whole + (i < extra ? 1 : 0))));
+            }
+          }
+          for (const [id, want] of expected) expect(nets.find((n) => n.playerId === id)?.netCents ?? 0).toBe(want || 0);
+        },
+      ),
+      RUNS,
+    );
+  });
 });
 
 describe("the pots the cards settle", () => {

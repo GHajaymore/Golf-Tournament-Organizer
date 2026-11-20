@@ -1,7 +1,16 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { upsertMember, memberHistory } from "@/lib/services/roster";
+
+// The service-only block below holds a rule that is dormant while no federation
+// link is live (the team's ruling, 2026-10-24): a stored "ghin" then reads as
+// the club's own record. It is the rule the day a link IS live, so that block
+// forces the switch on; `service-only-reads-as-the-clubs-own.audit.test.ts`
+// holds what happens today.
+const link = vi.hoisted(() => ({ live: false }));
+vi.mock("@/lib/integrations/federation-link", () => ({ federationLinkLive: () => link.live }));
+
+const { upsertMember, memberHistory } = await import("@/lib/services/roster");
 import { randomBytes } from "node:crypto";
 
 /**
@@ -60,8 +69,9 @@ const member = (who: string) =>
  * found to be reaching this function with no session at all; that half is
  * covered in its own describe at the bottom.
  */
-const staffUpsert = (input: Parameters<typeof upsertMember>[1]) =>
-  upsertMember(orgId, input, "staff");
+// Every row here is a member's; a guest is matched onto nobody (member-or-guest-is-stored).
+const staffUpsert = (input: Omit<Parameters<typeof upsertMember>[1], "guest">) =>
+  upsertMember(orgId, { ...input, guest: false }, "staff");
 
 describe("a member already on the roster with an index", () => {
   it("keeps it when they register without entering one", async () => {
@@ -180,8 +190,8 @@ describe("a caller that says nothing about the source", () => {
  * Handicap Index every future event snapshots.
  */
 describe("a public entrant writing a roster row", () => {
-  const publicUpsert = (input: Parameters<typeof upsertMember>[1]) =>
-    upsertMember(orgId, input, "public");
+  const publicUpsert = (input: Omit<Parameters<typeof upsertMember>[1], "guest">) =>
+    upsertMember(orgId, { ...input, guest: false }, "public");
 
   it("cannot restate an existing member's index", async () => {
     await staffUpsert({
@@ -261,10 +271,14 @@ describe("a club that plays off association indexes", () => {
   let ghinOrgId = "";
 
   beforeAll(async () => {
+    link.live = true;
     const org = await prisma.organization.create({
       data: { name: `${TAG} ghin club`, kind: "club", handicapPolicy: "ghin" },
     });
     ghinOrgId = org.id;
+  });
+  afterAll(() => {
+    link.live = false;
   });
 
   const ghinMember = (who: string) =>
@@ -282,6 +296,7 @@ describe("a club that plays off association indexes", () => {
         handicap: 11.1,
         handicapType: "18",
         handicapSource: "manual",
+        guest: false,
       },
       "staff",
     );
@@ -303,6 +318,7 @@ describe("a club that plays off association indexes", () => {
         handicap: 4.8,
         handicapType: "18",
         handicapSource: "manual",
+        guest: false,
       },
       "public",
     );
@@ -328,6 +344,7 @@ describe("a club that plays off association indexes", () => {
         handicap: 26,
         handicapType: "18",
         handicapSource: "manual",
+        guest: false,
       },
       "staff",
     );
@@ -367,7 +384,7 @@ describe("what one member has played", () => {
     const event = (name: string) => ({
       organizationId: orgId,
       name: `${TAG} ${name}`,
-      status: "registration",
+      status: "draft",
       shape: "single",
       format: "stroke",
       dates: "",

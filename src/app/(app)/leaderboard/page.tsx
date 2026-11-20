@@ -6,7 +6,7 @@ import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
 import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
-import { computeHighlights, standingRows, settingsOf, withBoardRound } from "@/lib/services/tournament";
+import { computeHighlights, resultsSheetRows, standingRows, settingsOf, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
@@ -264,7 +264,13 @@ export default async function LeaderboardPage({
     }
   }
 
-  const rows = standingRows(state);
+  /**
+   * THE ORGANIZER'S BOARD IS THE RESULTS SHEET (day-of field changes, PR B): a
+   * player withdrawn before teeing off is listed DNS beneath WD — staff only;
+   * an organizer previewing as a player sees the player's board.
+   */
+  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  const rows = isStaff ? resultsSheetRows(state) : standingRows(state);
   /**
    * Whether the event's Scoring can rank what its rounds produce.
    *
@@ -281,7 +287,6 @@ export default async function LeaderboardPage({
       .map((s) => ({ type: s.type, headToHead: isHeadToHead(s.type) })),
   );
   const highlights = computeHighlights(state);
-  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
   /**
    * A quick round rather than a tournament. Same question `/entry` and
    * `/dashboard` already ask, under the same name.

@@ -281,6 +281,22 @@ describe("the tokens the tables carry", () => {
     expect(inClubWords("Ask your {organiser}", golfTermsFor("uk"))).toBe("Ask your {organiser}");
   });
 
+  it("the player's Help never writes the US word 'organizer' by hand, a UK club would read it", () => {
+    const strings: string[] = [];
+    const walk = (v: unknown) => {
+      if (typeof v === "string") strings.push(v);
+      else if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") Object.values(v).forEach(walk);
+    };
+    walk(PLAYER_HELP_TOPICS);
+    expect(strings.filter((s) => /organizers?/i.test(s.replace(CLUB_WORD_TOKEN, "")))).toEqual([]);
+  });
+
+  it("CONTROL: the same sweep sees a hand-written 'organizer'", () => {
+    expect(/organizers?/i.test("The organizer gives you strokes".replace(CLUB_WORD_TOKEN, ""))).toBe(true);
+    expect(/organizers?/i.test("The {organizer} gives you strokes".replace(CLUB_WORD_TOKEN, ""))).toBe(false);
+  });
+
   for (const r of GOLF_REGISTERS) {
     it(`are all filled in for ${r}, with nothing left in braces`, () => {
       const words = golfTermsFor(r);

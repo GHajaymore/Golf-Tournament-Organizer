@@ -107,8 +107,8 @@ describe("what the organizer does to the field is recorded", () => {
   });
 
   it("removing one who never played says removed; one with a card says withdrawn, results kept", async () => {
-    expect(await removeSignup(ids["never-played"])).toBe("deleted");
-    expect(await removeSignup(ids["has-a-card"])).toBe("withdrawn");
+    expect(await removeSignup(ids["never-played"])).toMatchObject({ ok: true, outcome: "deleted" });
+    expect(await removeSignup(ids["has-a-card"])).toMatchObject({ ok: true, outcome: "withdrawn" });
     const [newest, next] = await recentChanges(eventId, { only: "field" });
     expect(newest.what).toBe(`${TAG} has-a-card was withdrawn from the field (their results are kept).`);
     expect(next.what).toBe(`${TAG} never-played was removed from the field.`);

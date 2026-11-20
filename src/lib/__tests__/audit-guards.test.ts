@@ -90,13 +90,22 @@ describe("every server action is guarded", () => {
       // is a guard nobody re-checks.
       "setPreviewAction",
     ],
-    "play.ts": ["redeemRoundCode", "claimPlayerSlot", "leavePlay"],
+    // The two `…Form` actions are the same two as plain forms (a press made
+    // before the page's script arrived), and do nothing but call them.
+    "play.ts": ["claimPlayerSlot", "claimPlayerSlotForm", "leavePlay"],
+    // One code box (2026-11-17): the press of every code box, round code or player link. The code is its
+    // own authorization, as both always were: the one door (services/code-door.ts) counts the client's
+    // guesses by the code's shape before its one lookup, and never makes an account's session
+    // (one-code-door.audit.test.ts).
+    "code-box.ts": ["openCode", "openCodeForm"],
     // Open (self-service) registration is public by design: a stranger on a
     // shared link, no account. Its own defences replace a session guard, and
     // they are asserted separately below — token-shape check, a rate limit on
     // both the token and the email before any lookup, and a server-side
     // re-check of the capacity/deadline/open state.
-    "register.ts": ["registerForEvent"],
+    // confirmEntryCode (2026-11-13) is the second half of the same door: the code
+    // emailed to the address, typed back. Its guard is the code itself.
+    "register.ts": ["registerForEvent", "confirmEntryCode"],
     // push.ts: the VAPID PUBLIC key is meant to be shipped to any browser — it
     // is what a client builds a subscription against, and web push does not
     // work without handing it out. It reads one env var and touches no
@@ -109,10 +118,20 @@ describe("every server action is guarded", () => {
     // turns a script away, and a rate limit on the address before any write —
     // held against real rows in `interest-is-kept-and-copied.audit.test.ts`.
     "interest.ts": ["registerInterest"],
+    // A guest's player link (J39/J40). Forgetting it clears this browser's own cookie and touches no
+    // row. Opening it is its own authorization, like a round code: a 60-bit code looked up by keyed
+    // hash, behind a per-client limit that is never cleared (a-guest-reaches-only-its-entry.audit.test.ts).
+    "player-link.ts": ["forgetThisPhone"],
   };
 
   const GUARDS = [
     "getSession",
+    // The player screens' viewer: an account's session, or a live guest pass re-read from the
+    // database (J39/J40). Null for anybody else, and every reader asks only the viewer's own event.
+    "getPlayerViewer",
+    // Messaging's one resolver per target, and push's owner: both the viewer, never an argument (PR 2).
+    "requireActor",
+    "pushOwnerNow",
     "requireEvent",
     "requireAdminEvent",
     "requireStaffEvent",
@@ -134,6 +153,10 @@ describe("every server action is guarded", () => {
     // authorises anything. Verified by reading it, per the note above.
     "requireMembership",
     "getPlaySession",
+    // play-status.ts (`currentPlayStatus`): `getSession` or `getPlaySession`, chosen by the kind of screen
+    // and never by an event the caller names, then one read of that event's suspension. Verified against
+    // real rows in `the-siren-reaches-a-round-code.audit.test.ts`.
+    "playStatusForScreen",
     "effectiveAccess",
     /**
      * skins.ts: the one guard here that is deliberately NOT staff-only.
@@ -175,6 +198,9 @@ describe("every server action is guarded", () => {
      * the archive's refusal.
      */
     "adminEventOrRefusal",
+    /** The staff twin of the above (tournament.ts, play-status.ts), and attendance.ts's session form: the same try/catch around `requireStaffEvent` / `requireStaffSession`, returning only the archive's sentence. */
+    "staffEventOrRefusal",
+    "staffSessionOrRefusal",
     /**
      * handicap-policy.ts: `getSession`, then `organizationAccess`, then a
      * `canEdit` check — the same three steps `saveOrganizationDefaults` in
@@ -223,8 +249,10 @@ describe("round code guessing", () => {
   });
 
   it("shares one budget across both entry points", () => {
-    // Separate keys would give an attacker two budgets per code.
-    const kinds = [...play.matchAll(/checkRateLimit\("([^"]+)"/g)].map((m) => m[1]);
+    // Separate keys would give an attacker two budgets per code. The two entry points are the one
+    // door for a typed code (services/code-door.ts) and the round's second step (play.ts).
+    const door = readSource("src", "lib", "services", "code-door.ts");
+    const kinds = [...(play + door).matchAll(/checkRateLimit\("([^"]+)"/g)].map((m) => m[1]);
     expect(kinds.length).toBeGreaterThanOrEqual(2);
     expect(new Set(kinds).size).toBe(1);
   });
@@ -399,12 +427,16 @@ describe("moving a player between flights", () => {
     expect(body).toBeTruthy();
   });
 
-  it("is staff-only and refuses once setup is locked", () => {
+  it("is staff-only and refuses once the field rule says so", () => {
     expect(body).toMatch(/requireStaffEvent\(\)/);
-    // Thrown (`assertUnlocked`) or, since 2026-10-21, RETURNED (`lockedRefusal`) so the board can say
-    // it — the guarantee is the refusal, not its spelling. The behaviour itself is held against real
-    // rows in `a-confirmed-draw-moves-nobody.audit.test.ts`.
-    expect(body).toMatch(/assertUnlocked\(eventId\)|const locked = await lockedRefusal\(eventId[^)]*\);\s*if \(locked\) return \{ ok: false, error: locked \}/);
+    // Thrown (`assertUnlocked`), then RETURNED (`lockedRefusal`, 2026-10-21) so the board can say it,
+    // and since day-of field changes (PR A) the ONE field rule — a placed player is "move-flight", an
+    // unplaced one "place-in-flight". The guarantee is the refusal, asked before the write; the
+    // behaviour itself is held against real rows in `a-confirmed-draw-moves-nobody.audit.test.ts`
+    // and `a-late-changes-after-launch.audit.test.ts`.
+    const asked = body.search(/const refused = await fieldRefusal\(eventId, player\.groupId \? "move-flight" : "place-in-flight"\);\s*if \(refused\) return \{ ok: false, error: refused \}/);
+    expect(asked).toBeGreaterThan(-1);
+    expect(asked).toBeLessThan(body.indexOf("prisma.player.update("));
   });
 
   it("scopes BOTH ids to the caller's tournament", () => {
@@ -478,7 +510,7 @@ describe("flight naming and sign-off", () => {
 });
 
 describe("registration close / extend", () => {
-  const body = actions("tournament.ts").find((a) => a.name === "setRegistrationOverride")!.body;
+  const body = actions("tournament.ts").find((a) => a.name === "setEntriesOpen")!.body;
 
   it("is staff-only, and deliberately NOT lock-gated", () => {
     // This asserted assertUnlocked until D2 of the 2026-08-12 audit showed
@@ -508,7 +540,7 @@ describe("registration close / extend", () => {
   it("the screen derives status from the deadline rather than capacity alone", () => {
     // The bug: a tournament whose deadline passed still read "Open · unlimited".
     const client = readSource("src", "components", "RegistrationClient.tsx");
-    expect(client).toMatch(/registrationStatus\(\{/);
+    expect(client).toMatch(/entriesOpen\(\{/);
     expect(client).toMatch(/deadline: event\.regDeadline/);
     expect(client).not.toMatch(/const status = unlimited \? "Open · unlimited"/);
   });
@@ -588,12 +620,22 @@ describe("a four-ball partner may score their own match", () => {
     // teamAId/teamBId. Checking only the player columns refused every partner
     // in a four-ball their own match, while the comment above the guard still
     // claimed "a match this player is actually in".
-    const src = read("play.ts");
-    const guard = src.slice(src.indexOf("savePlayMatchHoles"));
-    expect(guard).toMatch(/teamMember\.findFirst/);
-    expect(guard).toMatch(/teamId: \{ in: teamIds \}/);
+    //
+    // Since 2026-11-04 the rule is ONE function, `isInMatch` in
+    // services/match-membership.ts, which the round-code saves reach through
+    // `mayWriteMatch` (one scorer per group widens "their own" to the group's).
+    const src = stripComments(read("play.ts"));
+    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult", "savePlayMatchCard"]) {
+      const body = actions("play.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).toMatch(/mayWriteMatch\(\{ eventId: session\.eventId, match, actorIds: \[session\.playerId\]/);
+    }
+    expect(src).toMatch(/from "@\/lib\/services\/match-membership"/);
+    const membership = readSource("src", "lib", "services", "match-membership.ts");
+    const isIn = membership.slice(membership.indexOf("export async function isInMatch"));
+    expect(isIn).toMatch(/teamMember\.findFirst/);
+    expect(isIn).toMatch(/teamId: \{ in: teamIds \}/);
     // And the refusal still exists for genuine outsiders.
-    expect(guard).toMatch(/You can only enter scores for your own match/);
+    expect(membership).toMatch(/You can only enter scores for your own match/);
   });
 });
 
@@ -680,8 +722,17 @@ describe("a player writes their own scores and nobody else's", () => {
   });
 
   it("recognises team membership as being in the match", () => {
-    const guard = src.slice(src.indexOf("async function assertOwnMatch"));
-    expect(guard.slice(0, 900)).toMatch(/teamMember\.findFirst/);
+    // `assertOwnMatch` moved to services/match-membership.ts (2026-11-04), one
+    // rule with the round-code saves: it asks `mayWriteMatch`, which asks
+    // `isInMatch` — the team membership — on any round not kept by one scorer.
+    expect(src).toMatch(/import \{[^}]*assertOwnMatch[^}]*\} from "@\/lib\/services\/match-membership"/);
+    const membership = readSource("src", "lib", "services", "match-membership.ts");
+    const own = membership.slice(membership.indexOf("export async function assertOwnMatch"));
+    expect(own).toMatch(/mayWriteMatch\(\{ eventId, match, actorIds: \[\.\.\.own\], epoch \}\)/);
+    const may = membership.slice(membership.indexOf("export async function mayWriteMatch"));
+    expect(may.slice(0, may.indexOf("\n}\n"))).toMatch(/isInMatch\(input\.match, input\.actorIds\)/);
+    const isIn = membership.slice(membership.indexOf("export async function isInMatch"));
+    expect(isIn.slice(0, 900)).toMatch(/teamMember\.findFirst/);
   });
 
   it("scopes the entry screen with the same rule it enforces", () => {
@@ -795,8 +846,13 @@ describe("a round code obeys the tournament's score-entry setting", () => {
    */
   // And a match's own cards (2026-10-19): a round kept on stroke cards takes
   // each ball's strokes from a code, written to the match's card rows.
+  // And (2026-11-04) the end-of-round check: a confirmation or a dispute moves
+  // a result's status, a statement about it like a signature.
   const writers = actions("play.ts").filter(
-    (a) => /prisma\.match\.update\(|writeScorecard\(|certifyCard\(|matchScorecard\.upsert\(|teamScorecard\.upsert\(/.test(a.body),
+    (a) =>
+      /prisma\.match\.update(Many)?\(|writeScorecard\(|certifyCard\(|matchScorecard\.upsert\(|teamScorecard\.upsert\(|scorecard\.updateMany\(/.test(
+        a.body,
+      ),
   );
 
   it("finds the write actions it is about to assert on", () => {
@@ -804,6 +860,9 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // caught twice.
     expect(writers.map((a) => a.name).sort()).toEqual([
       "certifyPlayCard",
+      "confirmPlayMatch",
+      "disputePlayCard",
+      "disputePlayMatch",
       "savePlayCard",
       "savePlayMatchCard",
       "savePlayMatchHoles",
@@ -811,28 +870,32 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     ]);
   });
 
-  it("gates every write action on canEnterScores, as every other path does", () => {
+  it("gates every write action on the one score-entry gate, as every other path does", () => {
     // Neither one asked. A tournament set to `scoreEntryBy: "staff"` that
     // hands out round codes purely for sign-in believed the committee held
     // the cards, while any code holder could write a full result — and since
     // a score edit resets approval, un-confirm a card the committee had
     // already signed off, leaving no sign on any screen that it happened.
+    //
+    // The gate since 2026-11-04 is `playerEntryRefusal` (domain/round-scoring.ts),
+    // asked of the session's round by `entryRefusal`: the tournament's "staff"
+    // setting, then a round the organizer keeps from paper cards.
     for (const { name, body } of writers) {
-      expect(body, name).toMatch(/canEnterScores\(/);
-      expect(body, name).toMatch(/entered by the organizer/);
+      expect(body, name).toMatch(/const refused = await entryRefusal\(session, settings(Of\(event\))?\);\s*if \(refused\) return \{ ok: false, error: refused/);
     }
+    const helper = play.slice(play.indexOf("async function entryRefusal("));
+    expect(helper.slice(0, helper.indexOf("\n}\n"))).toMatch(/return playerEntryRefusal\(settings, stage\)/);
   });
 
   it("asks as a player, because a code is never a staff credential", () => {
     // A play session carries no role: the holder typed a code that was read
     // out to the field. Passing anything staff-shaped here would pass every
-    // check by definition.
-    //
+    // check by definition — so this file asks the gate that HAS no role
+    // (`playerEntryRefusal`), never the role-taking forms.
+    expect(play).not.toMatch(/canEnterScores\(|entryRefusalFor\(/);
     // Counted against the writers rather than a number written here, so a
-    // fourth door cannot be added without one.
-    expect(play.match(/canEnterScores\(\s*settings(Of\(event\))?,\s*"player"\)/g)?.length).toBe(
-      writers.length,
-    );
+    // further door cannot be added without one.
+    expect(play.match(/await entryRefusal\(session, settings(Of\(event\))?\)/g)?.length).toBeGreaterThanOrEqual(writers.length);
   });
 
   it("refuses by returning, not by throwing", () => {
@@ -854,7 +917,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
   it("checks before it writes anything", () => {
     for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      const gate = body.indexOf("canEnterScores(");
+      const gate = body.indexOf("await entryRefusal(");
       expect(gate, fn).toBeGreaterThan(-1);
       // `logAudit(` rather than `auditLog.create`: the write moved behind one
       // shared helper on 2026-09-12. The ORDER is what this guard is about —
@@ -879,10 +942,16 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // The gate belongs on the write. Refusing the code itself would break
     // every staff-scored tournament that uses codes for sign-in, which is
     // precisely the tournament this whole guard exists to protect.
-    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "leavePlay"]) {
+    for (const fn of ["claimPlayerSlot", "claimPlayerSlotForm", "leavePlay"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      expect(body, fn).not.toMatch(/canEnterScores\(/);
+      expect(body, fn).not.toMatch(/canEnterScores\(|entryRefusal\(/);
     }
+    // The first step is the one door for a typed code: neither its press nor the door asks the setting.
+    for (const fn of ["openCode", "openCodeForm"]) {
+      const body = actions("code-box.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).not.toMatch(/canEnterScores\(|entryRefusal\(/);
+    }
+    expect(readSource("src", "lib", "services", "code-door.ts")).not.toMatch(/canEnterScores\(|entryRefusal\(/);
   });
 });
 
@@ -1122,13 +1191,20 @@ describe("naming a venue can only reach this club's own courses", () => {
 describe("open (self-service) registration defends its own endpoint", () => {
   const src = stripComments(read("register.ts"));
   const body = actions("register.ts").find((a) => a.name === "registerForEvent")!.body;
+  // Where an entry is placed and written: reached from `registerForEvent` for a
+  // signed-in entrant and from `confirmEntryCode` once the address is proved.
+  const place = src.slice(src.indexOf("async function placeEntry("));
 
   it("rate limits on BOTH the token and the email, before any lookup", () => {
     // The token cap slows a script hammering one link; the email cap stops one
     // person submitting over and over. Either alone leaves a hole — and both
     // must run before the database is touched, so a refusal costs no query and
     // reveals nothing about whether the event exists.
-    expect(body).toMatch(/checkRateLimit\("register-token", cleanToken\)/);
+    // The link's budget is the one rule's (`entryLinkBudget`, 2026-11-10),
+    // asked of the link by token — the limiter asks it only past the floor.
+    expect(body).toMatch(
+      /checkRateLimit\("register-token", cleanToken, \(\) => entryLinkBudgetFor\(cleanToken\)\)/,
+    );
     // Per person PER TOURNAMENT (2026-10-10) — see `entryLimitKey`.
     expect(body).toMatch(/checkRateLimit\("register-email", entryLimitKey\(person\.email, cleanToken\)\)/);
     // The event lookup comes after both checks.
@@ -1143,31 +1219,31 @@ describe("open (self-service) registration defends its own endpoint", () => {
   it("re-checks capacity, the deadline and the open switch on the server", () => {
     // The browser's "spots left" is a hint, never the authority: capacity and
     // placement are decided here from a fresh confirmed count via the pure rule.
-    expect(body).toMatch(/registrationOpen/);
-    expect(body).toMatch(/player\.count\(\{\s*where: \{ eventId: event\.id, status: "confirmed" \}/);
-    expect(body).toMatch(/decideIntake\(/);
+    expect(place).toMatch(/registrationOpen/);
+    expect(place).toMatch(/player\.count\(\{\s*where: \{ eventId: event\.id, status: "confirmed" \}/);
+    expect(place).toMatch(/decideIntake\(/);
   });
 
   it("gives the same neutral refusal for a bogus token and a closed link", () => {
     // No existence oracle — the action-side of the /live rule. Every "not live"
     // path returns the one NOT_OPEN message rather than saying which it was.
     expect(src).toMatch(/const NOT_OPEN =/);
-    expect(body).toMatch(/!event \|\| !event\.registrationOpen/);
+    expect(src).toMatch(/!event \|\| !event\.registrationOpen/);
   });
 
   it("writes through the roster and grants sign-in, like the organizer add", () => {
-    expect(body).toMatch(/upsertMember\(/);
-    expect(body).toMatch(/syncPlayerAccount\(/);
+    expect(place).toMatch(/upsertMember\(/);
+    expect(place).toMatch(/syncPlayerAccount\(/);
   });
 
   it("de-duplicates by email so one person can't become two entries", () => {
-    expect(body).toMatch(/already: true/);
+    expect(place).toMatch(/already: true/);
   });
 
   it("never lets a failed confirmation email undo a real entry", () => {
     // The email is best-effort and comes last, after the row is written.
-    const sendAt = body.indexOf("sendRegistrationEmail");
-    const createAt = body.indexOf("player.create");
+    const sendAt = place.indexOf("sendRegistrationEmail");
+    const createAt = place.indexOf("player.create");
     expect(createAt).toBeGreaterThan(-1);
     expect(sendAt).toBeGreaterThan(createAt);
   });
@@ -1409,11 +1485,18 @@ describe("every screen that shows results makes the same branch", () => {
     // has no reading of its own at all: it checks the share token and asks
     // `liveBoard` for everything else. Re-adding `standingRows` here would
     // recreate a fourth opinion, which is the shape that caused the audit.
-    const page = stripComments(
-      readFileSync(join(process.cwd(), "src", "app", "live", "[token]", "page.tsx"), "utf8"),
-    );
-    expect(page, "the live page must not rank the field itself").not.toMatch(/standingRows\(/);
-    expect(page, "it should be asking the cached reader instead").toMatch(/liveBoard\(/);
+    // Since 2026-11-05 the board is drawn once (`PublicBoard`) for both its doors, `/live` and
+    // `/play/board`, so the reading lives there and neither page may grow one.
+    const read = (...p: string[]) => stripComments(readFileSync(join(process.cwd(), ...p), "utf8"));
+    const board = read("src", "components", "PublicBoard.tsx");
+    for (const [name, src] of [
+      ["the board", board],
+      ["the live page", read("src", "app", "live", "[token]", "page.tsx")],
+      ["the play board page", read("src", "app", "play", "board", "page.tsx")],
+    ] as const) {
+      expect(src, `${name} must not rank the field itself`).not.toMatch(/standingRows\(/);
+    }
+    expect(board, "it should be asking the cached reader instead").toMatch(/liveBoard\(/);
   });
 
   it("no other screen ranks the field without asking", () => {
@@ -2348,13 +2431,21 @@ describe("a round's card is narrowed in exactly one place", () => {
    * include it or the two screens read the same round and disagree about it.
    */
   it("ownCard consults whether players may report at all", () => {
+    // Since 2026-11-04 the question has a round half ("Organizer only (paper
+    // cards)"), so both ask the one gate in domain/round-scoring.ts — `ownCard`
+    // as a player, `/me/card` with the viewer's role — of the SAME round.
     const me = stripComments(readFileSync(join(process.cwd(), "src", "lib", "services", "me.ts"), "utf8"));
-    expect(me).toMatch(/ownCard:[\s\S]{0,300}canEnterScores\(/);
-    // The same function /me/card gates on, so the two cannot drift.
+    expect(me).toMatch(/ownCard:[\s\S]{0,300}playersMayEnter\(settingsOf\(state\.event\), stage\)/);
+    // The same gate /me/card asks, so the two cannot drift.
     const card = stripComments(
       readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
     );
-    expect(card).toMatch(/canEnterScores\(/);
+    expect(card).toMatch(/entryRefusalFor\(settings, session\.viewRole, state\.stages\.find\(\(s\) => s\.id === me\.round\?\.stageId\)/);
+    // And the two are one rule: `playersMayEnter` is `playerEntryRefusal` === null,
+    // and `entryRefusalFor` asks `playerEntryRefusal` for anybody who is not staff.
+    const rule = stripComments(readFileSync(join(process.cwd(), "src", "lib", "domain", "round-scoring.ts"), "utf8"));
+    expect(rule).toMatch(/return playerEntryRefusal\(settings, stage\) === null;/);
+    expect(rule).toMatch(/return playerEntryRefusal\(settings, stage\);\s*\}/);
   });
 
   /**
@@ -2447,7 +2538,7 @@ describe("a round's card is narrowed in exactly one place", () => {
     expect(page).not.toMatch(/teeSheetDrift\([^)]*state\.confirmed/);
     // `field` has to be resolved BEFORE the check, or it is the roster by
     // another name — this is what made the original a one-line fault.
-    const fieldAt = page.indexOf("let field =");
+    const fieldAt = page.indexOf("const field =");
     const driftAt = page.indexOf("teeSheetDrift(");
     expect(fieldAt, "field must be computed").toBeGreaterThan(-1);
     expect(fieldAt, "field must be resolved before the drift check").toBeLessThan(driftAt);
@@ -2520,7 +2611,8 @@ describe("a round's card is narrowed in exactly one place", () => {
     const card = stripComments(
       readFileSync(join(process.cwd(), "src", "lib", "services", "match-card.ts"), "utf8"),
     );
-    expect(page).toMatch(/matchCardFor\(\{ match,/);
+    // `{ match }` alone since 2026-11-04: the card is no longer told who holds it.
+    expect(page).toMatch(/matchCardFor\(\{ match \}\)/);
     expect(card).toMatch(/courseForMatch\(matchVenue, stageVenue, event\)/);
     expect(card).toMatch(/cardForMatch\(resolved, match, stage\)/);
     // The round's hole count travels explicitly, so the grid never has to
@@ -3028,7 +3120,8 @@ describe("one engine decides how many strokes a hole gives", () => {
   /** Outside the domain and still calling the primitive, each a known debt. */
   const ALLOWED: Record<string, string> = {
     "src/app/actions/tournament.ts": "score import converts a gross card to net at the boundary",
-    "src/app/(player)/me/card/page.tsx": "the player's own card, already narrowed upstream",
+    // The player's own card left the list 2026-10-24: its dots are allocated by
+    // `strokesOnHole` in the domain, the function that also says why.
     "src/app/play/page.tsx": "a casual round has no tournament to resolve against",
     "src/app/(app)/entry/page.tsx": "the individual entry path; the TEAM path goes through matchStrokesPerHole",
     // expenses.ts left the list 2026-10-23: the low-net pot asks
@@ -3064,5 +3157,65 @@ describe("one engine decides how many strokes a hole gives", () => {
     for (const rel of Object.keys(ALLOWED)) {
       expect(callers, `${rel} is exempted but no longer does it`).toContain(rel);
     }
+  });
+});
+
+/**
+ * WHO MAY CHANGE THE FIELD IS ASKED OF ONE RULE (day-of field changes, PR A).
+ *
+ * Every exported action in `tournament.ts` and `roster.ts` that creates,
+ * deletes or re-statuses a `Player` row (or moves one between flights) asks
+ * `fieldRefusal`, and none of the old four spellings (an inline
+ * `configurationLocked`, `assertUnlocked`, `lockedRefusal`, the bare
+ * confirmed-draw read). Swept as a class, so an action added tomorrow that
+ * writes the field is held to it the day it lands. The verdicts themselves are
+ * `field-change.test.ts`; the rows are `a-late-changes-after-launch.audit.test.ts`.
+ */
+describe("every field action asks the one field rule", () => {
+  /** Actions that write a Player's status or flight but are not the organizer changing the field, each with why. */
+  const NOT_FIELD_CHANGES: Record<string, string> = {
+    // The field LIMIT, an entry term — deliberately outside the lock (design table, "Entries
+    // open/close, capacity"). It moves players only by the waiting list's own order, asked first.
+    applyManualCount: "the field limit, an entry term, never a lock",
+  };
+  // `tx` as well as `prisma` since J46: addSignup creates under the intake lock, on the transaction client.
+  const FIELD_WRITE = /\b(?:prisma|tx)\.player\.(create|createMany|delete|deleteMany)\(|prisma\.player\.update(Many)?\(\{[^;]*data: \{ (status|groupId)\b|\bremoveSignup\(|\bintoFlight\(/;
+  const fieldActions = [...actions("tournament.ts"), ...actions("roster.ts")].filter((a) => FIELD_WRITE.test(a.body));
+  const MUST = ["addSignup", "removeSignup", "removeSignups", "reinstateWithdrawn", "approveSignup", "movePlayerToGroup", "placeInFlight", "importCsvSignups", "addMembersToEvent"];
+
+  it("finds the field actions it is about (the control)", () => {
+    const names = fieldActions.map((a) => a.name);
+    for (const n of MUST) expect(names, `${n} should be swept as a field action`).toContain(n);
+  });
+
+  it("each field action asks fieldRefusal, returned, and none of the four old spellings", () => {
+    for (const a of fieldActions.filter((x) => MUST.includes(x.name))) {
+      // `placeInFlight` asks through `intoFlight`, the body it shares with `movePlayerToGroup`
+      // (whose slice holds it, and is asserted above to ask before the write).
+      // `addSignup` asks for the whole verdict (`fieldVerdictFor`, J12): the same rule, with what a taken entry leaves to say.
+      const asks = a.name === "placeInFlight" ? /await intoFlight\(eventId, / : /await field(?:Refusal|VerdictFor)\(eventId, /;
+      expect(a.body, `${a.name} must ask the one field rule`).toMatch(asks);
+      expect(a.body, `${a.name} must not use an old lock spelling`).not.toMatch(/assertUnlocked\(|lockedRefusal\(|configurationLocked\(|select: \{ flightsConfirmed: true \}/);
+    }
+    // updateSignup edits details: the rule's "edit", asked the same way.
+    const update = actions("tournament.ts").find((a) => a.name === "updateSignup")!.body;
+    expect(update).toMatch(/await fieldRefusal\(eventId, "edit"\)/);
+    expect(update).not.toMatch(/assertUnlocked\(/);
+  });
+
+  it("an action that writes the field and does not ask the rule is named here with the reason", () => {
+    const unexplained = fieldActions.map((a) => a.name).filter((n) => !MUST.includes(n) && !(n in NOT_FIELD_CHANGES));
+    expect(unexplained).toEqual([]);
+  });
+
+  // PR B: the tee sheet's one-player placement is a change kind of the same rule, asked before the sheet is written.
+  // PR 7c moved it to the tee sheet's own rule (`teeSheetChangeAllowed`, kind "place"); the sweep over every writer is tee-sheet-writers-ask-the-rule.test.ts.
+  it("the tee sheet's Put in group asks the tee-sheet rule (place) before it writes", () => {
+    const put = actions("tee-sheet.ts").find((a) => a.name === "placeInTeeGroup");
+    expect(put, "placeInTeeGroup should be swept").toBeDefined();
+    const asks = put!.body.search(/await teeSheetVerdictFor\(session\.eventId, stageId, \{ kind: "place" \}\)/);
+    const writes = put!.body.search(/prisma\.stage\.updateMany\(/);
+    expect(asks, "placeInTeeGroup must ask the one field rule").toBeGreaterThan(-1);
+    expect(writes, "the write comes after the rule is asked").toBeGreaterThan(asks);
   });
 });

@@ -4,6 +4,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path";
 import { consoleScreens, playerScreens } from "./routes";
 import { watchPageErrors } from "./page-errors";
+import { watchNavigations } from "./navigation-settle";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 
 /**
@@ -150,7 +151,10 @@ async function controlsOn(page: Page, tab = ""): Promise<Control[]> {
     // the league is on, and a control inside a closed disclosure is on the
     // page and not on the screen: the crawl found it, could not operate it,
     // and that is the control the first full run waited on for ever.
-    scope.querySelectorAll<HTMLDetailsElement>("details:not([open])").forEach((d) => {
+    // Not a figure's "why" (FigureWhy): it holds one sentence and no control,
+    // and opened it lies over the controls under it — "Full card" on the
+    // player's card could not be pressed (round figures-explain-4).
+    scope.querySelectorAll<HTMLDetailsElement>("details:not([open]):not(.why)").forEach((d) => {
       d.open = true;
     });
     const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
@@ -319,6 +323,20 @@ const RULED: Array<{ screen: string; says: RegExp; why: string }> = [
   { screen: "/organization", says: /only Commissioner/i, why: "a club keeps at least one Commissioner; the refusal names the remedy" },
   { screen: "/access", says: /only organi[sz]er/i, why: "a tournament keeps at least one organizer; the warning names the remedy" },
   { screen: "/foursomes", says: /Hole \d+: Paces/i, why: "a pin's side means nothing without its paces; the refusal names the hole" },
+  /**
+   * "This round is finished" on a round holding a DISPUTED card (state machine
+   * PR 4; the Tournament Director's ruling, panel 8.1 Q4). The seeded medal's
+   * Round 1 holds one, so the tick is refused until the Committee rules on it
+   * (Rule 20.1c(4), Rule 20.2b), and the refusal says where: Score entry. Exact
+   * words, so any other refusal on that tick is still a finding. A card that is
+   * only NOT APPROVED yet is asked about instead ("Close anyway"), which the
+   * crawl already counts as "asks first" and does not press.
+   */
+  {
+    screen: "/stages",
+    says: /^\s*\d+ results? in .+ (is|are) disputed, so the round can’t be closed yet\. Settle (it|them) on Score entry, then close the round\./,
+    why: "a round is not closed over a disputed result: the Committee rules on it first, and the refusal names Score entry",
+  },
 ];
 
 /** Server action id → its exported name, off the build the crawl is running against. */
@@ -456,14 +474,44 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
     if (id) fired.push(ACTION_NAMES[id] ?? id.slice(0, 8));
   };
   page.on("request", onRequest);
+  // A choice that starts a navigation is judged when the server has answered it, never after a guess.
+  const navigations = watchNavigations(page);
   const textBefore = await page.locator("main").innerText().catch(() => "");
   const complaintsBefore = await complaints(page, c);
   const buttonsBefore = (await page.locator("main button:visible").allInnerTexts().catch(() => [])).map((t) => t.trim());
   const by = () => (fired.length ? [...new Set(fired)].join(", ") : "");
   try {
+    // A dropdown that sends the person to another address (`RoundPicker`) is a view, and the
+    // screen it opens takes as long as the server takes. Round G577-3: on a busy runner the
+    // new address had not arrived 700ms later, the "no request, same address" branch below
+    // went looking for a Save, found the pot card's, pressed it, and the reload to the bare
+    // path then showed the default round. Wait for the address, not for a guess.
+    const goes = c.kind === "select" && (await page.locator("main select").nth(c.nth).getAttribute("data-view-picker").catch(() => null)) === "url";
     await choose(page, c, choice);
+    if (goes) {
+      const arrived = await page.waitForURL((u) => u.href !== startUrl, { timeout: 20_000 }).then(() => true, () => false);
+      if (!arrived) return { outcome: "stuck", note: "chose another round and the address never changed in 20s" };
+      await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+      if (new URL(page.url()).searchParams.get("round") !== choice) {
+        return { outcome: "moved", note: `chose round ${choice} and the address is ${new URL(page.url()).search}` };
+      }
+      // Not returned as a view here: the checks below call it a view only when NO action fired,
+      // so a picker that also saved something still goes on to the reload check.
+    }
     // Some screens save a choice as it is made.
     await page.waitForTimeout(700);
+    // A navigation the press started (`router.push` sends an RSC request) is waited for, bounded:
+    // 848 ms on a slow runner read as "silent" on nightly G60-1. One that never answers is its own finding.
+    const answered = await navigations.settled(10_000);
+    if (!answered.ok) return { outcome: "stuck", note: `the press started a navigation (${answered.waiting}) and it was not answered in 10s` };
+    // An answer lands a moment before the screen is drawn and the address changes: wait for the address the
+    // navigation went to, however early it answered. A request to the address we are on (router.refresh) has none to wait for.
+    const here = (u: URL) => u.pathname + u.search;
+    const targets = navigations.seen().filter((t) => t !== here(new URL(startUrl)));
+    if (targets.length) {
+      const drawn = await page.waitForURL((u) => targets.includes(here(u)), { timeout: 5_000 }).then(() => true, () => false);
+      if (!drawn) return { outcome: "stuck", note: `the press started a navigation to ${targets[0]} and the address never reached it in 5s` };
+    }
     if (picker) return { outcome: "view", note: `chooses ${picker}` };
     const builder = BUILDERS[`${path}|${c.label}`];
     if (builder) return { outcome: "in a form", note: builder };
@@ -518,6 +566,7 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
       : { outcome: "lost", note: `shows "${again.choiceLabels[again.choices.indexOf(again.current)] ?? again.current}" after a reload · ${by()}` };
   } finally {
     page.off("request", onRequest);
+    navigations.stop();
   }
 }
 

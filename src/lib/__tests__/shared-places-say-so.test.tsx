@@ -36,6 +36,7 @@ describe("the sides board prints it", () => {
     name: `zz-side ${teamId}`,
     members: [],
     memberIds: [],
+    memberPlaying: [],
     playingHandicap: 3,
     gross: net + 3,
     net,

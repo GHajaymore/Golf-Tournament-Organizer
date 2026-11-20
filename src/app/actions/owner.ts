@@ -3,7 +3,15 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
-import { PLANS, LIMIT_KEYS, isValidPercentOff, keepsDataForever, type PlanKey, type LimitKey } from "@/lib/plans";
+import { randomUUID } from "node:crypto";
+import {
+  PLANS, LIMIT_KEYS, ANNUAL_MONTHS_CHARGED, effectiveRegions, hasSettablePrice,
+  isValidPercentOff, keepsDataForever,
+  type PlanKey, type LimitKey, type PriceRegion,
+} from "@/lib/plans";
+import { cleanAnnualMonths, cleanOfferInput, cleanRegionInputs, type OfferInput, type RegionInput } from "@/lib/domain/plan-edit";
+import { saveOfferSettings } from "@/lib/services/platform-offers";
+import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { liftArchive } from "@/lib/services/club-archive";
 import { savePricingOverride } from "@/lib/services/platform-pricing";
 import { drainWaitlist } from "@/lib/services/waitlist";
@@ -13,6 +21,8 @@ import { setSignInsOpen } from "@/lib/services/signins-switch";
 import { buildDemoClub, demoMark, type DemoLinks } from "@/lib/services/demo-club";
 import { sendEarlyListCodes as sendCodes } from "@/lib/services/early-list";
 import { ownerClockInWords } from "@/lib/services/owner-clock";
+import { loadCatalogueRows, noteCatalogueLoad } from "@/lib/services/catalogue-load";
+import { CHUNK_ROWS, type LoadCounts } from "@/lib/domain/catalogue-load";
 
 /**
  * Owner-only writes — the platform's own controls, not a club's.
@@ -77,6 +87,30 @@ export async function sendEarlyListCodes(): Promise<OwnerActionResult & { sent?:
   // When the rest can go, in words on the owner's own clock — said beside the press.
   const nextAt = res.nextAt ? await ownerClockInWords(session.userId, res.nextAt) : null;
   return { ok: res.ok, error: res.error, sent: res.sent, later: res.later, nextAt };
+}
+
+/**
+ * LOAD THE COURSE CATALOGUE — one request's worth of rows from the file `scripts/export-catalogue.ts`
+ * wrote (Ajay, J29). The owner's browser reads the file and sends it in chunks; nobody holds
+ * production's database, the app does the writing. Each row is judged by `judgeRow` (a `gca:` id is
+ * refused, a card `cardRefusal` refuses is skipped, never stored blank); the rows are added or
+ * updated, never deleted. The counts come back, and an audit line is kept.
+ */
+export async function loadCourseCatalogue(
+  rows: unknown,
+  load?: { id: string; part: number; of: number },
+): Promise<OwnerActionResult & { counts?: LoadCounts }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  if (!Array.isArray(rows) || rows.length === 0) return { ok: false, error: "That request held no courses." };
+  if (rows.length > CHUNK_ROWS * 3) return { ok: false, error: "That request held too many courses; nothing was loaded." };
+  // One audit line per load: its requests share the id the browser made for it.
+  const id = load && typeof load.id === "string" && /^\w{4,32}$/.test(load.id) ? load.id : randomUUID().replace(/-/g, "").slice(0, 12);
+  const part = load && Number.isInteger(load.part) && load.part > 0 ? load.part : 1;
+  const of = load && Number.isInteger(load.of) && load.of >= part ? load.of : part;
+  const counts = await loadCatalogueRows(rows);
+  await noteCatalogueLoad(session.email, counts, new Date(), id, part, of);
+  return { ok: true, counts };
 }
 
 /**
@@ -145,13 +179,44 @@ export async function setClubPlan(clubName: string, plan: string): Promise<Owner
  * `savePricingOverride`, so nothing but a clean number reaches the row every
  * pricing surface renders from. An unknown plan key is ignored, never stored.
  */
-export async function saveTierPrices(prices: Record<string, number>): Promise<OwnerActionResult> {
+export async function saveTierPrices(
+  prices: Record<string, number>,
+  /**
+   * The rest of the Plans panel's prices, saved in the SAME press so a half-saved panel cannot happen:
+   * `regions` is every region but Rest of world with its prices (a blank or `null` is "the default");
+   * `annualMonths` is the months billed for a year in every region that has no figure of its own
+   * (`null` is "the default", 10).
+   */
+  more?: { regions?: RegionInput[]; annualMonths?: number | null },
+): Promise<OwnerActionResult> {
   const session = await getSession();
   if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  // A public endpoint: the types are erased, so a string or a number here must be refused, not thrown on
+  // (`"annualMonths" in 5` throws).
+  if (!prices || typeof prices !== "object" || Array.isArray(prices)) return { ok: false, error: "The prices did not arrive." };
+  if (more !== undefined && (more === null || typeof more !== "object" || Array.isArray(more))) {
+    return { ok: false, error: "The regions did not arrive." };
+  }
+
+  let regions: PriceRegion[] | undefined;
+  if (more?.regions) {
+    const made = cleanRegionInputs(more.regions);
+    if (typeof made === "string") return { ok: false, error: made };
+    regions = made;
+  }
+
+  let annualMonths: number | null | undefined;
+  if (more && "annualMonths" in more) {
+    const m = cleanAnnualMonths(more.annualMonths);
+    if (typeof m === "string") return { ok: false, error: m };
+    annualMonths = m === ANNUAL_MONTHS_CHARGED ? null : m;
+  }
 
   const clean: Partial<Record<PlanKey, number>> = {};
   for (const [key, monthly] of Object.entries(prices)) {
     if (!(key in PLANS)) continue;
+    // Par is free and Albatross is "Let's talk": neither has a price to set (`planQuote` holds that too).
+    if (!hasSettablePrice(key as PlanKey)) continue;
     const n = Number(monthly);
     if (!Number.isFinite(n) || n < 0) {
       return { ok: false, error: `${key}: a price is a number, zero or more.` };
@@ -159,11 +224,32 @@ export async function saveTierPrices(prices: Record<string, number>): Promise<Ow
     clean[key as PlanKey] = Math.round(n);
   }
 
-  await savePricingOverride(clean);
+  await savePricingOverride(clean, { regions, annualMonths });
   // Every price on the site is derived from this, so clear the whole router
   // cache — the landing page, the settings panel and the schema.org offer all
   // move together, which is the point of one source.
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Save the event passes, the seasonal plan and their "on sale" switch.
+ *
+ * Decided 10 Nov 2026 and NOT on sale until billing can sell them: `onSale` is
+ * false unless the owner turns it on here, and every surface but /owner reads
+ * the offers through `publicOffers`, which is empty while it is off. Validated
+ * by `cleanOfferInput` (no negative price, a cap of 1 or more or "any field",
+ * a paid tier for the season) and again by the parser inside the service.
+ */
+export async function saveOffers(input: OfferInput): Promise<OwnerActionResult> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+
+  const regionIds = effectiveRegions(await storedPricingOverrides()).map((r) => r.id);
+  const clean = cleanOfferInput(input, regionIds);
+  if (typeof clean === "string") return { ok: false, error: clean };
+  await saveOfferSettings(clean);
+  revalidatePath("/owner");
   return { ok: true };
 }
 

@@ -2,10 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { Icon } from "./Icon";
-import { MicNote } from "./MicNote";
 import { usePageIsLive } from "./usePageIsLive";
-import { startDictation, type Dictation } from "@/lib/dictation";
-import { parseHolesTranscript } from "@/lib/domain/match";
 
 /** A second press of the same answer this soon is a double-tap, not a decision to clear. */
 const DOUBLE_TAP_MS = 400;
@@ -23,13 +20,16 @@ import { HoleSyncMark, HoleSyncWords, holeSyncSaid } from "./HoleSync";
  * did not fit the round's one screen was the SHAPE: the organizer's
  * eighteen-column grid, 900px wide, with three 32px pickers a hole — on a
  * 393px phone it scrolled sideways and opened on a legend and a "Voice
- * entry" bar. Every other casual format opens on the hole being played,
- * with the mic beside its number.
+ * entry" bar. Every other casual format opens on the hole being played.
  *
  * So this is that, for a hole result: the hole, three thumb-sized answers
  * named for the players, and the next hole once one is pressed — one tap
  * decides a hole, as one tap on the solo pad decides a score. Tapping the
  * pressed answer again takes it back, the same rule as the grid.
+ *
+ * NO MICROPHONE (Ajay, 2026-11-09). A hole is one tap here, and a tap cannot
+ * be misheard; the spoken-name reader it had is gone (see match.ts, and
+ * `match-play-is-tapped-not-dictated.test.ts`).
  *
  * The grid is still one tap away ("See the full card"): it is how a card is
  * read ACROSS, which a hole at a time cannot do.
@@ -44,14 +44,11 @@ export function HoleResultCard({
   yards,
   strokeIndex,
   firstHole = 1,
-  canHearNames,
-  showVoice = true,
   shotsOn,
   noteFor,
-  wonLost = false,
+  marks,
   shownStrokeIndex,
   onPick,
-  onSay,
   sync,
   refusal = "",
 }: {
@@ -65,19 +62,18 @@ export function HoleResultCard({
   /** The club card's stroke index to PRINT, where `strokeIndex` is re-ranked for a nine. */
   shownStrokeIndex?: number[];
   /**
-   * Mark each played hole on the strip W / ½ / L. Only where side A is the
-   * person holding the phone (the round-code card): on the console's entry
-   * screen A is just the first name, and "won" would be nobody's.
+   * Mark each played hole on the strip with the winner's initials, A's and B's
+   * (`sideMarks`), and ½ for a half — on the match card (`MatchKeeper`). It
+   * was W / L, won and lost from the holder's side, which only meant anything
+   * while the card turned round to face whoever held it; it no longer does.
    */
-  wonLost?: boolean;
+  marks?: [string, string];
   /**
    * A line under the hole's par, for what two rows of dots cannot say — a
    * four-ball's shots, player by player ("Shots here: Ann, Cat"). Empty for
    * none.
    */
   noteFor?: (hole: number) => string;
-  /** The organizer's "Voice entry" setting, where a player is holding the phone. */
-  showVoice?: boolean;
   /**
    * The handicap shots each side receives on a hole, in a net match — the
    * same dots the stroke card puts beside a name, so a scorer deciding who
@@ -95,12 +91,8 @@ export function HoleResultCard({
   yards: number[];
   strokeIndex: number[];
   firstHole?: number;
-  /** False when both players share a first name — see `namesAreDistinct`. */
-  canHearNames: boolean;
   /** Press an answer; pressing the one already pressed clears it. */
   onPick: (hole: number, value: "A" | "B" | "H") => void;
-  /** What was heard, from `start` onwards, one hole per word. */
-  onSay: (start: number, values: HoleResult[]) => void;
 }) {
   const distance = useDistanceWords();
   // An answer pressed before the page is live goes nowhere — see the hook.
@@ -150,39 +142,6 @@ export function HoleResultCard({
         setHole((h) => (h === from ? from + 1 : h));
       }, 160);
     }
-  };
-
-  const [listening, setListening] = useState(false);
-  const [heard, setHeard] = useState("");
-  const dictationRef = useRef<Dictation | null>(null);
-  const aFirst = aLabel.split(" ")[0];
-  const bFirst = bLabel.split(" ")[0];
-  const listen = () => {
-    if (listening) {
-      dictationRef.current?.stop();
-      dictationRef.current = null;
-      setListening(false);
-      return;
-    }
-    setHeard("");
-    const start = hole;
-    const started = startDictation({
-      onTranscript: (transcript) => {
-        const got = parseHolesTranscript(transcript, aFirst, bFirst, start, count);
-        if (got.length) {
-          onSay(start, got);
-          go(start + got.length);
-          setHeard(`Heard “${transcript}” — ${got.length === 1 ? `hole ${holeNumber(start, firstHole)}` : `holes ${holeNumber(start, firstHole)} to ${holeNumber(start + got.length - 1, firstHole)}`}. Tap a hole to fix it.`);
-        } else {
-          setHeard(`Heard “${transcript}” — say ${aFirst}, ${bFirst} or “half”.`);
-        }
-      },
-      onError: () => setHeard("Didn’t catch that. Try again, or tap who won."),
-      onEnd: () => setListening(false),
-    });
-    dictationRef.current = started;
-    if (started) setListening(true);
-    else setHeard("This browser can’t listen. Tap who won instead.");
   };
 
   // The strip keeps the current hole in view, as on the stroke card.
@@ -240,16 +199,16 @@ export function HoleResultCard({
               border: i === hole ? "2px solid var(--color-accent)" : "1px solid var(--color-divider)",
               background: tint(holes[i] ?? null),
               color: "var(--color-text)",
-              ...(wonLost ? { height: 48, minWidth: 40, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", lineHeight: 1.1 } : {}),
+              ...(marks ? { height: 48, minWidth: 40, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", lineHeight: 1.1 } : {}),
             }}
           >
             {holeNumber(i, firstHole)}
-            {/* A letter as well as a colour, from the holder's side, so the
-                strip reads in sunlight and without knowing which tint is which
-                (the cup's UI review, 2026-10-17). */}
-            {wonLost && holes[i] && (
+            {/* Letters as well as a colour — whose hole it was — so the strip
+                reads in sunlight and without knowing which tint is which (the
+                cup's UI review, 2026-10-17). */}
+            {marks && holes[i] && (
               <span aria-hidden="true" style={{ fontSize: 13, fontWeight: 700 }}>
-                {holes[i] === "A" ? "W" : holes[i] === "B" ? "L" : "½"}
+                {holes[i] === "A" ? marks[0] : holes[i] === "B" ? marks[1] : "½"}
               </span>
             )}
             {sync && <HoleSyncMark sync={sync[i] ?? "none"} />}
@@ -265,27 +224,6 @@ export function HoleResultCard({
             </div>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 42, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{n}</div>
           </div>
-          {canHearNames && showVoice && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={listen}
-              aria-pressed={listening}
-              aria-label={`Say who won hole ${n}`}
-              style={{
-                width: 48,
-                height: 48,
-                minHeight: 48,
-                padding: 0,
-                borderRadius: "50%",
-                justifyContent: "center",
-                flex: "none",
-                boxShadow: listening ? "0 0 0 3px var(--color-accent)" : undefined,
-              }}
-            >
-              <Icon name="microphone" style={{ fontSize: 20 }} />
-            </button>
-          )}
           <div style={{ textAlign: "right", fontSize: 15, lineHeight: 1.45, color: "var(--color-neutral-400)" }}>
             <div>
               Par <strong style={{ color: "var(--color-text)", fontSize: 20 }}>{pars[hole] ?? "—"}</strong>
@@ -314,6 +252,8 @@ export function HoleResultCard({
               key={a.v}
               type="button"
               className={a.cls}
+              // What this answer records, as stored: A, H or B in draw order.
+              data-result={a.v}
               aria-pressed={value === a.v}
               aria-label={a.aria}
               disabled={!live}
@@ -328,23 +268,11 @@ export function HoleResultCard({
             </button>
           ))}
         </div>
-
-        {showVoice && (
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
-            {/* What the mic heard, or how to use it; or why it is not offered. */}
-            <span style={{ fontSize: 14, lineHeight: 1.45, color: "var(--color-neutral-400)" }} aria-live="polite">
-              {canHearNames
-                ? listening
-                  ? "Listening…"
-                  : heard || `Or say it: “${aFirst}”, “half”, “${bFirst}” — several holes in a row if you like.`
-                : `Both players are called ${aFirst}, so the mic can’t tell them apart. Tap who won.`}
-            </span>
-            {canHearNames && <MicNote />}
-          </div>
-        )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+      {/* A named group of two: a screen reader hears what Previous and Next step through, and the
+          console sweep (`e2e/console-sweep.ts`, rule 2) knows a pager at the end of its run by this shape. */}
+      <div role="group" aria-label="Holes" style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button type="button" className="btn btn-secondary" onClick={() => go(hole - 1)} disabled={hole === 0} style={{ flex: 1, minHeight: 46 }}>
           <Icon name="caret-left" /> Previous
         </button>

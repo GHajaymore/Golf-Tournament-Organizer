@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { heldFromBoard } from "../domain/board-hold";
 
 /**
  * How many cards a round already holds.
@@ -235,7 +236,7 @@ export async function roundStrokes(eventId: string, stageId?: string): Promise<P
 
   for (const c of stroke) {
     take(c.playerId, c.stageId, c.strokes);
-    if (c.status === "disputed") {
+    if (heldFromBoard(c.status)) {
       const row = out.find((r) => r.playerId === c.playerId && r.stageId === c.stageId);
       if (row) row.disputed = true;
     }

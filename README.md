@@ -89,7 +89,8 @@ Landing/sign-in/signup/forgot-password · Tournament picker (`/choose`) ·
 Dashboard · Event setup · Registration & field · Rounds & format · Flights &
 divisions · Access & staff · Tee sheet & pairings · Scorecards · Score entry
 (hole-by-hole tap, gross scorecard with automatic net-of-handicap match-play
-scoring, match-result entry, and voice dictation for all three) · Qualification ·
+scoring, and match-result entry; strokes can be dictated, a match hole or result is
+tapped) · Qualification ·
 Bracket manager · Announcements · Prizes & payouts · Live leaderboard ·
 Reports/export.
 

@@ -127,7 +127,7 @@ describe("the Members screen is headed with the sidebar's own section word", () 
   const kicker = (kind: string) =>
     renderToStaticMarkup(
       <OrgProfileProvider kind={kind} country="GB">
-        <RosterClient clubName="zz Heath" eventName="" fieldLocked={false} members={[]} fieldSize={0} unlinkedCount={0} />
+        <RosterClient clubName="zz Heath" eventName="" fieldLocked={null} members={[]} fieldSize={0} unlinkedCount={0} />
       </OrgProfileProvider>,
     ).match(/class="page-kicker">([^<]*)</)?.[1];
 

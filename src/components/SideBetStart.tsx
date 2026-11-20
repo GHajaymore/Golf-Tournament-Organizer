@@ -292,8 +292,9 @@ export function SideBetStart({
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div className="field" style={{ flex: 1, minWidth: 180 }}>
-          <label>What to call it</label>
+          <label htmlFor="side-bet-name">What to call it</label>
           <input
+            id="side-bet-name"
             className="input"
             value={name}
             maxLength={40}

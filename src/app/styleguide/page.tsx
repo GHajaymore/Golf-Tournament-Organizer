@@ -59,13 +59,13 @@ const CARD = [
 const markFor = scoreMark;
 
 const MATCHES = [
-  { a: "Aj Moore", b: "Rob Ferris", flight: "Flight 1", on: true, tag: "2 up", tagClass: "tag-accent" },
+  { a: "Ned Calloway", b: "Rob Ferris", flight: "Flight 1", on: true, tag: "2 up", tagClass: "tag-accent" },
   { a: "M. Ndlovu", b: "S. Kaur", flight: "Flight 1", on: false, tag: "AS", tagClass: "tag-neutral" },
   { a: "T. Alvarez", b: "J. Whitfield", flight: "Flight 2", on: false, tag: "Final", tagClass: "tag-neutral" },
 ];
 
 const SAMPLE = [
-  { pos: 1, name: "A. Moore", hcp: 8, thru: "F", gross: 74, net: 66, tag: "Advancing" },
+  { pos: 1, name: "N. Calloway", hcp: 8, thru: "F", gross: 74, net: 66, tag: "Advancing" },
   { pos: 2, name: "Rob Ferris", hcp: 14, thru: "F", gross: 81, net: 67, tag: "Advancing" },
   { pos: 3, name: "M. Ndlovu", hcp: 3, thru: "17", gross: 71, net: 68, tag: "" },
   { pos: 4, name: "S. Kaur", hcp: 19, thru: "16", gross: 88, net: 69, tag: "" },
@@ -148,20 +148,20 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
 
       <Section title="Form controls">
         <div className="field">
-          <label>Tournament name</label>
-          <input className="input" defaultValue="Spring Medal" />
+          <label htmlFor={`${id}-name`}>Tournament name</label>
+          <input id={`${id}-name`} className="input" defaultValue="Spring Medal" />
         </div>
         <div className="field">
-          <label>Format</label>
-          <select className="input" defaultValue="Four-Ball">
+          <label htmlFor={`${id}-format`}>Format</label>
+          <select id={`${id}-format`} className="input" defaultValue="Four-Ball">
             <option>Match Play</option>
             <option>Four-Ball</option>
             <option>Scramble</option>
           </select>
         </div>
         <div className="field">
-          <label>Notes</label>
-          <input className="input" placeholder="Placeholder text" />
+          <label htmlFor={`${id}-notes`}>Notes</label>
+          <input id={`${id}-notes`} className="input" placeholder="Placeholder text" />
         </div>
         <div className="seg">
           <label className="seg-opt"><input type="radio" name={`h-${id}`} defaultChecked />18 holes</label>
@@ -381,7 +381,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
           format="Match Play"
           holes={18}
           field={[
-            { id: "p1", name: "Aj Moore" },
+            { id: "p1", name: "Ned Calloway" },
             { id: "p2", name: "Rob Ferris" },
           ]}
         />

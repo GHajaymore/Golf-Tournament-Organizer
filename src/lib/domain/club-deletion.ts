@@ -35,6 +35,8 @@ export interface ClubDeletionInput {
   noun?: string;
 }
 
+import { mayDeleteClub } from "./membership-rule";
+
 /** Whether a paid plan is still running through Stripe for this club. */
 export function paidPlanRunning(sub: ClubDeletionInput["subscription"]): boolean {
   if (!sub) return false;
@@ -44,7 +46,7 @@ export function paidPlanRunning(sub: ClubDeletionInput["subscription"]): boolean
 /** Why this deletion cannot happen, or null when it may. */
 export function clubDeletionRefusal(input: ClubDeletionInput): string | null {
   const noun = input.noun || "club";
-  if (input.role !== "owner") return `Only the ${noun}'s owner can delete it.`;
+  if (!mayDeleteClub(input.role)) return `Only the ${noun}'s owner can delete it.`;
   if (paidPlanRunning(input.subscription)) {
     return `This ${noun} has a paid plan running. Cancel it in Manage billing first; once the plan has ended, the ${noun} can be deleted.`;
   }

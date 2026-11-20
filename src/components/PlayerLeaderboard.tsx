@@ -3,6 +3,8 @@ import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-posit
 import { cutLineIndex } from "@/lib/domain/cut";
 import { todaysThru } from "@/lib/domain/scoreboard";
 import { FlipList } from "./FlipList";
+import { FigureWhy } from "./FigureWhy";
+import { boardNetWorking, tieWorking, unplacedWorking } from "@/lib/domain/figure-working";
 import type { StandingRow } from "./LeaderboardTable";
 
 /**
@@ -246,10 +248,39 @@ export function PlayerLeaderboard({
         // match-play board render a dash for everybody but you.
         const score = rankedScore(r, { isStroke, isStableford, isNet }).text;
 
+        /**
+         * HOW EACH FIGURE ON THE ROW WAS WORKED OUT (2026-10-24): the place,
+         * where a countback separated (or could not separate) level scores — the
+         * rank pass's own decision, carried on the row; why a row has no place,
+         * from what is stored on it; and a net board's figure, from the row's own
+         * gross, net and par. Each opens under the row when its figure is tapped.
+         */
+        const placeWhy =
+          isStroke && holdsPosition(r) && r.tiedWith?.length
+            ? tieWorking(r.tiedWith, score, r.rank, { points: isStableford })
+            : null;
+        const stateWhy = isStroke ? unplacedWorking(r) : null;
+        const scoreWhy =
+          isStroke && isNet && !isStableford && started && r.parKnown !== false && typeof r.parThru === "number"
+            ? boardNetWorking({ gross: r.gross, net: r.net, parThru: r.parThru, thru: r.thru, toPar: r.toPar })
+            : null;
+        const place = holdsPosition(r) ? placeText(r, shared) : "–";
+        const meta = [
+          // An unflighted event stores the flight as an em dash, which
+          // is a placeholder for a table cell that must not be blank —
+          // it is not a label, and it reads as noise on a line of prose.
+          r.flight === "—" ? "" : r.flight,
+          isStroke ? cardState(r, holes) : r.record,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
         return (
           <li key={r.id} data-flip-key={r.id}>
             <div
               style={{
+                // The anchor a figure's working opens under, across the row.
+                position: "relative",
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
@@ -276,14 +307,16 @@ export function PlayerLeaderboard({
                 style={{
                   ...num,
                   // Wide enough for "T12" so the names still line up down the
-                  // board whether or not a row's place is shared.
-                  minWidth: 34,
+                  // board whether or not a row's place is shared. 44, the
+                  // width a place that opens its working takes on a phone, so a
+                  // tied row's name lines up with an untied one's (2026-10-24).
+                  minWidth: 44,
                   fontSize: leader ? 17 : 15,
                   fontWeight: leader ? 700 : 500,
                   color: r.ranked ? "var(--color-text)" : "var(--color-text-muted)",
                 }}
               >
-                {holdsPosition(r) ? placeText(r, shared) : "–"}
+                <FigureWhy figure={place} working={placeWhy} name={`${r.name}, place ${place}`} />
               </span>
 
               <span style={{ flex: 1, minWidth: 0 }}>
@@ -308,15 +341,7 @@ export function PlayerLeaderboard({
                     color: "var(--color-text-muted)",
                   }}
                 >
-                  {[
-                    // An unflighted event stores the flight as an em dash, which
-                    // is a placeholder for a table cell that must not be blank —
-                    // it is not a label, and it reads as noise on a line of prose.
-                    r.flight === "—" ? "" : r.flight,
-                    isStroke ? cardState(r, holes) : r.record,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
+                  <FigureWhy figure={meta} working={stateWhy} name={`${r.name}: ${meta}`} />
                 </span>
                 {/* WHO IS THROUGH, WHEN A LINE CANNOT SAY IT.
                     Only on a board whose advancing set is scattered rather
@@ -343,7 +368,7 @@ export function PlayerLeaderboard({
                   color: started ? scoreColour(r.toPar, isStableford) : "var(--color-text-muted)",
                 }}
               >
-                {started ? score : "–"}
+                {started ? <FigureWhy figure={score} working={scoreWhy} name={`${r.name}'s score ${score}`} /> : "–"}
               </span>
             </div>
 

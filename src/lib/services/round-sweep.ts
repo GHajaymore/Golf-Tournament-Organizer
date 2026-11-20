@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { purgeEvents } from "@/lib/services/purge";
 
 /**
  * Deleting the casual rounds that have run out of time.
@@ -72,10 +73,7 @@ export async function dueRounds(now: Date = new Date()): Promise<string[]> {
  * Returns whether the row was removed.
  */
 export async function deleteIfStillDue(id: string, now: Date = new Date()): Promise<boolean> {
-  const gone = await prisma.event.deleteMany({
-    where: { id, expiresAt: { not: null, lte: now } },
-  });
-  return gone.count > 0;
+  return (await purgeEvents({ id, expiresAt: { not: null, lte: now } })) > 0;
 }
 
 /**

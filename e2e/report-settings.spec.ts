@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { MARK } from "./fixture.mjs";
 import { seedRich, teardownRich, setWithheld, setReportSettings } from "./report-rich-fixture.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * THE REPORT'S SETTINGS AND A WITHHELD NAME, AS A CLUB AND A VISITOR MEET THEM
@@ -97,9 +98,9 @@ test("the organizer reads the settings as one line, changes them, and sees the p
     const line = page.locator("[data-report-settings-line]");
     await expect(line).toHaveText("Anyone with the board link can see this report · Side-game amounts: players only");
     await page.getByRole("button", { name: "Change" }).click();
-    await page.getByRole("radio", { name: "Players in this tournament" }).check();
+    await pressRadio(page.getByRole("radio", { name: "Players in this tournament" }));
     await expect(page.getByText("The WhatsApp and Facebook share card is off")).toBeVisible();
-    await page.getByRole("radio", { name: "Nobody sees amounts — winners only" }).check();
+    await pressRadio(page.getByRole("radio", { name: "Nobody sees amounts — winners only" }));
     await page.getByRole("button", { name: "Save report settings" }).click();
     await expect(line).toHaveText("Only the players in this tournament can see this report · Side-game amounts: nobody — winners only");
     // Kept: a reload reads it back.

@@ -5,10 +5,11 @@ import { isManualFormat, needsTeams, boardKind } from "@/lib/formats";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundIsStroke } from "@/lib/stage-types";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
-import { canEnterScores, mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
-import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
+import { mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
+import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
+import { strokesOnHole } from "@/lib/domain/figure-working";
 import { meFor } from "@/lib/services/me";
 import { cardBrand, golfTermsForEvent } from "@/lib/services/organization";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
@@ -46,12 +47,12 @@ export const metadata = screenMetadata("/me/card");
  * screen stops nobody from calling the action.
  */
 export default async function PlayCardPage() {
-  const session = await requireSession();
+  const session = await requirePlayingViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 
   const settings = settingsOf(state.event);
-  const me = await meFor(state, session.email);
+  const me = await meFor(state, session);
   // The club's mark for the head of the card. Same reader every other card in
   // the app uses, so no two of them can disagree about the club's name.
   const brand = await cardBrand(session.eventId);
@@ -69,7 +70,7 @@ export default async function PlayCardPage() {
      * were on the list. Same fault as Today's, on the screen they would open
      * next. See `isWaiting`.
      */
-    const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
+    const myRow = session.guest ? null : ((await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null);
     const isStaff = session.role === "admin" || session.role === "assistant";
     const onTheList = isWaiting(myRow, isStaff);
     return (
@@ -207,13 +208,18 @@ export default async function PlayCardPage() {
     );
   }
 
-  if (!canEnterScores(settings, session.viewRole)) {
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(settings, session.viewRole, state.stages.find((s) => s.id === me.round?.stageId) ?? null);
+  if (entryRefused) {
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          Scores for this tournament are entered by the {terms.organizer}. Your card will appear on the board once
-          it is in.
+          {entryRefused === ORGANIZER_KEEPS_THIS_ROUND
+            ? `The ${terms.organizer} enters this round's scores from paper cards.`
+            : `Scores for this tournament are entered by the ${terms.organizer}.`}{" "}
+          Your card will appear on the board once it is in.
         </p>
         <WayForward
           links={[
@@ -445,14 +451,22 @@ export default async function PlayCardPage() {
       })
     : [];
 
-  const alloc = allocationHoles(holes);
-  /** One player's shots per hole, off the same chain as the holder's own. */
+  /**
+   * One player's shots per hole, off the same chain as the holder's own —
+   * through `strokesOnHole`, the function whose sentence the card shows when
+   * a dot is tapped, so the dot and its "why" are one call (2026-10-24).
+   */
   const shotsFor = (playerId: string) => {
     const hcp = playerId === me.playerId ? playing : state.strokeHandicapFor(playerId, me.round!.stageId);
     return Array.from({ length: holes }, (_, i) =>
-      known ? holeStrokesReceived(hcp, card.strokeIndex[i] ?? 18, alloc) : 0,
+      known ? strokesOnHole(hcp, card.strokeIndex[i] ?? 18, holes).shots : 0,
     );
   };
+  /**
+   * What the holder's playing handicap was priced from, for the net's working —
+   * `strokeHandicapFor` is this one's `.playing`, off the same context.
+   */
+  const parts = state.strokeHandicapPartsFor(me.playerId, me.round.stageId);
   const shots = shotsFor(me.playerId);
   // The partners' too, for the marker keeping the group's card.
   const partnersWithShots = partners.map((p) => ({ ...p, shots: shotsFor(p.id) }));
@@ -477,6 +491,10 @@ export default async function PlayCardPage() {
       strokeIndex={known ? card.strokeIndex.slice(0, holes) : []}
       shotsPerHole={shots}
       playingHandicap={playing}
+      // How that playing handicap was reached, for the net's "why" — only
+      // where the strokes on the card came off it (a card with no course
+      // behind it has no strokes to explain).
+      handicapParts={known ? parts : null}
       tee={tee}
       // The table the round is decided on — the board's own reading of it
       // (`isStablefordRound`, `boardKind`), so the card and the board count

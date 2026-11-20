@@ -131,6 +131,18 @@ export const PLAYER_CALENDAR: PlayerScreen = {
 };
 
 /**
+ * MY SEASON — one member's tournaments, rounds, places and prizes at their club
+ * this season (Ajay, 2026-10-24). Read-only, and not a tab, for the reason the
+ * calendar is not: it is opened to look back, not stood on during a round.
+ * Reached from a link on Events.
+ */
+export const PLAYER_SEASON: PlayerScreen = {
+  href: "/me/season",
+  label: "My season",
+  icon: "ph ph-trophy",
+};
+
+/**
  * HELP — how to do the handful of things a player does (2026-10-10). Not a
  * tab, like Rules and the calendar: it is opened once, when somebody is stuck.
  * Reached from a link on Events. Its content is `player-help.ts`, and a test
@@ -161,6 +173,7 @@ export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   PLAYER_MESSAGES,
   PLAYER_RULES,
   PLAYER_CALENDAR,
+  PLAYER_SEASON,
   PLAYER_HELP,
   PLAYER_MATCH,
 ];

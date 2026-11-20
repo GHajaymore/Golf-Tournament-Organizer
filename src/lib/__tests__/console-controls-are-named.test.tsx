@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { unnamedControls } from "./unnamed-controls";
+import { OPEN_DOORS } from "./field-doors";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -105,12 +106,12 @@ describe("console form controls are named", () => {
   it("Entries, with players in both lists", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const html = render(
-      <RegistrationClient
+      <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[player("p1", "zz-Ann Doyle", 8), player("p2", "zz-Rob Ferris", 14)]}
         waitlist={[player("p3", "zz-Cleo Green", 20)]}
         pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 2, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 2, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -126,16 +127,16 @@ describe("console form controls are named", () => {
     // A society taking entries before it chooses the format (Ajay, 2026-10-16).
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const ev = {
-      name: "zz-Society Day", capacity: 40, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+      name: "zz-Society Day", capacity: 40, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
       registrationOverride: null, inviteMessage: "", organizationName: "zz-Society",
       dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
       requirePhone: false, registrationToken: "",
     };
-    const empty = render(<RegistrationClient noFormatYet confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    const empty = render(<RegistrationClient teesDoor={null} doors={OPEN_DOORS} noFormatYet confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
     expect(empty).toContain("No format yet");
     expect(empty).toContain("Format to be confirmed");
     // CONTROL: not once a format is chosen or somebody has entered.
-    const later = render(<RegistrationClient confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    const later = render(<RegistrationClient teesDoor={null} doors={OPEN_DOORS} confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
     expect(later).not.toContain("No format yet");
     expect(unnamedControls(empty)).toEqual([]);
   });
@@ -166,7 +167,7 @@ describe("console form controls are named", () => {
     const html = render(
       <OrgProfileProvider kind="club">
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <OrganizationAccess report={report as any} canEdit asks={[]} seats={1} />
+        <OrganizationAccess report={report as any} canEdit actorRole="owner" asks={[]} seats={1} />
       </OrgProfileProvider>,
     );
     expect(html).toContain("Add staff");

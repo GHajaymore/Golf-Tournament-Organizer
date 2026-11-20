@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hashEmailCode } from "../src/lib/domain/email-code-hash";
+import type { JourneyHands } from "./journey";
 
 /**
  * THE EMAILED CODE, TYPED AS THE PERSON WOULD (2026-10-21).
@@ -45,10 +46,22 @@ export async function setKnownCode(email: string, code: string = KNOWN_CODE): Pr
  * Wait for "Enter your code" (or "Confirm it's you"), set a known code, type
  * it and press Confirm email. Where the person goes next is the caller's to
  * assert, as it was before the step existed.
+ *
+ * Handed a journey's walk (`e2e/journey.ts`), the code is typed and the
+ * button pressed THROUGH it, so the journey counts what this step really
+ * takes — and a change to it (the code submitting itself on its sixth digit)
+ * shows in the journey's figures without the journey's spec being edited.
  */
-export async function verifyByCode(page: Page, email: string): Promise<void> {
+export async function verifyByCode(page: Page, email: string, walk?: JourneyHands): Promise<void> {
   await expect(codeBox(page), "the panel did not ask for the emailed code").toBeVisible({ timeout: 30_000 });
   await setKnownCode(email);
+  const confirm = page.getByRole("button", { name: "Confirm email" }).locator("visible=true").first();
+  if (walk) {
+    await walk.type(codeBox(page), KNOWN_CODE, "the emailed code");
+    // Pressed whatever the timing: the day the code submits itself, this press goes, here, once.
+    await walk.press(confirm, "“Confirm email”");
+    return;
+  }
   await codeBox(page).fill(KNOWN_CODE);
-  await page.getByRole("button", { name: "Confirm email" }).locator("visible=true").first().click();
+  await confirm.click();
 }

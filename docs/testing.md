@@ -33,6 +33,14 @@ whether it can be read and used.
 
 `ci.yml` is not on this list because nobody runs it: it runs itself on every push, on one browser,
 and answers "did this change break something that was working". A round is a different question.
+Since 2026-11-04 its browser legs are shards (desktop and phone in three, small-phone in two, cut by measured time),
+and its `e2e-cover` job (`scripts/qa/shards-cover.mjs`) fails `verify` unless the shards together
+ran every test of every project — see `docs/claude/playwright-runs.md`.
+Since 2026-11-12 the browser-test bundle is built ONCE (job `e2e-build`, `NEXT_DIST_DIR=.next-e2e`, stamped with
+the commit in `BUILT_FROM`) and every shard downloads it as an artifact instead of building its own;
+`E2E_PREBUILT=1` makes `playwright.config.ts` start `next start` on it after `scripts/ci/check-prebuilt.mjs` has refused a
+missing build or another commit's. The job graph: `unit` · `build` (smoke) · `e2e-build` → eight `e2e` shards →
+`e2e-cover`; `verify` needs all of them.
 Nor are the **Nightly round**, the **Weekly round**, the hourly **Deploy** and the **Production
 canary**: they run themselves on main (see "Rounds, nights and weeks" and "Deploys").
 
@@ -91,7 +99,7 @@ really run, and what it cannot see — so a row in the report is never read as m
 | Security, in the repository | Every push | `no-secret-is-committed.test.ts`: no tracked file carries a key, a token or an address with a password in it |
 | Search engines, shared links | In **the whole suite** | `seo.spec`: each public page's title, description, one heading, language and its own canonical address; the share card and its picture; structured data that parses; a sitemap that lists exactly the public pages; and every private screen telling crawlers to keep out |
 | People who cannot see it or use a mouse | In **the whole suite** | `a11y.spec`: axe, against WCAG 2.1 A and AA, on every public page, every organizer screen and every player screen |
-| A weak signal | In **the whole suite** | `weight.spec`: what a phone downloads for the screens people open most, held to a budget (kept per platform: a build made on Windows hints no font, so GitHub's figure is the one production matches); `fonts.spec`, every font file a screen downloads is one it draws with; `slow-page.spec`, which delivers pages slowly on purpose; and `slow-signal-scoring.spec`, which holds every save back and scores ahead of them; `honest-card.spec`, which holds a round-code player's saves back and cuts their signal, and asks of each hole whether "On your phone", "Sent" and "Not sent" are true — within 100 ms of the tap, and read back from the database; and `round-code-on-3g.spec`, which times a round code opening a card that takes a score on slow 3G (two seconds) |
+| A weak signal | In **the whole suite** | `weight.spec`: what a phone downloads for the screens people open most, held to a budget (kept per platform: a build made on Windows hints no font, so GitHub's figure is the one production matches); `fonts.spec`, every font file a screen downloads is one it draws with; `slow-page.spec`, which delivers pages slowly on purpose; and `slow-signal-scoring.spec`, which holds every save back and scores ahead of them; `honest-card.spec`, which holds a round-code player's saves back and cuts their signal, and asks of each hole whether "On your phone", "Sent" and "Not sent" are true — within 100 ms of the tap, and read back from the database; `round-code-on-3g.spec`, which times a round code on slow 3G from a cold `/play` — Continue pressable the moment the box is drawn, the whole flow for a quick thumb and at a human pace, and two seconds from a confirmed name to a pad that takes a score; `round-code-keeps-a-group.spec`, the cup's wrong card pressed the new way — the code, the match as one group, the one confirmation, a hole to side B by its team's name, and the public board crediting side B; and `round-code-before-the-script.spec`, a press made before the script held on the page and taken up when it lands, the plain form posts with JavaScript off or a script that never comes, and the icon sprite sent once a page rather than twice; and, for the doors into a group (2026-11-05), `round-code-doors.spec` (a sign's group link opens the one confirmation and skips the list, a fragment that is not a group's is refused; a phone is offered the group it kept last time in the next round, and nothing when that group has changed), `round-code-share.spec` (Share hands the domain's message to `navigator.share`, or copies it as "Copy message") and `play-board.spec` (`/play/board` for a code holder under all three visibility settings, while `/live` stays a 404 for a board that is not public) |
 | The app doing its job | **Eleven tournaments, played** | Eleven tournaments of 110–120 invented players, entered, drawn, scored, cut, ranked and paid through the screens, with the results checked against the Rules of Golf and of Handicapping |
 
 On one machine that is about six hours. On GitHub the same layers are cut into about thirty parts
@@ -106,7 +114,7 @@ Not every layer runs in every round (the panel, 2026-10-23). Each layer says whe
 | | Runs | Layers |
 |---|---|---|
 | **A change's round** (`pr`) | when a change pushes `round/<name>-N` | the whole suite (Chromium at its three sizes), somewhere else, the American club, abroad, the iPhone, Safari (Mac and iPhone SE), the eleven tournaments — and the console crawl when the change touches input screens |
-| **The nightly** | scheduled 02:00 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
+| **The nightly** | scheduled 02:17 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
 | **The weekly** | Sunday 03:00 UTC (`weekly.yml`) | Edge as installed (and Chrome as installed again), the front door with its animation on |
 
 **Which browser runs where (the browser split, testing panel, 1 Nov 2026).** Core browsers per
@@ -161,6 +169,7 @@ size). The always-on set, whatever the area (`ALWAYS_ON`):
 - every action against a stranger (`every-action-vs-a-stranger.spec`);
 - accessibility (`a11y.spec`) and fonts (`fonts.spec`);
 - layout and legibility (`layout`, `legible`, `nothing-is-covered`, `touch`);
+- the console sweep (`console-sweep.spec`, and the same walk as an assistant, `console-sweep-assistant.spec`), on Chromium's small phone only;
 - the reach check, held to `reach-baseline.json` for the area's own action files (the rest is
   printed, not held — most actions are not meant to be reached in a targeted round).
 
@@ -194,8 +203,10 @@ workflow* on the Nightly round) on `main` once the fix is merged. Only a clean N
 a held commit — a clean full `round/…` on that commit does not, because the gate reads Nightly runs
 only. *Override freeze* overrides the freeze and nothing else.
 
+**A scheduled nightly never repeats a commit (B75, 17 Nov).** Its first job (`scripts/qa/nightly-dedupe.mjs`) skips a SCHEDULED run when another Nightly run on the same head sha finished successfully or is queued or running: the summary says "Nightly: skipped — <run id> already covers <sha>", no round starts, no `Round / Verdict` is posted and nothing deploys. A hand-started (dispatched) run is never skipped; a sha whose only nightlies failed or were cancelled runs again.
+
 **The cap on parts at a time is counted at plan time** (`round-cap.mjs`): it sees the jobs running
-when the round's plan job ran, not the ones that start after, and it does not count queued jobs. So a
+when the round's plan job ran, not the ones that start after, and it does not count queued jobs (a part held back by its own round's max-parallel is one, and holds no runner). So a
 round planned on a quiet account can still crowd a CI run that starts later: watch the deploy job's
 queue time, by the panel's rule in `docs/release-strategy.md` step 9.
 
@@ -226,6 +237,8 @@ Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the me
 |---|---|
 | Every screen opens, as organizer, member and signed out, on every seeded tournament | Yes — the lists are read from the app, so a new screen is included unasked |
 | Every dropdown, choice and tick-box is changed, saved and read back | Yes |
+| Every screen on the organizer's menu, setting up and live, at 320 wide: no sideways scroll, every greyed control says why (on the control, or in a sentence within 96px; an idle save button and a pager at one end of its run are their own reason), one primary button to a row or card | Yes, as a RATCHET, since 2026-11-11 — `e2e/console-sweep.spec.ts` (J51). The screens are read from the menu (`navForRole`), so a new one is swept unasked. Today's violations are `e2e/console-sweep-known.json`, which may only shrink: a new one fails, and a fixed one fails until its line is deleted; the failing run prints the whole file ready to paste. Chromium at 320 only. It does not see a screen this medal's menu leaves out (Teams, Bracket, Team cup, This week), anything behind a press other than a tab, or the stages after live. The rules themselves are held without a browser by `console-sweep-rules.test.ts`, and the screens fixed for the first day's 24 findings by `a-greyed-control-says-why.test.tsx` (a control shut by a screen's lock points at the banner's words with `aria-describedby={SCOPE_LOCK_REASON_ID}`; the distance was not widened). **Also as an ASSISTANT** (`e2e/console-sweep-assistant.spec.ts`, the role `assistant`: an `Account` on the tournament, no seat in the club, signed in with `signedInNow`): the same medal, stages and rules over `navForRole("assistant")`, which drops Tournament details, Staff & helpers, Club settings and Tournaments; it is where a control shut by the ROLE (not by a lock) must still say why. Its known lines are in the same file with `assistant-` in front of the stage (`assistant-live /grouping :: …`), each walk held to its own (`knownFor`), and the list started empty (the first CI run prints the lines to paste). It cannot see a flight's tees select (drawn only where tees are set by flight and the field is drawn), nor the screens the role has no menu entry for |
+| **Every form control changed by a test** | **Measured, since 2026-11-11, not yet whole.** `node scripts/e2e-coverage.mjs` prints "form controls changed by a test: N of M" and names, by screen, each control no test changed. It replaces "382 of 711", which no script re-reads: the console crawl's count of dropdowns, choices and tick-boxes (2026-10-13) plus the text boxes counted in the code (2026-10-10). The text-box crawl (#923) prints its own count in every round. M is the console sweep's inventory, so it is the organizer's menu screens at 320px (setting up and live, one medal) and at 1280px (setting up, that medal and one knockout), and no more; and "changed" is not "saved and read back". See "Form controls changed by a test" below |
 | Every action is tried by the wrong person and refused | Yes |
 | Whole tournaments played from entry to payout | Yes — eleven |
 | **Every action done by the RIGHT person, with the result checked** | **No.** 36 of 263 on 2026-10-10; 127 of 272 in the first clean round (2026-10-13, commit `77d59567`), with 17 more performed by specs written after it. Every round re-measures it and names each action nothing performs |
@@ -258,6 +271,59 @@ within four seconds of a press, with none of them on the screen (`watchRefusals`
 not a count to fail on: an entry marked "red" was recognised by its colour alone, and a kitty
 that is short is red too.
 
+**Form controls changed by a test** (2026-11-11). The board's "form controls tested: 382 of 711"
+added the console crawl's dropdown count (2026-10-13) to the text boxes counted in the code
+(2026-10-10), and no script re-reads that sum. This is a figure a script prints, from two instruments:
+
+- **The inventory (M).** The console sweep (`e2e/console-sweep.spec.ts`) writes down every form
+  control drawn on each screen and section it measures: `input`, `select`, `textarea`, and anything
+  with the role `combobox`, `switch`, `checkbox` or `radio`. A control is its screen's address plus
+  `role "accessible name"`, with the fixture's invented names, figures, days and ids taken out the
+  way the sweep's known list takes them out (`controlSignature` in `e2e/form-controls.ts`). Forty
+  score boxes of one name on one screen are one control. It goes to
+  `.e2e/coverage/form-controls-inventory-<pid>.txt`.
+- **The changes (N).** Every browser context of every spec (`e2e/coverage.ts`, the one fixture every
+  spec imports) hears a control being changed: `fill`, `selectOption`, `check`, `uncheck`,
+  `setInputFiles`, typing, and a click on a radio, tick-box or switch. It writes
+  `C <screen> | <what it was left as> | <control>` to the ledger, once a worker for each control.
+  What it was left as is only what the browser can say honestly: `filled`, `empty`, `refused` (the
+  browser's own check, `validity.valid`), `on`, `off`, or `pressed` for a switch that is not a
+  native box. There is no "good, bad, long": the text-box crawl judges that, by trying each.
+
+`scripts/qa/form-controls.mjs` joins them and `node scripts/e2e-coverage.mjs` prints the figure,
+the controls no test changed by screen, and puts both in `--json` (`formControls`).
+`--form-controls --ledger=<folder>` prints it alone and needs no build.
+
+**What the figure is not**, and the line itself says the first of these every time it is printed:
+
+- M is the organizer's menu screens at 320px, at two stages (setting up, live), for one medal, and
+  at 1280px (`e2e/form-controls-reach.spec.ts`, Chromium desktop) setting up, for that medal and for
+  one knockout. A control that only another format (a cup, a league), a later stage, a dialog, a folded panel, the
+  player's app or a public page shows is not in M. The report counts the changes on those screens
+  that matched nothing the sweep saw, so the size of that gap is printed, not guessed.
+- A control greyed or read-only at both stages is left out of M and counted beside it.
+- CHANGED is not "every choice made, saved and read back". One option of a dropdown chosen once
+  counts the dropdown. Saved-and-read-back is the console crawl's and the text-box crawl's claim,
+  for the controls they reach.
+- The inventory knows its own fixture's names and writes `<name>` for them; a spec with another
+  fixture has other names. So `<name>` in an inventory signature matches any words, which can
+  count "Remove <name>" as changed by a press on another "Remove …" on the same screen.
+- A custom dropdown whose options are pressed, not typed, is heard only when typed into.
+- No inventory in the ledger (the sweep runs on Chromium's small phone only) prints NOT MEASURED,
+  never 0 of 0.
+
+**Every round states it.** `scripts/qa/merge.mjs` writes `**Form controls:** form controls changed by a test: N of M …` into the round's `summary.md` (from the `formControls` the reach carries), or says it was not measured. `e2e/important-controls-are-changed.spec.ts` changes, with its effect read, controls the first report named as untouched: the 9/18-hole choice, two side-game stakes, the scoring picker and a selection.
+
+**Where to read it.** On a pull request: the `End-to-end shards cover the suite` job, step
+"Form controls changed by a test", and that job's summary; each shard hands in its ledger and the
+job adds them up. That is the pull request's suite on Chromium at three sizes. A round also runs
+the console crawl, which changes far more, so a round's `reach.json` (in its `verdict` artifact,
+under `formControls`) is the fuller figure; say which run a figure came from. The sweep's own log
+line, `[form-controls] inventory: …`, gives M alone, in the small phone's shard. It is a measure,
+not a gate: nothing fails on it until a floor is decided. Its controls: `form-controls-measure.test.ts`
+(the signature, the join and the words, without a browser) and `e2e/form-controls.spec.ts` (a page
+of its own with one box changed; the ledger must hold exactly that one).
+
 **Roughly thirteen actions cannot be performed here at all**, because they call a paid service
 that a test must not reach: reading a card from a photograph (3), drafting words with the AI
 (`draftMessage`, `suggestCommentary`, `suggestSetup`, `applySetupProposal`), Stripe
@@ -284,6 +350,15 @@ job reads the changed files against main and decides the countries and the crawl
 workflow* on the **Round** workflow and give the plan by hand. The verdict and the table are the
 run's summary, and the summary says which kind of round it was and what it leaves to the nightly or
 the weekly.
+
+**Watching it: one reader, never a loop.** `node scripts/qa/reader.mjs --watch <sha>` asks GitHub once
+every ten minutes and writes `.qa/reader.txt` in the main checkout; everybody else, every agent
+included, reads that file. Nobody runs `gh run watch` or polls: in the week of 2026-10-28 watchers
+hit GitHub's burst limit and called a round with 4 of its 36 parts done "finished". The reader
+says "finished" only when the Verdict job finished with every planned part done, says "unknown —
+re-ask" when GitHub would not answer (and then reads the run's public page), and the Verdict job
+posts the verdict on the commit it tested as the `round-verdict` status, so one read of a commit
+answers "what did the round say". The ruleset does not require that status.
 
 **A round the machine did not finish is re-run, not read.** When a verdict is INCOMPLETE, the
 **Round waiter** workflow re-runs its failed jobs — exactly the parts the machine stopped — up to
@@ -400,7 +475,7 @@ account; `round/league-1`, 39 parts):
 | | |
 |---|---|
 | Wall clock for one round | 39 minutes, for the same checks and eight more |
-| The build and the database suite every part waits for | 6 minutes |
+| The build and the database suite every part waits for | 6 minutes (since 2026-11-12 the database suite is a job of its own, beside the build, so parts wait for the build alone: about 3 minutes; the verdict still reads the suite's result and a red one makes the round NOT CLEAN) |
 | Its longest part | 33 minutes: Firefox at laptop size |
 | Its next longest | Firefox phone 30, the iPhone 30, the iPad 27, Chrome 24, the Android tablet 23, Firefox small phone 22, Safari 21 |
 | A share of the console crawl, which had been 62 | 16 minutes |
@@ -438,6 +513,10 @@ after a clean round, hourly, and by hand). It deploys a commit when `verify` is 
 core commit since the last deploy — and, since 2026-11-01, every function commit, its round targeted
 or full — is in a clean nightly round, and no club is in its freeze — a
 tournament on today in the club's own time, or Saturday and Sunday 05:00–14:00 in any club's zone.
+**That is the rule once accounts are live (Ajay, 2026-11-06).** Until 20 Nov 2026 (`FREEZE_RESUMES`,
+00:00 in UTC+14) the freeze is off altogether; from then while sign-ins are held, only a pilot club
+(somebody on `SIGNIN_ALLOW_EMAILS` is its staff) playing today freezes, and weekend mornings do not.
+The reason the gate prints says which rule applied (`deployWindowFor` in `src/lib/domain/deploy-window.ts`).
 The app answers the freeze itself (`/api/deploy-window`, `{ frozen, reason }` only), because the
 runner may not hold production's database credentials. A held deploy is green and says why; the
 hourly run picks it up. *Override freeze* on *Run workflow* is for emergencies and overrides the
@@ -541,6 +620,23 @@ arithmetic core's floors were re-measured under this rule that day; the other mo
 still the 2026-10-23 figures, counted the old way (every timeout caught), so re-measure them before
 relying on `npm run mutation -- --ratchet` over the whole set.
 
+**Measure a floor the ratchet's way, never by Stryker's own table** (2026-11-09). Stryker's
+clear-text "% Mutation score" counts EVERY timeout as caught; the ratchet counts only a stopped
+loop. On 9 Nov `money.ts`'s floor had been raised to 94.06 from Stryker's own figure (80 killed + 15
+timeouts of 101); the nightly counted 87 of 101 and held production. Read the per-module line
+`scripts/mutation.mjs` prints ("killed, or an endless loop stopped") — `npm run mutation -- --mutate
+<module>` against the whole suite, not a narrowed test set — and write the floor from that.
+
+**An endless loop the hit limit cannot see is caught at a deadline** (2026-11-09). Stryker's hit
+limit counts passes over the MUTATED line, so a mutant in a list built before a loop (`settle`'s
+debtors and creditors) makes the loop endless without ever tripping it, and ends as a plain
+timeout: not caught. A test that would only ever hang on such a mutant goes in a `*.ends.test.ts`
+file and makes its calls through `endsWithin` (`src/lib/__tests__/ends-within.ts`), which stops the
+call at a deadline with `vm`'s timeout and FAILS the test. The mutation run sorts those files first
+(`EndsFirstSequencer` in `vitest.mutation.config.ts`), because Stryker stops at the first failing
+test and the deadline has to come before any other test walks into the same loop.
+`mutation-ratchet.test.ts` holds the helper, the order, and the naming both ways.
+
 **One mutant of slack per module** (2026-11-02). The nightly of 2 Nov held production on
 `stroke.ts` at 207 of 271 caught against a floor of 208: one mutant killed on the build machine
 was a plain timeout on the slower runner. So the floor is turned into the COUNT of mutants it asks
@@ -571,7 +667,7 @@ A change is not finished until the tests know about it. What to add, by what was
 | You added | Add |
 |---|---|
 | A screen | Nothing for the walk or the layout sweep — they read the screens from the filesystem. Its guide and Help lines (`CLAUDE.md`, "Help and docs travel with the change"). |
-| An action, a form, a flow | A spec in `e2e/` that **does** it as the person who would, and reads the result back. Prove it can fail: break the code, watch it go red, put it back. Until it exists the next round reports the action as *no screen test calls it* — a finding, not a note. |
+| An action, a form, a flow | A spec in `e2e/` that **does** it as the person who would, and reads the result back. Prove it can fail: break the code, watch it go red, put it back. Until it exists the next round reports the action as *no screen test calls it* — a finding, not a note. A new server action also gets its line in `newSince` in `scripts/qa/known-actions.json` (`"app/actions/<file>.ts:<name>": "e2e/<spec>.spec.ts"`, put at its SORTED place by key, never appended at the end, so two PRs adding different actions do not conflict; the same test refuses an unsorted file): the unit job's `every-new-action-has-a-spec.test.ts` is red until it does, so a forgotten spec costs six minutes, not a round. |
 | A format, a draw, a cut, a money rule | A scenario in `e2e/scenarios/`, or a phase in one: a tournament of that kind played by a full field, with a check against the Rules rather than against the app. List it in `SCENARIOS`. And the cell in `src/lib/__tests__/matrix.test.ts`. And its property in `src/lib/domain/__tests__/properties-*.test.ts`, worked by a route the code does not take — and for a money rule, its row in `SIDE_GAME_PAYS` (when its amount may be reported) and a case worked by hand in `side-games-by-their-own-rules.test.ts`. |
 | A country, a currency, a language | A language's dates are the app's own: add its tag to `TAGS` in `scripts/build-date-words.mjs`, run it, **read the new line by eye** (it is what a club will see), and only then offer it in `LOCALES` — `date-words.test.ts` refuses a tag the picker offers and the table does not hold. The row in `LOCALES` / `CURRENCIES` is then swept by `formats-agree`. A place for the seeded club is a line in `scripts/seed-club.mjs` and in `ABROAD`. |
 | A date or a time on a screen | Nothing new: write it with `formatDay` / `formatDayAt` / `formatMonthDayAt` / `formatDayRange` / `formatClock` / `shortDate`. A screen that asks the platform to word one itself is refused by `date-words.test.ts`, because two browsers word it two ways. |
@@ -580,6 +676,7 @@ A change is not finished until the tests know about it. What to add, by what was
 | A national handicap body, or a word about one | Its row in `HANDICAP_BODIES` (`src/lib/domain/handicap-body.ts`) with what its members' numbers are called, and its country in `defaultHandicapBody` — the body follows the club's COUNTRY, never a picker and never an American default. A line in the country table of `a-club-names-its-own-handicap-body.test.tsx`, and the place in `PLACES` in `e2e/handicap-body.spec.ts`, which reads Club settings, Members and Entries for it. A sentence that names the body takes it as an argument (`refuseHandByHand`, `handicapStanding`), never the word "GHIN". |
 | A screen behind a plan | A spec that opens it on a club that HAS the plan. The seeded club is on Birdie; the e2e fixture's club is on none, so a spec there gives it a plan row for as long as it runs and takes it away again (`seasons.spec.ts`). |
 | A figure a board prints (a net, a handicap, points, money) | A spec that works the figure out **for itself**, from the stored rows and the Rule, and holds the board to it — never by calling the app's own function, and never by accepting two answers. Use a field where a wrong method gives a different figure, and assert that it does (a control), or the check cannot fail. A golfer's index has a decimal place: a fixture of whole-number handicaps cannot tell rounding first from rounding last, which is how a stroke's error for one player in five sat under 11,800 green tests (`e2e/team-allowance.spec.ts`, `allowance-is-taken-of-the-exact-figure.test.ts`). |
+| A figure a screen explains (a "why" opened by tapping it) | The sentence comes from `lib/domain/figure-working.ts`, from the same call or the same inputs as the figure, drawn by `FigureWhy` (or the card's working line). Its reader in `figure-reading.ts` takes the numbers out of the words, and `every-figure-explains-itself.test.tsx` holds them to the figure on the rendered screen and to the Rule; `e2e/every-figure-explains-itself.spec.ts` presses it in a browser. A screen that writes a Rule's citation for itself is refused by that test's sweep. |
 | An allowance, a share, any percentage of a handicap | Take it with `playingHandicapFrom(exact, pct)`, of the figure BEFORE rounding (`CourseHandicaps.exact`, `resolveRoundHandicap().exact`, a side member's `handicapExact`). The sweep in `allowance-is-taken-of-the-exact-figure.test.ts` reads every caller and refuses the arithmetic written out by hand. |
 | A block inside an answer or a page that shares the landing chrome | A rule for its class in `lib/landing/styles.ts` (`landing-answers-are-dressed.test.ts` refuses a class with none), and a look at it OPEN in a browser: `e2e/faq-blocks.spec.ts` measures the three the questions page has. |
 | Anything in the seeded club (`scripts/seed-club.mjs`), or a control on a console screen | Before a round, the crawl, locally: `E2E_EVERYTHING=1 npx playwright test e2e/every-control.spec.ts e2e/everything.spec.ts --project=desktop`. The ordinary local run leaves it out because it takes most of an hour, and it is the one layer that reads every control on every seeded tournament. Putting the seeded club on a paid plan unlocked one tick-box, the crawl lost track of it, and a round of thirty-four parts was spent finding that out (2026-10-13). `E2E_ONLY_EVENT=<slug> E2E_ONLY_SCREEN=<name>` narrows it to one screen in a few minutes. |
@@ -590,6 +687,11 @@ A change is not finished until the tests know about it. What to add, by what was
 | A new money or handicap rule file | Its path in `ARITHMETIC` (`layers.mjs`) while `ARITHMETIC_KEEPS_THREE_ROUNDS` is on; `qa-pipeline.test.ts` holds every listed file to existing and being core. |
 | A new input screen whose file name says nothing of input | A word in `CRAWL_WORDS`, or the console crawl will be left out of the rounds of changes to it. |
 | A spec | Its line in `scripts/qa/specs-by-area.mjs`: the area it tests, `ALWAYS_ON`, or `FULL_ONLY`. `qa-framework.test.ts` is red until it is in one. |
+| A format family, a stage a tournament can stand in, or a rule about what is shut and when (J13) | Three things are held at every stage: the STATUS, the LOCK and the one NEXT ACTION. The stage in that family's walk in `src/lib/domain/__tests__/tournament-status-by-family.test.ts` (the sweeps under the walks then ask it of every rule without a line more), and the same stage in the family's browser walk `e2e/status-<family>.spec.ts`: `expectTournamentSays` for the chip and the button on every panel, with its `lock` field (`"open"`, `"live"`, `"completed"`: what the banner on Rounds & formats says at that stage) on EVERY call, and `e2e/expect-tournament-locks.ts` for the rest of what is shut — `expectScopeLock` (a screen's banner: the scope, the reason, and the way out, which after launch is the committee correction and after completion is Reopen), `expectRoundDoors` (a round's format and holes: open until its first card, then shut with the sentence) and `expectTeesDoor` (its venue and tees on Score entry). Write the sentence out in the spec; never import it from the app. A walk that still stops short of a stage says so under "WHAT IT CANNOT SEE". Two cells have no lock banner to read and say what they read instead: a casual round (no Rounds & formats screen; `status-casual.spec.ts` asserts Score entry shows no lock) and a flighted knockout's draw (`status-knockout-flights.spec.ts` reads the Bracket screen's move control). |
+| A way of putting somebody in the field, or a question asked of who an entry is (member or guest) | A spec in the **registration** area of `specs-by-area.mjs` that presses it as the organizer and reads `Player.standing` back. The two since 2026-11-07: `e2e/add-a-member-or-guest.spec.ts` (Add: a guest, a member without an email, a member with one) and `e2e/import-marks-member-or-guest.spec.ts` (the CSV preview and import, row by row). The roster rows behind them are held against real rows by `member-or-guest-is-stored.audit.test.ts`, where a guest with a member's name is never matched onto the member. |
+| Something a guest's player link may do (J39/J40) | Its action on `GUEST_ACTIONS` (`domain/player-link.ts`; `a-guest-acts-only-through-its-list.test.ts` is red until it is), an abuse case in `a-guest-reaches-only-its-entry.audit.test.ts` (another entry's, event's and club's ids refused), and the step pressed by the guest in `e2e/a-guest-takes-full-part.spec.ts`, reached through `/p` and never a hand-made cookie. |
+| A code a player types (a round code, a guest's player link code; after J39 PR 3B an entry code) | It goes through the one door, `openAnyCode` (`services/code-door.ts`), never a lookup of its own (`one-door-for-a-typed-code.test.ts` is red until it does); a shape in `codeShapeOf` with its row in `code-shape.test.ts`; a case in `one-code-door.audit.test.ts`; and a cell in `e2e/one-code-box.spec.ts` typed at each box. |
+| A guest in messages or notices (J39/J40 PR 2) | The press in `e2e/a-guest-in-messages.spec.ts` (the round post marked Guest, Message the organizer, Mute, the notices toggle asked of the server), with the browser's push machinery stubbed in the page and never in the app; the abuse cases in `a-guest-is-messaged-by-key.audit.test.ts`; a send in `a-guest-push-dies-with-its-link.audit.test.ts` or `round-moved-tells-the-field.audit.test.ts`, through the real `sendPushTo` with `web-push` stubbed. A who-key is never taken from a caller (`a-who-key-never-comes-from-the-caller.test.ts`). |
 | A screen or component that belongs to one area | Its path in that area's `paths` in `specs-by-area.mjs`, so a change to it gets a targeted round; until then its changes get full rounds. |
 | A layer, or a change to when one runs | Its `when` in `layersFor`, and the table in "Rounds, nights and weeks" — and the panel's say, recorded beside `docs/testing-panel-2026-10-23.md`. |
 

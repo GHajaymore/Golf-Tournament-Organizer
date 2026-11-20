@@ -47,7 +47,7 @@ async function eventWith(capacity: number, confirmed: number) {
       regDeadline: "",
       shareToken: `${TAG}-${process.pid}-${org.id.slice(-6)}`,
       format: "stroke",
-      status: "registration",
+      status: "draft",
       capacity,
       registrationApproval: "approve",
     },

@@ -7,7 +7,7 @@ import { checkoutUrl, portalUrl } from "@/lib/services/billing";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { isBillingInterval, isPurchasablePlan } from "@/lib/domain/billing";
 import { siteOrigin } from "@/lib/site";
-import { normalizeDiscountCode } from "@/lib/plans";
+import { normalizeDiscountCode, quoteCountryFor } from "@/lib/plans";
 import { discountRefusal, discountSaid, type DiscountRow } from "@/lib/domain/discount";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -77,7 +77,7 @@ export async function startCheckout(planInput: string, intervalInput: string, di
 
   const club = await prisma.organization.findUnique({
     where: { id: org.organizationId },
-    select: { currency: true, subscription: { select: { plan: true, status: true, providerSubscriptionId: true } } },
+    select: { currency: true, country: true, subscription: { select: { plan: true, status: true, providerSubscriptionId: true } } },
   });
   // A club already paying changes plan in the portal, where Stripe prorates —
   // a second checkout would start a second subscription and charge twice.
@@ -86,13 +86,14 @@ export async function startCheckout(planInput: string, intervalInput: string, di
     return { ok: false, error: "This club already has a subscription — use Manage billing to change it." };
   }
 
+  const overrides = await storedPricingOverrides();
   const result = await checkoutUrl({
     discount: discount.row,
     organizationId: org.organizationId,
     plan: planInput,
     interval: intervalInput,
-    currency: club?.currency ?? "USD",
-    overrides: await storedPricingOverrides(),
+    country: quoteCountryFor(overrides, { country: club?.country, currency: club?.currency }),
+    overrides,
     email: session?.email ?? null,
     origin: await requestOrigin(),
   });

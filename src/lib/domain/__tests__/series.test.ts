@@ -20,7 +20,7 @@ const cfg = (over: Partial<SeriesConfig> = {}): SeriesConfig => ({
 const ev = (id: string, order: Array<[string, number]>): EventFinish => ({
   eventId: id,
   eventName: `Round ${id}`,
-  finishers: order.map(([memberId, rank]) => ({ memberId, name: memberId.toUpperCase(), rank })),
+  finishers: order.map(([memberId, rank]) => ({ memberId, name: memberId.toUpperCase(), rank, standIn: false })),
 });
 
 const find = (rows: ReturnType<typeof seriesStandings>, id: string) =>
@@ -197,8 +197,8 @@ describe("robustness", () => {
 
   it("shows the current roster name rather than a stale one", () => {
     const events: EventFinish[] = [
-      { eventId: "a", eventName: "A", finishers: [{ memberId: "m", name: "Old Name", rank: 1 }] },
-      { eventId: "b", eventName: "B", finishers: [{ memberId: "m", name: "New Name", rank: 1 }] },
+      { eventId: "a", eventName: "A", finishers: [{ memberId: "m", name: "Old Name", rank: 1, standIn: false }] },
+      { eventId: "b", eventName: "B", finishers: [{ memberId: "m", name: "New Name", rank: 1, standIn: false }] },
     ];
     expect(seriesStandings(events, cfg())[0].name).toBe("New Name");
   });

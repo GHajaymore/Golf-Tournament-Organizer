@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
-import { canEnterScores } from "@/lib/tournament-settings";
+import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
 import { meFor } from "@/lib/services/me";
+import { golfTermsForEvent } from "@/lib/services/organization";
 import { prisma } from "@/lib/db";
+import { sideNamesOf } from "@/lib/services/side-names";
 import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
 import { lineupHidden } from "@/lib/domain/cup-lineup";
 import { roundCodeName } from "@/lib/domain/round-label";
@@ -39,10 +41,10 @@ export const metadata = screenMetadata("/me/match");
  * finds nothing; and the save asks again regardless (`assertOwnMatch`).
  */
 export default async function MyMatchPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
-  const session = await requireSession();
+  const session = await requirePlayingViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const me = await meFor(state, session.email);
+  const me = await meFor(state, session);
   const settings = settingsOf(state.event);
 
   const sides = me.playerId
@@ -77,6 +79,9 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
         scoreInput: true,
         scoringBasis: true,
         matchKeptBy: true,
+        // Who enters this round's scores (`roundScoring`).
+        scoreKeeping: true,
+        endCheck: true,
       },
     }),
   ]);
@@ -118,20 +123,45 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
     );
   }
 
-  if (!canEnterScores(settings, session.role)) {
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(settings, session.role, stageById.get(match.stageId) ?? null);
+  if (entryRefused) {
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My match</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          The organizer enters the scores in this tournament. Your match appears on the board as they go in.
+          {entryRefused === ORGANIZER_KEEPS_THIS_ROUND
+            ? "The organizer enters this round's scores from paper cards."
+            : "The organizer enters the scores in this tournament."}{" "}
+          Your match appears on the board as they go in.
         </p>
         <WayForward links={[{ href: "/me/board", label: "See the board", icon: "ranking" }]} />
       </div>
     );
   }
+  /**
+   * A GUEST'S MATCH IS KEPT FROM THE ROUND CODE (J39/J40 PR 1). Match presses
+   * are not on the link's closed list yet (`GUEST_ACTIONS`); the code the
+   * organizer gives the field opens the same match at /play, as it always has.
+   */
+  if (session.guest) {
+    const terms = await golfTermsForEvent(session.eventId);
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My match</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          Enter your match&rsquo;s score at tourneyhq.club/play with the round code from your {terms.organizer}.
+          It appears on the board as it goes in.
+        </p>
+        <WayForward links={[{ href: "/play", label: "Enter the round code", icon: "arrow-right" }, { href: "/me/board", label: "See the board", icon: "ranking" }]} />
+      </div>
+    );
+  }
 
   const holderSides = sides;
-  const card = await matchCardFor({ match, holderId: me.playerId, holderSides });
+  // Side A first, as drawn: the card does not turn to face the player holding it.
+  const card = await matchCardFor({ match });
   const stage = stageById.get(match.stageId);
 
   // The other matches, named by opponent — a round robin, or the cup's two sessions.
@@ -144,7 +174,7 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
   const otherNames = otherIds.length
     ? new Map([
         ...(await prisma.player.findMany({ where: { id: { in: otherIds }, eventId: state.event.id }, select: { id: true, name: true } })).map((p) => [p.id, p.name] as const),
-        ...(await prisma.team.findMany({ where: { id: { in: otherIds }, eventId: state.event.id }, select: { id: true, name: true } })).map((t) => [t.id, t.name] as const),
+        ...(await sideNamesOf(state.event.id, otherIds)),
       ])
     : new Map<string, string>();
 
@@ -200,7 +230,6 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
         cardStrokeIndex={card.cardStrokeIndex}
         firstHole={card.firstHole}
         matchShots={card.matchShots}
-        voiceEntry={settings.voiceEntry}
         submitWhole={settings.scoreEntryWindow === "after"}
         stageId={match.stageId}
         roundLabel={stage ? roundCodeName(stages, stage) : ""}

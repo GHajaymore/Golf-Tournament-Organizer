@@ -58,7 +58,7 @@ import { checkoutUrl, DEMO_NOT_BILLED } from "@/lib/services/billing";
 import { otherOrganizationNamed } from "@/lib/services/organization";
 import { sendRegistrationEmail } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
-import { sendPushToEmails } from "@/lib/services/push";
+import { sendPushTo } from "@/lib/services/push";
 import { pricingOverrides } from "@/lib/plans";
 import { removeDemoClub, demoTestMark } from "../../../e2e/demo-fixture.mjs";
 
@@ -267,14 +267,36 @@ describe("the demo club is left out of what is about real clubs — each with a 
     expect(counts.recentOrgs.map((o) => o.id), "CONTROL: a new real club is not among the newest").toContain(real.orgId);
     expect(counts.liveEvents.map((e) => e.id)).not.toContain(demo.eventId);
     expect(counts.liveEvents.map((e) => e.id), "CONTROL: a real live tournament is not live right now").toContain(real.eventId);
-    // The totals: the same with the demo's own rows taken away, and different without the real club.
-    const all = await prisma.organization.count();
-    const demos = await prisma.organization.count({ where: { isDemo: true } });
-    expect(counts.totalOrgs).toBe(all - demos);
-    const players = await prisma.player.count();
-    const demoPlayers = await prisma.player.count({ where: { event: { organization: { isDemo: true } } } });
-    expect(demoPlayers).toBeGreaterThan(0);
-    expect(counts.totalPlayers).toBe(players - demoPlayers);
+    // The totals: the same with the demo's own rows taken away. ownerCounts() reads its figures
+    // in separate queries, so a writer outside this run (another test file, another worktree on
+    // the one development database) can move a global count between the two readings. So the
+    // expected figures are taken in ONE REPEATABLE-READ snapshot, once before and once after
+    // ownerCounts(); the equality is asserted only when the two snapshots agree (nothing moved
+    // while it ran) and the reading is retried otherwise. The guarantee is unchanged: totals
+    // equal everything minus the demo's rows, and a demo that was NOT excluded would differ in
+    // every attempt. Never a tolerance, never a skip.
+    const expectedTotals = () =>
+      prisma.$transaction(
+        async (tx) => {
+          const all = await tx.organization.count();
+          const demos = await tx.organization.count({ where: { isDemo: true } });
+          const players = await tx.player.count();
+          const demoPlayers = await tx.player.count({ where: { event: { organization: { isDemo: true } } } });
+          return { totalOrgs: all - demos, totalPlayers: players - demoPlayers, demoPlayers };
+        },
+        { isolationLevel: "RepeatableRead" },
+      );
+    let settled: { read: Awaited<ReturnType<typeof ownerCounts>>; expected: Awaited<ReturnType<typeof expectedTotals>> } | null = null;
+    for (let attempt = 0; attempt < 8 && !settled; attempt++) {
+      const before = await expectedTotals();
+      const read = await ownerCounts();
+      const after = await expectedTotals();
+      if (before.totalOrgs === after.totalOrgs && before.totalPlayers === after.totalPlayers) settled = { read, expected: before };
+    }
+    expect(settled, "the database kept changing under the reading (8 attempts): another writer is busy").not.toBeNull();
+    expect(settled!.expected.demoPlayers).toBeGreaterThan(0);
+    expect(settled!.read.totalOrgs).toBe(settled!.expected.totalOrgs);
+    expect(settled!.read.totalPlayers).toBe(settled!.expected.totalPlayers);
   });
 
   it("interest counts: a row on the demo's domain is not counted; any other is", async () => {
@@ -303,7 +325,7 @@ describe("the demo club is left out of what is about real clubs — each with a 
 
   it("billing: the demo is refused a payment page before Stripe is asked; a real club is not refused for being the demo", async () => {
     const ask = (organizationId: string) =>
-      checkoutUrl({ organizationId, plan: "society", interval: "month", currency: "USD", overrides: pricingOverrides(), email: null, origin: "http://localhost" });
+      checkoutUrl({ organizationId, plan: "society", interval: "month", country: "US", overrides: pricingOverrides(), email: null, origin: "http://localhost" });
     expect(await ask(demo.orgId)).toEqual({ error: DEMO_NOT_BILLED });
     expect(await ask(real.orgId), "CONTROL").not.toEqual({ error: DEMO_NOT_BILLED });
     expect(await prisma.subscription.findUnique({ where: { organizationId: demo.orgId } }), "the demo was given a billing row").toBeNull();
@@ -333,9 +355,9 @@ describe("the demo club is left out of what is about real clubs — each with a 
     const email = `${MARK}-device@example.org`;
     await prisma.pushSubscription.create({ data: { endpoint: `https://push.example.invalid/${MARK}`, p256dh: "k", auth: "a", email } });
     wire.pushes.length = 0;
-    await sendPushToEmails([email], { title: "t", body: "b" }, { eventId: demo.eventId });
+    await sendPushTo([email], { title: "t", body: "b" }, { eventId: demo.eventId });
     expect(wire.pushes, "the demo pushed a notification").toHaveLength(0);
-    await sendPushToEmails([email], { title: "t", body: "b" }, { eventId: real.eventId });
+    await sendPushTo([email], { title: "t", body: "b" }, { eventId: real.eventId });
     expect(wire.pushes, "CONTROL: a real club's push did not go").toHaveLength(1);
   });
 });

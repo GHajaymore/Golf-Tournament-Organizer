@@ -223,19 +223,30 @@ export interface NassauBet {
  * zero. Paying every winner a full stake out of fewer losers would invent
  * money, so what each player is down is capped by what the other side put in.
  *
+ * So what changes hands is one stake for each player on the SMALLER side
+ * (`potCents(stake, smaller)`), and each side shares that same total: the
+ * smaller side a full stake each, the larger side the total split by the
+ * app's one cent rule (`splitExactly`, largest remainder). When the larger
+ * side's share is not whole cents, the odd cents go to its players in PLAYER
+ * ID ORDER — the lowest id first — whether that side won (they take the extra
+ * cent) or lost (they pay it, the magnitude split and then negated, as a
+ * refund is in domain/expenses). Two against one at $10.01, the pair winning:
+ * +501, +500, -1001. Rounding each share down on its own lost that cent.
+ *
  * The match bet and each segment of a Nassau are both exactly this, which is
  * why it is one function: a Nassau is three match bets on one card.
  */
 function sidesPay(a: string[], b: string[], winner: "A" | "B", stake: number): Net[] {
-  const perPlayer = Math.floor((stake * Math.min(a.length, b.length)) / Math.max(a.length, b.length));
+  const changesHands = potCents(stake, Math.min(a.length, b.length));
+  const shared = (side: string[], sign: 1 | -1): Net[] => {
+    const ids = [...side].sort((x, y) => x.localeCompare(y));
+    const parts = splitExactly(changesHands, ids.map(() => 1));
+    // `|| 0`: a loser whose share is nothing is 0, not -0.
+    return ids.map((playerId, i) => ({ playerId, netCents: sign * parts[i] || 0 }));
+  };
   const winners = winner === "A" ? a : b;
   const losers = winner === "A" ? b : a;
-  const toWinner = winners.length <= losers.length ? stake : perPlayer;
-  const fromLoser = losers.length <= winners.length ? stake : perPlayer;
-  return [
-    ...winners.map((playerId) => ({ playerId, netCents: toWinner })),
-    ...losers.map((playerId) => ({ playerId, netCents: -fromLoser })),
-  ];
+  return [...shared(winners, 1), ...shared(losers, -1)];
 }
 
 /**

@@ -319,108 +319,16 @@ export function marginToHoles(
   return holes;
 }
 
-/** Parse a free-text/voice transcript into a winner + margin (see README voice spec). */
-/**
- * Whether these two spoken names can be told apart AT ALL.
- *
- * Two players with the same first name is ordinary in a society — two Daves,
- * two Johns — and a first name is the only thing either voice parser has to
- * go on. When they are equal the name carries no information, and the honest
- * answer is that the dictation cannot be resolved.
- *
- * It must not be guessed. Both parsers preferred the A side when the names
- * matched, so "Dave wins 3 and 2" recorded the OTHER Dave as the winner of
- * the match, and a dictated round credited every hole B won to A. That is the
- * failure the "Sam" / "Samantha" comment below already names — the wrong
- * result on the board between two named people — for the case that fix did
- * not cover.
+/*
+ * NO SPOKEN MATCH RESULTS (Ajay, 2026-11-09). A match hole is one tap (A / Halved / B) and a
+ * result is a winner and a margin; neither is dictated. The readers that turned a sentence into a
+ * winner were wrong three different ways in turn (any halved word beat a named winner; then a
+ * halve said with a name became that player's win; and the longer of two names took the match
+ * whoever won it), and a tap cannot be misheard.
+ * Strokes are still dictated (`parseStrokesTranscript`, stroke.ts): a card of numbers is many
+ * presses, and "four, par, bogey" has no names in it to confuse.
+ * `match-play-is-tapped-not-dictated.test.ts` holds this.
  */
-export function namesAreDistinct(aFirstName: string, bFirstName: string): boolean {
-  const a = aFirstName.trim().toLowerCase();
-  const b = bFirstName.trim().toLowerCase();
-  return a !== "" && b !== "" && a !== b;
-}
-
-export function parseResultTranscript(
-  transcript: string,
-  aFirstName: string,
-  bFirstName: string,
-): { winner: "A" | "B" | "H" | null; margin: string } {
-  const t = transcript.toLowerCase().trim();
-  let winner: "A" | "B" | "H" | null = null;
-  let margin = "";
-
-  // Halve / draw keywords take precedence.
-  if (/\bhalved?\b/.test(t) || /\ball square\b/.test(t) || /^as$/.test(t)) {
-    return { winner: "H", margin: "AS" };
-  }
-
-  // Whole-word match, longer name tried first. Substring matching credited
-  // the wrong player whenever one first name prefixed the other: "Samantha
-  // wins 3 and 2" contains "sam", and with A checked first, Sam got
-  // Samantha's match. Between two named people that is not a parsing quirk,
-  // it is the wrong result on the board.
-  const a = aFirstName.toLowerCase();
-  const b = bFirstName.toLowerCase();
-  const said = (name: string) => name !== "" && new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(t);
-  // Only when the name can actually decide it. With two Daves the loop below
-  // matched A first and every spoken result went to A — see namesAreDistinct.
-  // The margin is still read: "3 and 2" is unambiguous whoever said it, and
-  // leaving the winner null lets the screen ask rather than guess.
-  if (namesAreDistinct(aFirstName, bFirstName)) {
-    const ordered: Array<["A" | "B", string]> = a.length >= b.length ? [["A", a], ["B", b]] : [["B", b], ["A", a]];
-    for (const [side, name] of ordered) {
-      if (said(name)) { winner = side; break; }
-    }
-  }
-
-  const amp = t.match(/(\d+)\s*(?:&|and)\s*(\d+)/);
-  const up = t.match(/(\d+)\s*up/);
-  if (amp) margin = `${amp[1]}&${amp[2]}`;
-  else if (up) margin = `${up[1]} UP`;
-
-  return { winner, margin };
-}
-
-/**
- * Parse a spoken sequence of hole-by-hole match results — the A-side or
- * B-side player's first name, or "half"/"halved"/"push"/"tie" — starting at
- * `startIndex` and advancing one hole per recognized token.
- */
-export function parseHolesTranscript(
-  transcript: string,
-  aFirstName: string,
-  bFirstName: string,
-  startIndex: number,
-  totalHoles: number,
-): HoleResult[] {
-  /**
-   * ALL OR NOTHING when the two names are the same.
-   *
-   * Partial parsing would be worse than none here, and quietly so. An
-   * unrecognized token does not advance the hole, so dropping just the
-   * ambiguous names from "Dave, half, Dave" leaves a single "H" — which is
-   * then applied to hole ONE, the hole the scorer said Dave won. Every
-   * following hole shifts up with it.
-   *
-   * So refuse the dictation and let the screen say why. Tapping A / ½ / B is
-   * right there and cannot be misheard.
-   */
-  if (!namesAreDistinct(aFirstName, bFirstName)) return [];
-
-  const a = aFirstName.toLowerCase();
-  const b = bFirstName.toLowerCase();
-  const tokens = transcript.toLowerCase().split(/[\s,]+/).filter(Boolean);
-  const results: HoleResult[] = [];
-  let hole = startIndex;
-  for (let j = 0; j < tokens.length && hole < totalHoles; j += 1) {
-    const t = tokens[j];
-    if (a && t === a) { results.push("A"); hole += 1; }
-    else if (b && t === b) { results.push("B"); hole += 1; }
-    else if (/^half(ved)?$/.test(t) || t === "push" || t === "tie" || t === "tied") { results.push("H"); hole += 1; }
-  }
-  return results;
-}
 
 /**
  * Standard handicap match-play allowance: the higher-handicap player receives

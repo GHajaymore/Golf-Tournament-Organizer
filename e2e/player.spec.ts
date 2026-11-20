@@ -107,7 +107,7 @@ test("a double-tap on a score keeps it", async ({ page }) => {
 test("a 10 typed slowly into Other is a 10, on the hole it was typed on", async ({ page }) => {
   await page.goto("/me/card");
   await page.waitForLoadState("networkidle");
-  const other = page.locator("#hbh-other");
+  const other = page.locator('input[id^="hbh-other"]');
   const label = (await other.getAttribute("aria-label"))!;
   const n = label.replace(/\D+/g, "");
   await other.click();
@@ -116,8 +116,8 @@ test("a 10 typed slowly into Other is a 10, on the hole it was typed on", async 
   await page.keyboard.type("0");
   try {
     await page.waitForTimeout(800);
-    await expect(page.locator("#hbh-other"), "the card moved on mid-number").toHaveAttribute("aria-label", label);
-    await expect(page.locator("#hbh-other")).toHaveValue("10");
+    await expect(page.locator('input[id^="hbh-other"]'), "the card moved on mid-number").toHaveAttribute("aria-label", label);
+    await expect(page.locator('input[id^="hbh-other"]')).toHaveValue("10");
   } finally {
     // Back as it was, for the projects that read the fixture after this one.
     await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();

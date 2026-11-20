@@ -82,6 +82,26 @@ export function cleanHoleResults(raw: unknown, expected: number): HoleResult[] |
 }
 
 /**
+ * The cards a match save says it may have STARTED FROM (`overwritesUnseenFromAll`),
+ * or null when the payload is not that: an array of one to `maxCards` hole-result
+ * cards, each cleaned to the round's length by `cleanHoleResults`, and nothing
+ * else. A single card sent bare, an empty list, a list past the cap, or one bad
+ * card in it is refused whole — the caller's starting point is unknown, so its
+ * write is not safe to take.
+ */
+export function cleanStartingCards(raw: unknown, expected: number, maxCards: number): HoleResult[][] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > maxCards) return null;
+  const out: HoleResult[][] = [];
+  for (const card of raw) {
+    if (!Array.isArray(card)) return null;
+    const clean = cleanHoleResults(card, expected);
+    if (!clean) return null;
+    out.push(clean);
+  }
+  return out;
+}
+
+/**
  * A stroke-play card, or null when the payload is not one.
  *
  * Rejects rather than clamps. A 0 or a negative is not a score somebody meant

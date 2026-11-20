@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { makeBoardPublic, readPublicBoard } from "./public-board";
+import { expectLaunched } from "./end-early";
 
 /**
  * A CLUB STABLEFORD, RUN FROM NOTHING — the commonest weekly competition there
@@ -68,7 +69,8 @@ test("a new organizer runs a club Stableford to a points board", async ({ page, 
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A single round/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
 
     await open(page, "/event");
     const today = new Date().toISOString().slice(0, 10);
@@ -87,7 +89,7 @@ test("a new organizer runs a club Stableford to a points board", async ({ page, 
     await open(page, "/registration");
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
-      await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
+      await page.getByRole("textbox", { name: /^Email · optional/ }).fill(medalEmail(i));
       // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
       await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
@@ -109,7 +111,7 @@ test("a new organizer runs a club Stableford to a points board", async ({ page, 
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   await test.step("the returned cards", async () => {

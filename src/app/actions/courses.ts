@@ -4,18 +4,20 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { playedOnBy } from "@/lib/services/courses";
 import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
+import { acrossRoundsRefusal, roundRefusal } from "@/lib/services/round-change";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
-import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
+import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { settingsOf } from "@/lib/services/tournament";
-import { canEnterScores, playerTeeCounts } from "@/lib/tournament-settings";
+import { playerTeeCounts } from "@/lib/tournament-settings";
+import { entryRefusalFor } from "@/lib/domain/round-scoring";
 import { playsInMatch } from "@/lib/services/match-access";
 import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
 import type { Near } from "@/lib/domain/course-ranking";
 import {
-  searchDirectory,
+  searchDirectoryWithNotice,
   fetchDirectoryCourse,
   fetchLiveDirectoryCourse,
 } from "@/lib/services/course-directory";
@@ -27,11 +29,12 @@ import {
   type DirectoryHit,
 } from "@/lib/domain/course-directory";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
-import { matchCourse, teeProblems } from "@/lib/domain/venue";
+import { matchCourse, teeAfterVenue, teeProblems } from "@/lib/domain/venue";
 import { libraryOrganizationFor, organizationIdsForPlayer } from "@/lib/services/organization";
 import { addCourseToLibrary } from "@/lib/services/course-library";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { roundKicker } from "@/lib/domain/round-label";
+import { markCourseCardChecked } from "@/lib/services/course-card-checked";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -495,14 +498,16 @@ export async function setEventCourses(courseIds: string[]): Promise<CourseResult
   await prisma.$transaction(async (tx) => {
     // Rounds and matches pointing at a course that's no longer on the event
     // fall back to inheriting rather than keeping a venue the organizer just
-    // said isn't in use.
+    // said isn't in use — and their tees go with the course, as `teeAfterVenue`
+    // says for every other venue write: a set left behind belongs to a course
+    // the round is no longer at.
     await tx.stage.updateMany({
       where: { eventId, courseId: { notIn: [...keep] } },
-      data: { courseId: null },
+      data: { courseId: null, teeId: null },
     });
     await tx.match.updateMany({
       where: { eventId, courseId: { notIn: [...keep] } },
-      data: { courseId: null },
+      data: { courseId: null, teeId: null },
     });
     await tx.eventCourse.deleteMany({ where: { eventId, courseId: { notIn: [...keep] } } });
     for (const id of keep) {
@@ -537,16 +542,33 @@ export async function setStageCourse(
   nine?: string,
   force = false,
   /**
-   * The set this round is played from, from the course above.
+   * The set this round is played from, from the course above — and, like the
+   * nine, ONLY when the caller says.
    *
-   * Last and optional so every existing caller is unchanged: a screen that
-   * only sets the venue clears the tee along with it, which is the honest
-   * answer when the course has moved — see the note at the write below.
+   * A string sets it; `null` clears it (Score entry's "the tournament's
+   * tees"). LEFT OUT, the round keeps the set it has while the course stays
+   * the same, and loses it only when the course changes — see the note at the
+   * write below.
+   *
+   * This defaulted to null and was written every time, so the rounds screen's
+   * "Which nine", which sends the course and the nine and has no tees to send,
+   * wiped the tees the organizer had chosen on Score entry. The round then fell
+   * back to the tournament's set: a twilight nine meant off Blue (36.7 / 135 a
+   * nine) priced off White (35.6 / 126), a player of 18.4 given 10 where the
+   * committee's tees give 12 (`a-rounds-tees-survive-its-nine.audit.test.ts`).
    */
-  teeId: string | null = null,
+  teeId?: string | null,
 ): Promise<CourseResult> {
   // Staff, not only the organizer: Ajay's decision of 2026-09-27.
-  const { eventId, organizationId } = await requireStaffOrg();
+  let gate: { organizationId: string; eventId: string };
+  try {
+    gate = await requireStaffOrg();
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { ok: false, error: refused };
+    throw e;
+  }
+  const { eventId, organizationId } = gate;
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, error: "Round not found." };
 
@@ -574,21 +596,55 @@ export async function setStageCourse(
   }
 
   /**
-   * A venue change RE-SCORES a round that already has cards.
+   * A venue or tee change WOULD RE-SCORE a round that already has cards: the
+   * shots are allocated off another stroke index, and every Course Handicap was
+   * frozen off the old tees at the first card.
    *
-   * Not a single stroke moves, which is why this needs saying out loud: the
-   * numbers all stay where they are and the results computed from them
-   * change underneath, because the shots are allocated off a different
-   * stroke index. Nothing on any screen would look different afterwards.
-   *
-   * Same shape as the field resize: refuse, say how much is affected, and
-   * let the organizer come back with force. An untouched round reports zero
-   * and changes without a fuss.
+   * ASKED OF THE ROUNDS RULE (J12, PR 7b; `domain/round-change.ts`), as the
+   * round's own tees: open until the round has scores (a change before them is
+   * frozen normally at the first card), and REFUSED once it has them — never
+   * re-frozen from today's index, since the index the round was frozen with is
+   * not stored (option C, 8 Nov) — and refused once completed. `force` no longer
+   * opens anything: there is nothing left to confirm.
    */
-  if (!force) {
-    const cards = await enteredCardCount(eventId, stageId);
-    if (cards > 0) return { ok: false, needsConfirm: true, cards };
+  void force;
+  /**
+   * WHICH SET THIS ROUND IS PLAYED FROM, after this write — `teeAfterVenue`,
+   * the one rule for a round and a match alike.
+   *
+   * Not named: KEPT while the course stays the same — choosing the nine, or
+   * restating the venue, is not a decision about the tees — and CLEARED when
+   * the course changes. A tee belongs to one course, so a `Stage.teeId` left
+   * pointing at the old venue is a set that is not there — `teeForPlay` steps
+   * past it, correctly, which means the round would silently fall back with the
+   * screen still showing an answer. Better to hold nothing than to hold
+   * something untrue.
+   *
+   * Named: scoped to the course being set, exactly as `nameMatchVenue` scopes
+   * the match's — an id off the wire is an arbitrary row, and unscoped it would
+   * price the round off another club's slope and rating.
+   *
+   * Asked of the course PLAYED, not the column stored: a round with no course
+   * of its own is played at the tournament's (every reader resolves its set
+   * there, `loadEventState`'s `s.courseId ?? event.courseId`). So "Same as the
+   * tournament" on Rounds & formats, which stores null, is no change of course
+   * when the tournament is at the course the round was already on, and the
+   * tees chosen on Score entry stay (Fable's review of #1159: 12 became 10).
+   */
+  const home = (await prisma.event.findUnique({ where: { id: eventId }, select: { courseId: true } }))?.courseId ?? null;
+  const playedNow = stage.courseId ?? home;
+  const playedNext = courseId ?? home;
+  if (playedNext && teeId) {
+    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId: playedNext }, select: { id: true } });
+    if (!owned) return { ok: false, error: "Those tees aren't on that course." };
   }
+  const roundTee = teeAfterVenue({ courseId: playedNow, teeId: stage.teeId }, { courseId: playedNext, teeId });
+  const changed =
+    (courseId ?? null) !== (stage.courseId ?? null) ||
+    roundTee !== (stage.teeId ?? null) ||
+    (nine !== undefined && cleanNine(nine) !== stage.nine);
+  const refused = changed ? await roundRefusal(eventId, stageId, { kind: "round-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
 
   // Linked before the round points at it, so the tournament's venue list and
   // the round agree. Idempotent: choosing a venue it already has changes
@@ -599,26 +655,6 @@ export async function setStageCourse(
       update: {},
       create: { eventId, courseId },
     });
-  }
-
-  /**
-   * WHICH SET THIS ROUND IS PLAYED FROM, when the caller says.
-   *
-   * Scoped to the course being set, exactly as `nameMatchVenue` scopes the
-   * match's: an id off the wire is an arbitrary row, and unscoped it would
-   * price the round off another club's slope and rating.
-   *
-   * CLEARED when the course changes and the new one is not asked about. A tee
-   * belongs to one course, so a `Stage.teeId` left pointing at the old venue
-   * is a set that is not there — `teeForPlay` steps past it, correctly, which
-   * means the round would silently fall back with the screen still showing an
-   * answer. Better to hold nothing than to hold something untrue.
-   */
-  let roundTee: string | null = null;
-  if (courseId && teeId) {
-    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId }, select: { id: true } });
-    if (!owned) return { ok: false, error: "Those tees aren't on that course." };
-    roundTee = owned.id;
   }
 
   await prisma.stage.update({
@@ -652,9 +688,14 @@ export async function setMatchCourse(
   if (!event || !match || match.eventId !== session.eventId) {
     return { ok: false, error: "Match not found." };
   }
-  if (!canEnterScores(settingsOf(event), session.role)) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(
+    settingsOf(event),
+    session.role,
+    await prisma.stage.findFirst({ where: { id: match.stageId, eventId: session.eventId }, select: { scoreKeeping: true, endCheck: true } }),
+  );
+  if (entryRefused) return { ok: false, error: entryRefused };
   const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
   if (archived) return { ok: false, error: archived };
   // S5. This writes the same fields as nameMatchVenue and had none of its
@@ -693,9 +734,21 @@ export async function setMatchCourse(
     });
   }
 
+  /**
+   * THE MATCH'S TEES GO WITH ITS COURSE (`teeAfterVenue`, the round's rule).
+   *
+   * This wrote `{ courseId, nine }` and never touched `teeId`, so a match named
+   * at one course off a set there (`nameMatchVenue`) and then moved kept that
+   * set on its row. At the new course `teeForPlay` steps past it, so no wrong
+   * figure followed there — but with no course at all (an open-course event,
+   * the venue put back to "Not set") `teeForPlay` lets every rung through, and
+   * the old course's set would price a match played nowhere in particular
+   * (`match-venue.audit.test.ts`). Kept while the course is the same.
+   */
+  const matchTee = teeAfterVenue({ courseId: match.courseId, teeId: match.teeId }, { courseId });
   await prisma.match.update({
     where: { id: matchId },
-    data: { courseId, nine: cleanNine(nine) },
+    data: { courseId, nine: cleanNine(nine), teeId: matchTee },
   });
   await refresh();
   return { ok: true };
@@ -803,6 +856,10 @@ export async function setEventDefaultTee(teeId: string | null): Promise<CourseRe
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
+  // The tournament's tees reach every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const was = await prisma.event.findUnique({ where: { id: eventId }, select: { defaultTeeId: true } });
+  const refused = (was?.defaultTeeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: teeId } });
   await refresh();
   return { ok: true };
@@ -822,7 +879,7 @@ export async function setFlightTee(groupId: string, teeId: string | null): Promi
   const { eventId } = await requireOrganizerOrg();
   // A flight, not a match carrier — a carrier has no players to play off any
   // tees it claimed. See Group.stageId.
-  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { id: true } });
+  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { id: true, name: true, teeId: true } });
   if (!flight) return { ok: false, error: "Flight not found." };
   if (teeId) {
     // Scoped to this tournament's course, so another club's set can never
@@ -832,6 +889,9 @@ export async function setFlightTee(groupId: string, teeId: string | null): Promi
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
+  // A flight's tees reach its players in every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const refused = (flight.teeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.group.update({ where: { id: groupId }, data: { teeId } });
   await refresh();
   return { ok: true };
@@ -893,6 +953,9 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
+  // A player's own tees reach them in every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const refused = (player.teeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.player.update({ where: { id: playerId }, data: { teeId } });
   await refresh();
   return { ok: true };
@@ -909,14 +972,12 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
  */
 export async function verifyCourseCard(courseId: string): Promise<CourseResult> {
   const { organizationId } = await requireOrganizerOrg();
-  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId }, select: { id: true } });
   if (!course) return { ok: false, error: "Course not found." };
 
   const session = await getSession();
-  await prisma.course.update({
-    where: { id: courseId },
-    data: { verifiedAt: new Date(), verifiedBy: session?.name ?? "" },
-  });
+  // The one writer of "checked" — shared with the setup questionnaire's card step.
+  await markCourseCardChecked(course.id, organizationId, session?.name ?? "");
   await refresh();
   return { ok: true };
 }
@@ -1024,6 +1085,8 @@ export interface DirectorySearchResult {
   ok: boolean;
   error?: string;
   hits?: DirectorySearchHit[];
+  /** Plain words when the live lookup could not answer; typing a course in by hand still works. */
+  notice?: string;
 }
 
 /**
@@ -1101,6 +1164,8 @@ async function directoryBudget(session: { role: string; userId?: string; email: 
 export async function searchCourseDirectory(
   query: string,
   localOnly = false,
+  /** True only for a press on "Search more courses": the one door to GolfCourseAPI. */
+  moreCourses = false,
 ): Promise<DirectorySearchResult> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
@@ -1135,7 +1200,7 @@ export async function searchCourseDirectory(
     const budget = await directoryBudget(session);
     if (!budget.allowed) live = false;
   }
-  const hits = await searchDirectory(query, !live, await clubNear(session.eventId));
+  const { hits, notice } = await searchDirectoryWithNotice(query, !live, await clubNear(session.eventId), moreCourses);
 
   /**
    * Which of these the club already has.
@@ -1173,7 +1238,7 @@ export async function searchCourseDirectory(
       })
     : [];
   const have = new Set(mine.map((c) => directoryIdFrom(c.sourceUrl)).filter(Boolean));
-  return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })) };
+  return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })), ...(notice ? { notice } : {}) };
 }
 
 export interface DirectoryImportResult extends CourseResult {
@@ -1448,9 +1513,14 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
   }
   // Same gate as entering the score itself. An organizer-scored tournament
   // does not let a player name the venue either.
-  if (!canEnterScores(settingsOf(event), session.role)) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(
+    settingsOf(event),
+    session.role,
+    await prisma.stage.findFirst({ where: { id: match.stageId, eventId: session.eventId }, select: { scoreKeeping: true, endCheck: true } }),
+  );
+  if (entryRefused) return { ok: false, error: entryRefused };
   const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
   if (archived) return { ok: false, error: archived };
   // A player may only speak for a match they are actually in. Without this,

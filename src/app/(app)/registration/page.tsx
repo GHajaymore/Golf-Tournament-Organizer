@@ -1,6 +1,8 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
+import { needsStrokesNoteFor } from "@/lib/services/committee-figure";
+import { NeedsStrokesNote } from "@/components/NeedsStrokesNote";
 import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { ladiesTeeFor, ladiesTeeOn, teeIdFor } from "@/lib/domain/handicap";
 import { redirect } from "next/navigation";
@@ -15,11 +17,17 @@ import { handicapBodyForEvent } from "@/lib/services/integrations";
 import { bodyInProse, bodyShortLabel } from "@/lib/domain/handicap-body";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
+import { fieldCapFor } from "@/lib/services/limits";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
+import { awaitingApproval } from "@/lib/registration";
+import { fieldFactsFor } from "@/lib/services/field-change";
+import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, fieldLockSaid, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
+import { WithdrawnList } from "@/components/WithdrawnList";
+import { acrossRoundsRefusal } from "@/lib/services/round-change";
 
 export const metadata = screenMetadata("/registration");
 
@@ -27,9 +35,31 @@ export default async function RegistrationPage() {
   const session = await requireScreen("registration");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const locked = isSetupLocked(state.event);
+  // The machine's lock on the field (PR 5b) — the one the entry terms ask (`refuseIfLocked(…, "field")`);
+  // the field's own day-of doors are `fieldDoors`, below.
+  const field = await screenLocksFor(session.eventId, ["field"]);
+  const locked = field.locks.length > 0;
+  /**
+   * THE FIELD'S DOORS — the one field rule (day-of field changes, PR A), from
+   * the same facts the actions ask (`fieldFactsFor` → `fieldChangeAllowed`), so
+   * no control is offered that its action refuses. Null facts (no tournament)
+   * is redirected above; a missing read refuses everything rather than nothing.
+   */
+  const fieldFacts = await fieldFactsFor(session.eventId);
+  const doors = fieldFacts
+    ? fieldDoors(fieldFacts)
+    : (Object.fromEntries(FIELD_CHANGES.map((c) => [c, "This tournament could not be read."])) as ReturnType<typeof fieldDoors>);
+  const underWay = fieldFacts ? fieldBanner(fieldFacts) : null;
+  /**
+   * THE UNPLACED FLAG (J04, state machine PR 7a): every confirmed player in no
+   * flight, by name, where flights are a division or the pairings — said for as
+   * long as it is true, outside a cup too. The "Choose a flight" beside each
+   * name is the way to put them in one.
+   */
+  const unplacedFlag =
+    fieldFacts && flagsUnplaced(fieldFacts.family, fieldFacts.flights) ? unplacedWords(state.confirmed.filter((p) => !p.groupId).map((p) => p.name)) : "";
   // Where this screen sits in setting the tournament up. Null for a match.
-  const flow = await setupFlowFor(session.eventId);
+  const flow = await setupRailFor(session.eventId);
   const brand = await brandForEvent(session.eventId);
   const roster = await rosterForEvent(session.eventId);
   // The club's handicap body — GHIN, England Golf, Golf Ireland … — for the
@@ -44,7 +74,8 @@ export default async function RegistrationPage() {
 
   const eventTees = await teesForEvent(state.event.id);
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
-  // Kept rows only — a withdrawal with no history is deleted, not kept.
+  // Kept rows only — before launch a withdrawal with no history is deleted, not
+  // kept; after launch a confirmed player is always kept (day-of field changes).
   const withdrawn = state.players.filter((p) => p.status === "withdrawn").map((p) => ({ id: p.id, name: p.name }));
 
   /**
@@ -97,11 +128,16 @@ export default async function RegistrationPage() {
     promotedAt: p.promotedAt ? p.promotedAt.toISOString() : null,
     // "Don't show my name on public pages" (2026-10-24).
     publicNameWithheld: p.publicNameWithheld,
+    // Member or guest, as stored (A039); the screen reads it through `entryStanding`.
+    standing: p.standing,
   });
 
   return (
     <>
       <SetupFlowRail flow={flow} href="/registration" />
+      {/* Every door on this screen (the roster pick, a late entry, a CSV import, an approval) lands its
+          player here, so the note is said here, after the write, for as long as it is true (lane N). */}
+      <NeedsStrokesNote note={await needsStrokesNoteFor(session.eventId, session.viewRole === "admin" || session.viewRole === "assistant")} />
     <RegistrationClient
       handicapBody={{ id: body.id, label: bodyShortLabel(body), prose: bodyInProse(body), number: body.number }}
       noFormatYet={state.stages.length === 0 && state.confirmed.length === 0}
@@ -109,6 +145,10 @@ export default async function RegistrationPage() {
       // to, so the column never shows an empty box meaning "the round’s".
       tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
       teePolicy={settingsOf(state.event).teePolicy}
+      // Whether one player's tees may change now, and if not why — the very call `setPlayerTee`
+      // refuses with (the rounds rule, `field-tees`), so the Tees column is drawn shut with the
+      // sentence rather than offered and then refused (the finding after round G594-1, 10 Nov).
+      teesDoor={await acrossRoundsRefusal(session.eventId, { kind: "field-tees" })}
       needsEmail={entryNeedsEmail(settingsOf(state.event))}
       defaultTeeName={
         eventTees.find((t) => t.id === roundTee)?.name
@@ -121,6 +161,9 @@ export default async function RegistrationPage() {
         // the stored number — so "Confirmed 10 of 10 · Full" here matches what
         // an eleventh entrant is actually told (walked 2026-09-30).
         capacity: await fieldLimitFor(state.event),
+        // The terms form edits what the organizer set, not what the plan lets in.
+        storedCapacity: state.event.capacity,
+        planLimit: await fieldCapFor(state.event.organizationId),
         status: state.event.status,
         regDeadline: state.event.regDeadline,
         regOpens: state.event.regOpens,
@@ -141,8 +184,16 @@ export default async function RegistrationPage() {
       }}
       confirmed={state.confirmed.map(asRow)}
       waitlist={state.waitlist.map(asRow)}
-      pendingEntries={state.players.filter((p) => p.status === "pending").map(asRow)}
+      pendingEntries={awaitingApproval(state.players).map(asRow)}
       locked={locked}
+      fieldLocks={fieldFacts ? field.locks.map((l) => fieldLockSaid(fieldFacts, l)) : field.locks}
+      correction={field.correction}
+      doors={doors}
+      underWay={underWay}
+      flights={state.groups.map((g, i) => ({ id: g.id, label: flightLabel(g.name, i) }))}
+      unplacedFlag={unplacedFlag}
+      addFlight={fieldFacts ? addFlightPick(fieldFacts) : null}
+      offerReserve={fieldFacts ? reserveOffered(fieldFacts) : false}
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
@@ -163,25 +214,9 @@ export default async function RegistrationPage() {
           already played keeps them as withdrawn — "their results are kept" —
           and then they were on no list on this page: not the field, not the
           waitlist, nowhere. A disqualification has its own line above; a
-          withdrawal had none. Their scores and any money still stand. */}
-      {withdrawn.length > 0 && (
-        <section
-          aria-label="Withdrawn"
-          className="card elev-sm"
-          style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}
-        >
-          <span className="card-title">Withdrawn ({withdrawn.length})</span>
-          <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
-            Out of the field. Their scores and any money they owe or are owed stay on the record; they show as WD
-            at the foot of the board.
-          </p>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
-            {withdrawn.map((p) => (
-              <li key={p.id}>{p.name}</li>
-            ))}
-          </ul>
-        </section>
-      )}
+          withdrawal had none. Their scores and any money still stand.
+          And since day-of field changes (PR A), each has Put back. */}
+      <WithdrawnList withdrawn={withdrawn} door={doors.reinstate} />
       {/* WHO CAME AND WENT — the field's lines from the audit log (Ajay,
           2026-09-27). A member who withdraws themselves took the confirmed
           count from 19 to 18 with nothing here saying who or when. */}

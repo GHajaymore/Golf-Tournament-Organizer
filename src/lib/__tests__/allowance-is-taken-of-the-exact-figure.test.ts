@@ -452,7 +452,9 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
 
   it("a side is priced off its members' unrounded figures, wherever it is priced", () => {
     const teams = codeOf.get("src/lib/services/teams.ts")!;
-    expect(teams).toMatch(/\.map\(\(m\) => m\.handicapExact\);/);
+    // Through `sideHandicapFromPartners`, the one place a side is priced, which
+    // hands `sidePlayingHandicap` each partner's `exact` (pinned by the sweep below).
+    expect(teams).toMatch(/members\.map\(\(m\) => \(\{ exact: m\.handicapExact, withdrawn: m\.withdrawn \}\)\)/);
     expect(teams).toMatch(/courseHandicap: m\.handicapExact,/);
     expect(teams).not.toMatch(/courseHandicap: m\.handicap,/);
     const entry = codeOf.get("src/app/(app)/entry/page.tsx")!;
@@ -461,7 +463,7 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
     const bad: string[] = [];
     for (const f of files) {
       for (const arg of firstArgs(codeOf.get(f)!, "sidePlayingHandicap")) {
-        if (!/[Ee]xact|^forHandicap$/.test(arg)) bad.push(`${f}: sidePlayingHandicap(${arg}, …)`);
+        if (!/[Ee]xact/.test(arg)) bad.push(`${f}: sidePlayingHandicap(${arg}, …)`);
       }
     }
     expect(bad).toEqual([]);

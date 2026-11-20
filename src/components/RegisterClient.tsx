@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState, useTransition } from "react";
-import { registerForEvent, type RegisterResult } from "@/app/actions/register";
+import { confirmEntryCode, registerForEvent, type RegisterResult } from "@/app/actions/register";
+import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
 import type { ApprovalMode } from "@/lib/domain/registration-intake";
 import type { RegistrationPrefill } from "@/lib/services/registration";
 import { formatDeadline } from "@/lib/deadline";
@@ -111,6 +112,10 @@ export function RegisterClient({
   const [phone, setPhone] = useState(prefill?.phone ?? "");
   const [error, setError] = useState("");
   const [done, setDone] = useState<RegisterResult | null>(null);
+  // The address is proved before the entry is made: set once a code is on its way.
+  const [codeSentTo, setCodeSentTo] = useState("");
+  const [code, setCode] = useState("");
+  const [resent, setResent] = useState(false);
   const [pending, startTransition] = useTransition();
   const uid = useId();
 
@@ -144,9 +149,87 @@ export function RegisterClient({
         setError(result.error ?? "Something went wrong. Try again.");
         return;
       }
+      if (result.needsCode) {
+        setCodeSentTo(result.sentTo ?? "your email");
+        return;
+      }
       setDone(result);
     });
   };
+
+  // The code typed back: the entry is made now, by the server, from what was held.
+  const confirm = () => {
+    setError("");
+    startTransition(async () => {
+      const result = await confirmEntryCode(token, email, code);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      setCodeSentTo("");
+      setDone(result);
+    });
+  };
+
+  // "Send a new code" is the same press as Register: the form is still here.
+  const sendAnother = () => {
+    setError("");
+    setResent(false);
+    startTransition(async () => {
+      const result = await registerForEvent(token, { name, email, handicap, handicapType, phone });
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      setResent(true);
+    });
+  };
+
+  // The address is proved first (security sweep M5): nobody is entered until the
+  // code that was emailed to it is typed back.
+  if (codeSentTo && !done) {
+    return (
+      <form
+        className="card elev-sm"
+        style={{ gap: 12 }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          confirm();
+        }}
+      >
+        <h2 style={{ fontSize: 19, margin: 0, fontFamily: "var(--font-heading)" }}>{EMAIL_CODE_WORDS.entryHeading}</h2>
+        <p className="text-muted" style={{ fontSize: 13.5, margin: 0 }}>{EMAIL_CODE_WORDS.entryLine(codeSentTo)}</p>
+        <div className="field">
+          <label htmlFor={`${uid}-code`}>{EMAIL_CODE_WORDS.box}</label>
+          <input
+            id={`${uid}-code`}
+            className="input"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={EMAIL_CODE_WORDS.placeholder}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+          />
+        </div>
+        <button type="submit" className="btn btn-primary btn-block" disabled={pending}>
+          {pending ? EMAIL_CODE_WORDS.confirming : EMAIL_CODE_WORDS.confirm}
+        </button>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13 }}>
+          <button type="button" className="btn btn-ghost" disabled={pending} onClick={sendAnother}>
+            {resent ? EMAIL_CODE_WORDS.resent : EMAIL_CODE_WORDS.resend}
+          </button>
+          <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => { setCodeSentTo(""); setCode(""); setError(""); }}>
+            {EMAIL_CODE_WORDS.startAgain}
+          </button>
+        </div>
+        {error && (
+          <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+            <Icon name="warning-circle" /> {error}
+          </p>
+        )}
+      </form>
+    );
+  }
 
   // Confirmation — this IS the receipt (email is best-effort and deferred).
   if (done) {

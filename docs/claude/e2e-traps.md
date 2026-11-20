@@ -55,6 +55,57 @@ signal, and compares the screen with the database hole by hole. Tapping a name o
 longer reloads the page — the claim's own answer draws the card — and `e2e/round-code-on-3g.spec.ts`
 times it on slow 3G.
 
+**AND A BUTTON THAT WAITS FOR THE SCRIPT WAITS FOR ALL OF IT (2026-10-25).** On slow 3G (400 kbit/s,
+400 ms a request) the cold `/play` drew its code box at 1.8 s and Continue woke at 7.8 s. Measured
+request by request, not read: the page brought down 351 KB — scripts 193, fonts 105, the document
+44, the style sheet 9 — and Continue could be pressed only once React had taken the page over,
+which is after the LAST script chunk, all of it sharing the one line with the fonts. Nothing on the
+page was slow; the button simply had to wait for everything. Three things were found and done:
+
+- **Continue takes a press from the first paint (1.9 s), and a press made before the page is live
+  is HELD on the page** (`HeldBeforeLoad`, a tiny inline script) and taken up the moment React is
+  there. The box and the names are also real forms (`openCodeForm` since one code box, `claimPlayerSlotForm`,
+  through `useActionState`), posted the plain way with JavaScript off, or if the page has still not
+  woken ten seconds after the press.
+  **The plain post was built first and MEASURED WORSE**: it put the names on screen at 3.3 s instead
+  of 7.4, and the pad that takes a score 2 s LATER (12.5 s against 10.1, a key every 300 ms) —
+  every post is a new page, and the page being left was part-way through its scripts and fonts,
+  which start again. The obvious fix and the fast one were different things, and only timing the
+  WHOLE flow could tell. Two traps found on the way: React writes hidden `$ACTION_…` boxes into such
+  a form and never takes them over, so "is the page live" must not read the first `input` it finds
+  (the spec's control was vacuous until it had to say yes once the script landed); and a held press
+  must keep the form's contents from the moment of the press — read when the page woke, while
+  `TypedBeforeLoadSync` hands the box to React, the box was EMPTY and an empty code was sent.
+  **On WebKit a page whose scripts never come is never PAINTED** (Safari shows the old page until
+  the new one finishes loading or has enough content), and Playwright's click then waits in
+  "stable" for ever with the button plainly in the snapshot. So a let-go press leaves a mark and the
+  next page stops loading (`window.stop()`); a press from a stopped page passes the mark on, so the
+  code → names → "You're keeping …" walk is painted at every step (round scoring-by-group-1-2 hung
+  on the confirmation's Yes). A new `/play` form that posts without script carries
+  `data-held-until-live` or `data-plain-post`, or its page is never stopped — `held-press-let-go.test.ts`
+  sweeps for it. The card has neither on purpose: its pad needs its scripts, which may yet come.
+- **The icon sprite went down twice in every document**: drawn by a server component, it was the
+  page AND, again, the page's data for React — 37 KB of `/play`'s 44. `IconSprite` is a client
+  component now whose symbols exist only in the server's copy (`typeof window` is fixed at build
+  time), and the browser reads them back from the page. Every document in the app is ~19 KB lighter.
+- **`next/link` in the root `not-found.tsx` cost every page outside the player app 16 KB**: it is in
+  the root layout's tree, and its client reference was filed with the player layout's chunks, so
+  `/play` fetched four chunks of a layout it is not in. Plain links there now.
+
+After: 316 KB, 25 requests; for a thumb that types at once, the pad takes a score at 8.3 s from
+opening the link (10.6 s before), and 0.9 s from a name to the pad once the page is live (1.4 s
+before). **What is NOT fixed, and why**: a pad needs its script, and the framework alone is ~104 KB
+— two seconds of that line — so "a card within 2 s of opening the link" cannot be met on this
+throttle by any page that needs a script to take a score. The next levers, measured and not taken
+without a ruling: the fonts (105 KB at VeryHigh priority beside the scripts — a third of what the
+page brings down), and the sprite's 19 KB still in every document's HTML.
+
+Two things to carry forward. **Measure the page by its requests before choosing a fix** — the
+obvious suspects (data fetched before render, the service worker, the hydration patch) were none of
+it. And **DevTools' throttle shares the line between every request alike**: the style sheet waits
+behind thirty script chunks there, which HTTP/2's priorities would not let happen on Vercel, so the
+draw time it reports is a little pessimistic and the byte counts are the figure to trust.
+
 **AND A BUILD MADE ON WINDOWS HINTS NO FONT, SO THIS MACHINE CANNOT SEE WHAT A PHONE
 DOWNLOADS.** Until 2026-10-13 every screen fetched five font files before it knew which it would
 draw — 248 KB — and no local run or screenshot showed it, because next/font's manifest comes out
@@ -76,6 +127,12 @@ called the rest clean. **Any test of the front door awaits `landingSettled(page)
 where the thing is at the moment it scrolls. The visitor is fine: somebody already at the
 sign-up form keeps their place to the pixel on Chrome's engine and on Safari's — measured, after
 it had been assumed otherwise and written down as a fault that was not there.
+
+**ONE WEBKIT CHECK RUNS ON EVERY PULL REQUEST (2026-11-14).** Job `e2e-webkit-door` in `ci.yml` runs
+`e2e/front-door.spec.ts` (sign-up, log-in, reset, sign-out) on WebKit's iPhone profile in the Playwright
+image, which already holds WebKit, against the same bundle as the shards, with `E2E_PLAIN_HTTP=1`. Round
+G636 had cost 2 h 43 min to learn what it says in minutes. It is not in the shard matrix, so `e2e-cover`
+does not count it; `verify` needs it. Everything else on WebKit is still by hand, as below.
 
 **AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPhone, which is WebKit.
 `E2E_ENGINE=webkit npx playwright test` runs the same three projects on it (CI installs Chromium
@@ -120,3 +177,61 @@ So: append a throwaway query (`?bust=1`) when navigating to check a change, or a
 no-store `fetch`. And note the failure is not symmetrical — a stale read can also show a string
 you have just DELETED, which is the direction that ends with "already fixed" written on something
 that is not.
+
+**AFTER THE ROUND CODE, A SPEC PICKS A GROUP AND CONFIRMS IT (2026-11-04).** `/play` no longer lists
+every player: a match round lists each match as one group (with its tee time off a published tee
+sheet), a stroke round with a published sheet lists the sheet's groups, and only a stroke round with
+no sheet still lists names. Whatever is tapped is said back once — "You're keeping Group 3: …" with
+"Yes, that's my group" (a name: "Yes, that's right") and "No, go back" — and in a group of somebody's
+own cards the scorer then picks whose. A phone that confirmed a group for a round is not asked again
+(`thq-play-kept:<round>` in its storage), so a spec that re-enters on the same context sees no
+question. Press it through `keepCardOf(page, name)` in `e2e/keep-on-play.ts`, which reads which list
+the round drew rather than assuming it. A match opened by its group signs the phone in as the
+match's first player, so a spec reads the card's heading as the match ("A vs B", side A first,
+whoever holds it), never as the player whose name it typed.
+
+THE DOORS (sprint 2A, 2026-11-05). A sign's link can name its group: `/play#ABCD-EFGH.t3` (a tee-sheet group) or
+`.m<match id>`, read by `linkFromHash` (`code-format.ts`), and opens the CONFIRMATION of that group, not the
+list, so a spec that scans a group link looks for the "You're keeping …" heading first and `playGroups` at count
+0. A phone also remembers the group it confirmed in a tournament (`thq-play-last:<event>`, the people in it):
+in the next round it is offered first as "Last time: …" with the list behind **Not my group**, so a spec that
+re-enters a LATER round on the same context meets that button before the list — `e2e/round-code-doors.spec.ts`
+presses both, with `e2e/doors-fixture.ts` for its club. `/play/board` is the code holder's board
+(`e2e/play-board.spec.ts`, all three visibility settings). A QR in the Print kit is now an `<a>` around the
+`svg.pk-qr`, and its modules are the one `svg.pk-qr > path`; the mark in its centre has paths of its own, so
+count modules with the child combinator, never `svg path`.
+
+A SEGMENTED CONTROL'S RADIO IS PRESSED, NEVER CHECKED (found 2026-11-05, sprint 1). `.seg-opt input` and `.radio input`
+are `opacity: 0; width: 0; height: 0` (`design-system.css`), so `getByLabel("X won").check()` or
+`getByRole("radio", { name }).check()` returns at once when X is ALREADY chosen (the test passes for the wrong
+reason) and waits for ever for a visible radio when it is not (the test hangs). Press the label and then see it
+chosen: `await pressRadio(radio)` from `e2e/press-radio.ts` (label click, then `toBeChecked()`), or
+`getByText("X won", { exact: true }).click()` then `expect(radio).toBeChecked()`.
+`src/lib/__tests__/seg-opt-radios-are-pressed-not-checked.test.ts` refuses a `.check(` on any locator that reaches a
+radio (by role, by `input[type="radio"]`, or by the words of a `.seg-opt` label); real checkboxes are untouched.
+
+**A PAGE HAS TWO ALERTS ONCE THE APP REFUSES SOMETHING (2026-11-14).** Next draws its own
+`<div role="alert" id="__next-route-announcer__">` on every page, so `page.getByRole("alert")` — or the
+same on anything made by `.newPage()` — matches two elements and strict mode fails the step, after
+every step before it has passed. It reached CI twice in one night (#1123's owner-finance spec, #1125's
+guest-link spec), each written by an engineer who could not run Playwright. Find a page's refusal by its
+own element and role — `p`, `div` or `span[role="alert"]`, e.g. `page.locator('[role="alert"]:not(#__next-route-announcer__)')` — or better by its text with `.filter({ hasText })`; inside a card,
+section or dialog locator the plain role is fine. `src/lib/__tests__/no-page-wide-alert-locator.test.ts`
+refuses the page-wide form.
+
+- **A press right after a save lands before the redraw (Firefox, 17 Nov).** A server action writes the row, then the
+  page is redrawn with the new data; a database poll or the card's own "goes through" line is true BEFORE that
+  redraw. Playwright's click checks the button is stable, then presses where it was; if the redraw then moves it (a
+  sentence above appears, or a two-line sentence becomes one) the press falls on text and the handler never runs, with
+  no error. Two specs failed this way on Firefox in nightly 44124418761 (`seasons.spec.ts` "Start another season",
+  `organizer-knockout-report.spec.ts` "Change result") and passed on the four nightlies before. Before pressing a
+  button the previous press may have moved, wait for the SCREEN's answer (the next button's name, the sentence that
+  changes), not for the database row.
+
+## Judge a press when the server answers, not after a guess
+
+`waitForLoadState("networkidle")` belongs to the document load and does not re-arm for a client-side
+`router.push`, so a fixed wait plus `networkidle` reads a slow RSC answer as "nothing happened". Anything that
+decides a press did nothing must first wait for the navigation requests it started (`watchNavigations` in
+`e2e/navigation-settle.ts`, bounded, an unanswered one reported as its own failure). Test it with a delayed
+fake, as `crawl-waits-for-a-navigation-to-answer.test.ts` does.

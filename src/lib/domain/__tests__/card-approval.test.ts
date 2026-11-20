@@ -21,7 +21,7 @@ import {
 const card = (over: Partial<CardForReview> = {}): CardForReview => ({
   id: "c1",
   playerId: "p1",
-  playerName: "A. Moore",
+  playerName: "N. Calloway",
   status: "certified",
   strokes: new Array(18).fill(4),
   holes: 18,

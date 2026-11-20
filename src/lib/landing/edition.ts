@@ -36,6 +36,8 @@ type Spelling = "us" | "ca" | "uk";
 export interface Edition {
   key: EditionKey;
   currency: PlanCurrency;
+  /** The country this edition is quoted for: its region sets the currency and the prices (`planQuote`). The EU edition is quoted as the Eurozone. */
+  country: string;
   /** How numbers and money are written. */
   locale: string;
   /** Which golf the page speaks — `golf-terms.ts`'s register. */
@@ -48,15 +50,15 @@ export interface Edition {
 }
 
 const EDITIONS: Record<EditionKey, Omit<Edition, "key" | "register" | "locale">> = {
-  US: { currency: "USD", spelling: "us", name: "the United States", shots: "us" },
+  US: { currency: "USD", country: "US", spelling: "us", name: "the United States", shots: "us" },
   // Canada plays in carts and foursomes (golf-terms.ts) and spells "colour".
-  CA: { currency: "CAD", spelling: "ca", name: "Canada", shots: "us" },
-  GB: { currency: "GBP", spelling: "uk", name: "the United Kingdom", shots: "uk" },
-  IE: { currency: "EUR", spelling: "uk", name: "Ireland", shots: "uk" },
-  EU: { currency: "EUR", spelling: "uk", name: "Europe", shots: "uk" },
-  AU: { currency: "AUD", spelling: "uk", name: "Australia", shots: "uk" },
-  NZ: { currency: "NZD", spelling: "uk", name: "New Zealand", shots: "uk" },
-  ZA: { currency: "ZAR", spelling: "uk", name: "South Africa", shots: "uk" },
+  CA: { currency: "CAD", country: "CA", spelling: "ca", name: "Canada", shots: "us" },
+  GB: { currency: "GBP", country: "GB", spelling: "uk", name: "the United Kingdom", shots: "uk" },
+  IE: { currency: "EUR", country: "IE", spelling: "uk", name: "Ireland", shots: "uk" },
+  EU: { currency: "EUR", country: "DE", spelling: "uk", name: "Europe", shots: "uk" },
+  AU: { currency: "AUD", country: "AU", spelling: "uk", name: "Australia", shots: "uk" },
+  NZ: { currency: "NZD", country: "NZ", spelling: "uk", name: "New Zealand", shots: "uk" },
+  ZA: { currency: "ZAR", country: "ZA", spelling: "uk", name: "South Africa", shots: "uk" },
 };
 
 /** The one cookie the switch sets: "1" means "show me US $ and US terms". */

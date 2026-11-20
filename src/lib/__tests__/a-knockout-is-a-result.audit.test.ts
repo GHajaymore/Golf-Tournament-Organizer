@@ -57,7 +57,8 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";
-import { playRefusalFor } from "@/lib/services/action-shared";
+// `playRefusalFor` retired in state machine PR 4: the machine's `refusals.play`.
+import { playRefusedBecause } from "@/lib/services/tournament-status";
 import { removeSignup } from "@/app/actions/tournament";
 
 const prisma = new PrismaClient();
@@ -80,8 +81,8 @@ beforeAll(async () => {
       name: `${TAG} knockout`,
       organizationId: org.id,
       // PRE-LAUNCH on purpose. A launched event returns early from
-      // `playRefusalFor` and the four-table question is never asked.
-      status: "ready",
+      // `playRefusedBecause` and the rounds' results are never asked.
+      status: "draft",
       dates: "",
       course: "",
       city: "",
@@ -144,7 +145,7 @@ describe("a knockout with results is a tournament under way", () => {
     // returns null — which is the one way "no refusal" means nothing.
     const before = await prisma.bracketWinner.count({ where: { eventId } });
     expect(before).toBe(0);
-    expect(await playRefusalFor(eventId)).toMatch(/hasn’t been launched yet/);
+    expect(await playRefusedBecause(eventId)).toMatch(/hasn’t been launched yet/);
   });
 
   it("does not tell people on the course that play hasn't started", async () => {
@@ -157,13 +158,13 @@ describe("a knockout with results is a tournament under way", () => {
     expect(await prisma.teamScorecard.count({ where: { eventId } })).toBe(0);
     expect(await prisma.match.count({ where: { eventId } })).toBe(0);
 
-    expect(await playRefusalFor(eventId)).toBeNull();
+    expect(await playRefusedBecause(eventId)).toBeNull();
   });
 
   it("withdraws a player who has won a tie rather than deleting them", async () => {
     // players[0] holds the slot above; players[1] holds nothing.
-    expect(await removeSignup(players[1])).toBe("deleted");
-    expect(await removeSignup(players[0])).toBe("withdrawn");
+    expect(await removeSignup(players[1])).toMatchObject({ ok: true, outcome: "deleted" });
+    expect(await removeSignup(players[0])).toMatchObject({ ok: true, outcome: "withdrawn" });
 
     // And the bracket still names somebody who exists. `winnerId` is a plain
     // column, so a delete would have left it pointing at nothing rather than

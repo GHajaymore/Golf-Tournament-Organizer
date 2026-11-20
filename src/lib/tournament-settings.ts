@@ -410,6 +410,23 @@ export function canSeeLeaderboard(settings: TournamentSettings, role: Role): boo
   return settings.leaderboardVisibility !== "staff";
 }
 
+/**
+ * WHETHER SOMEBODY HOLDING A ROUND CODE MAY OPEN THE BOARD (2026-11-05).
+ *
+ * A code holder is a participant with no account: they scored on a phone from
+ * a printed sign. "Participants" visibility is exactly for them (the board is
+ * for the people playing), "public" includes them, "staff" does not. Their
+ * board is `/play/board`, behind the play session. It is NOT `/live/<token>`,
+ * whose 404 for a board that is not public is the privacy line, and stays.
+ * The one rule: the page, the link on `/play` and the tests all ask this.
+ */
+export function mayOpenBoard(settings: TournamentSettings, reader: "code-holder"): boolean {
+  switch (reader) {
+    case "code-holder":
+      return settings.leaderboardVisibility !== "staff";
+  }
+}
+
 /** Whether the public share link should resolve at all. */
 export function isLeaderboardPublic(settings: TournamentSettings): boolean {
   return settings.leaderboardVisibility === "public";

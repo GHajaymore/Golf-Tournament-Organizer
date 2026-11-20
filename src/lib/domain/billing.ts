@@ -1,13 +1,12 @@
 import {
   PLANS,
-  effectivePrice,
-  effectiveAnnualPrice,
-  planCurrency,
+  planQuote,
   planTagline,
   type PlanKey,
   type PricingOverrides,
 } from "../plans";
 import type { GolfWords } from "./golf-terms";
+import { minorUnitDigits } from "./money-format";
 
 /**
  * SUBSCRIPTION BILLING — what TourneyHQ charges a club for the SOFTWARE
@@ -53,19 +52,20 @@ export function isBillingInterval(v: string): v is BillingInterval {
 export function checkoutLineItem(
   planKey: PlanKey,
   interval: BillingInterval,
-  currency: string,
+  country: string,
   overrides: PricingOverrides,
   /** The club's golf words — the plan's line on Stripe's page is in its golf too. */
   words: GolfWords,
 ) {
   const plan = PLANS[planKey];
-  const code = planCurrency(currency);
-  const whole = interval === "year" ? effectiveAnnualPrice(plan, overrides, code) : effectivePrice(plan, overrides, code);
+  // The club's country picks its region, and the region the currency: one reader, as the panel.
+  const quote = planQuote(plan, overrides, country);
+  const whole = interval === "year" ? quote.yearly : quote.monthly;
   return {
     quantity: 1,
     price_data: {
-      currency: code.toLowerCase(),
-      unit_amount: Math.round(whole * 100),
+      currency: quote.currency.toLowerCase(),
+      unit_amount: Math.round(whole * 10 ** minorUnitDigits(quote.currency)),
       recurring: { interval },
       product_data: { name: `TourneyHQ ${plan.name}`, description: planTagline(plan, words) },
     },

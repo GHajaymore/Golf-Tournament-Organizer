@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamEntryMode } from "@/lib/domain/team-entry";
+import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
 import { PlayClient } from "@/components/PlayClient";
@@ -10,6 +11,27 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlow } from "@/lib/domain/setup-flow";
 import { screenName } from "@/lib/nav";
 import { FactCard } from "@/components/PageHeader";
+import { statusCardOf } from "@/lib/domain/tournament-status";
+import {
+  facts as statusFacts,
+  round as statusRound,
+  launched as launchedFacts,
+  completed as completedFacts,
+} from "../domain/__tests__/tournament-facts-fixtures";
+
+/**
+ * The status card the dashboard hands `LifecycleBar` (state machine PR 3): the
+ * machine's answer for a stored status, with `played` rounds that have results.
+ * A tournament with rounds played is launched (or completed) the ordinary way;
+ * a setting-up one with results is being played before launch.
+ */
+function cardFor(status: string, played = 0, confirmed = 33) {
+  const rounds = [0, 1, 2, 3].map((i) =>
+    statusRound({ id: `r${i + 1}`, position: i, hasResult: i < played, closed: status === "completed" }),
+  );
+  const base = statusFacts({ status, confirmed, rounds });
+  return statusCardOf(status === "completed" ? completedFacts(base) : status === "live" ? launchedFacts(base) : base);
+}
 
 /**
  * Do these screens actually render?
@@ -103,6 +125,7 @@ import { SideBetStart } from "@/components/SideBetStart";
 import { RoundMoney } from "@/components/RoundMoney";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import type { HoleResult } from "@/lib/domain/types";
+import { OPEN_DOORS } from "./field-doors";
 
 /**
  * React reports missing keys, invalid nesting and bad props by writing to
@@ -384,8 +407,7 @@ describe("the journey card counts phases, not steps", () => {
           complete: true,
           doneHrefs: ["/event", "/stages", "/registration", "/grouping", "/prizes"],
         }}
-        status="draft"
-        scored={false}
+        journey="launch"
         hasBracket
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {...(props as any)}
@@ -457,79 +479,63 @@ describe("the journey card counts phases, not steps", () => {
     });
   });
 
-  it("says phase, not step", async () => {
+  /**
+   * THE COUNTER IS RETIRED (state machine PR 3; UI/UX, panel 8.3 Q4). "You are
+   * on phase N of 4" sat on /event below the rail's "N of 6 done" — two
+   * counters with two denominators, exactly the shape of D1. The chip is the
+   * step and the rail is the only counter during setup; this card keeps its
+   * phases and marks where the tournament is with "You are here".
+   */
+  it("has no counter of its own — the rail is the only one", async () => {
+    for (const setup of [
+      { doneCount: 2, total: 5, complete: false, doneHrefs: ["/event", "/stages"] },
+      { doneCount: 5, total: 5, complete: true, doneHrefs: ["/event"] },
+    ]) {
+      const html = await journey({ setup, journey: "setup" });
+      expect(html).not.toContain("You are on phase");
+      expect(html).not.toMatch(/of 4\b/);
+      expect(html, "the setup phase counting steps beside the rail").not.toMatch(/\d of \d done/);
+    }
+  });
+
+  it("still draws the four phases of running a tournament", async () => {
     const html = await journey();
-    expect(html).toContain("You are on phase");
-    expect(html, "two counters on one screen both calling themselves steps").not.toContain(
-      "You are on step",
-    );
-  });
-
-  it("counts the four phases of running a tournament", async () => {
-    // Not the five setup steps, which are the rail's business and are
-    // reported separately inside this card's own first phase.
-    expect(await journey()).toContain("of 4.");
-  });
-
-  it("moves through them as the tournament does", async () => {
-    expect(
-      await journey({ setup: { doneCount: 2, total: 5, complete: false } }),
-    ).toContain("phase 1 of 4");
-    expect(await journey()).toContain("phase 2 of 4");
-    expect(await journey({ status: "live" })).toContain("phase 3 of 4");
-    expect(await journey({ status: "completed" })).toContain("phase 4 of 4");
+    for (const title of ["Set up", "Launch", "Play", "Finish"]) expect(html).toContain(title);
   });
 
   /**
-   * A RETURNED CARD MEANS THEY ARE PLAYING, NOT THAT THEY HAVE FINISHED.
-   *
-   * The line above this used to read `launched + scored` → "phase 4 of 4",
-   * which is a
-   * test asserting what the code did rather than what is true — the failure
-   * CLAUDE.md names, found here on 2026-09-14 by somebody reading the screen
-   * rather than the suite.
-   *
-   * What they were looking at was Demo Cup: four rounds, cards on the second
-   * one, and a card telling them they were on "Finish — settle the money,
-   * then send everyone the result". Two rounds of that tournament have not
-   * been played.
+   * "YOU ARE HERE" IS THE MACHINE'S `journey`, handed in — never worked out by
+   * the card. What a returned card means (Play, never Finish; a draft with
+   * cards is being played) is the machine's rule now and is pinned in
+   * `tournament-status.test.ts`.
    */
-  it("does not call a tournament finished because a card came in", async () => {
-    expect(
-      await journey({ status: "live", scored: true }),
-      "one card in round two of four is not 'settle the money'",
-    ).toContain("phase 3 of 4");
+  it("marks the phase the machine names, and only that one", async () => {
+    const titles = { setup: "Set up", launch: "Launch", play: "Play", results: "Finish" } as const;
+    for (const [phase, title] of Object.entries(titles)) {
+      const html = await journey({ journey: phase });
+      expect(html.match(/You are here/g)?.length ?? 0, phase).toBe(1);
+      const here = html.indexOf("You are here");
+      const at = html.lastIndexOf(`>${title}<`, here);
+      expect(at, `${phase}: "You are here" is not on ${title}`).toBeGreaterThan(-1);
+      for (const other of Object.values(titles).filter((t) => t !== title)) {
+        const otherAt = html.indexOf(`>${other}<`);
+        expect(otherAt < at || otherAt > here, `${phase}: ${other} sits between ${title} and its marker`).toBe(true);
+      }
+    }
   });
 
   /**
-   * AND THE CASE AS IT WAS ACTUALLY FOUND, which is worse than the one above.
-   *
-   * Demo Cup's status is "draft", so it had not launched — and because
-   * `scored` was tested first, the card skipped Launch and Play entirely and
-   * reported a tournament finished that had never started. Both phases showed
-   * a tick.
-   *
-   * The evidence route stays: a card that has come in means somebody is out
-   * there whatever the status says. It just moves to Play, which is the only
-   * thing a card count can be right about.
-   */
-  it("reads a card on an unlaunched tournament as play, not as finished", async () => {
-    const html = await journey({ status: "draft", scored: true });
-    expect(html, "a draft with cards is being played, not over").toContain("phase 3 of 4");
-  });
-
-  /**
-   * The control on both: a "completed" status must actually reach phase 4, or
-   * the two assertions above pass on a component that has simply stopped
-   * reaching it at all.
-   *
-   * `scored: true` alongside it deliberately — the pair that used to produce
-   * the wrong answer now produces the right one for the right reason.
+   * The control: a completed tournament's journey must actually reach Finish,
+   * or the assertions above pass on a component that has simply stopped
+   * reaching it. Asked of the machine, as the page asks it — completed, with
+   * every round played — so the card and the rule are walked together.
    */
   it("still reaches Finish when the organizer says it is over", async () => {
-    expect(await journey({ status: "completed", scored: true })).toContain(
-      "phase 4 of 4",
-    );
+    const { tournamentStatus } = await import("@/lib/domain/tournament-status");
+    const phase = tournamentStatus(completedFacts(statusFacts())).journey;
+    expect(phase).toBe("results");
+    const html = await journey({ journey: phase });
+    expect(html.indexOf("You are here")).toBeGreaterThan(html.indexOf(">Finish<"));
   });
 });
 
@@ -640,10 +646,12 @@ describe("team screens", () => {
   it("says what the side's handicap number is", () => {
     // It rendered as a bare "14" beside the side's name with its meaning in a
     // `title` — an unlabelled number on a screen about handicaps, explained
-    // only to a mouse.
+    // only to a mouse. A SHARED-BALL side (J23): on a four-ball nobody plays
+    // off the side's figure, so that round says each partner's own instead —
+    // pinned in four-ball-plays-off.test.tsx.
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
-        format={format}
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Foursomes" }]} activeRoundId="r1"
+        format={{ ...format, name: "Foursomes", sharesOneCard: true }}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
         problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
@@ -901,9 +909,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
-          { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], playingHandicap: 7,
+          { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: 0, place: 1 },
-          { teamId: "t2", name: "Side B", members: [], memberIds: [], playingHandicap: 0,
+          { teamId: "t2", name: "Side B", members: [], memberIds: [], memberPlaying: [], playingHandicap: 0,
             gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );
@@ -1037,11 +1045,11 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Four-Ball" basis="net"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
+          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], memberPlaying: [], playingHandicap: 9,
             gross: 74, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t3", name: "Cats", members: ["Cal"], memberIds: ["p3"], playingHandicap: 4,
+          { teamId: "t3", name: "Cats", members: ["Cal"], memberIds: ["p3"], memberPlaying: [], playingHandicap: 4,
             gross: 71, net: 67, points: 0, played: 18, toPar: -5, place: 3 },
         ]} />,
     );
@@ -1059,9 +1067,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Four-Ball" basis="stableford"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 38, played: 18, toPar: 0, place: 1 },
-          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
+          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], memberPlaying: [], playingHandicap: 9,
             gross: 80, net: 71, points: 38, played: 18, toPar: 0, place: 1 },
         ]} />,
     );
@@ -1104,6 +1112,7 @@ describe("leaderboards for every format", () => {
         rows={[{
           teamId: "t1", name: "Ants", members: ["Ann", "Bob", "Cal", "Dee"],
           memberIds: ["p1", "p2", "p3", "p4"],
+          memberPlaying: [],
           playingHandicap: 0,
           gross: card.grossTotal, net: card.netTotal, points: card.pointsTotal,
           played: card.played, toPar: card.toPar, place: 1,
@@ -1117,9 +1126,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t2", name: "Bees", members: [], memberIds: [], playingHandicap: 0,
+          { teamId: "t2", name: "Bees", members: [], memberIds: [], memberPlaying: [], playingHandicap: 0,
             gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );
@@ -2080,13 +2089,13 @@ describe("course library", () => {
 
 describe("event switcher", () => {
   const event = {
-    id: "e1", name: "Ajay More Invitational", status: "live", dates: "12–14 Jun",
+    id: "e1", name: "Rowan Hale Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
     course: "Bushwood", players: 32, isActive: true, hasAccess: true, isOrganizer: true,
   };
 
   it("renders the list with the active event marked", () => {
     const html = render(<EventSwitcher events={[event]} />);
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
     expect(html).toContain("32");
   });
 
@@ -2094,7 +2103,7 @@ describe("event switcher", () => {
     const html = render(
       <EventSwitcher events={[{ ...event, hasAccess: false, isOrganizer: false, isActive: false }]} />,
     );
-    expect(html).toContain("Ajay More Invitational");
+    expect(html).toContain("Rowan Hale Invitational");
   });
 
   it("renders with no events", () => {
@@ -2301,7 +2310,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -2316,7 +2325,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -2327,7 +2336,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -2462,7 +2471,7 @@ describe("flight board", () => {
   ];
 
   it("renders players and offers both ways to move them", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("Ann Doyle");
     expect(html).toContain("Drag a player onto another flight");
     // The keyboard/touch route: a select per row listing every flight.
@@ -2470,7 +2479,7 @@ describe("flight board", () => {
   });
 
   it("offers no way to move anything once setup is locked", () => {
-    const html = render(<FlightBoard cards={two} locked canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked canEdit confirmed={false} />);
     expect(html).toContain("Ann Doyle");
     expect(html).not.toContain("Drag a player");
     expect(html).not.toContain("Move Ann Doyle to another flight");
@@ -2478,14 +2487,14 @@ describe("flight board", () => {
   });
 
   it("offers no way to move anything to someone who can't edit", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit={false} confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit={false} confirmed={false} />);
     expect(html).not.toContain('draggable="true"');
     expect(html).not.toContain("Move Ann Doyle to another flight");
   });
 
   it("invites a drop on an empty flight rather than looking broken", () => {
     const html = render(
-      <FlightBoard cards={[two[0], card("g2", "Flight 2", [])]} locked={false} canEdit confirmed={false} />,
+      <FlightBoard teesDoor={null} cards={[two[0], card("g2", "Flight 2", [])]} locked={false} canEdit confirmed={false} />,
     );
     expect(html).toContain("Empty — drop a player here");
   });
@@ -2493,13 +2502,13 @@ describe("flight board", () => {
   it("hides the move menu when there is nowhere else to go", () => {
     // One flight means every option is the flight they are already in, so
     // neither the menu nor the drag invitation has anywhere to point.
-    const html = render(<FlightBoard cards={[two[0]]} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={[two[0]]} locked={false} canEdit confirmed={false} />);
     expect(html).not.toContain("Move Ann Doyle to another flight");
     expect(html).not.toContain("Drag a player");
   });
 
   it("renders with no flights at all", () => {
-    expect(() => render(<FlightBoard cards={[]} locked={false} canEdit confirmed={false} />)).not.toThrow();
+    expect(() => render(<FlightBoard teesDoor={null} cards={[]} locked={false} canEdit confirmed={false} />)).not.toThrow();
   });
 });
 
@@ -2583,14 +2592,14 @@ describe("confirming a manual draw", () => {
   ];
 
   it("offers Confirm while the draw is open", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("Confirm flights");
     expect(html).not.toContain("Edit flights");
     expect(html).toContain('draggable="true"');
   });
 
   it("locks dragging once confirmed, and offers Edit to reopen", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed />);
     expect(html).toContain("Draw confirmed");
     expect(html).toContain("Edit flights");
     expect(html).not.toContain("Confirm flights");
@@ -2602,32 +2611,32 @@ describe("confirming a manual draw", () => {
 
   it("still shows the players when confirmed", () => {
     // Confirmed is read-only, not hidden.
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed />);
     expect(html).toContain("Ann Doyle");
     expect(html).toContain("A Flight");
   });
 
   it("offers neither button to someone who can't edit", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit={false} confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit={false} confirmed={false} />);
     expect(html).not.toContain("Confirm flights");
     expect(html).not.toContain("Edit flights");
   });
 
   it("offers neither once setup is locked", () => {
-    const html = render(<FlightBoard cards={two} locked canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked canEdit confirmed={false} />);
     expect(html).not.toContain("Confirm flights");
     expect(html).not.toContain("Edit flights");
   });
 
   it("uses the club's own flight names", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("A Flight");
     expect(html).toContain("B Flight");
     expect(html).not.toContain("Flight 1");
   });
 
   it("offers a rename control per flight", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("Rename A Flight");
     expect(html).toContain("Rename B Flight");
   });
@@ -2635,13 +2644,33 @@ describe("confirming a manual draw", () => {
   it("offers rename even on a confirmed draw", () => {
     // Naming is labelling, not membership — correcting a typo shouldn't mean
     // reopening a signed-off draw.
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed />);
     expect(html).toContain("Rename A Flight");
   });
 
   it("offers no rename to someone who can't edit", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit={false} confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit={false} confirmed={false} />);
     expect(html).not.toContain("Rename A Flight");
+  });
+
+  it("draws each flight's Tees SHUT, with the rounds rule's sentence, while a scored round would be reached", () => {
+    // The finding after round G594-1: `setFlightTee` refuses a flight's tees once a scored round
+    // of cards would be reached; the board offered them. The door is the rule's own sentence
+    // (`acrossRoundsRefusal`), handed in; the board only draws it.
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const tees = [{ id: "t-white", name: "White" }, { id: "t-blue", name: "Blue" }];
+    const board = (teesDoor: string | null) =>
+      render(<FlightBoard teesDoor={teesDoor} cards={two} locked={false} canEdit canSetTees confirmed={false} byFlightTees tees={tees} defaultTeeName="White (round’s)" />);
+    const boxes = (html: string) => [...html.matchAll(/<select[^>]*aria-label="Tees for [^"]*"[^>]*>/g)].map((m) => m[0]);
+    const shut = board(FROZEN);
+    expect(boxes(shut), "a Tees box per flight").toHaveLength(2);
+    for (const b of boxes(shut)) expect(b, "a flight's Tees is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    expect(shut).toContain('aria-describedby="flight-tees-door-g1"');
+    // CONTROL: nothing refusing it — pressable, and nothing said.
+    const open = board(null);
+    for (const b of boxes(open)) expect(b, "a flight's Tees is shut with nothing refusing it").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
   });
 });
 
@@ -3379,6 +3408,31 @@ describe("where this round was played", () => {
     expect(oneSet).not.toContain("Solo");
   });
 
+  it("draws the course and tees SHUT, with the rounds rule's sentence, once the round's handicaps are frozen (round G594-1)", async () => {
+    // Offered and then refused on every pick, on a scored medal — the crawl's finding. The
+    // door is the rule's own sentence (`roundRefusals`), handed in; the panel only draws it.
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const library = [
+      {
+        id: "c1",
+        name: "Bushwood",
+        tees: [
+          { id: "t1", courseId: "c1", name: "Blue", courseRating: 71.2, slopeRating: 128, par: 72, rated: true },
+          { id: "t2", courseId: "c1", name: "White", courseRating: 69.4, slopeRating: 117, par: 72, rated: true },
+        ],
+      },
+    ];
+    const selectOf = (html: string) => html.slice(html.indexOf("<select"), html.indexOf(">", html.indexOf("<select")) + 1);
+    const shut = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library, teesDoor: FROZEN });
+    expect(selectOf(shut), "the Tees box is offered on a frozen round").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    expect(selectOf(shut)).toContain('aria-describedby="tees-door-s1"');
+    // CONTROL: the same panel with the round open — pressable, and nothing said.
+    const open = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library, teesDoor: null });
+    expect(selectOf(open), "the Tees box is shut on an open round").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
+  });
+
   it("shows none of it to someone who cannot edit the tournament", async () => {
     // A player entering their own card does not set the venue for the field.
     expect(await venue({ venues: twoVenues, canEdit: false })).toBe("");
@@ -3666,8 +3720,8 @@ describe("printed foursome cards", () => {
   ];
   const base = {
     groups,
-    clubName: "Cinci Desi Golf",
-    courseName: "CDG Home Course",
+    clubName: "Cedar Dunes Golf Club",
+    courseName: "Cedar Dunes Home Course",
     dates: "May 3 – Sep 30, 2026",
     roundLabel: "Round 1",
     pars: new Array(18).fill(4),
@@ -3679,8 +3733,8 @@ describe("printed foursome cards", () => {
     // A card without its provenance is a page of numbers — this is the whole
     // point of merging printing into the sheet of record.
     const html = render(<TeeSheetPrint {...base} />);
-    expect(html).toContain("Cinci Desi Golf");
-    expect(html).toContain("CDG Home Course");
+    expect(html).toContain("Cedar Dunes Golf Club");
+    expect(html).toContain("Cedar Dunes Home Course");
     expect(html).toContain("May 3 – Sep 30, 2026");
     expect(html).toContain("Hole 10 · 8:00 AM");
   });
@@ -3701,14 +3755,14 @@ describe("printed foursome cards", () => {
     // was already on it; the badge that is on the paper one was not.
     const html = render(<TeeSheetPrint {...base} clubLogoUrl="https://x.test/l.png" />);
     expect(html).toContain("https://x.test/l.png");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   it("prints the name alone for a club with no logo", () => {
     // No logo means no mark — never ours in its place.
     const html = render(<TeeSheetPrint {...base} />);
     expect(html).not.toContain("<img");
-    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("Cedar Dunes Golf Club");
   });
 
   /**
@@ -4511,7 +4565,7 @@ describe("the organizer's Voice entry setting reaches the player's card", () => 
     const { PlayerCard } = await import("@/components/PlayerCard");
     return render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(null)}
@@ -4547,7 +4601,7 @@ describe("a Stableford card lets a player pick up (Rule 21.1b, 2026-10-08)", () 
     const { PlayerCard } = await import("@/components/PlayerCard");
     return render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(null)}
@@ -4557,7 +4611,7 @@ describe("a Stableford card lets a player pick up (Rule 21.1b, 2026-10-08)", () 
   };
 
   it("offers Picked up on a standard Stableford card", async () => {
-    expect(await card("standard")).toContain("A. Moore picked up on hole 1");
+    expect(await card("standard")).toContain("N. Calloway picked up on hole 1");
   });
 
   it("offers it on no medal card, and no modified Stableford card (controls)", async () => {
@@ -4588,7 +4642,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={nine()}
@@ -4609,7 +4663,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={nine()}
@@ -4630,7 +4684,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(4)}
@@ -4651,7 +4705,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(4)} signs={false}
@@ -4669,7 +4723,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Front nine"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Front nine"
         holes={9} pars={new Array(9).fill(4)} yards={new Array(9).fill(400)}
         strokeIndex={Array.from({ length: 9 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(5)}
@@ -4687,7 +4741,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="approved" initialStrokes={new Array(18).fill(4)}
@@ -4733,7 +4787,7 @@ describe("the player's own card opens on what is already there", () => {
       const { PlayerCard } = await import("@/components/PlayerCard");
       const html = render(
         <PlayerCard
-          stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+          stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
           holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
           strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
           status="entered" initialStrokes={new Array(18).fill(4)}
@@ -4751,7 +4805,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         shotsPerHole={new Array(18).fill(0)}
@@ -4772,7 +4826,7 @@ describe("the player's own card opens on what is already there", () => {
     const six: (number | null)[] = Array.from({ length: 18 }, (_, i) => (i < 6 ? 5 : null));
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         // A stroke on each of the six holes played, and on nothing else.
@@ -4793,7 +4847,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         // Complete, so Certify is on screen: it appears with the last hole.
@@ -4816,7 +4870,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 2"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 2"
         courseName="Machrihanish"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
@@ -4832,7 +4886,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={[]} yards={[]} strokeIndex={[]}
         status="entered" initialStrokes={nine()}
       />,
@@ -4857,7 +4911,7 @@ describe("the board answers 'where am I' first", () => {
     ranked: true,
     started: true,
     holesOwed: 18,
-    name: "A. Moore",
+    name: "N. Calloway",
     flight: "—",
     advancing: false,
     record: "2-0-0",
@@ -4876,7 +4930,7 @@ describe("the board answers 'where am I' first", () => {
   });
 
   const field = [
-    row({ id: "p1", rank: 1, name: "A. Moore", toPar: -4 }),
+    row({ id: "p1", rank: 1, name: "N. Calloway", toPar: -4 }),
     row({ id: "p2", rank: 2, name: "B. Ellis", toPar: -1 }),
     row({ id: "p3", rank: 3, name: "C. Reid", toPar: 3, thru: 14 }),
   ];
@@ -4894,7 +4948,7 @@ describe("the board answers 'where am I' first", () => {
     );
     const you = html.indexOf("You");
     expect(you, "your line renders").toBeGreaterThan(-1);
-    expect(you, "and it comes before the field").toBeLessThan(html.indexOf("A. Moore"));
+    expect(you, "and it comes before the field").toBeLessThan(html.indexOf("N. Calloway"));
     expect(html).toContain("thru 11");
   });
 
@@ -4932,7 +4986,7 @@ describe("the board answers 'where am I' first", () => {
    * component name and not checking which.)
    */
   const cutField = [
-    row({ id: "p1", rank: 1, name: "A. Moore", advancing: true }),
+    row({ id: "p1", rank: 1, name: "N. Calloway", advancing: true }),
     row({ id: "p2", rank: 2, name: "B. Ellis", advancing: true }),
     row({ id: "p3", rank: 3, name: "C. Reid", advancing: false }),
   ];
@@ -4985,7 +5039,7 @@ describe("the board answers 'where am I' first", () => {
     const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
     const html = render(<PlayerLeaderboard isStroke rows={field} holes={18} />);
     expect(html).not.toContain(">You<");
-    expect(html).toContain("A. Moore");
+    expect(html).toContain("N. Calloway");
     expect(html).toContain("C. Reid");
   });
 
@@ -5074,7 +5128,7 @@ describe("the board answers 'where am I' first", () => {
       <PlayerLeaderboard
         isStroke
         rows={[
-          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({ id: "p1", name: "N. Calloway", toPar: -4 }),
           row({ id: "p9", name: "D. Shaw", thru: 14, rank: 0, ranked: false, toPar: 2 }),
         ]}
         holes={18}
@@ -5134,8 +5188,8 @@ describe("the board answers 'where am I' first", () => {
     expect(empty, "no table over nothing").not.toContain("<th");
 
     // And a board WITH rows is untouched, or this is just "never render".
-    const full = render(<LeaderboardTable isStroke={false} rows={[row({ name: "A. Moore" })]} compact />);
-    expect(full).toContain("A. Moore");
+    const full = render(<LeaderboardTable isStroke={false} rows={[row({ name: "N. Calloway" })]} compact />);
+    expect(full).toContain("N. Calloway");
     expect(full).toContain("<th");
   });
 
@@ -5154,7 +5208,7 @@ describe("the board answers 'where am I' first", () => {
      */
     const { LeaderboardTable } = await import("@/components/LeaderboardTable");
     const noCard = render(
-      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 71, toPar: 71, parKnown: false })]} />,
+      <LeaderboardTable isStroke rows={[row({ name: "N. Calloway", gross: 71, toPar: 71, parKnown: false })]} />,
     );
     expect(noCard).toContain("71");
     expect(noCard, "the gross wearing a plus sign").not.toContain("+71");
@@ -5167,7 +5221,7 @@ describe("the board answers 'where am I' first", () => {
      * looks most like nothing is the one somebody shot exactly to par.
      */
     const level = render(
-      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 72, toPar: 0, parKnown: true })]} />,
+      <LeaderboardTable isStroke rows={[row({ name: "N. Calloway", gross: 72, toPar: 0, parKnown: true })]} />,
     );
     expect(level, "level par is a score, not a blank").toContain("E");
   });
@@ -5192,7 +5246,7 @@ describe("the board answers 'where am I' first", () => {
    * `me/card/page.tsx` passes `pars={known ? ... : []}` on purpose.
    */
   describe("a to-par is only printed where there is a par to be under", () => {
-    const noPar = row({ name: "A. Moore", gross: 71, net: 71, toPar: 71, parKnown: false });
+    const noPar = row({ name: "N. Calloway", gross: 71, net: 71, toPar: 71, parKnown: false });
 
     it("the player's own board says nothing rather than the gross", async () => {
       const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
@@ -5241,7 +5295,7 @@ describe("the board answers 'where am I' first", () => {
       // TWO, because one player takes the `solo` branch — a different pad with
       // no running total on it at all, so a single-player fixture would assert
       // the absence of a line that was never going to be there.
-      const players = [{ id: "p1", name: "A. Moore" }, { id: "p2", name: "B. Ellis" }];
+      const players = [{ id: "p1", name: "N. Calloway" }, { id: "p2", name: "B. Ellis" }];
       const cards = {
         p1: [5, 5, 5, 5, ...new Array(14).fill(null)] as (number | null)[],
         p2: new Array(18).fill(null) as (number | null)[],
@@ -5276,7 +5330,7 @@ describe("the board answers 'where am I' first", () => {
    *     2  Diego Alvarez        66        (gross 69)
    *     3  Sang-woo Kim         65        (gross 70)
    *     4  Elena Petrova        64        (gross 70)
-   *     5  AJ                   68        (gross 70)
+   *     5  Ned                 68        (gross 70)
    *
    * Nothing false — just a leaderboard whose only score column does not
    * descend, because the order is gross and the column is net. The other half
@@ -5286,12 +5340,12 @@ describe("the board answers 'where am I' first", () => {
   describe("the compact board shows the number the round is decided on", () => {
     /**
      * NO NUMBER APPEARS IN BOTH SETS. The first draft gave Ellis a net of 66
-     * and Moore a gross of 66, so "the column is not showing gross" could not
+     * and Calloway a gross of 66, so "the column is not showing gross" could not
      * be asserted without tripping over a legitimate net — a fixture that
      * cannot tell the two answers apart, which is the whole thing being tested.
      */
     const pair = [
-      row({ id: "p1", rank: 1, name: "A. Moore", gross: 66, net: 55, toPar: -6 }),
+      row({ id: "p1", rank: 1, name: "N. Calloway", gross: 66, net: 55, toPar: -6 }),
       row({ id: "p2", rank: 2, name: "B. Ellis", gross: 69, net: 58, toPar: -3 }),
     ];
     const scores = (html: string) =>
@@ -5363,7 +5417,7 @@ describe("the board answers 'where am I' first", () => {
       <LeaderboardTable
         isStroke
         rows={[
-          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({ id: "p1", name: "N. Calloway", toPar: -4 }),
           row({
             id: "p9",
             name: "D. Shaw",
@@ -6469,7 +6523,7 @@ describe("the roster and the tournament in front of it", () => {
   const roster = async (members: RosterRow[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6519,7 +6573,7 @@ describe("members", () => {
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6793,10 +6847,10 @@ describe("registration and field", () => {
   const reg = async (over: Record<string, unknown> = {}) => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     return render(
-      <RegistrationClient
+      <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, registrationToken: "",
@@ -6805,51 +6859,112 @@ describe("registration and field", () => {
     );
   };
 
+  it("draws one player's Tees SHUT, with the rounds rule's sentence, while a scored round would be reached", async () => {
+    // The finding after round G594-1: `setPlayerTee` refuses a player's tees once a scored round of
+    // cards would be reached; Entries offered them. The door is the rule's own sentence, handed in.
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const one = { id: "p1", name: "zz-Ann Doyle", handicap: 10, handicapType: "18", handicapSource: "manual", seed: 1, email: "p1@example.invalid", phone: "", teeId: null, inheritedTee: "White (tournament’s)" };
+    const draw = (teesDoor: string | null) =>
+      render(
+        <RegistrationClient teesDoor={teesDoor} doors={OPEN_DOORS}
+          confirmed={[one as never]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
+          tees={[{ id: "t-white", name: "White" }, { id: "t-blue", name: "Blue" }]} teePolicy="own"
+          event={{
+            name: "zz-Club Championship", capacity: 32, status: "live", regDeadline: "", regOpens: "", today: "2026-06-01",
+            registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
+            dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+            requirePhone: false, registrationToken: "",
+          }} />,
+      );
+    const box = (html: string) => html.match(/<select[^>]*aria-label="Tees for zz-Ann Doyle"[^>]*>/)?.[0] ?? "";
+    const shut = draw(FROZEN);
+    expect(box(shut), "Entries draws no Tees box for the player").not.toBe("");
+    expect(box(shut), "a player's Tees is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    // The box points at the sentence, and the sentence is there under that id.
+    const said = box(shut).match(/aria-describedby="(player-tees-door-[^"]+)"/)?.[1];
+    expect(said, "the Tees box does not point at its reason").toBeTruthy();
+    expect(shut).toMatch(new RegExp(`id="${said}"[^>]*>[\\s\\S]*?frozen off its tees`));
+    // CONTROL: nothing refusing it — pressable, and nothing said.
+    const open = draw(null);
+    expect(box(open), "a player's Tees is shut with nothing refusing it").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
+  });
+
   it("keeps every control on the registration screen", async () => {
     const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
     for (const control of [
-      "Confirmed", "Waitlisted", "Registration closes", "Status",
-      "Public sign-up link", "Take the link down", "When someone registers",
+      "Confirmed", "Waitlisted", "Entry terms", "Entries open", "Entries close", "Places",
+      "Public sign-up link", "When someone enters",
       "Auto-confirm to capacity", "Approve each entry", "Require a mobile number",
       "Invite players", "Message", "Add someone new", "Player name",
-      "Close registration",
+      "Close entries",
     ]) {
       expect(html, `missing control: ${control}`).toContain(control);
     }
   });
 
-  it("does not give two different switches the same name", async () => {
-    // The banner's "Close registration" is registrationOverride — whether this
-    // tournament takes entries at all. The card's switch is registrationOpen —
-    // whether the public link exists. They are not opposites, and both used to
-    // say "registration": the card was titled "Open registration" and its
-    // button read "Open registration" / "Close sign-ups", inches under a button
-    // reading "Close registration".
-    /**
-     * Rendered with the link PUBLISHED, because that is now the state in which
-     * these two switches are on screen together.
-     *
-     * The self-service panels sit behind a disclosure that opens itself when a
-     * public link exists and stays shut when none does — so with
-     * `registrationOpen: false` the card's switch is one click away and cannot
-     * be confused with the banner's, and with it true both are visible at once,
-     * which is exactly the case this test was written for. Asserting the open
-     * state is therefore asserting the collision that could actually happen.
-     */
-    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
-    expect(html).toContain("Take the link down");
-    expect(html).not.toContain(">Open registration<");
+  it("has ONE switch for whether entries are open, and it is named for what it does", async () => {
+    // Five controls used to answer this: the banner's "Close registration" /
+    // "Reopen registration" / "Follow the deadline again" (the organizer's
+    // override) and the link panel's "Publish the link" / "Take the link down".
+    // Two switches, one word, and they were not opposites. There is now one
+    // state line and one button, worded by `entriesOpen`.
+    const live = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(live).toContain("Close entries");
+    expect(live).not.toContain(">Open entries<");
+    for (const gone of ["Take the link down", "Publish the link", "Close registration", "Reopen registration", "Follow the deadline again", "Keep taking entries"]) {
+      expect(live, gone).not.toContain(gone);
+    }
 
-    // And with no link, the disclosure carries the state in its own summary
-    // rather than hiding it — an organizer must be able to tell whether people
-    // can sign themselves up without opening anything.
+    // And with no link: the same one button, the other way round — and the
+    // state is said in words, not left to a chip.
     const shut = await reg({ registrationOpen: false });
+    expect(shut).toContain("Open entries");
+    expect(shut).not.toContain("Close entries");
+    expect(shut).toContain("Not open");
     expect(shut).toContain("Let players sign themselves up");
     expect(shut).toContain("No public link yet");
-    // The word this test exists to police. The collapsed header must not
-    // become a third control that says "registration" and means a fourth
-    // thing.
-    expect(shut).not.toContain(">Open registration<");
+    for (const gone of ["Take the link down", "Publish the link", "Close registration", "Reopen registration"]) {
+      expect(shut, gone).not.toContain(gone);
+    }
+  });
+
+  it("says Reopen entries when the dates or the organizer have shut the door", async () => {
+    const closedByHand = await reg({ registrationOpen: true, registrationToken: "zztok", registrationOverride: true });
+    expect(closedByHand).toContain("Reopen entries");
+    const pastDeadline = await reg({ registrationOpen: true, registrationToken: "zztok", regDeadline: "2026-05-01" });
+    expect(pastDeadline).toContain("Reopen entries");
+    const notYet = await reg({ registrationOpen: true, registrationToken: "zztok", regOpens: "2026-06-10" });
+    expect(notYet).toContain("Open entries now");
+  });
+
+  it("tells staff who are not admins why the entry terms are read-only, instead of letting the server refuse", async () => {
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const html = render(
+      <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
+        confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
+        event={{
+          name: "zz-Club Championship", capacity: 32, status: "draft", regDeadline: "", regOpens: "", today: "2026-06-01",
+          registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
+          dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+          requirePhone: false, registrationToken: "",
+        }} />,
+    );
+    expect(html).toContain("Only an organizer can change the entry terms. You can still open and close entries.");
+    expect(html).toContain("Open entries");
+    // CONTROL: an admin is not told it.
+    expect(html, "the dates can be typed into").toMatch(/<input[^>]*type="date"[^>]*disabled/);
+    const asAdmin = await reg();
+    expect(asAdmin).not.toContain("Only an organizer can change the entry terms");
+    expect(asAdmin).not.toMatch(/<input[^>]*type="date"[^>]*disabled/);
+  });
+
+  it("shows no way back to Tournament details for the entry terms", async () => {
+    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(html).not.toContain("change on Tournament details");
+    expect(html).not.toContain("set it on Tournament details");
   });
 
   it("keeps the sign-up link and its invites behind one disclosure", async () => {
@@ -6866,7 +6981,7 @@ describe("registration and field", () => {
     expect(shut).not.toContain("Invite players");
     // The refusal that lives inside it goes with it — it is advice about a
     // panel that is not on screen.
-    expect(shut).not.toContain("Publish the sign-up link first");
+    expect(shut).not.toContain("Open entries first");
 
     const open = await reg({ registrationOpen: true, registrationToken: "zztok" });
     expect(open).toContain("Invite players");
@@ -6889,7 +7004,7 @@ describe("registration and field", () => {
   it("does not tell an organizer that closing is cosmetic", async () => {
     // "closing only changes what this says" was false. registrationStatus
     // returning acceptingEntries:false makes decideIntake refuse the entry.
-    const html = await reg({ registrationOverride: true });
+    const html = await reg({ registrationOverride: true, registrationOpen: true, registrationToken: "zztok" });
     expect(html).not.toContain("only changes what this says");
     // The specific sentence, not just the words "sign-up link" — those also
     // appear in the invite card's refusal, which would pass this vacuously.
@@ -6906,6 +7021,8 @@ describe("tournament details", () => {
       <EventSetupClient
         playersCount={24}
         courses={[{ id: "c1", name: "Bushwood", city: "Chicago", address: "" }]}
+        // A tournament with a round: the Overall result is only asked then.
+        roundFormats={["Stroke Play"]}
         {...props}
         initial={{
           name: "zz-Club Championship", playKind: "tournament", startOn: "", endOn: "", dates: "", datesTentative: false,
@@ -6916,6 +7033,24 @@ describe("tournament details", () => {
         }} />,
     );
   };
+
+  it("does not ask the Overall result before there is a round to ask it about", async () => {
+    /**
+     * Setup sequencing audit, item 6 (5 Nov). Details asked "Match play or
+     * Stroke play?" of a tournament with no rounds, and the FIRST round then
+     * overwrote the answer (`addStage`: a round with no opponents decides the
+     * tournament on strokes). Two controls for one rule, the later one winning
+     * quietly. Now the question is asked only once there are rounds, where an
+     * answer sticks: before that the screen says the first round decides it.
+     */
+    const html = await setup({}, { roundFormats: [] });
+    expect(html).not.toContain('name="fmt"');
+    expect(html).toContain("Decided by your first round");
+    // CONTROL: with a round on the tournament the choice is the organizer's.
+    const withRound = await setup({}, { roundFormats: ["Stroke Play"] });
+    expect(withRound).toContain('name="fmt"');
+    expect(withRound).not.toContain("Decided by your first round");
+  });
 
   it("says when more are confirmed than the field holds", async () => {
     /**
@@ -6959,7 +7094,6 @@ describe("tournament details", () => {
       "Tournament identity", "Tournament name", "Tournament dates",
       "How the tournament is decided", "Overall result", "Match play", "Stroke play",
       "Venue", "Golf course", "City", "Address",
-      "Registration", "Registration deadline", "Field capacity",
       "Where the field size comes from", "Player count", "From registrations",
       "Target player count", "Apply",
       // The save button reads "Saved" until something is dirty, which on a
@@ -7073,19 +7207,37 @@ describe("tournament details", () => {
     // of this card wore the same name, and the Recommended flow card below it
     // told organizers to go to "Entries" — meaning the screen.
     const html = await setup();
-    // Once, in the Recommended flow list, where it means the screen.
-    // As a NAME (a whole text node), not the "Entries open" date label.
-    expect(html.match(/>Entries</g)?.length ?? 0).toBe(1);
+    // In the Recommended flow list and in the line that says where the entry
+    // terms went, where it means the screen. Never as a SECTION heading.
+    expect(html.match(/>Entries</g)?.length ?? 0).toBe(2);
+    expect(html).not.toMatch(/card-kicker[^>]*>Entries</);
+    expect(html).not.toMatch(/card-kicker[^>]*>Registration</);
   });
 
   it("separates the field-resizing tool from the registration rules", async () => {
     // The deadline and the capacity decide whether the public form takes an
     // entry. "Player count" → Manual → Apply waitlists confirmed players,
     // invents placeholder rows and deletes scored matches. One heading held
-    // all three.
+    // all three; now the first two are not on this screen at all.
     const html = await setup({ playerCountMode: "manual" });
-    expect(html.indexOf("Field capacity")).toBeLessThan(html.indexOf("Where the field size comes from"));
+    expect(html.indexOf("are set on")).toBeLessThan(html.indexOf("Where the field size comes from"));
     expect(html.indexOf("Where the field size comes from")).toBeLessThan(html.indexOf("Player count"));
+  });
+
+  it("keeps the entry terms off Tournament details: they are set on Entries", async () => {
+    /**
+     * The entries cleanup (5 Nov, setup audit items 1 and 2). When entries
+     * open and close and how many places there are were set here while
+     * approval and the sign-up link were on Entries; Entries showed the
+     * deadline read-only and sent the organizer back to this page.
+     */
+    const html = await setup({ capacity: 32, regDeadline: "2026-06-14", regOpens: "2026-06-01" });
+    for (const gone of ["Registration deadline", "Field capacity", "Entries open", "reg-opens", "capmode"]) {
+      expect(html, gone).not.toContain(gone);
+    }
+    expect(html).toContain("are set on");
+    expect(html).toContain('href="/registration"');
+    // CONTROL: the Entries screen has them (see "registration and field").
   });
 
   it("names real screens in the recommended flow", async () => {
@@ -7221,7 +7373,8 @@ describe("the setup checklist", () => {
 
   it("lists what is left and marks the next one", async () => {
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
-    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
+    // `eventCount: 1`: since Cut A (15 Nov) the members step exists only once a first event does.
+    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />);
     expect(html).toContain("Add your members");
     expect(html).toContain("Next");
   });
@@ -7323,9 +7476,9 @@ describe("the setup checklist", () => {
      */
     expect(html, "/event").not.toContain('href="/event"');
     expect(html).toContain('href="/organization"');
-    expect(html).toContain('href="/roster"');
+    // EVENT-FIRST (Cut A, 15 Nov 2026): no members step before the first event at all.
+    expect(html).not.toContain("Add your members");
     // The rows are still THERE, and each blocked one says why it is not a link.
-    expect(html).toContain("Add your members");
     expect(html).toContain("Opens once you have a tournament");
     // And the promise the screen was breaking is not made.
     expect(html).not.toContain("nothing here is locked");
@@ -7352,7 +7505,8 @@ describe("the setup checklist", () => {
      */
     expect(html.indexOf("Name your")).toBeLessThan(chip);
     expect(html.lastIndexOf("Create your first tournament")).toBeGreaterThan(chip);
-    expect(html.indexOf("Add your members")).toBeGreaterThan(chip);
+    // Event-first (Cut A): nothing about members before the first event.
+    expect(html).not.toContain("Add your members");
   });
 
   it("does not say a step costs something it cannot yet be blamed for", async () => {
@@ -7379,10 +7533,10 @@ describe("the setup checklist", () => {
     const open = render(<OrgSetupChecklist state={await state({ hasCourse: false, eventCount: 1 })} />);
     expect(open).toContain("re-entered on every tournament");
 
-    // The roster's own consequence is the control: it is shown now, on the
-    // same no-tournament render, because that step CAN be acted on.
+    // The roster's own consequence is the control: shown once the step exists
+    // (a first event, since Cut A), because that step CAN be acted on.
     expect(
-      render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />),
+      render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />),
       "the members step can be acted on, so it keeps its consequence",
     ).toContain("empty field");
   });
@@ -7401,7 +7555,7 @@ describe("the setup checklist", () => {
     expect(html).not.toContain("You do this one on this page");
   });
 
-  it("does not link the tournament while the club still owes an answer", async () => {
+  it("links the tournament when the only answer owed is the name, which the create form takes", async () => {
     /**
      * THE ROW THE COMPLAINT WAS ABOUT. "How come create your first tournament
      * is complete and enabled when club settings are not complete?" — raised
@@ -7420,10 +7574,13 @@ describe("the setup checklist", () => {
         state={await state({ named: false, memberCount: 0, eventCount: 0 })}
       />,
     );
-    expect(html).not.toContain(`href="${SETUP_HREF.tournament}"`);
-    // And it says WHICH answers, rather than greying out in silence.
-    expect(html).toContain("name your club");
-    expect(html).toContain("add your members");
+    /**
+     * EVENT-FIRST (Cut A, Ajay 15 Nov 2026). The members list is no longer
+     * owed before the first event, so the one answer left is the club's name,
+     * and the create form asks for it in the same breath: the row is live.
+     */
+    expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
+    expect(html).not.toContain("add your members");
     // The promise the header makes has to follow the rows it describes.
     expect(html).not.toContain("nothing here is locked");
   });
@@ -7534,6 +7691,26 @@ describe("play settings name one thing per heading", () => {
     expect(html).toContain("<optgroup");
     expect(html).toContain('label="Bushwood"');
     expect(html).toContain('label="Ridgeline"');
+  });
+
+  it("draws Played from SHUT, with the rounds rule's sentence, while a scored round would be reached (round G594-1)", async () => {
+    const { PlaySettings } = await import("@/components/PlaySettings");
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const tees = [tee("t1", "Blue", "Bushwood"), tee("t2", "White", "Bushwood")];
+    const draw = (teesDoor: string | null) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render(<PlaySettings mode="tournament" settings={settings as any} canEdit tees={tees as any} teesDoor={teesDoor} />);
+    const box = (html: string) => {
+      const at = html.indexOf('id="default-tee"');
+      return html.slice(html.lastIndexOf("<select", at), html.indexOf(">", at) + 1);
+    };
+    const shut = draw(FROZEN);
+    expect(box(shut), "Played from is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    // CONTROL: no refusal — pressable, and nothing said.
+    const open = draw(null);
+    expect(box(open), "Played from is shut with nothing refusing it").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
   });
 
   it("does not group a single-venue tournament", async () => {
@@ -7717,7 +7894,7 @@ describe("the organization roles read as Commissioner", () => {
     const { OrganizationAccess } = await import("@/components/OrganizationAccess");
     const { OrgProfileProvider } = await import("@/components/OrgProfileProvider");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<OrgProfileProvider kind="club"><OrganizationAccess report={report as any} canEdit asks={[]} seats={1} /></OrgProfileProvider>);
+    return render(<OrgProfileProvider kind="club"><OrganizationAccess report={report as any} canEdit actorRole="owner" asks={[]} seats={1} /></OrgProfileProvider>);
   };
 
   it("shows Commissioner and never Owner", async () => {
@@ -7757,24 +7934,22 @@ describe("the lifecycle button names the phase, not the link", () => {
     name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play", overall: "Match play",
     players: 33, flights: 8, rounds: 4,
   };
-  const bar = async (status: string, resultsIn = 0) => {
+  const bar = async (status: string) => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status={status}
+        status={cardFor(status)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
-        resultsIn={resultsIn}
       />,
     );
   };
 
-  it("offers Launch and says Setting up, whichever setting-up status is stored (G1, 2026-10-31)", async () => {
+  it("offers Launch and says Setting up on the one setting-up status (G1, 2026-10-31; A045)", async () => {
     // The ladder's two buttons gated nothing — taking entries is the sign-up
-    // link, readiness is the launch gate — so they are gone, and the three
-    // stored values read as one step.
-    for (const status of ["draft", "registration", "ready"]) {
+    // link, readiness is the launch gate — so they are gone, and since A045
+    // (state machine PR 8) one stored value is left before launch.
+    for (const status of PRE_LAUNCH_STATUSES) {
       const html = await bar(status);
       expect(html, status).toContain("Launch tournament");
       expect(html, status).toContain("Setting up");
@@ -7839,11 +8014,9 @@ describe("a Par tournament is offered the upgrade before it is deleted", () => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status={status}
+        status={cardFor(status, 3, 8)}
         isAdmin
-        configUnlocked={false}
         summary={summary}
-        resultsIn={3}
         deletesOnComplete={deletes}
         keepOffer={deletes ? offer : undefined}
         closesOn={closesOn}
@@ -7881,26 +8054,27 @@ describe("a draft that is already being played", () => {
     name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play", overall: "Match play",
     players: 33, flights: 8, rounds: 4,
   };
-  const bar = async (status: string, resultsIn: number, isAdmin = true) => {
+  // `played`: how many of its four rounds have results in (each round's
+  // `hasResult`, the machine's one definition — PR 3 moved this card off the
+  // count of results, `resultsIn`).
+  const bar = async (status: string, played: number, isAdmin = true) => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status={status}
+        status={cardFor(status, played)}
         isAdmin={isAdmin}
-        configUnlocked={false}
         summary={summary}
-        resultsIn={resultsIn}
       />,
     );
   };
 
   it("does not leave “Setting up” standing on its own", async () => {
     // The chip that started the complaint ("Draft", until G1 made the three
-    // setting-up statuses one). It is still shown — the organizer's — but it
-    // no longer has the card to itself.
-    const html = await bar("draft", 47);
+    // setting-up statuses one). Since PR 3 the machine's chip says both in
+    // one: "Setting up · results in" (D5), where it was two chips.
+    const html = await bar("draft", 2);
     expect(html).toContain("Setting up");
-    expect(html, "the observed state is not beside the stored one").toContain("Being played");
+    expect(html, "the observed state is not said beside the stored one").toContain("Setting up · results in");
   });
 
   it("offers launching, not entries, once results are in", async () => {
@@ -7910,18 +8084,22 @@ describe("a draft that is already being played", () => {
      * because the ladder only ever asked what the status was. Launching is the
      * step that reconciles the disagreement.
      */
-    const html = await bar("draft", 47);
+    // The button keeps its name in every state (PM/UX ruling, PR 3): "Launch
+    // tournament". That it is being played is the card's text, not the button's.
+    const html = await bar("draft", 2);
     expect(html).toContain("Launch tournament");
+    expect(html, "the button was renamed by the state").not.toContain("Launch it —");
+    expect(html, "the card no longer says it is being played").toContain("results in, but this tournament hasn’t been launched");
     expect(html, "still offering to take entries mid-play").not.toContain("Start taking entries");
   });
 
   it("offers Launch on a draft nobody has played, and does not call it played", async () => {
     // The regression half: since G1 the ordinary case is Launch too, and the
-    // "being played" chip stays for a draft with results only.
+    // "results in" chip stays for a draft with results only.
     const html = await bar("draft", 0);
     expect(html).toContain("Launch tournament");
     expect(html).not.toContain("Start taking entries");
-    expect(html).not.toContain("Being played");
+    expect(html).not.toContain("results in");
   });
 
   it("offers launching exactly once", async () => {
@@ -7933,8 +8111,9 @@ describe("a draft that is already being played", () => {
      * The dialog is not rendered until the button is pressed, so every
      * occurrence in this markup is a control on the card.
      */
-    const html = await bar("draft", 47);
+    const html = await bar("draft", 2);
     expect(html.match(/Launch tournament/g) ?? []).toHaveLength(1);
+    expect(html.match(/Launch it/g) ?? []).toHaveLength(0);
   });
 
   it("keeps the warning to the disagreement and its cost", async () => {
@@ -7947,8 +8126,9 @@ describe("a draft that is already being played", () => {
      * DOES moved to the dialog that launching opens — asserted by absence
      * here, and by presence in the dialog's own test below.
      */
-    const html = await bar("draft", 47);
-    expect(html).toContain("47 results are in");
+    const html = await bar("draft", 2);
+    // Which rounds, from each round's `hasResult` (PR 3) — not a count of rows.
+    expect(html).toContain("Round 1 and Round 2 have results in, but this tournament hasn’t been launched");
     expect(html).toContain("already open the board and their card");
     expect(html, "the card is explaining config locking again").not.toContain(
       "locks the configuration",
@@ -7961,8 +8141,9 @@ describe("a draft that is already being played", () => {
   it("says nothing extra to somebody who cannot act on it", async () => {
     // A non-admin gets the state and the reason, and no button they are not
     // allowed to press.
-    const html = await bar("draft", 47, false);
-    expect(html).toContain("Being played");
+    const html = await bar("draft", 2, false);
+    expect(html).toContain("results in");
+    expect(html).not.toContain("Launch it");
     expect(html).not.toContain("Launch tournament");
   });
 });
@@ -8544,9 +8725,12 @@ describe("a net match on the round code shows the shots", () => {
     aHandicap: 12,
     bHandicap: 8,
     holes: new Array(18).fill(null),
-    flipped: false,
+    aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
   };
-  const play = (matchShots: { mine: number[]; theirs: number[] } | null) =>
+  const play = (matchShots: { a: number[]; b: number[] } | null) =>
     renderToStaticMarkup(
       <PlayClient
         stage="score"
@@ -8563,11 +8747,11 @@ describe("a net match on the round code shows the shots", () => {
       />,
     );
 
-  it("puts the holder's shot on their own answer for the hole on screen", () => {
-    // The card opens on hole 1, SI 1: Bea receives there.
-    const html = play({ mine: [1, ...new Array(17).fill(0)], theirs: new Array(18).fill(0) });
-    // Each answer names the player it gives the hole to (2026-10-18) — the
-    // holder by name, never "you", which means whoever's name was tapped.
+  it("puts side A's shot on side A's answer for the hole on screen", () => {
+    // The card opens on hole 1, SI 1: Bea, side A as drawn, receives there.
+    const html = play({ a: [1, ...new Array(17).fill(0)], b: new Array(18).fill(0) });
+    // Each answer names the player it gives the hole to (2026-10-18) — by
+    // name, never "you", which means whoever's name was tapped.
     expect(html).toContain("Hole 1 to zz-Bea Zed, who gets a shot");
     expect(html).not.toContain("Hole 1 to zz-Ann Zed, who gets");
   });
@@ -8600,7 +8784,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
           aHandicap: 8,
           bHandicap: 12,
           holes: new Array(9).fill(null),
-          flipped: false,
+          aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
         }}
         holes={9}
         pars={NINE_PARS}
@@ -8648,7 +8835,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
         aHandicap: 8,
         bHandicap: 12,
         holes: new Array(18).fill(null),
-        flipped: false,
+        aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
       },
       pars: new Array(18).fill(4),
       yards: new Array(18).fill(400),
@@ -8678,7 +8868,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
         aHandicap: 8,
         bHandicap: 12,
         holes: ["A", "A", "A", "A", "H", "H", null, null, null],
-        flipped: false,
+        aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
       },
     });
     expect(decided).not.toContain("Fill in each hole until the match is decided");
@@ -8693,7 +8886,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
         aHandicap: 8,
         bHandicap: 12,
         holes: ["A", "A", "A", "H", "H", "H", null, null, null],
-        flipped: false,
+        aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
       },
     });
     expect(live).toContain("Fill in each hole until the match is decided");
@@ -9459,7 +9655,7 @@ describe("the event switcher, with a quick round in the list", () => {
   const row = (over: Partial<EventRow> = {}): EventRow => ({
     id: "e1",
     name: "Club Championship",
-    status: "draft",
+    word: { label: "Setting up", tag: "tag-neutral" },
     dates: "May 14–16",
     course: "Blue Ash",
     players: 33,
@@ -9471,7 +9667,7 @@ describe("the event switcher, with a quick round in the list", () => {
 
   const both = [
     row(),
-    row({ id: "e2", name: "Ada v Bo", players: 2, status: "live", isCasual: true }),
+    row({ id: "e2", name: "Ada v Bo", players: 2, word: { label: "Live", tag: "tag-accent-2" }, isCasual: true }),
   ];
 
   it("counts tournaments, not everything in the list", () => {

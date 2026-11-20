@@ -2,7 +2,7 @@
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
 import {
   matchCourse,
@@ -98,6 +98,7 @@ export function VenuePrompt({
   // A society is not a club, and this screen is the one a society lives on:
   // a different course every month. See OrgProfileProvider.
   const org = useOrgProfile();
+  const fid = useId();
   const [typed, setTyped] = useState("");
   const [chosen, setChosen] = useState<VenueCourse | null>(null);
   const [nine, setNine] = useState<"full" | "front" | "back">(holes === 9 ? "front" : "full");
@@ -284,10 +285,14 @@ export function VenuePrompt({
 
   const grid = (label: string, vals: string[], set: (v: string[]) => void, hint: string) => (
     <div style={{ marginTop: 10 }}>
-      <label style={{ fontSize: 13, fontWeight: 600 }}>
+      <span id={`${fid}-grid-${label.replace(/\s+/g, "-")}`} style={{ fontSize: 13, fontWeight: 600 }}>
         {label} <span className="text-muted" style={{ fontWeight: 400 }}>{hint}</span>
-      </label>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 4, marginTop: 4 }}>
+      </span>
+      <div
+        role="group"
+        aria-labelledby={`${fid}-grid-${label.replace(/\s+/g, "-")}`}
+        style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 4, marginTop: 4 }}
+      >
         {vals.map((v, i) => (
           <input
             key={i}
@@ -318,8 +323,9 @@ export function VenuePrompt({
       </div>
 
       <div className="field">
-        <label>Golf course</label>
+        <label htmlFor={`${fid}-course`}>Golf course</label>
         <input
+          id={`${fid}-course`}
           className="input"
           value={typed}
           onChange={(e) => { setTyped(e.target.value); setChosen(null); }}
@@ -417,19 +423,19 @@ export function VenuePrompt({
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div className="field">
-              <label>City</label>
-              <input className="input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cincinnati, OH" />
+              <label htmlFor={`${fid}-city`}>City</label>
+              <input id={`${fid}-city`} className="input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cincinnati, OH" />
             </div>
             <div className="field">
-              <label>Address</label>
-              <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="5401 Kennedy Ave" />
+              <label htmlFor={`${fid}-address`}>Address</label>
+              <input id={`${fid}-address`} className="input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="5401 Kennedy Ave" />
             </div>
           </div>
 
           {/* Row at a time, because that is how a card is laid out and how it
               comes off a club website or a photo someone is reading from. */}
-          <div className="field">
-            <label>Paste the card, a row at a time</label>
+          <div className="field" role="group" aria-labelledby={`${fid}-paste`}>
+            <span className="field-caption" id={`${fid}-paste`}>Paste the card, a row at a time</span>
             <input className="input" value={pastePar} onChange={(e) => setPastePar(e.target.value)} placeholder="Par   4 5 3 4 4 4 3 4 5  36  …" />
             <input className="input" style={{ marginTop: 6 }} value={pasteSi} onChange={(e) => setPasteSi(e.target.value)} placeholder="S.I.  7 3 11 1 15 5 17 9 13 …" />
             <input className="input" style={{ marginTop: 6 }} value={pasteYards} onChange={(e) => setPasteYards(e.target.value)} placeholder={`${distance.row} (optional)`} />
@@ -496,20 +502,20 @@ export function VenuePrompt({
             style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 8 }}
           >
             <div className="field">
-              <label>Tees</label>
-              <input className="input" value={teeName} onChange={(e) => setTeeName(e.target.value)} placeholder="Blue" />
+              <label htmlFor={`${fid}-tee-name`}>Tees</label>
+              <input id={`${fid}-tee-name`} className="input" value={teeName} onChange={(e) => setTeeName(e.target.value)} placeholder="Blue" />
             </div>
             <div className="field">
-              <label>Rating</label>
-              <input className="input" value={cr} onChange={(e) => setCr(e.target.value)} placeholder="72.4" inputMode="decimal" />
+              <label htmlFor={`${fid}-tee-rating`}>Rating</label>
+              <input id={`${fid}-tee-rating`} className="input" value={cr} onChange={(e) => setCr(e.target.value)} placeholder="72.4" inputMode="decimal" />
             </div>
             <div className="field">
-              <label>Slope</label>
-              <input className="input" value={slope} onChange={(e) => setSlope(e.target.value)} placeholder="133" inputMode="numeric" />
+              <label htmlFor={`${fid}-tee-slope`}>Slope</label>
+              <input id={`${fid}-tee-slope`} className="input" value={slope} onChange={(e) => setSlope(e.target.value)} placeholder="133" inputMode="numeric" />
             </div>
             <div className="field">
-              <label>Par</label>
-              <input className="input" value={teePar} onChange={(e) => setTeePar(e.target.value)} inputMode="numeric" />
+              <label htmlFor={`${fid}-tee-par`}>Par</label>
+              <input id={`${fid}-tee-par`} className="input" value={teePar} onChange={(e) => setTeePar(e.target.value)} inputMode="numeric" />
             </div>
           </div>
         </div>
@@ -517,8 +523,8 @@ export function VenuePrompt({
 
       {needsNine(holes, null) && (
         <div className="field">
-          <label>Which nine?</label>
-          <div className="seg" style={{ alignSelf: "flex-start" }}>
+          <span className="field-caption" id={`${fid}-nine`}>Which nine?</span>
+          <div className="seg" role="radiogroup" aria-labelledby={`${fid}-nine`} style={{ alignSelf: "flex-start" }}>
             {(["front", "back"] as const).map((n) => (
               <label key={n} className="seg-opt">
                 <input type="radio" name="which-nine" checked={nine === n} onChange={() => setNine(n)} />

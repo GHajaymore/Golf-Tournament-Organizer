@@ -11,10 +11,21 @@ import { RATE_LIMITS, throttleMessage, type RateLimitKind } from "@/lib/domain/r
  */
 const ABOUT: Record<RateLimitKind, RegExp> = {
   signin: /sign-in/i,
+  "signin-client": /sign-ins/i,
   "claim-password": /attempts/i,
   "password-reset": /reset/i,
   "email-code-send": /sent three codes/i,
-  "round-code": /code/i,
+  "entry-code-send": /several codes/i,
+  "code-send-client": /several codes/i,
+  // One code box (2026-11-17): every code budget says one sentence, naming no kind.
+  "round-code": /code attempts/i,
+  "round-code-client": /code attempts/i,
+  "player-link-client": /code attempts/i,
+  "player-link-alarm": /code attempts/i,
+  "player-link-slow": /code attempts/i,
+  "eight-char-alarm": /code attempts/i,
+  "eight-char-slow": /code attempts/i,
+  "link-slips": /printed slips/i,
   "discount-check": /discount code/i,
   "register-token": /entry form/i,
   "register-email": /registration/i,
@@ -24,6 +35,8 @@ const ABOUT: Record<RateLimitKind, RegExp> = {
   "course-search": /course search/i,
   "course-search-staff": /course search/i,
   "ai-check": /AI check/i,
+  "guest-post": /too many messages/i,
+  "push-device": /alert changes/i,
 };
 
 describe("throttle messages", () => {

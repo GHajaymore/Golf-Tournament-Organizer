@@ -10,6 +10,7 @@ import {
   windowFor,
   type RateLimitKind,
 } from "../domain/rate-limit";
+import { CODE_WORDS } from "../domain/code-shape";
 
 /**
  * The attempt limits on the endpoints anybody on the internet can reach.
@@ -106,6 +107,18 @@ describe("what a refused person is told", () => {
     // fifty yards away who can read it out. Waiting fifteen minutes is the
     // wrong answer and they should not have to work that out themselves.
     expect(throttleMessage("round-code", 600)).toMatch(/organizer/);
+  });
+
+  it("says ONE sentence for every code budget, round code or player link (one code box, §9 item 4)", () => {
+    // Running into a code limit must not say which kind of code was being tried: the seven kinds
+    // speak byte-identical words at the same wait, and those words are the code boxes' own.
+    const CODE_KINDS: RateLimitKind[] = ["round-code", "round-code-client", "player-link-client", "player-link-alarm", "player-link-slow", "eight-char-alarm", "eight-char-slow"];
+    for (const wait of [45, 600, 3600]) {
+      const said = new Set(CODE_KINDS.map((k) => throttleMessage(k, wait)));
+      expect([...said], `at ${wait}s`).toEqual([CODE_WORDS.tooMany(retryAfterText(wait))]);
+    }
+    // CONTROL: the check can see two sentences when there are two.
+    expect(new Set([throttleMessage("round-code", 600), throttleMessage("signin", 600)]).size).toBe(2);
   });
 
   it("never counts down to zero", () => {

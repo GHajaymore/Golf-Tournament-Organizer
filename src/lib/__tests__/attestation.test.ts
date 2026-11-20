@@ -26,7 +26,7 @@ const enteredByAnn = { enteredById: "ann", attestedBy: "[]" };
 
 describe("the three rules are actually different", () => {
   it("marker: one other player in the match is enough", () => {
-    const r = attestMatch(FOURBALL, enteredByAnn, "bob", "marker");
+    const r = attestMatch(FOURBALL, enteredByAnn, "bob", "marker", "confirm");
     expect(r.ok && r.status).toBe("confirmed");
   });
 
@@ -36,15 +36,15 @@ describe("the three rules are actually different", () => {
      * differs only in the rule, so a fixture that could not tell them apart
      * would fail here rather than passing quietly.
      */
-    const strict = attestMatch(FOURBALL, enteredByAnn, "bob", "all");
-    const loose = attestMatch(FOURBALL, enteredByAnn, "bob", "marker");
+    const strict = attestMatch(FOURBALL, enteredByAnn, "bob", "all", "confirm");
+    const loose = attestMatch(FOURBALL, enteredByAnn, "bob", "marker", "confirm");
     expect(strict.ok && strict.status).toBe("pending");
     expect(loose.ok && loose.status).toBe("confirmed");
   });
 
   it("all: confirms only once everyone else bound into the result has signed", () => {
     // Ann entered it, so the other three must sign. Two is not enough.
-    const after1 = attestMatch(FOURBALL, enteredByAnn, "bob", "all");
+    const after1 = attestMatch(FOURBALL, enteredByAnn, "bob", "all", "confirm");
     expect(after1.ok && after1.status).toBe("pending");
 
     const after2 = attestMatch(
@@ -52,6 +52,7 @@ describe("the three rules are actually different", () => {
       { ...enteredByAnn, attestedBy: JSON.stringify(["bob"]) },
       "cat",
       "all",
+      "confirm",
     );
     expect(after2.ok && after2.status).toBe("pending");
     expect(after2.ok && after2.outstanding).toEqual(["dan"]);
@@ -61,6 +62,7 @@ describe("the three rules are actually different", () => {
       { ...enteredByAnn, attestedBy: JSON.stringify(["bob", "cat"]) },
       "dan",
       "all",
+      "confirm",
     );
     expect(after3.ok && after3.status).toBe("confirmed");
   });
@@ -68,16 +70,16 @@ describe("the three rules are actually different", () => {
   it("opponent: a partner may not sign, someone from the other side may", () => {
     // Ann entered it. Bob is her partner — he has no more reason to check it
     // than she does, which is the distinction the setting's help text draws.
-    const partner = attestMatch(FOURBALL, enteredByAnn, "bob", "opponent");
+    const partner = attestMatch(FOURBALL, enteredByAnn, "bob", "opponent", "confirm");
     expect(partner.ok).toBe(false);
     expect(!partner.ok && partner.error).toMatch(/other side/i);
 
-    const opponent = attestMatch(FOURBALL, enteredByAnn, "cat", "opponent");
+    const opponent = attestMatch(FOURBALL, enteredByAnn, "cat", "opponent", "confirm");
     expect(opponent.ok && opponent.status).toBe("confirmed");
   });
 
   it("opponent in singles behaves as one playing partner, as the help says", () => {
-    const r = attestMatch(SINGLES, enteredByAnn, "cat", "opponent");
+    const r = attestMatch(SINGLES, enteredByAnn, "cat", "opponent", "confirm");
     expect(r.ok && r.status).toBe("confirmed");
   });
 });
@@ -90,7 +92,7 @@ describe("the rule attestation exists to guarantee", () => {
      * it herself — the old check only asked whether she had played in the
      * match, which she had.
      */
-    const r = attestMatch(FOURBALL, enteredByAnn, "ann", "marker");
+    const r = attestMatch(FOURBALL, enteredByAnn, "ann", "marker", "confirm");
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(/somebody else/i);
   });
@@ -99,7 +101,7 @@ describe("the rule attestation exists to guarantee", () => {
     // Nobody else is bound into the result. attest.ts is explicit that this
     // reads as "needs staff approval", never as approved.
     const alone: MatchSides = { id: "m3", sideA: ["ann"], sideB: [] };
-    const r = attestMatch(alone, enteredByAnn, "ann", "marker");
+    const r = attestMatch(alone, enteredByAnn, "ann", "marker", "confirm");
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(/organizer/i);
   });
@@ -112,6 +114,7 @@ describe("the rule attestation exists to guarantee", () => {
       { ...enteredByAnn, attestedBy: JSON.stringify(["bob"]) },
       "bob",
       "all",
+      "confirm",
     );
     expect(r.ok && r.status).toBe("pending");
     expect(r.ok && r.attestedBy).toEqual(["bob"]);
@@ -143,10 +146,10 @@ describe("a result with no recorded author", () => {
      * always effectively had. What it must NOT do is confirm on nothing.
      */
     const legacy = { enteredById: "", attestedBy: "[]" };
-    const r = attestMatch(FOURBALL, legacy, "bob", "marker");
+    const r = attestMatch(FOURBALL, legacy, "bob", "marker", "confirm");
     expect(r.ok && r.status).toBe("confirmed");
 
-    const strict = attestMatch(FOURBALL, legacy, "bob", "all");
+    const strict = attestMatch(FOURBALL, legacy, "bob", "all", "confirm");
     expect(strict.ok && strict.status).toBe("pending");
   });
 });

@@ -26,21 +26,23 @@ import { strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
-import { NeedsYouNow } from "@/components/NeedsYouNow";
+import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
+import { CopyLastEvent } from "@/components/CopyLastEvent";
+import { openTournamentJob, secretaryHomeFor } from "@/lib/services/whats-next";
+import { endEarlyOf } from "@/lib/domain/lifecycle-track";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
-import { playOverOf } from "@/lib/domain/tournament-switcher";
-import { finishRefusal, completingCheckFor } from "@/lib/domain/phase-gate";
-import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
-import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
-import { setupFlowFor, launchCheckFor } from "@/lib/services/setup-flow";
+import { statusChecklist, clubBrandingState } from "@/lib/services/checklist";
+import { tournamentStatusFor } from "@/lib/services/tournament-status";
+import { launchDialogOf, statusCardOf, lockFactsOf, locksFor, scopeLockOf, LOCK_SCOPES } from "@/lib/domain/tournament-status";
+import { nothingDrawnWords } from "@/lib/domain/nothing-drawn";
 import { isMatch, reviewsScores } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
@@ -50,7 +52,6 @@ import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
-import { PlayStatusControl } from "@/components/PlayStatusControl";
 import { PaceOfPlay } from "@/components/PaceOfPlay";
 import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
@@ -105,7 +106,11 @@ export const generateMetadata = () => screenMetadataForEvent("/dashboard");
 
 export default async function DashboardPage() {
   const { session, state } = await requireState();
-  const { event, groupStandings, advancingCount, brackets } = state;
+  const { event, groupStandings, brackets } = state;
+  // Both places that print it sit under the knockout's rule ("Top 8 overall"),
+  // so they count the knockout's line — not the board's lit rows, which show a
+  // pending cut first (J31 review, 2026-11-07).
+  const advancingCount = state.qualifierIds.size;
   /**
    * A CASUAL ROUND IS ONE SCREEN, AND IT IS NOT THIS ONE (Ajay, 2026-10-06).
    * Its card, where it stands, the money and the round's settings are all on
@@ -324,7 +329,7 @@ export default async function DashboardPage() {
     return {
       ...state.cutReady,
       rule: cutRuleWords(rule, tieRule === "ties"),
-      tieRule: cutTieRuleWords(tieRule),
+      tieRule: cutTieRuleWords(tieRule, "card"),
       through,
       missed: Math.max(0, made.state.strokeStandings.length - through - waiting),
       ties: [
@@ -377,6 +382,8 @@ export default async function DashboardPage() {
    * never reaches here — it is sent to its one screen at the top.)
    */
   const orgFacts = isStaff ? await orgSetupFactsFor(session.email, session.name, session.eventId) : null;
+  // The secretary's home — the club's jobs and the tournaments a copy may start from.
+  const home = isStaff ? await secretaryHomeFor(session) : null;
   const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
   const isAdmin = session.viewRole === "admin";
 
@@ -490,41 +497,52 @@ export default async function DashboardPage() {
   const straightKnockout = isStraightKnockout(state.stages);
 
   /**
-   * WHY THE NEXT PHASE IS NOT AVAILABLE YET, for the lifecycle bar's button.
+   * WHERE THIS TOURNAMENT IS, WHAT IS NEXT, AND WHY NOT YET — asked of the
+   * state machine once (`tournamentStatus(facts)`, PR 3), on the club's day.
    *
-   * Computed here and enforced again inside the actions, from the same two
-   * functions — so the greyed-out button and the refusal say the same thing in
-   * the same words, and neither is load-bearing on its own.
+   * This screen used to hold its own answers: the button from
+   * `nextLifecycleAction`, the launch refusal from `launchCheckFor`, the
+   * complete refusal from `finishRefusal` and `completingCheckFor`, the
+   * checklist from `setupChecklist` over `setupFlowFor`, the suspend control
+   * from `playOverOf`. Each was right about its own question, and between them
+   * a medal with no flights got a working Launch button under a checklist and
+   * a journey card saying setup was not done (D1). One answer now; the actions
+   * still refuse for themselves, a `"use server"` export being a public
+   * endpoint.
    *
-   * Only the two transitions that mean something. Moving from draft to "taking
-   * entries" is a club saying what it is doing and gates nothing; going live
-   * and declaring a result are the ones that change what the field sees.
-   *
-   * ASKED OF THE ACTION, NOT OF THE STATUS, since a draft can now be offered
-   * Launch. This listed the statuses that could reach a launch button —
-   * `ready` and `registration` — and `nextLifecycleAction` has since added a
-   * third route to it: a pre-launch tournament with results in it is offered
-   * Launch from `draft` too. Keyed off the status, this would have handed that
-   * tournament an ungated button whose action then refused on the server, for
-   * a reason the screen had already worked out and thrown away.
+   * The machine is always at least as strict as the launch action (its launch
+   * refusal is the action's gate first, then the panel's holds), so the button
+   * is never live where the action would refuse.
    */
-  const lifecycleAction = nextLifecycleAction({ status: event.status, resultsIn: state.resultsIn });
-  // Read only when Launch is on offer — the very function the action refuses on
-  // (`launchCheckFor`, the setup flow's own facts), so the button and the server
-  // cannot disagree. Its warnings go in the launch dialog.
-  const launch = lifecycleAction?.kind === "launch" ? await launchCheckFor(session.eventId) : null;
-  const phaseBlock =
-    launch
-      ? launch.refusal
-      : lifecycleAction?.to === "completed"
-        ? finishRefusal({
-            pendingConfirmations: state.pendingConfirmations,
-            disputed: state.reviewing.disputed,
-          })
-        : null;
-  // Completing with rounds nobody has played: the action's own check, read here so the button
-  // asks before it is pressed — and is refused in place when nothing at all has been scored.
-  const completing = lifecycleAction?.to === "completed" ? completingCheckFor(state.stages, state.roundsWithResults) : null;
+  const told = await tournamentStatusFor(session.eventId, state.today);
+  const status = told?.status ?? null;
+  /**
+   * THE ONE BUTTON (B03; the panel, 9 Nov; the PM, 10 Nov: for everyone, not only behind the stepper's
+   * switch): `tournamentJob`, the job the lifecycle stepper marks and the home's first line for this
+   * tournament, composed here — never in `statusCardOf`. So the card never offers "Complete tournament"
+   * while golf is being played: the machine offers it from the first card, which at a two-day outing is
+   * one press from ending it before day 2.
+   */
+  const job = await openTournamentJob(session.eventId, state.today);
+  const step = status?.step ?? "setting-up";
+  const nextAction = status?.nextAction ?? null;
+  /**
+   * J06: a round robin on the board with nothing drawn — why, and the way
+   * forward (`nothingDrawnWords`), for the Matches tile and the Current round
+   * card, which both printed "0/0" over it. Asked of the machine's flights
+   * (`facts.groups`: flights, never a play-off's match carrier).
+   */
+  const nothingDrawn =
+    // Staff only: the way forward is theirs to take. A player keeps the plain tile.
+    isStaff && state.boardStage?.type === "Round Robin" && state.boardProgress.total === 0
+      ? nothingDrawnWords({
+          groups: told?.facts.groups ?? state.groups.length,
+          roundLabel: roundLabel(state.stages, state.boardStage.id),
+          cutFed: state.boardStage.cutEnabled,
+          flightsScreen: screenName("/grouping"),
+          roundsScreen: screenName("/stages"),
+        })
+      : null;
   const navHrefs = new Set(
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
@@ -556,7 +574,7 @@ export default async function DashboardPage() {
   // zero, the leaderboard is an empty table, and "0/0 matches complete" is
   // true but useless. Someone who just created a tournament lands here, so
   // this is the one place the next step has to be spelled out.
-  const unstarted = isUnstarted(state) && isStaff;
+  const unstarted = (told ? told.facts.confirmed === 0 : state.confirmed.length === 0) && isStaff;
   /**
    * THE CHECKLIST OUTLIVES THE FIRST ENTRANT (2026-10-31, gap G2 of the workflow review).
    *
@@ -565,7 +583,7 @@ export default async function DashboardPage() {
    * when a new organizer needs it. It now shows to staff until the tournament is launched; the
    * rest of the dashboard renders beside it as soon as there is a field to report on.
    */
-  const settingUp = isStaff && !isLaunched(event.status);
+  const settingUp = isStaff && step === "setting-up";
   // The club's branding, loaded only for the setup checklist, so it can
   // nudge (never gate) an organizer to add a logo and colours before they've
   // set either.
@@ -580,30 +598,22 @@ export default async function DashboardPage() {
       })
     : null;
   /**
-   * The setup flow, for the one step this list never had.
+   * THE MACHINE'S SETUP STEPS, for every row they have an answer for.
    *
    * The dashboard is where a new organizer lands straight after creating a
-   * tournament, and it never once said the thing needed a name, a date or a
-   * venue — the rail on the Set-up screens said it first, and this list did
-   * not carry the step at all.
-   *
-   * Loaded only while the tournament is being SET UP (not yet launched), which
-   * is the only time the checklist renders, so a running tournament pays
-   * nothing for it. Returns null for a match, which is correct: two people on
-   * the first tee have no tournament to set up.
+   * tournament. EVERY step's own answer, not two of them: the state machine
+   * decides what is finished and what is optional, and a second copy of any
+   * of those tests here is how the rail and the dashboard come to disagree —
+   * which two of the five rows already did once, and the flights row did
+   * again against the Launch button (D1).
    */
-  const flow = settingUp ? await setupFlowFor(session.eventId) : null;
-  // EVERY step's own answer, not two of them. The flow decides what is
-  // finished and a second copy of any of those tests here is how the rail and
-  // the dashboard come to disagree — which two of the five rows already did.
   const checklist = settingUp
-    ? setupChecklist({
+    ? statusChecklist(status?.setup.steps ?? [], {
         ...state,
         branding: clubBrandingState(brandingOrg),
         orgKind: brandingOrg?.kind,
         orgCountry: brandingOrg?.country,
         orgNoun: brandingOrg?.communityNoun,
-        flow: flow?.steps,
       })
     : [];
 
@@ -797,12 +807,12 @@ export default async function DashboardPage() {
          * otherwise have no primary at all, and for a player the leaderboard
          * genuinely is the thing they came for — so it takes the weight back.
          *
-         * Asked of `nextLifecycleAction` rather than re-derived, so this
+         * Asked of the machine's `nextAction` rather than re-derived, so this
          * cannot come to disagree with the button it is deferring to.
          */}
         {(() => {
           // Not a Reopen: on a finished tournament the result leads, and reopening is a remedy.
-          const lifecycleLeads = isAdmin && !!lifecycleAction && lifecycleAction.to !== "live";
+          const lifecycleLeads = isAdmin && !!nextAction && nextAction.kind !== "reopen";
           return (
             <div style={{ display: "flex", gap: 8 }}>
               {showEntry && (
@@ -864,6 +874,12 @@ export default async function DashboardPage() {
         </NeedsYouNow>
       )}
 
+      {/* WHAT'S NEXT, ACROSS THE CLUB (the secretary's home, 2026-10-24): the
+          next job in every tournament this person runs at the club, in the
+          order they fall due, each with the button that does it — buttons only
+          for somebody who may (`canEdit`). */}
+      {home && <WhatsNext jobs={home.jobs} mayAct={home.mayAct} openEventId={session.eventId} />}
+
       {/* THE ORGANIZER GETS THE SHEET IN ONE LINE (Ajay, 2026-10-05). Every
           group and every name was drawn above the heading — one group on the
           demo, thirty on a club medal of 120, several phone screens before
@@ -893,22 +909,13 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* SUSPEND PLAY (Rule 5.7) — while the tournament is being played, and
-          always while it is suspended, so the way back is never hidden. Not
-          once every round is closed: there is no play left to stop, and the
-          button sat beside "8/8 scorecards certified" (T69). */}
-      {isStaff &&
-        ((isLaunched(event.status) && !isFinished(event.status) && !playOverOf(state.stages)) || !!event.playSuspendedAt) && (
-        <PlayStatusControl
-          suspended={!!event.playSuspendedAt}
-          note={event.playSuspendedNote}
-          since={event.playSuspendedAt ? event.playSuspendedAt.toISOString() : ""}
-        />
-      )}
+      {/* SUSPEND PLAY (Rule 5.7) is not drawn here: the console's shell draws
+          it above every screen, this one included (`ConsolePlayStatus`,
+          simplicity cut 2) — one mount, so the dashboard cannot show it twice. */}
 
       {/* PACE OF PLAY — a round played today, with timed groups on its sheet.
           The panel itself decides "today" on the committee's own clock. */}
-      {isStaff && isLaunched(event.status) && !isFinished(event.status) && (
+      {isStaff && (step === "live" || step === "play-over") && (
         <PaceOfPlay rounds={await paceRoundsFor(event.id)} />
       )}
 
@@ -933,16 +940,19 @@ export default async function DashboardPage() {
           `isStaff` rather than `isAdmin`: an assistant runs the event and
           should see the state. Only an admin can change it, which is what the
           gates inside the component already say. */}
-      {isStaff && (
+      {isStaff && told && status && (
         <LifecycleBar
-          status={event.status}
+          status={statusCardOf(told.facts, status)}
+          job={job}
+          // Ending early, behind the card's "More" — never a Complete beside the job (the PM, 10 Nov).
+          endEarly={endEarlyOf(status, job)}
           isAdmin={isAdmin}
-          configUnlocked={event.configUnlocked}
+          // The committee correction (PR 5b): which locked scopes it may open, and the one open now.
+          correctableScopes={LOCK_SCOPES.filter((s) => scopeLockOf(locksFor(lockFactsOf(told.facts)), s)?.correctable)}
+          correction={told.facts.correction}
           archived={!!event.archivedAt}
-          resultsIn={state.resultsIn}
-          blockedReason={phaseBlock ?? (completing && "refuse" in completing ? completing.refuse : undefined)}
-          unplayedAsk={completing && "ask" in completing ? completing.ask : undefined}
-          launchOpen={launch ?? undefined}
+          // What the launch dialog says is still open — the machine's warnings.
+          launchOpen={nextAction?.kind === "launch" ? launchDialogOf(status, false) : undefined}
           {...(isAdmin && (await wipesOnCloseFor(event.id))
             ? {
                 deletesOnComplete: true,
@@ -979,10 +989,10 @@ export default async function DashboardPage() {
           One line each, only while true. Since G1 (2026-10-31) there is no "Start
           taking entries" status to key the first on: it is any tournament still
           being set up that takes entries and has not published its link. */}
-      {isStaff && !isLaunched(event.status) && event.playerCountMode !== "manual" && !event.registrationOpen && (
+      {isStaff && step === "setting-up" && event.playerCountMode !== "manual" && !event.registrationOpen && (
         <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
-          Players can&rsquo;t sign up themselves until the link is published —{" "}
-          <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>publish it on Entries</Link>.
+          Entries are not open yet, so players can&rsquo;t sign themselves up —{" "}
+          <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>open them on Entries</Link>.
         </p>
       )}
       {isStaff && state.stages.length === 0 && state.confirmed.length > 0 && (
@@ -1050,6 +1060,11 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* COPY LAST EVENT (the secretary's home, 2026-10-24). Below the shortcuts:
+          what is waiting today outranks the next tournament. Only for somebody
+          who may copy one (`canEdit`); `cloneEvent` asks again. */}
+      {home?.mayAct && home.copyable.length > 0 && <CopyLastEvent copyable={home.copyable} today={home.today} />}
 
       {/* Every number in here is derived from the field, so with no field
           they all read zero. The checklist above says what to do instead.
@@ -1134,6 +1149,32 @@ export default async function DashboardPage() {
               sub={state.boardProgress.total > 0 ? `${state.boardProgress.pct}% of the draw` : "nothing drawn yet"}
               icon="ph ph-tree-structure"
             />
+          ) : nothingDrawn ? (
+            /* J06 (state machine PR 3): A ROUND ROBIN WITH NOTHING DRAWN SAYS WHY.
+               It read "Matches complete 0/0 · 0% of this round" over a round
+               robin with no flights — true, and no use: nothing said why
+               nothing was drawn or what to press. The cause and the way
+               forward, in plain words (`nothingDrawnWords`). */
+            (() => {
+              const nothing = nothingDrawn;
+              return (
+                <div className="card elev-sm nothing-drawn" style={{ gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span className="card-kicker">Matches</span>
+                    <Icon name="ph ph-check-circle" style={{ color: "var(--color-accent-200)", fontSize: 16 }} />
+                  </div>
+                  <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 22, lineHeight: 1.1 }}>
+                    {nothing.value}
+                  </div>
+                  <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                    {nothing.why}{" "}
+                    <Link href={nothing.wayOut.href} style={{ color: "var(--color-accent-200)", fontWeight: 600 }}>
+                      {nothing.wayOut.says}
+                    </Link>
+                  </p>
+                </div>
+              );
+            })()
           ) : (
             <StatCard
               label="Matches complete"
@@ -1249,6 +1290,13 @@ export default async function DashboardPage() {
               {!state.boardStage ? (
                 <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.6 }}>
                   Add a round and the field&rsquo;s progress shows here.
+                </p>
+              ) : nothingDrawn ? (
+                /* J06: no bar over "0/0 matches complete" either — the same
+                   reason as the Matches tile, said once more where the round is
+                   named. */
+                <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.6 }}>
+                  {nothingDrawn.why}
                 </p>
               ) : state.boardProgress.unit === "manual" ? (
                 /* Same reason, different absence: there is no progress to draw

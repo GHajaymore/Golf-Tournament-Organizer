@@ -14,7 +14,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { ownWithdrawalOpen } from "@/lib/registration";
 import { clubDayForEvent } from "@/lib/services/club-clock";
-import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
+import { withdrawEntry } from "@/lib/services/playing-history";
 import { revokePlayerAccount } from "@/lib/services/player-access";
 import { drainWaitlist } from "@/lib/services/waitlist";
 import { logAudit } from "@/lib/services/action-shared";
@@ -157,6 +157,10 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     };
   }
 
+  // ALREADY IN, asked early so the answer comes before any other refusal (a
+  // member already down must hear that, not "needs a mobile number" because the
+  // club turned the phone on after they entered). It is asked AGAIN under the
+  // intake lock below, which is the guarantee against a double tap (J46).
   const already = await prisma.player.findFirst({
     where: {
       eventId,
@@ -186,9 +190,10 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    *
    * Matched on email, the same key `myPlayerIds` and `clubEventsFor` use. A
    * member with no roster row yet — somebody who joined the club but has never
-   * entered anything — falls back to the account's own name and a zero
-   * handicap, which is what the organizer's roster screen shows for a new
-   * entrant and is correctable there.
+   * entered anything — falls back to the account's own name and NO handicap
+   * index (a stored 0 marked "none", never a scratch figure), so in a round
+   * scored net the committee is asked for their strokes (`needsCommitteeFigure`)
+   * and the organizer can type the index on the roster.
    *
    * Read before the lock: it touches the member and (below) the tees, not the
    * confirmed count, so it does not belong in the serialised section.
@@ -239,6 +244,23 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   // The closing day ends when it ends AT THE CLUB — see `domain/club-clock.ts`.
   const clubNow = await clubDayForEvent(eventId);
   const decision = await withEventIntakeLock(eventId, async (tx) => {
+    /**
+     * ALREADY IN, ASKED UNDER THE LOCK (J46). Confirmed, waitlisted and pending
+     * all mean their name is down; pressing Enter twice must not put it down
+     * twice. This check used to run before the lock, so two submissions arriving
+     * together (a busy opening, a double tap on a slow phone) both found nobody
+     * and both created a row. Asked here, the second request queues behind the
+     * first and finds its row. (A withdrawn row is not "in": see above.)
+     */
+    const again = await tx.player.findFirst({
+      where: {
+        eventId,
+        ...byAddress(session.email),
+        status: { in: ["confirmed", "waitlisted", "pending"] },
+      },
+      select: { status: true },
+    });
+    if (again) return { accepted: false as const, already: again.status };
     const confirmedCount = await tx.player.count({
       where: { eventId, status: "confirmed" },
     });
@@ -267,7 +289,11 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
         phone,
         handicap: member?.handicap ?? 0,
         handicapType: member?.handicapType ?? "18",
-        handicapSource: member?.handicapSource ?? "manual",
+        // NO ROSTER ROW, NO INDEX (review of #1144, C1). The stored 0 is a placeholder, not a figure:
+        // "manual" here claimed it as the member's index, so a member who entered themselves was a
+        // scratch golfer in every net round and nothing asked the committee. "none" is how every reader
+        // says "nobody has given a figure" (`hasIndex`, `needsCommitteeFigure`).
+        handicapSource: member ? member.handicapSource : "none",
         gender: member?.gender ?? "",
         // What the club's record holds, as the roster's "Add to field" copies it: this door
         // dropped the home club and the handicap number, so a member who entered themselves
@@ -281,7 +307,16 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     });
     return d;
   });
-  if (!decision.accepted) return { ok: false, error: NOT_OPEN };
+  if (!decision.accepted) {
+    if ("already" in decision) {
+      return {
+        ok: false,
+        error: "Your name is already down for this one.",
+        status: decision.already as EnterResult["status"],
+      };
+    }
+    return { ok: false, error: NOT_OPEN };
+  }
 
   // On the record, beside the withdrawal line: the organizer's "Recent changes
   // to the field" (Registration) shows who came as well as who went.
@@ -387,13 +422,8 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
   }
 
   for (const row of mine) {
-    if (await hasPlayingHistory(eventId, row.id)) {
-      await prisma.player.update({ where: { id: row.id }, data: { status: "withdrawn" } });
-      // A stake paid by default stays paid — the same as the organizer's door.
-      await keepDefaultStakes(eventId, row.id);
-    } else {
-      await prisma.player.delete({ where: { id: row.id } });
-    }
+    // The one keep path, shared with the organizer's Withdraw press and a replacement on the tee sheet.
+    await prisma.$transaction((tx) => withdrawEntry(tx, eventId, row, { launched: false }));
   }
   await revokePlayerAccount(eventId, session.email);
 

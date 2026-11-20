@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
+import { LeaderboardTable, resultsLegend, type StandingRow } from "./LeaderboardTable";
 import { toParCell } from "@/lib/domain/ranked-score";
 import { toCsv, exportStatus, exportRank } from "@/lib/domain/csv-export";
 import { placesWithin } from "@/lib/domain/flight-places";
@@ -316,7 +316,9 @@ export function ReportsClient({
   ];
 
   return (
-    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "360px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+    // Exports, opens and prints — nothing here writes (no action is imported), so the
+    // whole of it stays live in an archived tournament (`archive-read-only.ts`).
+    <div className="page-split" data-reads="" style={{ display: "grid", gridTemplateColumns: "360px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 10 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Exports</span>
         {exports.map((e) => (
@@ -326,7 +328,9 @@ export function ReportsClient({
               <div style={{ fontSize: 14, fontWeight: 500 }}>{e.label}</div>
               <div className="text-muted" style={{ fontSize: 13 }}>{e.desc}</div>
             </div>
-            <button type="button" className={`btn ${e.kind === "csv" ? "btn-primary" : "btn-secondary"}`} onClick={e.action}>
+            {/* Every export is an outline button (console sweep, J51): the rows are parallel, none
+                is THE thing to press, and its label already says whether it downloads or opens. */}
+            <button type="button" className="btn btn-secondary" onClick={e.action}>
               {e.kind === "csv" ? "Export CSV" : "Open"}
             </button>
           </div>
@@ -377,6 +381,12 @@ export function ReportsClient({
             320px phone (2026-10-07). */}
         {board ?? (
           <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} compact={casual} rankedOn={rankedOn} />
+        )}
+        {/* What the office codes on the sheet mean, for the codes it carries (PR B). */}
+        {!board && resultsLegend(rows) && (
+          <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
+            {resultsLegend(rows)}
+          </p>
         )}
         {/* The contests on the sheet that goes to the noticeboard, from the
             reader the public board uses (`contestBoard`). Names, never stakes. */}

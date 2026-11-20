@@ -16,33 +16,33 @@ const us = golfTermsFor("us");
 
 describe("what Checkout charges", () => {
   it("names the plan in the club's golf", () => {
-    expect(checkoutLineItem("society", "month", "USD", none, us).price_data.product_data.description).toBe("Leagues and golf groups");
-    expect(checkoutLineItem("society", "month", "GBP", none, golfTermsFor("uk")).price_data.product_data.description).toBe("Leagues and societies");
+    expect(checkoutLineItem("society", "month", "US", none, us).price_data.product_data.description).toBe("Leagues and golf groups");
+    expect(checkoutLineItem("society", "month", "GB", none, golfTermsFor("uk")).price_data.product_data.description).toBe("Leagues and societies");
   });
 
   it("is the app's own price, in the minor unit, monthly and yearly", () => {
-    const month = checkoutLineItem("society", "month", "USD", none, us);
+    const month = checkoutLineItem("society", "month", "US", none, us);
     expect(month.price_data.unit_amount).toBe(Math.round(effectivePrice(PLANS.society, none, "USD") * 100));
     expect(month.price_data.currency).toBe("usd");
     expect(month.price_data.recurring.interval).toBe("month");
-    const year = checkoutLineItem("society", "year", "USD", none, us);
+    const year = checkoutLineItem("society", "year", "US", none, us);
     expect(year.price_data.unit_amount).toBe(month.price_data.unit_amount * 10);
     expect(year.price_data.product_data.name).toBe(`TourneyHQ ${PLANS.society.name}`);
   });
 
   it("follows an owner's price override, so the panel and the charge agree", () => {
     const over = parsePricingOverrides(JSON.stringify({ plans: { club: { monthly: 150 } } }));
-    expect(checkoutLineItem("club", "month", "USD", over, us).price_data.unit_amount).toBe(15000);
+    expect(checkoutLineItem("club", "month", "US", over, us).price_data.unit_amount).toBe(15000);
   });
 
   it("charges a set local price in the club's currency, never a converted one", () => {
-    const gbp = checkoutLineItem("society", "month", "GBP", none, us);
+    const gbp = checkoutLineItem("society", "month", "GB", none, us);
     expect(gbp.price_data.currency).toBe("gbp");
     expect(gbp.price_data.unit_amount).toBe(Math.round(PLANS.society.localMonthly.GBP * 100));
   });
 
   it("quotes an unpriced currency in dollars", () => {
-    expect(checkoutLineItem("society", "month", "JPY", none, us).price_data.currency).toBe("usd");
+    expect(checkoutLineItem("society", "month", "JP", none, us).price_data.currency).toBe("usd");
   });
 
   it("CONTROL: every plan currency has two decimal places, which ×100 assumes", () => {

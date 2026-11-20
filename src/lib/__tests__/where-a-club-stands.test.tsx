@@ -31,7 +31,7 @@ const text = (html: string) => html.replace(/<!--[^>]*-->/g, "").replace(/<[^>]+
 
 describe("where a club stands", () => {
   it("says how much of the plan is used", () => {
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" standing={standing(false, false)} />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="free" standing={standing(false, false)} />));
     expect(body).toMatch(/0 of 1 tournament running/);
     expect(body).toMatch(/1 of 1 organizer/);
   });
@@ -42,7 +42,7 @@ describe("where a club stands", () => {
      * no payment provider is attached to anything. The usage is still shown;
      * the consequence is not claimed.
      */
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" standing={standing(true, false)} />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="free" standing={standing(true, false)} />));
     expect(body).toMatch(/1 of 1 tournament running/);
     expect(body, "promised a refusal the app would not actually make").not.toMatch(/needs a bigger plan/);
   });
@@ -63,7 +63,7 @@ describe("where a club stands", () => {
       activeEvents: { allowed: false, limit: 1, current: 9 },
       staffSeats: { allowed: true, limit: 1, current: 1 },
     };
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" standing={past} />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="free" standing={past} />));
     expect(body).toMatch(/9 tournaments running · plan includes 1/);
     // The noun follows what is being COUNTED. "9 of 1 tournament running" put
     // it on the limit, which is the one number in the phrase that is not.
@@ -76,7 +76,7 @@ describe("where a club stands", () => {
   });
 
   it("says it plainly once a refusal is real", () => {
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" standing={standing(true, true)} />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="free" standing={standing(true, true)} />));
     expect(body).toMatch(/Another tournament needs a bigger plan/);
   });
 
@@ -87,7 +87,7 @@ describe("where a club stands", () => {
       activeEvents: { allowed: true, limit: null, current: 4 },
       staffSeats: { allowed: true, limit: 10, current: 3 },
     };
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="club" standing={unlimited} />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="club" standing={unlimited} />));
     expect(body).toMatch(/4 tournaments running · no limit/);
     expect(body).toMatch(/3 of 10 organizers/);
   });
@@ -95,7 +95,7 @@ describe("where a club stands", () => {
   it("renders without it, for every caller that has not been given one", () => {
     // The prop is optional on purpose: a panel with no standing is the old
     // panel, not a crash.
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="free" />));
     expect(body).toMatch(/Your plan/);
     expect(body).not.toMatch(/of 1 tournament running/);
   });

@@ -21,7 +21,7 @@ import {
 
 // A field that is open, well before its deadline, with room to spare.
 const OPEN = {
-  eventStatus: "registration",
+  eventStatus: "draft",
   deadline: "2099-12-31",
   opens: "",
   capacity: 16,

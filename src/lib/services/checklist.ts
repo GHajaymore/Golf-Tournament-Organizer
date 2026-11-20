@@ -85,13 +85,16 @@ export interface ChecklistState {
    * not loaded the flow shows the list it always showed — and the two rows
    * that exist only when the flow does (details, money) simply do not appear.
    *
-   * Money is NOT marked optional, deliberately, even though a tournament with
-   * nobody asked about money is perfectly playable — `resolveMoneyMode` falls
-   * back. The guide makes it a step, and a dashboard calling optional what the
-   * rail waits for is the same two-lists-disagree fault this file's own sort
-   * was written to end. Whichever is right, it has to be the same on both.
+   * OPTIONAL IS THE MACHINE'S WORD, NOT THIS LIST'S (state machine PR 3). Money
+   * used to be held NOT optional here, deliberately, because the rail waited
+   * for it, and "a dashboard calling optional what the rail waits for is the
+   * same two-lists-disagree fault this file's own sort was written to end".
+   * The rail now reads the state machine, which waits only for what holds
+   * launch (the panel's 8.2 table) — so a step the machine marks `optional`
+   * (a medal's flights, the money answer) is optional on both, and a row takes
+   * the flag from its step. Still the same on both; never decided here.
    */
-  flow?: readonly { href: string; done: boolean; missing: string }[];
+  flow?: readonly { href: string; done: boolean; missing: string; optional?: boolean }[];
   /**
    * What kind of outfit this tournament belongs to — see `orgProfile`.
    *
@@ -144,6 +147,8 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   const doneOf = (href: string, fallback: boolean) => step(href)?.done ?? fallback;
   /** What is outstanding, in the flow's words when it has any. */
   const missingOf = (href: string, fallback: string) => step(href)?.missing || fallback;
+  /** The step's own "nothing waits for it" (the machine's `optional`), when it has said so. */
+  const optionalOf = (href: string): { optional?: true } => (step(href)?.optional ? { optional: true } : {});
   const details = step("/event");
   // Labels read from the sidebar, not written out again. This row said
   // "Rounds & format"; the screen is called "Rounds & formats" — the same
@@ -154,9 +159,11 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       ? [
           {
             label: screenName("/event"),
-            detail: details.done ? "Named, and it has a date or a venue." : details.missing,
+            // D4 (PR 3): the step asks for the dates the launch gate asks for.
+            detail: details.done ? "Named, and it has its dates." : details.missing,
             done: details.done,
             href: "/event",
+            ...optionalOf("/event"),
           },
         ]
       : []),
@@ -168,6 +175,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
           : missingOf("/registration", "No players yet — open registration and add the field."),
       done: doneOf("/registration", state.confirmed.length > 0),
       href: "/registration",
+      ...optionalOf("/registration"),
     },
     /**
      * The sides — only when the flow has the step, which it has only for a
@@ -188,6 +196,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
             detail: step("/cup")!.done ? "Two teams, and everybody is on one." : step("/cup")!.missing,
             done: step("/cup")!.done,
             href: "/cup",
+            ...optionalOf("/cup"),
           },
         ]
       : []),
@@ -198,6 +207,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
             detail: step("/teams")!.done ? "Every player is on a side." : step("/teams")!.missing,
             done: step("/teams")!.done,
             href: "/teams",
+            ...optionalOf("/teams"),
           },
         ]
       : []),
@@ -219,6 +229,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
           : missingOf("/stages", "No rounds yet — sequence the tournament."),
       done: doneOf("/stages", state.stages.length > 0),
       href: "/stages",
+      ...optionalOf("/stages"),
     },
     /**
      * NOT FOR A STRAIGHT KNOCKOUT — the bracket is the first round, so its draw
@@ -247,6 +258,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
        */
       done: doneOf("/grouping", state.groups.length > 0 && hasSchedule),
       href: "/grouping",
+      ...optionalOf("/grouping"),
     }]),
     ...(step("/prizes")
       ? [
@@ -257,6 +269,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
               : step("/prizes")!.missing,
             done: step("/prizes")!.done,
             href: "/prizes",
+            ...optionalOf("/prizes"),
           },
         ]
       : []),
@@ -324,13 +337,23 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
 }
 
 /**
- * Whether this tournament is still being built rather than played.
- *
- * A tournament with nobody in it has no standings, no cards in and no matches
- * to complete — every number a dashboard could show is zero, and a wall of
- * zeroes tells a new organizer nothing about what to do next. The field is the
- * test because it is the first real step: everything downstream needs it.
+ * THE CHECKLIST A SCREEN DRAWS (state machine PR 3): every row with a setup
+ * step takes its tick, its words and its "optional" from the machine's own
+ * step (`tournamentStatus(facts).setup.steps`), so the list under the rail and
+ * the rail cannot disagree — and neither can disagree with the Launch button.
+ * The steps are REQUIRED here, which is the point: a screen cannot draw the
+ * list from this file's own fallbacks by forgetting to pass them.
  */
-export function isUnstarted(state: ChecklistState): boolean {
-  return state.confirmed.length === 0;
+export function statusChecklist(
+  steps: readonly { href: string; done: boolean; missing: string; optional: boolean }[],
+  state: Omit<ChecklistState, "flow">,
+): ChecklistItem[] {
+  return setupChecklist({ ...state, flow: steps });
 }
+
+/*
+ * `isUnstarted` (a tournament with nobody confirmed) was deleted in the state
+ * machine's PR 3: the dashboard, its one caller, asks the machine's facts
+ * (`facts.confirmed === 0`) — the same count the Entries step is judged on — and
+ * a dead twin is a second copy waiting to be used.
+ */

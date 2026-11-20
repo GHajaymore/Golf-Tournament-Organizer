@@ -46,6 +46,15 @@ export function ruleFrom(attestBy: string): AttestRule {
   return isAttestRule(attestBy) ? attestBy : "marker";
 }
 
+/**
+ * THE RULE THE END-OF-ROUND CHECK ASKS (2026-11-04): "the other side
+ * confirms" is the check's promise, so a club's looser "one playing partner"
+ * is read as the other side; "everyone in the match" stays everyone.
+ */
+export function endCheckRule(attestBy: string): AttestRule {
+  return ruleFrom(attestBy) === "all" ? "all" : "opponent";
+}
+
 interface MatchRow {
   id: string;
   playerAId: string;
@@ -94,7 +103,29 @@ export type AttestOutcome =
       attestedBy: string[];
       /** Who has still to sign, for the message the screen shows. */
       outstanding: string[];
+      /**
+       * Whether the signatures collected satisfy the rule — the sides AGREE.
+       * In "confirm" mode this is the same as `status === "confirmed"`; in
+       * "record" mode the status stays pending and this is what the
+       * committee's queue reads ("both sides agree").
+       */
+      agreed: boolean;
     };
+
+/**
+ * What a signature DOES in this tournament (2026-11-04).
+ *
+ *   confirm  players approve results (`scoreApproval: "players"`): enough
+ *            signatures make the result confirmed.
+ *   record   the committee approves (`scoreApproval: "staff"`): the end-of-round
+ *            check still asks the other side, and their agreement is RECORDED —
+ *            the result stays pending for the committee, which now sees that
+ *            both sides agree. A player's signature never approves a result the
+ *            committee was given to approve.
+ *
+ * Required, so every caller says which it means.
+ */
+export type AttestMode = "confirm" | "record";
 
 /**
  * One player signing one match off.
@@ -107,20 +138,9 @@ export function attestMatch(
   match: Pick<MatchRow, "enteredById" | "attestedBy">,
   approver: string,
   rule: AttestRule,
+  mode: AttestMode,
 ): AttestOutcome {
-  const ctx = { foursomes: [], matches: [sides] };
-
-  /**
-   * Whose card, for the purpose of "someone from the other side".
-   *
-   * The author when we know them, so `opponent` means a signature from the
-   * side that did NOT write the result down — which is what the setting's help
-   * text promises: "the people with a reason to check it". With no author
-   * recorded there is no side to oppose, and `attestRequirement` falls back to
-   * anyone else bound into the result, which is the marker system.
-   */
-  const owner = match.enteredById || sides.sideA[0] || sides.sideB[0] || approver;
-  const req = attestRequirement(match.enteredById, owner, ctx, rule);
+  const req = requirementOf(sides, match.enteredById, rule);
 
   if (req.needed === 0) {
     /**
@@ -150,10 +170,55 @@ export function attestMatch(
   }
 
   const attestedBy = [...new Set([...parseAttested(match.attestedBy), approver])];
+  const agreed = isAttested(attestedBy, req);
   return {
     ok: true,
-    status: isAttested(attestedBy, req) ? "confirmed" : "pending",
+    status: agreed && mode === "confirm" ? "confirmed" : "pending",
     attestedBy,
     outstanding: stillNeeded(attestedBy, req),
+    agreed,
   };
+}
+
+/** Who may sign this match off, and how many — the owner always a player in it. */
+function requirementOf(sides: MatchSides, enteredById: string, rule: AttestRule) {
+  const ctx = { foursomes: [], matches: [sides] };
+
+  /**
+   * Whose card, for the purpose of "someone from the other side": ALWAYS A
+   * PLAYER IN THE MATCH (2026-11-04).
+   *
+   * The author when they are on a side, so `opponent` means a signature from
+   * the side that did NOT write the result down — which is what the setting's
+   * help text promises: "the people with a reason to check it".
+   *
+   * This used to take the author whoever they were. Since one scorer may keep
+   * a whole group's card (`Stage.scoreKeeping: "group"`), the author can be
+   * somebody in the group who is not in this match at all — and then the
+   * owner was a player on neither side, whose "scoring group" was themselves
+   * alone, and the check said "nobody else in this match to confirm it" about
+   * a match with four people in it. The scorer stays the AUTHOR (never a
+   * candidate); the card belongs to the match.
+   *
+   * With no author on either side — a scorer outside the match, or nobody
+   * recorded — there is no side to oppose: nobody in the match wrote it down,
+   * so under `opponent` anybody in the match may confirm it (the marker rule),
+   * and `all` still asks every one of them.
+   */
+  const inMatch = (id: string) => id !== "" && (sides.sideA.includes(id) || sides.sideB.includes(id));
+  const authorPlays = inMatch(enteredById);
+  const owner = authorPlays ? enteredById : sides.sideA[0] || sides.sideB[0] || "";
+  // A match with nobody on either side has nobody to sign it: the committee's.
+  if (!owner) return { candidates: [], needed: 0 };
+  const effectiveRule: AttestRule = rule === "opponent" && !authorPlays ? "marker" : rule;
+  return attestRequirement(enteredById, owner, ctx, effectiveRule);
+}
+
+/**
+ * Whether a stored match's signatures already satisfy the rule — "both sides
+ * agree", for the committee's queue under staff approval. The same decision
+ * `attestMatch` takes, asked of what is stored rather than of a new signature.
+ */
+export function sidesAgree(sides: MatchSides, match: Pick<MatchRow, "enteredById" | "attestedBy">, rule: AttestRule): boolean {
+  return isAttested(parseAttested(match.attestedBy), requirementOf(sides, match.enteredById, rule));
 }

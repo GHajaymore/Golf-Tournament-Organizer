@@ -1,0 +1,105 @@
+name: Repeat one browser test
+
+# Run by hand (Actions, Run workflow) to repeat ONE test many times with a trace on every
+# repeat, so an intermittent stall can be read rather than guessed at.
+#
+# Made for the recurring `organizer-rounds-screen.spec.ts:177` stall: the Bracket press after
+# "Add 2 round robins" hangs at "performing click action" for four minutes, in some runs only.
+# The defaults point at that test. `--repeat-each` and `--trace on` live on THIS command line
+# only; playwright.config.ts keeps `retries: 0` and `trace: "retain-on-failure"` for every other run.
+#
+# It builds the app itself (one job, one database) and touches nothing else.
+
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: Spec file under e2e/
+        required: true
+        default: e2e/organizer-rounds-screen.spec.ts
+      title:
+        description: Part of the test's title (Playwright --grep)
+        required: true
+        default: a match-play championship in groups, then a knockout
+      project:
+        description: Playwright project (desktop, phone or small-phone)
+        required: true
+        default: desktop
+      repeat:
+        description: How many times to run it
+        required: true
+        default: "20"
+      everything:
+        description: Set E2E_EVERYTHING=1 (the console crawl, every-control.spec.ts, skips itself without it)
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+
+jobs:
+  repeat:
+    name: Repeat ${{ inputs.repeat }} times
+    runs-on: ubuntu-latest
+    # Twenty runs that each stall for four minutes is 80 minutes; the stall is what is being caught.
+    timeout-minutes: 120
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --ipc=host --user 1001
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          database-host: postgres
+
+      - name: Check the image holds this Playwright's browsers
+        run: node scripts/ci/check-browsers-present.mjs chromium
+
+      - name: Repeat the test, trace on
+        env:
+          AUTH_SECRET: ci-e2e-secret
+          SPEC: ${{ inputs.spec }}
+          TITLE: ${{ inputs.title }}
+          PROJECT: ${{ inputs.project }}
+          REPEAT: ${{ inputs.repeat }}
+          E2E_EVERYTHING: ${{ inputs.everything && '1' || '' }}
+          # The whole crawl writes a trace of hundreds of MB, and saving it overran the 30 s test timeout (run 44279889531).
+          TRACE: ${{ inputs.everything && 'retain-on-failure' || 'on' }}
+        # The container's default shell is sh, which has no `pipefail`.
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test "$SPEC" --project="$PROJECT" --grep "$TITLE" --repeat-each="$REPEAT" --trace "$TRACE" --reporter=list | tee repeat-output.txt
+          # A run that tested nothing must not read green: every test skipped, or the grep matched none,
+          # exits 0 with no "N passed" line (run 44265180233 on the crawl passed on 0 tests).
+          if ! grep -Eq '^[[:space:]]*[1-9][0-9]* passed' repeat-output.txt; then
+            echo "::error::Playwright ran 0 tests that passed (skipped, or no test matched). Set the 'everything' input for every-control.spec.ts."
+            exit 1
+          fi
+
+      - name: Keep every trace
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: repeat-traces
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

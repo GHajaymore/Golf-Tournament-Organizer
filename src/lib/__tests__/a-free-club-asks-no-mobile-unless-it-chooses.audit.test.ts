@@ -46,7 +46,7 @@ vi.mock("next/cache", () => ({
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addSignup, importCsvSignups } from "@/app/actions/tournament";
-import { registerForEvent } from "@/app/actions/register";
+import { enterOnTheLink as registerForEvent } from "./enter-on-the-link";
 import { PLANS } from "@/lib/plans";
 
 const prisma = new PrismaClient();
@@ -97,7 +97,7 @@ beforeAll(async () => {
       data: {
         organizationId: org.id,
         name: `${TAG} ${key} medal`,
-        status: "registration",
+        status: "draft",
         shape: "single",
         format: "stroke",
         formationRule: "balanced",
@@ -188,7 +188,8 @@ describe("CONTROL: a free club's tournament that asks for a mobile", () => {
     const res = await importCsvSignups(`name,email,handicap\n${TAG} csv ${RUN},${at("csv")},10\n`);
     expect(res.imported).toBe(0);
     expect(res.error).toMatch(/Couldn't find a "phone" column/);
-    expect(res.error).toMatch(/collects a mobile number for every entrant/);
+    // "every member": a guest (not a club member) is never asked for one (2026-11-07).
+    expect(res.error).toMatch(/collects a mobile number for every member/);
     expect(await fieldOf(ev.asks.id)).toEqual([]);
   });
 

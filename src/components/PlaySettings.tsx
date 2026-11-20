@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { screenName } from "@/lib/nav";
 import {
   saveTournamentSettings,
@@ -41,7 +41,8 @@ import {
   usesAccessCodes,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
-import { formatAccessCode } from "@/lib/code-format";
+import { formatAccessCode, roundCodeLink } from "@/lib/code-format";
+import { roundShareMessage } from "@/lib/domain/share-message";
 import { lockoutNotice } from "@/lib/domain/access-lockout";
 import { eventLinks } from "@/lib/domain/event-page";
 import { Icon } from "./Icon";
@@ -90,6 +91,15 @@ interface Props {
   tees?: TeeOption[];
   /** The tournament's chosen set. Null falls back to the first by position. */
   defaultTeeId?: string | null;
+  /**
+   * Tournament mode only — why the tournament's tees cannot change now, or
+   * null: the rounds rule's sentence (`acrossRoundsRefusal(…, "field-tees")`,
+   * the very call `setEventDefaultTee` refuses with) — a scored round of cards
+   * would be reached, its handicaps frozen off its tees at its first card, or
+   * the tournament is completed. Played from is drawn shut with it, so it is
+   * never offered and then refused at Save (round G594-1, 10 Nov).
+   */
+  teesDoor?: string | null;
 }
 
 export interface TeeOption {
@@ -160,6 +170,7 @@ function Choice<T extends string>({
   disabled: boolean;
   onChange: (v: T) => void;
 }) {
+  const fid = useId();
   return (
     <div className="field">
       {/* Suppressed when the Group heading directly above already says it.
@@ -172,7 +183,7 @@ function Choice<T extends string>({
           options' explanations are. */}
       {label && (
         <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <label>{label}</label>
+          <span id={`${fid}-caption`}>{label}</span>
           {hint && <FieldInfo label={label}>{hint}</FieldInfo>}
         </span>
       )}
@@ -182,7 +193,11 @@ function Choice<T extends string>({
           nobody was choosing. The name is the short line; `FieldInfo`, the
           app's existing tap-to-open explainer, holds the rest. The explanation
           is still required for every option (`settings-explained.test.ts`). */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+      <div
+        role={label ? "group" : undefined}
+        aria-labelledby={label ? `${fid}-caption` : undefined}
+        style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}
+      >
         {options.map((opt) => (
           <div key={opt} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <label
@@ -219,8 +234,10 @@ export function PlaySettings({
   strandedCount = 0,
   rounds = [],
   shareToken,
+  eventName,
   tees = [],
   defaultTeeId = null,
+  teesDoor = null,
 }: Props) {
   const [form, setForm] = useState<TournamentSettings>(settings);
   const golf = useGolfTerms();
@@ -230,11 +247,16 @@ export function PlaySettings({
   const [rotateError, setRotateError] = useState("");
   const [rotating, setRotating] = useState(false);
   const [origin, setOrigin] = useState("");
+  const [canShare, setCanShare] = useState(false);
   const [teeId, setTeeId] = useState<string | null>(defaultTeeId);
   const [pending, startTransition] = useTransition();
 
   // The share link needs the real host, which only the browser knows.
-  useEffect(() => setOrigin(window.location.origin), []);
+  useEffect(() => {
+    setOrigin(window.location.origin);
+    // Whether this phone or browser has a share sheet; one that has not copies the message instead.
+    setCanShare(typeof navigator.share === "function");
+  }, []);
 
   const isTournament = mode === "tournament";
   // The tee is saved by the SAME button as everything else. Two save models
@@ -291,12 +313,38 @@ export function PlaySettings({
     });
   };
 
+  /**
+   * SHARE A ROUND'S CODE (2026-11-05): the one sentence (`roundShareMessage`) to the phone's
+   * share sheet where it has one, otherwise to the clipboard ("Copy message"). A cancelled
+   * share sheet is not an error. The text is never posted anywhere by us: it goes where the
+   * organizer sends it, which is why the section says not to make it public.
+   */
+  const shareRound = async (r: RoundCode) => {
+    const text = roundShareMessage({
+      eventName: eventName ?? "",
+      roundLabel: r.label,
+      code: r.code,
+      link: roundCodeLink(origin || window.location.origin, r.code),
+    });
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: [eventName, r.label].filter(Boolean).join(", "), text });
+      } catch {
+        // Closed without sending.
+      }
+      return;
+    }
+    copy(text, `message:${r.stageId}`);
+  };
+
   const shareUrl = shareToken && origin ? `${origin}/live/${shareToken}` : "";
   const shareLinks = shareToken ? eventLinks(shareToken) : null;
   const codesOn = usesAccessCodes(form);
 
   return (
-    <div className="card elev-sm" style={{ gap: 14 }}>
+    // The tournament's own settings are locked in an archived tournament; the club's house
+    // defaults (the same card on Club settings) are the club's, and stay open (`archive-read-only.ts`).
+    <div className="card elev-sm" data-this-tournament={isTournament ? "" : undefined} style={{ gap: 14 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>
           {isTournament ? "Players & scoring" : "House defaults for new tournaments"}
@@ -480,7 +528,7 @@ export function PlaySettings({
           )}
 
           <div className="field">
-            <label>Voice entry</label>
+            <span className="field-caption">Voice entry</span>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <input
                 type="checkbox"
@@ -519,7 +567,8 @@ export function PlaySettings({
               id="default-tee"
               className="input"
               value={teeId ?? ""}
-              disabled={!canEdit || pending}
+              disabled={!canEdit || pending || !!teesDoor}
+              aria-describedby={teesDoor ? "default-tee-door" : undefined}
               onChange={(e) => {
                 setTeeId(e.target.value || null);
                 setSaved(false);
@@ -584,6 +633,14 @@ export function PlaySettings({
                 ));
               })()}
             </select>
+            {/* WHY IT IS SHUT, under it, before anybody presses (J12, PR 7b): the rounds rule's
+                own sentence, the one Save would be refused with. Said to whoever may edit; a
+                reader with no Save has nothing to be told. */}
+            {canEdit && teesDoor && (
+              <p id="default-tee-door" data-testid="default-tee-door" className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
+                <Icon name="lock-simple" /> {teesDoor}
+              </p>
+            )}
             {/* The rating IS the reason to choose one set over another, so an
                 unrated pick is worth saying out loud rather than leaving to be
                 discovered when the strokes come out the same off every tee. */}
@@ -740,8 +797,12 @@ export function PlaySettings({
         <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
           <span className="card-title" style={{ fontSize: 14 }}>Round Codes</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px" }}>
-            One code per round. Players scan the round&apos;s sign or type the code, then tap their own name.
+            One code per round. Players scan the round&apos;s sign or type the code, then tap their group.
             Anyone with the code can report a score for that round, so reissue it if it travels beyond the field.
+          </p>
+          <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
+            <b>Share</b> sends the players a message with the link and the code. Send it to the players or their group
+            chat, and don&apos;t post it publicly: anyone who reads it can report a score.
           </p>
 
           {rounds.length === 0 ? (
@@ -755,7 +816,7 @@ export function PlaySettings({
                   <tr>
                     <th>Round</th>
                     <th style={{ width: 150 }}>Code</th>
-                    <th style={{ width: 190 }} />
+                    <th style={{ width: 330 }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -774,6 +835,18 @@ export function PlaySettings({
                             onClick={() => copy(formatAccessCode(r.code), r.stageId)}
                           >
                             <Icon name="copy" /> {copied === r.stageId ? "Copied" : "Copy"}
+                          </button>
+                        )}
+                        {r.code && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)", marginLeft: 6 }}
+                            aria-label={`${canShare ? "Share" : "Copy a message with"} the ${r.label.toLowerCase()} code`}
+                            onClick={() => void shareRound(r)}
+                          >
+                            <Icon name="share-network" />{" "}
+                            {copied === `message:${r.stageId}` ? "Message copied" : canShare ? "Share" : "Copy message"}
                           </button>
                         )}
                         {/* ASKED FIRST (2026-10-17, the cup's UI review): one

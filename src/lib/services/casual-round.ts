@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { sideNamesOf } from "@/lib/services/side-names";
 import { matchLine } from "@/lib/domain/match-line";
 import type { HoleResult } from "@/lib/domain/types";
 import { standingRows, type EventState } from "@/lib/services/tournament";
@@ -71,14 +72,7 @@ export async function casualStanding(state: EventState): Promise<CasualStanding>
   })();
   const sideNames =
     oneMatch && !oneMatch.playerAId && oneMatch.teamAId && oneMatch.teamBId
-      ? new Map(
-          (
-            await prisma.team.findMany({
-              where: { id: { in: [oneMatch.teamAId, oneMatch.teamBId] }, eventId: state.event.id },
-              select: { id: true, name: true },
-            })
-          ).map((t) => [t.id, t.name]),
-        )
+      ? await sideNamesOf(state.event.id, [oneMatch.teamAId, oneMatch.teamBId])
       : null;
   const line = (() => {
     if (!oneMatch) return "";

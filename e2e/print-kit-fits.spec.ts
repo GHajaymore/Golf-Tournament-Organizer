@@ -14,7 +14,8 @@ import { seedFits, teardownFits } from "./print-kit-fits-fixture.mjs";
  *      is clipped (scroll size beyond client size), and no line is shorter than
  *      its face's letters (ascent + descent: at 1.3 em Oswald's descenders were cut,
  *      and only Firefox, which counts them as overflow, said so — 31 Oct);
- *   3. no text under 7 pt; a sign's code at 40 pt or more; every QR 30 mm or more;
+ *   3. no text under 7 pt; a sign's code at 40 pt or more; every QR 30 mm or more (a scorecard's corner:
+ *      15 mm, clear of the grid, signatures, note and foot), and no QR module finer than 0.33 mm;
  *   4. two cards to a sheet (a fold-out one), none crossing its sheet's edge;
  *   5. a fold-out ONLY where the ruling allows one (X1 the cup mixed day, X2 a group
  *      of five as a group card) — any other would be a quiet shrink-around.
@@ -90,7 +91,27 @@ async function measure(page: Page): Promise<{ problems: string[]; cards: Array<{
           }
           if (ownText && parseFloat(style.fontSize) < 7 * PT - 0.01) problems.push(`${what} at ${(parseFloat(style.fontSize) / PT).toFixed(1)} pt`);
           if (el.classList.contains("pk-code") && parseFloat(style.fontSize) < 40 * PT - 0.01) problems.push(`${what}: a code under 40 pt`);
-          if (el.classList.contains("pk-qr") && Math.min(er.width, er.height) < 30 * MM - 0.5) problems.push(`${key}: a QR of ${(er.width / MM).toFixed(1)} mm`);
+          if (el.classList.contains("pk-qr")) {
+            // A sign's code is 30 mm or more; the scorecard's corner (2026-11-05) is what four players leave room for: 15 mm.
+            const floor = el.closest(".pk-cardcode") ? 15 : 30;
+            if (Math.min(er.width, er.height) < floor * MM - 0.5) problems.push(`${key}: a QR of ${(er.width / MM).toFixed(1)} mm`);
+            // And no module finer than 0.33 mm, the level-H code with the mark in it being denser than before.
+            const modules = (el as unknown as SVGSVGElement).viewBox.baseVal.width;
+            if (er.width / modules < 0.33 * MM - 0.01) problems.push(`${key}: a QR with modules of ${(er.width / modules / MM).toFixed(2)} mm`);
+          }
+        }
+        // THE SCORECARD'S CORNER (2026-11-05): its QR and typed code sit clear of the grid, the signature lines, their
+        // note, the foot and the fold-out's member list — the room four players leave is the room it was sized to.
+        const corner = card.querySelector<HTMLElement>(".pk-cardcode");
+        if (corner) {
+          const cr = corner.getBoundingClientRect();
+          for (const sel of [".pk-grid", ".pk-sigs", ".pk-note", ".pk-foot", ".pk-memberlist"]) {
+            for (const o of card.querySelectorAll<HTMLElement>(sel)) {
+              const or = o.getBoundingClientRect();
+              if (or.width === 0 || or.height === 0) continue;
+              if (cr.left < or.right - 0.5 && cr.right > or.left + 0.5 && cr.top < or.bottom - 0.5 && cr.bottom > or.top + 0.5) problems.push(`${key}: the QR corner overlaps ${sel}`);
+            }
+          }
         }
       }
     }

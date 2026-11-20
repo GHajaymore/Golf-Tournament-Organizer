@@ -57,7 +57,10 @@ first"), and make the entry form say what it can — not reorder the steps.
 13. Two counts of "results exist" differ: the dashboard's leaves out bracket winners.
 14. The guide vanishes for good at launch, even after Unlock, and even with steps left undone.
 15. Three progress models with three counts: the strip (5–6 steps), the journey card (4 phases),
-    the dashboard checklist.
+    the dashboard checklist. **Settled 2026-11-04 (state machine PR 3):** the journey card's "phase
+    N of 4" is retired, the strip is the one counter, and the strip, the checklist and the journey
+    all read `tournamentStatus(facts)` — a step nothing waits for (a medal's flights, the money
+    answer) is marked Optional on all three and never holds the guide open.
 16. On the free plan, completing deletes the tournament while the Finish phase reads "send everyone
     the result" (the dashboard does warn beforehand).
 

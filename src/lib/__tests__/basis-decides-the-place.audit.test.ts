@@ -20,7 +20,7 @@ import { loadEventState } from "../services/tournament";
  *
  *     rank 3   gross 70   net 64   Elena Petrova
  *     rank 4   gross 70   net 65   Sang-woo Kim
- *     rank 5   gross 70   net 68   AJ
+ *     rank 5   gross 70   net 68   Ned
  *
  * Three places awarded on handicap in the one format that exists to exclude
  * it, while the player's own Rules tab said "Countback: last 9 holes, then the

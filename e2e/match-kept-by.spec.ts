@@ -3,6 +3,8 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { keepCardOf } from "./keep-on-play";
+import { pressRadio } from "./press-radio";
 
 /**
  * THE ORGANIZER CHOOSES HOW PLAYERS KEEP A ROUND'S MATCHES (Ajay, 2026-10-19:
@@ -53,9 +55,13 @@ test.beforeAll(async () => {
       organizationId: org.id,
       name: `${MARK} Autumn Cup`,
       status: "live",
-      // The organizer has opened setup again to make the choice — after launch
-      // a round's setup is locked, as it should be.
-      configUnlocked: true,
+      // The organizer has opened the rounds with a committee correction to make the
+      // choice — after launch a round's setup is locked, as it should be (PR 9b: the
+      // blanket unlock is not read). Stored as `openCorrection` stores it.
+      correctionScope: "rounds",
+      correctionReason: "zz spec: how the matches are kept",
+      correctionBy: "Zz Organizer",
+      correctionUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
       shape: "single",
       format: "match",
       dates: "",
@@ -198,7 +204,7 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
     const { card } = await roundCard(page, ids.cards);
     await expect(card.getByText("How players keep their matches", { exact: false }).first()).toBeVisible();
     await expect(card.getByRole("radio", { name: "Tap who won each hole" })).toBeChecked();
-    await card.getByRole("radio", { name: "Stroke cards" }).check();
+    await pressRadio(card.getByRole("radio", { name: "Stroke cards" }));
     await expect
       .poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: ids.cards }, select: { matchKeptBy: true } })).matchKeptBy, {
         timeout: 15_000,
@@ -219,9 +225,10 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
       watchPageErrors(p, errors, "Edda, by the code");
       await p.goto("/play");
       await p.waitForLoadState("networkidle").catch(() => {});
-      await p.getByLabel("Round code").fill(CODE);
+      await p.getByLabel("Your code").fill(CODE);
       await p.getByRole("button", { name: "Continue" }).click();
-      await p.getByRole("button", { name: "Zz Edda" }).click();
+      // Her match is the group; on cards, she then picks her own card in it (2026-11-04).
+      await keepCardOf(p, "Zz Edda");
       await expect(p.getByText(/Your own card, hole by hole/)).toBeVisible({ timeout: 30_000 });
       await expect(p.getByRole("group", { name: "Who won hole 1" }), "a tap card on a round kept on cards").toHaveCount(0);
       await expect(p.getByLabel("Strokes on hole 1")).toBeVisible();
@@ -253,7 +260,8 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
       await expect.poll(() => stored(ids.cardsMatch), { timeout: 15_000, message: "the match was not worked out from the two cards" }).toBe("B,H");
       // And the card says where the match stands, in golf's words.
       await p.reload();
-      await expect(p.getByText(/Zz E\. & Zz F\. 1 up with 7 to play/)).toBeVisible({ timeout: 20_000 });
+      // A cup's sides are its teams on the card (2026-11-04), whoever holds it.
+      await expect(p.getByText(/Whites 1 up with 7 to play/)).toBeVisible({ timeout: 20_000 });
     } finally {
       await ctx.close();
     }

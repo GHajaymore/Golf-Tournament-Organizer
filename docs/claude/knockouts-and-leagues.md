@@ -63,6 +63,20 @@ and a place waiting on a drawn tie reads "Winner of A v B" (`winnerOfWords`), "T
 tie is itself waiting. `a-draw-is-drawn-in-sections.test.ts` holds every tie to exactly one tab
 besides Whole draw (a quarter-final to two), over fifteen field sizes and twelve result orders.
 
+**A RESULT IS NEVER TAKEN BACK FROM UNDER A LATER ONE (cut 3, 2026-11-14).** The draw is rebuilt
+from its stored winners by POSITION, and a stored winner whose opponent is no longer known is
+dropped (`claimedWinner`). So taking back or changing a result whose winner had already played on
+took the LATER result off the draw without a word — one stray tap on the bracket's 13.5 px seat did
+it, with no audit line. `laterTieRefusal` (`domain/knockout-ties.ts`) is the one rule, asked by the
+SERVER for the bracket's tap (`setBracketWinner`) and for Undo / Change result on Score entry
+(`undoTieResult`): refused, naming the later tie, until that result is taken back first; a plate is
+held whole once it has a result, since it is drawn from the main draw's first-round losers. Every
+taking-back writes a `knockout.undo` audit line. On Score entry a knockout round is its ties as a
+list (`scoreEntryTies`: reported first, then to play, then decided; every flight through
+`bracketDraws`), two name buttons each and NO Halved (Rule 3.2a(4)), recording through
+`recordTieResult`. The matrix's "taking a knockout result back" cell holds the rule to what the
+rebuild does, at every field size, in random orders.
+
 ## A club league: what has been ARRANGED has not HAPPENED
 
 A league of clubs (flights as clubs, pairs nominated each week, `LeagueSection` on Teams & pairs)
@@ -95,6 +109,15 @@ Three things to carry forward:
   and its two questions are separate: saying yes to replacing a draw is not saying yes to a
   short season.
 
+**THE SAME TRAP, THROUGH A HOLD (2026-11-08, found by J49).** A result in dispute is held off
+every board by `onBoard`, which blanks its holes to `"[]"` — "read as not yet played". The
+round-robin table asked `resolveMatch(holes).complete` of that empty card, so while the
+Committee had not ruled both players were on P 1, ½ 1 and the halve's points, on the table and
+in the head-to-head. `decidedOutcome` (domain/standings.ts) now asks `matchIsOver`, and
+`aggregateStats`, the mini-league head-to-head, the member's head-to-head record and the hot
+streak all take the outcome from it — one place. Proved by `standings-held-match.test.ts`, the
+matrix's "a result held in dispute" cells, and the dispute steps in `e2e/match-results.spec.ts`.
+
 `e2e/interclub-league.spec.ts` runs the season from switching the league on to recording the
 play-off hole, and works every four-ball out for itself (90% before rounding, off the lowest of
 the four, better ball, the usual wording of a result). Week 1 and the final are typed into the
@@ -112,3 +135,88 @@ like impatience is read from the page it kept, not from its message** — and
 where an action is handed a list, the list's order is the caller's:
 `a-pair-is-named-in-the-order-it-was-picked.audit.test.ts` sends each pair both
 ways round, because whichever way the database prefers, one of them differs.
+
+**A LEAGUE WEEK ON ONE BALL IS PRICED BY ITS SIDE, NOT ITS PLAYER** (J22,
+2026-11-03). A league week takes any pairs format, foursomes and a scramble
+included, and `leagueMeetings` priced every card by the player it is filed
+under. A shared ball's card is filed under NO player, so its handicap fell
+through `?? 0` to scratch: every foursomes side in a league week played off
+nought, while its card, the Teams screen and the stored match gave it strokes.
+`leagueSideBalls` now prices a shared ball as ONE ball at `sidePlayingHandicap`
+(Appendix C, or the committee's own figure), off `partnersWhoPlay` — the same
+function and the same partners as the Teams screen. A lookup that falls back to
+nought is a price of nought; ask what the row IS before asking whose it is.
+`a-league-week-on-one-ball-is-priced-by-appendix-c.test.ts` works it from the
+Rules in whole numbers; `league-shared-ball.audit.test.ts` reads it off the table;
+`e2e/interclub-league.spec.ts` plays a foursomes week through the screens and
+holds the card's "Plays off", the meeting and the table to Appendix C, against
+scratch and against each partner rounded first.
+
+And the same day, the stored match: `recomputeTeamMatch` priced the same side
+off EVERY member, a withdrawn partner included, while the screen and the league
+left them out. All three now ask `sideHandicapFromPartners` (teams.ts), which
+requires `withdrawn` of every partner; a sweep refuses a fourth pricer
+(`a-withdrawn-partner-is-not-in-the-stored-match.test.ts`).
+
+**AN AWAY WEEK'S HALVED MATCH IS DECIDED ON THE AWAY CARD** (J26, 2026-11-06). A
+committee that settles a halve on "the toughest N holes" ranks holes by stroke
+index, and the index is the PLAYED course's. The standings, the week view, the
+head-to-head record and the cut out of a match-play round all read the
+tournament's index for every match, so an interclub week at another club was
+decided on the home club's hardest holes — four readers agreeing with each other
+and all wrong. `matchCountbackIndex` (`course-resolution.ts`) is the one answer,
+taking the venue as a required argument; readers get it through
+`countbackCardsFor` / `state.countbackCardFor`. The long form is in
+`combination-sweep.md`, point 7.
+
+## A table's ties: decided over the whole level GROUP, never pair by pair
+
+**THREE PLAYERS WHO BEAT EACH OTHER IN A CIRCLE SHARE THE PLACE** (2026-11-07;
+registered by the J31 review). `rankPlayers` ordered players level on points by
+the group's mini-league, but decided whether two NEIGHBOURS shared a place by
+asking that pair's own meeting. Bea b Cat, Cat b Dot, Dot b Bea, all level: each
+neighbouring pair had a winner, so the table read 2, 3, 4 in ENTRY order, and a
+round robin's cut on countback sent the earliest entry through where the
+committee owed a draw. The other way about, a group the mini-league DID separate
+(+1, 0, -1) shared a place wherever the neighbours had halved their own meeting.
+The league of clubs (`orderClubs`) sorted on the pairwise meeting outright — an
+intransitive comparator, so a cycle came out in whatever order `Array.sort` reached
+and seeded the play-offs that way.
+
+`domain/level-places.ts` (`placesOfLevelGroup`, `placeByPointsThenSteps`) is now the
+one rule, for players and clubs alike: everybody level on points is ONE group; each
+step of the committee's chain ("Level in the table") is asked of the group;
+head-to-head is the mini-league among only the tied, asked AGAIN of any part it
+leaves level. The mini-league is matches won less matches lost against the others
+in the group, and a match not yet played counts for nothing — an unplayed match
+cannot be held against anybody — so in a round robin still being played, a
+player who has not met the others sits BETWEEN those who won their meetings and
+those who lost them. A cycle goes on to the next step together; once a later
+step is reached the chain goes on down and does not start again; whoever the
+chain cannot separate SHARES the place. A handicap on an untouched chain and the
+seed still ORDER a shared place — they never make one. Every reader of a player
+table gets it through `rankPlayers` (the board, the cut via `roundRobinCutOutcome`
+→ `cutLineOutcome`, the week view, the export, the report); the head-to-head screen
+(`services/head-to-head.ts`) is a record of meetings, not a ranking, and reads
+`decidedOutcome` as before.
+
+Three things to carry forward:
+
+- **A cycle is ordinary in a round robin, not an edge case.** Test a tie with
+  THREE players level, never two: for two, the pair's meeting and the group's
+  mini-league are the same answer, which is why every two-player test passed
+  the pairwise rule.
+- **Run a ranking test in every entry order.** The fault was entry order deciding
+  a place; a fixture entered in one order cannot see it. The cells in
+  `a-head-to-head-cycle-shares-the-place.test.ts` run every permutation, the
+  matrix runs two, and `properties-round-robin-cut-tie.test.ts` holds places to
+  any entry order under any chain.
+- **One rule, one place, with a sweep.** A `case "head-to-head"` in a file that
+  does not use `level-places.ts` is refused, with a control of the old shape.
+  The audit (`the-board-and-the-draw-agree-on-a-cut.audit.test.ts`) puts the
+  cycle at a real cut line and holds the board and the draw to the same draw for
+  the one place.
+
+## A guest who stands in scores no individual season points (B46, 12 Nov)
+
+Golf Pro + Tournament Director: a GUEST made by "Replace [player] with…" scores no individual season points; the pair's, team's and week's points still count; the absentee, with no card, scores none. The one place: `EventFinish.finishers[].standIn` (REQUIRED) is set in `finishOrderFor` from `isGuestStandIn(guest, decidedBy)` (`domain/attendance.ts`: only a guest CREATED by Replace carries `STAND_IN_MARK`, on their IN row and their OUT rows, written whether or not the club asks each week) and `seriesStandings` scores the eligible players among themselves (Golf Pro): a member behind the stand-in moves up, one tied with it takes the whole place, members tied with each other split. A guest picked from the field, or entered another way (CSV, form), has no mark and scores. A club setting to award guests points is a follow-up (no settings JSON on `Series`; it needs a column and a migration).

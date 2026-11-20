@@ -72,6 +72,8 @@ export interface ExportRowStatus {
   cutTieBy?: "" | "playoff" | "draw";
   missedCut?: string;
   withdrew?: boolean;
+  /** Withdrew before teeing off (PR B): DNS. */
+  didNotStart?: boolean;
   disqualified?: boolean;
   /** The closed round this player has no card for — "Round 1" — or "". */
   missedRound?: string;
@@ -88,6 +90,7 @@ export interface ExportRowStatus {
 export function exportStatus(r: ExportRowStatus, qualifying = true): string {
   if (r.disqualified) return "DQ";
   if (r.withdrew) return "WD";
+  if (r.didNotStart) return "DNS";
   if (r.missedCut) return "Missed the cut";
   // A player with no card for a closed round did not play it — the board's
   // own words (grid cell T48), not "Eliminated".

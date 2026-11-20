@@ -9,7 +9,10 @@ import { effectiveAllowance, effectiveCountBest, snakeDraw } from "@/lib/service
 import { roundTakesAllowance } from "@/lib/round-allowance";
 import { roundRobinSchedule } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
+import { afterTermChange, beforeTermChange } from "@/lib/services/round-change";
+import { roundWordsFor } from "@/lib/services/action-shared";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
@@ -35,6 +38,16 @@ export interface TeamResult {
    */
   needsConfirm?: boolean;
   cards?: number;
+  /**
+   * The confirm's words, where the rounds rule asks (J12, PR 7b): a term of the
+   * competition changed after play — the Golf Pro's sentence (`rescoreWords`).
+   */
+  says?: string;
+  /**
+   * Refused because its scope is locked (`refuseIfLocked`, PR 5a): the lock,
+   * with its reason and way out, so a screen drawn before the lock can catch up.
+   */
+  lock?: ScopeLock;
 }
 
 /**
@@ -74,9 +87,11 @@ async function requireStaff(): Promise<string> {
   return session.eventId;
 }
 
-/** Structural changes are blocked once a tournament is under way, unless the
+/** Structural changes are refused once a tournament is under way, unless the
  *  organizer has explicitly unlocked it — redrawing sides mid-round would
- *  orphan every card already returned. */
+ *  orphan every card already returned. Each action asks its scope's lock
+ *  (`refuseIfLocked`: "sides" for a side, "rounds" for a term of the round)
+ *  and RETURNS the refusal in words; none throws (J10, state machine PR 5a). */
 
 /** Confirms a stage belongs to this tournament — without it, a stage id from
  *  another club's event would attach teams across the tenant boundary. */
@@ -124,7 +139,8 @@ async function refresh() {
 
 export async function createTeam(name: string, stageId: string | null): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const scoped = await stageInEvent(eventId, stageId);
   const clean = String(name ?? "").trim();
   if (!clean) return { ok: false, error: "Give the team a name." };
@@ -154,7 +170,8 @@ export async function renameTeam(teamId: string, name: string): Promise<TeamResu
 
 export async function deleteTeam(teamId: string): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
   // Cascades to membership and cards. Deliberately refuses once the side has
@@ -170,7 +187,8 @@ export async function deleteTeam(teamId: string): Promise<TeamResult> {
 
 export async function addTeamMember(teamId: string, playerId: string): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const [team, player] = await Promise.all([
     prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true, stageId: true } }),
     prisma.player.findUnique({ where: { id: playerId }, select: { eventId: true, status: true, name: true } }),
@@ -256,7 +274,8 @@ export async function removeTeamMember(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
 
@@ -288,7 +307,10 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
   await stageInEvent(eventId, stageId);
   const league = await leagueRefusal(eventId);
   if (league) return { ok: false, error: league };
-  await assertUnlocked(eventId, "change teams");
+  // "sides", not "draw": these are the Teams screen's matches, under its one
+  // banner; the draw scope's own rule (a flighted knockout's) is not theirs.
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });
   if (!stage) return { ok: false, error: "Round not found." };
@@ -331,61 +353,71 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
     if (scored > 0) {
       return { ok: false, error: "Scores have already been recorded for this round." };
     }
-    await prisma.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
   }
 
   /**
-   * THE CARRIER for this round's team matches, found by the ROUND.
-   *
-   * This was a find-or-create BY NAME, and the comment here said at length
-   * that the string was really an identifier and that renaming it would "fail
-   * to match the flight already there, create a second one beside it, and
-   * split a club's matches across the two". All true — and the thing doing
-   * the renaming was never the renumbering it guarded against. It was
-   * `regenerateGroupsAndSchedule`, reusing rows by position and renaming them
-   * in place. See `Group.stageId` and `matchCarrierGroup`.
-   *
-   * The name is now a label. The fallback below is the migration: a carrier
-   * created before the column exists has no round, so it is found the old way
-   * once and adopted. Scoped to `stageId: null` so it can never take a carrier
-   * that already belongs to a different round.
+   * ALL OR NOTHING: removing the old matches, finding or making the carrier and
+   * writing the schedule are ONE transaction, so a failure part-way (a
+   * concurrent delete, a constraint, a dropped connection) leaves the round as
+   * it was, never a part-drawn round robin.
    */
-  const groupName = `${stage.format} — Round ${stage.position + 1}`;
-  let group = await prisma.group.findFirst({ where: { eventId, stageId, isCarrier: true } });
-  if (!group) {
-    // Pre-column carrier — claims neither axis, so the name is the only
-    // evidence it is one. Adopted onto both. See `matchCarrierGroup`.
-    const byName = await prisma.group.findFirst({
-      where: { eventId, name: groupName, stageId: null, isCarrier: false },
-    });
-    if (byName) {
-      group = await prisma.group.update({
-        where: { id: byName.id },
-        data: { stageId, isCarrier: true },
+  await prisma.$transaction(async (tx) => {
+    if (existing.length > 0) {
+      await tx.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
+    }
+
+    /**
+     * THE CARRIER for this round's team matches, found by the ROUND.
+     *
+     * This was a find-or-create BY NAME, and the comment here said at length
+     * that the string was really an identifier and that renaming it would "fail
+     * to match the flight already there, create a second one beside it, and
+     * split a club's matches across the two". All true — and the thing doing
+     * the renaming was never the renumbering it guarded against. It was
+     * `regenerateGroupsAndSchedule`, reusing rows by position and renaming them
+     * in place. See `Group.stageId` and `matchCarrierGroup`.
+     *
+     * The name is now a label. The fallback below is the migration: a carrier
+     * created before the column exists has no round, so it is found the old way
+     * once and adopted. Scoped to `stageId: null` so it can never take a carrier
+     * that already belongs to a different round.
+     */
+    const groupName = `${stage.format} — Round ${stage.position + 1}`;
+    let group = await tx.group.findFirst({ where: { eventId, stageId, isCarrier: true } });
+    if (!group) {
+      // Pre-column carrier — claims neither axis, so the name is the only
+      // evidence it is one. Adopted onto both. See `matchCarrierGroup`.
+      const byName = await tx.group.findFirst({
+        where: { eventId, name: groupName, stageId: null, isCarrier: false },
+      });
+      if (byName) {
+        group = await tx.group.update({
+          where: { id: byName.id },
+          data: { stageId, isCarrier: true },
+        });
+      }
+    }
+    if (!group) {
+      const maxPos = await tx.group.aggregate({ where: { eventId }, _max: { position: true } });
+      group = await tx.group.create({
+        data: {
+          eventId,
+          stageId,
+          isCarrier: true,
+          name: groupName,
+          position: (maxPos._max.position ?? -1) + 1,
+        },
       });
     }
-  }
-  if (!group) {
-    const maxPos = await prisma.group.aggregate({ where: { eventId }, _max: { position: true } });
-    group = await prisma.group.create({
-      data: {
-        eventId,
-        stageId,
-        isCarrier: true,
-        name: groupName,
-        position: (maxPos._max.position ?? -1) + 1,
-      },
-    });
-  }
 
-  const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
-  const schedule = roundRobinSchedule(use.map((t) => t.id));
-  for (const pairing of schedule) {
-    await prisma.match.create({
-      data: {
+    const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
+    const schedule = roundRobinSchedule(use.map((t) => t.id));
+    // ONE statement: a pairing that cannot be written takes the whole schedule with it.
+    await tx.match.createMany({
+      data: schedule.map((pairing) => ({
         eventId,
         stageId,
-        groupId: group.id,
+        groupId: group!.id,
         round: pairing.round,
         // The sides are teams, so the player columns stay empty rather than
         // being repurposed — a column whose meaning depends on the format is
@@ -395,9 +427,9 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
         teamAId: pairing.aId,
         teamBId: pairing.bId,
         holes: emptyHoles,
-      },
+      })),
     });
-  }
+  });
 
   await refresh();
   return { ok: true };
@@ -426,7 +458,8 @@ export async function autoDrawTeams(
   await stageInEvent(eventId, stageId);
   const league = await leagueRefusal(eventId);
   if (league) return { ok: false, error: league };
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true, type: true } });
   if (!stage) return { ok: false, error: "Round not found." };
@@ -525,7 +558,6 @@ export async function setStageAllowance(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change a round's handicap allowance");
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
     // "1 to 100", not "0 to 100": zero is accepted here as "back to the
@@ -540,21 +572,23 @@ export async function setStageAllowance(
   if (next > 0 && current && !roundTakesAllowance(current)) {
     return { ok: false, error: "This round takes no handicap allowance, so there is none to set." };
   }
-  // Compared as the allowance IN FORCE, so "back to the recommended 90%" on a
-  // round already playing 90% is not a change.
-  const refusal = await rescoreRefusal(
-    eventId,
-    stageId,
-    !!current &&
-      effectiveAllowance(current.format, current.handicapAllowance, current.type) !==
-        effectiveAllowance(current.format, next, current.type),
-    force,
-  );
-  if (refusal) return refusal;
+  /**
+   * THE ROUNDS RULE (J12, PR 7b; `domain/round-change.ts`): open until the
+   * round has scores, then asked with the Golf Pro's sentence and — once
+   * confirmed — recomputed and logged; refused once completed, or on a round
+   * whose matches are recorded. Compared as the allowance IN FORCE, so "back to
+   * the recommended 90%" on a round already playing 90% is not a change.
+   */
+  const was = current ? effectiveAllowance(current.format, current.handicapAllowance, current.type) : 0;
+  const now = current ? effectiveAllowance(current.format, next, current.type) : 0;
+  const gate = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed: !!current && was !== now, force });
+  if ("refused" in gate) return gate.refused;
+  if ("asked" in gate) return gate.asked;
   await prisma.stage.update({
     where: { id: stageId },
     data: { handicapAllowance: next },
   });
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap allowance ${was}% → ${now}%`);
   await refresh();
   return { ok: true };
 }
@@ -574,7 +608,9 @@ export async function setStageCountBest(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  // How the round is scored, like its allowance — a term of the round.
+  const locked = await refuseIfLocked(eventId, "rounds", "change how many scores count");
+  if (locked) return locked;
   await stageInEvent(eventId, stageId);
 
   if (!Number.isFinite(count) || count < 0) {
@@ -632,7 +668,8 @@ export async function setStageAllowanceWeights(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  // The handicap split, like the allowance — a term of the round, asked of the
+  // rounds rule (J12, PR 7b) as the allowance is.
   await stageInEvent(eventId, stageId);
 
   const stored = await prisma.stage.findUnique({
@@ -641,16 +678,14 @@ export async function setStageAllowanceWeights(
   });
   const same = (a: number[], b: number[]) =>
     a.length === b.length && a.every((v, i) => v === b[i]);
+  const shares = (w: readonly number[]) => (w.length ? w.map((x) => `${x}%`).join("/") : "the recommended split");
 
   if (weights.length === 0) {
-    const refusal = await rescoreRefusal(
-      eventId,
-      stageId,
-      (stored?.allowanceWeights.length ?? 0) > 0,
-      force,
-    );
-    if (refusal) return refusal;
+    const gate = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed: (stored?.allowanceWeights.length ?? 0) > 0, force });
+    if ("refused" in gate) return gate.refused;
+    if ("asked" in gate) return gate.asked;
     await prisma.stage.update({ where: { id: stageId }, data: { allowanceWeights: [] } });
+    await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares([])}`);
     await refresh();
     return { ok: true };
   }
@@ -672,18 +707,15 @@ export async function setStageAllowanceWeights(
   }
 
   const wanted = weights.map((w) => Math.round(w));
-  const refusal = await rescoreRefusal(
-    eventId,
-    stageId,
-    !same(stored?.allowanceWeights ?? [], wanted),
-    force,
-  );
-  if (refusal) return refusal;
+  const gate = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed: !same(stored?.allowanceWeights ?? [], wanted), force });
+  if ("refused" in gate) return gate.refused;
+  if ("asked" in gate) return gate.asked;
 
   await prisma.stage.update({
     where: { id: stageId },
     data: { allowanceWeights: wanted },
   });
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares(wanted)}`);
   await refresh();
   return { ok: true };
 }

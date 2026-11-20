@@ -3,7 +3,7 @@ import { readdirSync } from "node:fs";
 import { readSource } from "./source";
 import { FORMAT_NAMES, findFormat } from "../formats";
 import { STAGE_TYPES, isHeadToHead } from "../stage-types";
-import { effectiveAllowance, recommendedAllowance } from "../round-allowance";
+import { allowanceMeans, effectiveAllowance, playsOffWords, recommendedAllowance, teamAllowanceWords } from "../round-allowance";
 
 /**
  * A FOUR-BALL IS 85% AT STROKE PLAY AND 90% IN A MATCH.
@@ -25,8 +25,9 @@ import { effectiveAllowance, recommendedAllowance } from "../round-allowance";
  * the format alone — that is the half this file reads the source for.
  *
  * WHAT IT DOES NOT COVER: Appendix C also gives best 1 of 4 at 75% and best 3
- * of 4 at 100%, which the app's Best Ball does not follow (it plays 85%
- * whatever the side). That is written down in `docs/deferred-register.md`.
+ * of 4 at 100%, which the app's Best Ball does not follow at stroke play (it
+ * plays 85% whatever the side; 90% in a match, below). That is written down in
+ * `docs/deferred-register.md`.
  */
 
 const TYPES: string[] = [...STAGE_TYPES];
@@ -66,10 +67,76 @@ describe("what a four-ball plays at", () => {
   });
 });
 
+/**
+ * A BEST BALL PAIR IN A MATCH IS A FOUR-BALL MATCH: 90% (2026-11-09).
+ *
+ * Best Ball's 85% is the four-ball STROKE-play figure. In a round robin, a
+ * knockout or a cup session a pair counting its better ball is playing a
+ * four-ball match, and Appendix C gives that 90%: a course handicap of 20
+ * plays off 18, where 85% made it 17. Found by the accuracy sweep
+ * (`accuracy-team-formats-by-hand.test.ts`).
+ */
+describe("what a Best Ball side plays at", () => {
+  it("85% at stroke play, as before", () => {
+    for (const type of MEDALS) expect(recommendedAllowance("Best Ball", type), type).toBe(85);
+  });
+
+  it("90% in every round that is a match", () => {
+    for (const type of MATCHES) expect(recommendedAllowance("Best Ball", type), type).toBe(90);
+  });
+
+  it("the committee's own figure is never replaced, in a match or out of one", () => {
+    for (const type of TYPES) {
+      expect(effectiveAllowance("Best Ball", 85, type), type).toBe(85);
+      expect(effectiveAllowance("Best Ball", 75, type), type).toBe(75);
+      expect(effectiveAllowance("Best Ball", 0, type), type).toBe(recommendedAllowance("Best Ball", type));
+    }
+  });
+});
+
+/**
+ * WHAT A ROUND'S ALLOWANCE IS A SHARE OF, and the words a side is told
+ * (2026-11-09, the accuracy sweep's mutation pass: each line below is a case a
+ * mutant of `round-allowance.ts` survived).
+ */
+describe("what an allowance is a share of, and the words for a side", () => {
+  it("an individual net medal takes a share of each PLAYER's handicap; a side's round of the side's", () => {
+    // Appendix C: individual stroke play and Stableford (95%) are each player's figure.
+    for (const format of ["Stroke Play", "Stableford", "Modified Stableford"]) {
+      expect(allowanceMeans({ format, type: "Stroke Play Round" }), format).toBe("player");
+    }
+    // A round robin set to Stroke Play is a medal in fact.
+    expect(allowanceMeans({ format: "Stroke Play", type: "Round Robin" })).toBe("player");
+    expect(allowanceMeans({ format: "Four-Ball", type: "Stroke Play Round" })).toBe("side:Four-Ball");
+  });
+
+  it("no share at all for skins, a Nassau, a singles match or a round scored by hand", () => {
+    expect(allowanceMeans({ format: "Skins", type: "Stroke Play Round" })).toBe("none");
+    expect(allowanceMeans({ format: "Nassau", type: "Stroke Play Round" })).toBe("none");
+    expect(allowanceMeans({ format: "Match Play", type: "Round Robin" })).toBe("none");
+    expect(allowanceMeans({ format: "Other (scored by hand)", type: "Stroke Play Round" })).toBe("none");
+  });
+
+  it("'Plays off' lists each player's own figure, in order, and nothing for a side with none", () => {
+    expect(playsOffWords([7, null, 9])).toBe("7 · 9");
+    expect(playsOffWords([null, undefined])).toBeNull();
+    expect(playsOffWords([])).toBeNull();
+  });
+
+  it("a scramble is told Appendix C's three tables, lowest handicap first", () => {
+    expect(teamAllowanceWords({ format: "Scramble", type: "Stroke Play Round", handicapAllowance: 0, allowanceWeights: [] })).toBe(
+      "Lowest handicap first. Two: 35 / 15. Three: 30 / 20 / 10. Four: 25 / 20 / 15 / 10. The Rules' figure.",
+    );
+    expect(teamAllowanceWords({ format: "Scramble", type: "Stroke Play Round", handicapAllowance: 0, allowanceWeights: [30, 20, 10] })).toBe(
+      "30% / 20% / 10% of the players' handicaps, lowest first, set by the committee",
+    );
+  });
+});
+
 describe("every other format keeps the one figure it has", () => {
   it("the same on a stroke-play round and in a match", () => {
     for (const format of FORMAT_NAMES) {
-      if (format === "Four-Ball") continue;
+      if (format === "Four-Ball" || format === "Best Ball") continue;
       for (const type of TYPES) {
         expect(recommendedAllowance(format, type), `${format} on a ${type}`).toBe(findFormat(format).allowance);
       }

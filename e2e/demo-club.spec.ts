@@ -73,7 +73,7 @@ async function isLabelledDemo(page: Page, what: string) {
 
 test("somebody who is not the owner finds no demo button, and builds nothing", async ({ page, baseURL }) => {
   await page.context().addCookies([{ name: "ng_session", value: cookies.stranger, url: baseURL! }]);
-  const res = await page.goto(`/owner?bust=${Date.now()}`);
+  const res = await page.goto(`/owner?tab=content&bust=${Date.now()}`);
   expect(res?.status(), "the owner console answered somebody else").toBe(404);
   expect(await demoClubs()).toHaveLength(0);
 });
@@ -83,7 +83,7 @@ test("the owner creates the demo club, then refreshes it: one club, the same two
   const errors: string[] = [];
   watchPageErrors(page, errors, "owner");
   await page.context().addCookies([{ name: "ng_session", value: cookies.owner, url: baseURL! }]);
-  await page.goto(`/owner?bust=${Date.now()}`);
+  await page.goto(`/owner?tab=content&bust=${Date.now()}`);
   const card = page.locator("#demo-club");
   await expect(card).toContainText("Not built yet");
 
@@ -96,7 +96,7 @@ test("the owner creates the demo club, then refreshes it: one club, the same two
   const events = await prisma.event.findMany({ where: { organizationId: built[0].id }, select: { shareToken: true, status: true }, orderBy: { status: "asc" } });
   expect(events.map((e) => e.status)).toEqual(["completed", "live"]);
 
-  await page.goto(`/owner?bust=${Date.now()}`);
+  await page.goto(`/owner?tab=content&bust=${Date.now()}`);
   await expect(page.locator("#demo-club")).toContainText("Built");
   await page.locator("#demo-club").getByRole("button", { name: "Refresh the demo club" }).click();
   await page.locator("#demo-club").getByRole("button", { name: "Yes, rebuild it" }).click();

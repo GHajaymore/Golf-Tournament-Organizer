@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail } from "./organizer-fixture.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * A CLUB MATCH-PLAY KNOCKOUT, RUN FROM NOTHING BY A NEW ORGANIZER.
@@ -92,7 +93,8 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A knockout/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("the date", async () => {
@@ -108,7 +110,7 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
     await open(page, "/registration");
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
-      await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
+      await page.getByRole("textbox", { name: /^Email · optional/ }).fill(medalEmail(i));
       // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
       await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
@@ -132,7 +134,7 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   await test.step("the draw is seeded on handicap: 1 v 4, 2 v 3", async () => {

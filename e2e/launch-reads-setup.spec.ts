@@ -54,7 +54,7 @@ test("launch is refused in place for a scramble with no sides, and warns about t
         // "New Tournament" is the placeholder a blank name falls back to: not named yet,
         // which makes the fourth warning, so the dialog folds its third row.
         organizationId: org.id, name: "New Tournament", dates: "Nov 14–15", course: "Home", city: "", address: "", regDeadline: "",
-        status: "ready", shareToken: `zz-launchsetup-${size}-${Date.now()}`, configUnlocked: true,
+        status: "draft", shareToken: `zz-launchsetup-${size}-${Date.now()}`,
         customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
         customYards: JSON.stringify(new Array(18).fill(400)),
       },
@@ -81,9 +81,12 @@ test("launch is refused in place for a scramble with no sides, and warns about t
     const launch = page.getByRole("button", { name: "Launch tournament" }).first();
     await expect(launch, "Launch tournament is not offered").toBeVisible({ timeout: 30_000 });
     await expect(launch, "Launch went through over a scramble with no sides").toBeDisabled();
-    await expect(launch).toHaveAttribute("title", `${NO_SIDES} Make the sides on Teams & pairs, then launch.`);
-    await expect(page.getByText(NO_SIDES).first()).toBeVisible();
-    expect(await status(), "refusing changed the tournament").toBe("ready");
+    // The reason under the button, ending in the way out (`RefusedAction`, state machine PR 3).
+    await expect(launch).toHaveAttribute("aria-disabled", "true");
+    const reason = page.locator(`#${await launch.getAttribute("aria-describedby")}`);
+    await expect(reason).toContainText(`${NO_SIDES} Make the sides on Teams & pairs, then launch.`);
+    await expect(reason.getByRole("link", { name: "Open Teams & pairs" })).toHaveAttribute("href", "/teams");
+    expect(await status(), "refusing changed the tournament").toBe("draft");
 
     // The sides are made: Launch opens, and the dialog lists what is still open, first.
     for (const [i, pair] of [players.slice(0, 2), players.slice(2)].entries()) {
@@ -98,7 +101,9 @@ test("launch is refused in place for a scramble with no sides, and warns about t
     await expect(open).toContainText(/\d of \d setup steps still open — you can launch without them\./);
     await expect(open).toContainText("There are no flights, so the whole field plays as one division.");
     await expect(open.getByRole("link", { name: "Make flights on Flights" })).toHaveAttribute("href", "/grouping");
-    await expect(open).toContainText("after launch, this needs Unlock first.");
+    // Flights are structural: once live they change only through a committee correction (state machine PR 5b retired Unlock).
+    await expect(open).toContainText("Make flights on Flights — after launch, this needs a committee correction first.");
+    await expect(open, "the launch check still names the retired Unlock").not.toContainText("Unlock");
     await expect(open.getByRole("link", { name: "Give it one on Tournament details" })).toHaveAttribute("href", "/event");
     // Four warnings, three rows: the third names the other two inline, each its own link.
     await expect(open.locator("li")).toHaveCount(3);

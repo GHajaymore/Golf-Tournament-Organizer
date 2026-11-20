@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { cardRevision, staleAgainst, NO_CARD_REVISION } from "@/lib/domain/pending-card";
+import { cardRevision, overwritesUnseen, NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { mayReportPartialCard, type TournamentSettings } from "@/lib/tournament-settings";
@@ -197,7 +197,7 @@ export async function writeScorecard(input: {
      * The paragraph further down already says it — "saving the SAME strokes
      * twice is not a conflict" — and this is where that is made true.
      */
-    if (staleAgainst(expected, stored) && cardRevision(clean) !== stored) {
+    if (overwritesUnseen(expected, stored, cardRevision(clean))) {
       return { ok: false, conflict: { strokes: storedStrokes, revision: stored } };
     }
   }

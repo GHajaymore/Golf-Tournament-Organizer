@@ -93,7 +93,18 @@ tournament money code entirely.
      It moves to Par for anything it makes from then on, and every tournament it
      held at that moment becomes a READ-ONLY ARCHIVE for 12 months from the end
      date (`Event.archivedAt`, `Subscription.lapsedAt`): viewable and
-     exportable, nothing changed or scored, an unfinished one paused. The
+     exportable, nothing changed or scored, an unfinished one paused. Its
+     console is read-only in ONE place (2026-11-09): the layout wraps every
+     screen in `ArchiveReadOnly` (`domain/archive-read-only.ts`), which disables
+     each control that writes under the banner's one sentence; links, prints
+     (the print kit too — `recordPrinted` records nothing in an archive),
+     exports, round and flight pickers and Copy last event (it writes only the
+     new copy) stay live. The club's own screens stay usable — `/organization`
+     (the way out), `/tournaments`, `/guide`, the member list (`/roster`) and
+     seasons (`/series`) — with the tournament's own parts on them (its staff,
+     money, settings) still locked (`data-this-tournament`); the list is derived
+     by its test from the archive sweep's "club" doors. Before the page has
+     hydrated only the actions' own refusals cover a press — the backstop. The
      archive is not counted against Par's limits, and Par's 14/15-day sweep
      never touches it. The owners are emailed 30 days and 7 days before it is
      deleted (`sweepArchives`, in the daily cron), and nothing goes until 7 days
@@ -128,3 +139,16 @@ Against Golf Genius's ~$3,000/yr for a club: **$290/yr, simpler, with the money
 games and a player app members enjoy — and we never touch your money.** The full
 argument and the competitor comparison are in
 `docs/monetization-and-tiers-proposal.md`.
+
+## The Plans panel (10 Nov 2026)
+
+Ajay: "just give me control to adjust the plans in owners console." `/owner?tab=plans` is the ONE place every plan figure is adjusted, with no code edit and no deploy:
+
+- **Prices by region.** A region is a named group of countries (ISO codes) with one currency and its own monthly price per paid tier and, optionally, its own months billed for a year. Seeded from the old currencies (United States, United Kingdom, Eurozone, Canada, Australia, New Zealand, South Africa) plus **Rest of world** (USD, always there, holds no countries). A country is in at most one region; the panel refuses a duplicate and says where it already is. A club is quoted by its Organization country; a club with no country is quoted by its currency (the first region that trades in it), else Rest of world. One reader: `planQuote(plan, overrides, country)` in `plans.ts` (country REQUIRED); `effectivePrice`, `effectiveAnnualPrice`, `quoteCurrency` and Checkout all come through it. A row written before regions (`plans.*.monthly` / `byCurrency`) is folded into the default regions on read, so no price moved (`price-regions.test.ts`).
+- **Months billed for a year** (default 10): one figure for every region, and an optional figure per region. The FAQ line "two months are free" is worded from it (`yearlyFreeWords`).
+- **Limits and the enforce switch** (`OwnerLimits`), unchanged.
+- **Event passes and the seasonal plan** (decided 10 Nov, NOT on sale): an editable list of passes (name, price per region, player cap or any field) and one seasonal plan (tier, months, price per region). Defaults live in `plans.ts`. Stored in the `offers` settings row. Nothing outside `/owner` may show them until the owner-only **On sale** switch is on: other surfaces read `publicOffers()`, and `offers-are-not-on-sale.test.ts` sweeps for a page that does not. And the switch itself cannot be turned on while nothing can sell a pass ("not advertised until purchasable"): `OFFERS_CAN_BE_BOUGHT` in `plans.ts` is `false`, `cleanOfferInput` refuses `onSale: true`, and the panel draws the switch shut and says why. The day billing sells a pass, that constant and the switch are the change.
+- **Free stays free.** Par and Albatross have no price to set: `saveTierPrices` skips them and `planQuote` never prices them from an override, whatever a stored row holds.
+- **What a change reaches.** Every price shown and every NEW Checkout (`checkoutLineItem` builds the line from the same quote). A club already paying keeps the price it signed up at: nothing edits a running Stripe subscription. The Est. MRR on the Overview is worked from today's Rest-of-world dollar prices, not from what each club pays.
+
+The console is four tabs, each at its own address: `?tab=overview` (the numbers), `plans`, `accounts` (the go-live switch and registered interest) and `content` (the demo club and the course catalogue). Every tab sits behind the same owner check, and every action still checks the owner itself.

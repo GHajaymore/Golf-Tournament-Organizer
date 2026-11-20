@@ -10,7 +10,7 @@ import { moneyFor } from "@/lib/services/expenses";
  * THE DAY A HANDOVER WAS RECORDED IS THE CLUB'S DAY, IN THE CLUB'S WORDS
  * (2026-10-13).
  *
- * "Marcus paid Aj $10 · 2026-10-13 · recorded by the secretary." Both money
+ * "Marcus paid Ned $10 · 2026-10-13 · recorded by the secretary." Both money
  * screens printed that date straight off the server's clock, as the database
  * writes one. So it was the wrong DAY for any club not on the server's side of
  * midnight — a handover recorded at nine in the evening in New York was dated

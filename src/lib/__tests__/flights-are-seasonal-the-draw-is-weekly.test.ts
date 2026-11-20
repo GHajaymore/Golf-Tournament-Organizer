@@ -44,9 +44,13 @@ describe("flights are seasonal", () => {
 describe("the weekly draw is weekly", () => {
   const src = readSource(FOURSOMES);
 
+  // The week's field is ONE service's answer (`sheetFieldFor`), asked by this page and by the move action.
+  const field = readSource("src", "lib", "services", "sheet-field.ts");
+
   it("resolves who is in before it draws", () => {
-    expect(src).toMatch(/resolveAttendance\(/);
-    expect(src).toMatch(/tracksPerRound\(/);
+    expect(src).toMatch(/sheetFieldFor\(/);
+    expect(field).toMatch(/resolveAttendance\(/);
+    expect(field).toMatch(/tracksPerRound\(/);
   });
 
   it("hands the DRAW the filtered field, not the whole roster", () => {
@@ -56,8 +60,9 @@ describe("the weekly draw is weekly", () => {
      * entirely — a sheet with six absentees on it.
      */
     expect(src, "the field is no longer narrowed to who is in").toMatch(
-      /field = state\.confirmed\.filter\(\(p\) => inIds\.has\(p\.id\)\)/,
+      /field = sheetField \? state\.confirmed\.filter\(\(p\) => sheetField\.ids\.has\(p\.id\)\)/,
     );
+    expect(field, "the service no longer narrows to who is in").toMatch(/ids = ids\.filter\(\(id\) => inIds\.has\(id\)\)/);
     expect(src, "the draw is being handed something other than the narrowed field").toMatch(
       /players=\{field\.map\(/,
     );

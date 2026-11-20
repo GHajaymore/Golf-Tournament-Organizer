@@ -1,6 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayerViewer } from "@/lib/page-helpers";
 import { moneyFor, roundMoneyFor, usesExpenses } from "@/lib/services/expenses";
 import { MoneyClient } from "@/components/MoneyClient";
 import { RoundMoney } from "@/components/RoundMoney";
@@ -29,7 +29,9 @@ export const metadata = screenMetadata("/me/money");
  * buggy. See money-mode and org-profile.
  */
 export default async function MoneyPage() {
-  const session = await requireSession();
+  const session = await requirePlayerViewer();
+  // A guest's side-game exposure comes with the design's later PRs: Today until then.
+  if (session.guest) redirect("/me");
 
   const event = await prisma.event.findUnique({
     where: { id: session.eventId },

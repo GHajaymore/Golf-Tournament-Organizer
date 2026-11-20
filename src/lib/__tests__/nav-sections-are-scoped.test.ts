@@ -133,8 +133,14 @@ describe("a screen sits in the section that says what it changes", () => {
      * Asserted on the SOURCE of the component that draws it, because that is
      * where the decision lives.
      */
-    const src = readSource("src/components/Sidebar.tsx");
-    expect(src, "Sidebar draws the heading unconditionally").toMatch(/sec\.label\s*&&/);
+    // The list is one drawing shared with the phone's drawer since 2026-11-10 (`NavSections`): the
+    // decision lives there, and the sidebar must not ask for the drawer's empty row. The rendered
+    // list is counted as well, in `nav-sections-draw.test.tsx`.
+    const sidebar = readSource("src/components/Sidebar.tsx");
+    expect(sidebar, "Sidebar no longer draws the shared list").toContain("<NavSections ");
+    expect(sidebar, "Sidebar asks for the heading row even when it has no words").not.toContain("headEmpty");
+    const src = readSource("src/components/NavSections.tsx");
+    expect(src, "the list draws the heading unconditionally").toMatch(/\(sec\.label\s*\|\|\s*headEmpty\)\s*&&/);
   });
 });
 

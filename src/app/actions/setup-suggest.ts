@@ -12,9 +12,11 @@ import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
-import { assertUnlocked } from "@/lib/services/action-shared";
+import { refuseIfAddingARoundIsLocked } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { askClaude } from "@/lib/services/claude";
+import { scoringDefaults } from "@/lib/domain/round-scoring";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -55,6 +57,8 @@ export interface SetupSuggestResult {
   error?: string;
   proposal?: SetupProposal;
   configured?: boolean;
+  /** Refused because the rounds are locked (`refuseIfLocked`): the lock, with its reason and way out. */
+  lock?: ScopeLock;
 }
 
 /** Long enough to describe a tournament, short enough not to be a payload. */
@@ -62,8 +66,8 @@ const MAX_DESCRIPTION = 600;
 
 /**
  * Structural changes stop once the tournament is live, unless the organizer
- * has explicitly unlocked it. The same rule and the same words as `addStage`,
- * because this writes the rows `addStage` writes.
+ * has opened a correction — the rounds' add rule (`refuseIfAddingARoundIsLocked`,
+ * refused only once completed), because this writes the rounds a round card would.
  */
 
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
@@ -164,7 +168,11 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
   // description typed into a live tournament could append rounds that the
   // ordinary control refuses — the lock exists because adding a round to an
   // event already being played changes what the standings are counting.
-  await assertUnlocked(eventId);
+  // RETURNED, never thrown (J10, state machine PR 5a). ONE RULE WITH `addStage`
+  // (TD ruling on 5a, Q2; PR 5b): adding a round is refused only once the
+  // tournament is completed — a live league adds next week's as it goes.
+  const locked = await refuseIfAddingARoundIsLocked(eventId);
+  if (locked) return locked;
 
   const checked = parseSetupProposal({ rounds }, PLAYABLE_FORMAT_NAMES, STAGE_TYPES);
   if (checked.rounds.length === 0) {
@@ -176,6 +184,8 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const from = (agg._max.position ?? -1) + 1;
   const flightsBefore = await flightDefaultFor(eventId);
+  // Who keeps each new round's card and who checks it (`scoringDefaults`).
+  const shape = (await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } }))?.shape ?? "";
 
   await prisma.stage.createMany({
     data: checked.rounds.map((r, i) => ({
@@ -187,6 +197,7 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
       // A Stableford round is net — `basisFor` (2026-09-28).
       scoringBasis: basisFor(r.format, r.scoringBasis),
       description: r.description,
+      ...scoringDefaults(shape),
     })),
   });
   await followFlightDefault(eventId, flightsBefore);

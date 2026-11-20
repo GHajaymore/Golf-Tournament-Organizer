@@ -2,6 +2,8 @@ import { test, expect, type Page, type Browser, type TestInfo } from "./coverage
 import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
+import { pressRadio } from "./press-radio";
+import { expectLaunched } from "./end-early";
 
 /**
  * A CLUB MATCH PLAY IN FLIGHTS, RUN FROM NOTHING BY A NEW ORGANIZER.
@@ -98,7 +100,8 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A knockout/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
 
     await open(page, "/event");
     const today = new Date().toISOString().slice(0, 10);
@@ -110,7 +113,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await open(page, "/registration");
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
-      await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
+      await page.getByRole("textbox", { name: /^Email · optional/ }).fill(medalEmail(i));
       // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
       await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
@@ -156,7 +159,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
 
   await test.step("divided by handicap into the organizer's own sizes", async () => {
     await open(page, "/bracket?view=draw");
-    await page.getByRole("radio", { name: "Your own sizes" }).check();
+    await pressRadio(page.getByRole("radio", { name: "Your own sizes" }));
     const own = page.getByLabel("Players in each flight, top flight first, separated by commas");
     // Sizes that do not hold the field are answered before the button is.
     await own.fill("4, 3, 2");
@@ -208,10 +211,16 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
 
     await open(page, "/bracket?view=draw");
-    await expect(page.getByText(/it is locked while setup is/)).toBeVisible();
+    // The arrangement is locked with the rounds, and the line says how it is corrected: a committee
+    // correction to the rounds, on the dashboard (state machine PR 5b; `BracketModePicker`).
+    const lockedLine = page.locator("main p", { hasText: "Changing this redraws who plays whom" });
+    await expect(lockedLine).toBeVisible();
+    await expect(lockedLine).toContainText("so it is locked with the rounds.");
+    await expect(lockedLine).toContainText("An Organizer can make a committee correction to the rounds");
+    await expect(lockedLine.getByRole("link", { name: "dashboard" })).toHaveAttribute("href", "/dashboard");
     await expect(page.getByRole("button", { name: "Change", exact: true })).toHaveCount(0);
     // The division is the draw: still the organizer's to adjust until somebody has played.
     await expect(page.getByRole("button", { name: "Start again" })).toBeVisible();

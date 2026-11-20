@@ -86,8 +86,8 @@ test.afterAll(async () => {
   }
 });
 
-async function open(page: Page) {
-  await page.goto(`/owner?bust=${Date.now()}`);
+async function open(page: Page, tab = "plans") {
+  await page.goto(`/owner?tab=${tab}&bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 
@@ -119,7 +119,7 @@ test("the owner console refuses beside the press, and what it saved is on the sc
     const sub = await prisma.subscription.findUnique({ where: { organizationId: ids.own } });
     expect(sub?.plan, "the tier was not stored").toBe("club");
     expect(sub?.planTermsApply, "a club with no subscription was put on the published terms").toBe(false);
-    await open(page);
+    await open(page, "overview");
     const row = page.locator("tr", { hasText: OWN });
     await expect(row, "the club is not on Newest organizations").toBeVisible();
     // By the tier's NAME, as the line above it ("is now on Eagle") and the Tier mix table name it —
@@ -131,11 +131,11 @@ test("the owner console refuses beside the press, and what it saved is on the sc
   await test.step("an emptied price box: refused beside Save prices, naming the tier; nothing stored", async () => {
     const before = (await prisma.platformSetting.findUnique({ where: { key: "pricing" } }))?.value ?? null;
     await open(page);
-    await page.getByLabel("Birdie price per month in dollars").fill("");
+    await page.getByLabel("Rest of world Birdie price per month in USD").fill("");
     const save = page.getByRole("button", { name: "Save prices" });
     await centre(save);
     await save.click();
-    const refused = page.getByText("Birdie: enter a price of zero or more.");
+    const refused = page.getByText("Rest of world · Birdie: enter a price of zero or more.");
     await expect(refused, "an emptied price was not refused in words").toBeVisible();
     await saidBeside(refused, save, "an emptied price");
     await expect(page.getByText("Saved — live everywhere.")).toHaveCount(0);

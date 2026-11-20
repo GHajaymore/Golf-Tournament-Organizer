@@ -1,0 +1,414 @@
+/*
+ * THE LIFECYCLE STEPPER (B03) — "Course day" style, tokens only (`--color-*`,
+ * `--shadow-*`, `--radius-*`). Words on fills are held to 7:1 on the dark ground
+ * and 4.5:1 on the light one by `lifecycle-stepper.test.tsx`, which reads these
+ * rules and resolves them against the club's real tokens. Muted words are 13px
+ * or more, and every target is 44px tall (the panel, 9 Nov).
+ *
+ * One list, two presentations, chosen by the stepper's OWN width (a container
+ * query, so the sidebar never decides it): a track of stops under their phases
+ * from 860px, a bar of one segment a stop below it — a phone, and a tablet from
+ * 768 to 1024 with the sidebar beside it.
+ */
+
+/* While the stepper is shown, the rail and the journey card it replaces stand aside: never two rails. */
+[data-stepper] .setup-flow-rail,
+[data-stepper] .tournament-journey {
+  display: none;
+}
+
+.ls {
+  container-type: inline-size;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: var(--shadow-md);
+  padding: 14px 18px 12px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------- folded: one line */
+.ls.ls-folded {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  min-height: 44px;
+  max-height: 48px;
+  overflow: hidden;
+}
+.ls-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ls-folded .ls-link {
+  flex: none;
+  white-space: nowrap;
+}
+
+.ls-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ls-kick {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.ls-title {
+  margin: 0;
+  font-family: var(--font-heading, inherit);
+  font-size: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ls-preview {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+/* ---------------------------------------------------------------- the track */
+.ls-track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+.ls-phase {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ls-phase-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--color-divider);
+}
+.ls-phase[data-state="done"] .ls-phase-title,
+.ls-phase[data-state="now"] .ls-phase-title,
+.ls-phase[data-state="held"] .ls-phase-title {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent-500);
+}
+.ls-stops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  position: relative;
+  min-width: 0;
+}
+/* The line the stops sit on: one track across the phase. */
+.ls-stops::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  top: 11px;
+  height: 2px;
+  background: var(--color-divider);
+}
+.ls-stop {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+}
+.ls-stop-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 44px;
+  padding-right: 6px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.ls-stop-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.ls-stop-word {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.ls-stop[aria-current="step"] .ls-stop-label {
+  color: var(--color-accent-200);
+}
+
+.ls-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px dashed var(--color-text-muted);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.ls-dot[data-state="done"] {
+  border-style: solid;
+  border-color: var(--color-accent-500);
+  background: var(--color-accent-500);
+  color: var(--color-on-accent);
+}
+.ls-dot[data-state="now"] {
+  border-style: solid;
+  border-color: var(--color-accent-500);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-500) 25%, transparent);
+}
+.ls-dot[data-state="now"]::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent-500);
+}
+.ls-dot[data-state="held"] {
+  border-style: solid;
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-warning) 22%, transparent);
+}
+
+/* ------------------------------------------------- the current stop, in words */
+.ls-focus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-surface-2);
+  min-width: 0;
+}
+.ls-focus-head {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ls-reason {
+  margin: 0;
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ls-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.ls-chip[data-state="now"] {
+  background: var(--color-accent-900);
+  color: var(--color-accent-100);
+}
+.ls-chip[data-state="held"] {
+  background: var(--color-surface-2);
+  color: var(--color-warning);
+}
+.ls-press {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ls-press-off {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-md, 10px);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  box-shadow: inset 0 0 0 1px var(--color-divider);
+  cursor: not-allowed;
+}
+.ls-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent-200);
+}
+
+/* ---------------------------------------------------------- every step */
+.ls-every summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent-200);
+}
+.ls-cols {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.ls-col {
+  min-width: 0;
+}
+.ls-col-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.ls-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ls-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 14px;
+}
+.ls-row-body {
+  min-width: 0;
+}
+.ls-row-label {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.ls-row[data-current] .ls-row-label {
+  color: var(--color-accent-200);
+}
+.ls-row-word {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.ls-row-reason {
+  display: block;
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------- narrow: the bar */
+@container (max-width: 859px) {
+  .ls-track {
+    gap: 6px;
+  }
+  .ls-phase {
+    gap: 0;
+  }
+  .ls-phase-title {
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+    border-bottom: 0;
+    padding: 0;
+    order: 2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ls-stops {
+    gap: 2px;
+  }
+  .ls-stops::before {
+    display: none;
+  }
+  /* 44px tall, the segment drawn in its middle. */
+  .ls-stop-link {
+    min-height: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+  /* The stop's words stay for a screen reader; the bar shows the state as a segment. */
+  .ls-stop-label,
+  .ls-stop-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ls-stop .ls-dot {
+    width: 100%;
+    height: 10px;
+    border-radius: 3px;
+    border-width: 1px;
+    font-size: 0;
+    box-shadow: none;
+  }
+  .ls-stop .ls-dot[data-state="now"]::after {
+    display: none;
+  }
+  .ls-stop .ls-dot[data-state="now"] {
+    background: color-mix(in srgb, var(--color-accent-500) 45%, var(--color-surface));
+    border-width: 2px;
+  }
+  .ls-stop .ls-dot[data-state="held"] {
+    background: color-mix(in srgb, var(--color-warning) 35%, var(--color-surface));
+    border-width: 2px;
+  }
+  .ls-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

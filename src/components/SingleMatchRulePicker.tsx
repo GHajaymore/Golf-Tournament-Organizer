@@ -3,6 +3,7 @@ import { useId, useState, useTransition } from "react";
 import { setSingleMatchRule, createSingleMatch } from "@/app/actions/tournament";
 import { idsForKind, type SingleMatchRule } from "@/lib/domain/single-match";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 
 /**
  * Who plays a Single Match Stage.
@@ -53,6 +54,7 @@ export function SingleMatchRulePicker({
   locked?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   const [error, setError] = useState("");
   // Ties each picker to its label: "First player", "Against" and the rest had no accessible name.
   const uid = useId();
@@ -77,7 +79,7 @@ export function SingleMatchRulePicker({
   const save = (next: { kind: string; a: string | number; b: string | number }) =>
     startTransition(async () => {
       setError("");
-      const res = await setSingleMatchRule(stageId, next);
+      const res = caughtUp(await setSingleMatchRule(stageId, next));
       if (!res.ok) setError(res.error ?? "Couldn't save that pairing.");
     });
 

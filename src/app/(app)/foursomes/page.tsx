@@ -1,3 +1,5 @@
+import { noticesOffAmong } from "@/lib/services/push";
+import { noticesOffWords } from "@/lib/domain/round-moved";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -17,9 +19,19 @@ import { WeekField, type WeekFieldRow } from "@/components/WeekField";
 import { sidesByMatch, type Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
-import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
-import { parseTeeSheet, teeSheetDrift, driftSentence } from "@/lib/domain/tee-sheet";
+import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { replaceWorldFor } from "@/lib/services/tee-sheet-replace";
+import { TEAM_SESSION } from "@/lib/services/cup";
+import { sheetFieldFor } from "@/lib/services/sheet-field";
+import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn, DRIFT_PLACE_LINE } from "@/lib/domain/tee-sheet";
+import { clubWallClock } from "@/lib/domain/club-clock";
+import { cleanIsoDate } from "@/lib/domain/round-dates";
+import { PlaceInGroup } from "@/components/PlaceInGroup";
+import { slotLocksFor } from "@/lib/services/tee-sheet-locks";
+import { moveModeOf } from "@/lib/domain/tee-sheet-moves";
+import { teeSheetDoorsFor } from "@/lib/services/tee-sheet-change";
 import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
+import { cutFeederOf } from "@/lib/domain/cut-ready";
 import { shortDate } from "@/lib/domain/round-dates";
 import { roundCard } from "@/lib/services/course-resolution";
 import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
@@ -31,6 +43,10 @@ import { PairingRequests } from "@/components/PairingRequests";
 import { parsePinSheet } from "@/lib/domain/pin-sheet";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { RoundDaySetup } from "@/components/RoundDaySetup";
+import { MembersAsk } from "@/components/ImportMembers";
+import { membersAsked, peopleEntered } from "@/lib/domain/org-setup";
+import { awaitingApproval } from "@/lib/registration";
+import { orgProfile } from "@/lib/domain/org-profile";
 
 export const metadata = screenMetadata("/foursomes");
 
@@ -145,49 +161,22 @@ export default async function FoursomesPage({
    * nobody reads the day it is real.
    */
   const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
-  let field = state.confirmed;
   /**
-   * The week's list, as rows an organizer can change.
+   * THE FIELD OF THIS ROUND'S SHEET — `sheetFieldFor`, the one answer: confirmed,
+   * narrowed to the week's attendees in a league that asks each week, and to
+   * those who made the cut once a cut has been made into the round. The move
+   * action counts a group's room against the same field, so this screen never
+   * offers a move the server refuses.
    *
-   * It used to be a SENTENCE — "This week: 14 in · 6 out" — and nothing else,
-   * which was honest about the field and useless about it. There was no staff
-   * writer for attendance anywhere in the app, so the count was the end of the
-   * conversation: a player who missed the sign-up deadline could not be taken
-   * off by the committee, and under `captains` — where the help text promises
-   * the club enters the list its captains send in — nobody could be put ON.
-   * That mode resolved every player to out and drew from an empty field.
+   * The week's list comes back as rows an organizer can change (`WeekField`):
+   * it used to be a sentence and nothing else, and under `captains` nobody could
+   * be put ON.
    */
-  let weekRows: WeekFieldRow[] = [];
-  if (tracksPerRound(attendanceMode) && stage) {
-    const explicit = await prisma.roundAttendance.findMany({
-      where: { eventId: session.eventId, stageId: stage.id },
-    });
-    const resolved = resolveAttendance(
-      attendanceMode,
-      state.confirmed.map((p) => p.id),
-      explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
-    );
-    const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
-    field = state.confirmed.filter((p) => inIds.has(p.id));
-    const nameById = new Map(state.confirmed.map((p) => [p.id, p.name]));
-    weekRows = resolved.rows.map((r) => ({
-      playerId: r.playerId,
-      name: nameById.get(r.playerId) ?? "",
-      status: r.status,
-      explicit: r.explicit,
-      decidedBy: r.decidedBy,
-    }));
-  }
-
-  /**
-   * AND A ROUND A CUT HAS BEEN MADE INTO IS DRAWN FROM THOSE WHO MADE IT
-   * (2026-10-09). Walked on a 120-player championship cut to 40: the Round 2
-   * sheet drew all 119, forty three-balls, and a player who missed the cut read
-   * "Missed the cut" over "Group 1 · 8:00 AM". `strokeCutField` is the field the
-   * cut made — the players holding a card for the round — and null before it.
-   */
+  const sheetField = stage ? await sheetFieldFor(session.eventId, stage.id) : null;
+  const field = sheetField ? state.confirmed.filter((p) => sheetField.ids.has(p.id)) : state.confirmed;
+  const weekRows: WeekFieldRow[] = sheetField?.weekRows ?? [];
+  // A cut, for the lines below that say who missed it (the field above is already narrowed by it).
   const cutField = stage ? await strokeCutField(session.eventId, stage.id) : null;
-  if (cutField) field = field.filter((p) => cutField.has(p.id));
   /**
    * AND A CUT WAITING ON A TIE SAYS SO, HERE (2026-10-23). Until the committee
    * records the play-off or the draw for the last place, the cut into this
@@ -196,8 +185,10 @@ export default async function FoursomesPage({
    */
   const cutWaiting = await (async () => {
     if (!stage || cutField || !stage.cutEnabled) return "";
-    const at = state.playRounds.findIndex((s) => s.id === stage.id);
-    const feeder = at > 0 ? state.playRounds[at - 1] : undefined;
+    // The round a stroke cut into this one is taken out of (`cutFeederOf`, the
+    // one answer to "which round decides a cut").
+    const line = cutFeederOf(state.playRounds, stage.id);
+    const feeder = line?.kind === "card" ? line.feeder : undefined;
     if (!feeder) return "";
     const made = await strokeCutOutcomeOf(session.eventId, feeder.id);
     if (!made || made.outcome.undecided.length === 0) return "";
@@ -238,6 +229,45 @@ export default async function FoursomesPage({
     savedSheet && stage?.teeSheetPublished
       ? teeSheetDrift(savedSheet, new Set(field.map((p) => p.id)))
       : null;
+  /**
+   * WHO HAS NO GROUP ON THE SAVED SHEET, AND WHERE THERE IS ROOM (day-of field
+   * changes, PR B): a late entry or a reserve who moved in is written into one
+   * group, and nobody else moves. Staff only, and only while the one field rule
+   * allows it (`place-in-group`). Drawn from the same `field` the sheet is.
+   */
+  const isStaff = session.role === "admin" || session.role === "assistant";
+  const undrawn = savedSheet && isStaff ? undrawnOn(savedSheet, fieldIds) : [];
+  // THE ONE TEE-SHEET RULE (`teeSheetChangeAllowed`), asked of this round — the same doors the actions refuse by.
+  const doors = stage ? await teeSheetDoorsFor(session.eventId, stage.id) : null;
+  const placeDoor = undrawn.length > 0 ? (doors?.place ?? null) : null;
+  const nameOf = new Map(field.map((p) => [p.id, p.name]));
+  /**
+   * MOVING ON A SAVED SHEET (tee sheet moves): staff, while the field rule allows
+   * a change, with the slots that have begun and why — asked of the club's clock
+   * (`slotLocksFor`), the same reader the server action refuses on.
+   */
+  const canMove = !!(stage && savedSheet && isStaff);
+  const moveDoor = canMove ? (doors?.move ?? null) : null;
+  const slotLocks = canMove && !moveDoor && stage && savedSheet ? await slotLocksFor(session.eventId, stage.id, savedSheet) : {};
+  /**
+   * "REPLACE…" BESIDE A PLAYER (B43): staff, on a saved sheet, where a player is a unit of their own or
+   * of a pair — not where the draw IS the pairing (individual match play) and not a cup session (its own
+   * screen). What it chooses from is `replaceWorldFor`, the facts the server refuses on.
+   */
+  const replaceMode = stage ? moveModeOf(stage) : "groups";
+  const replace =
+    canMove && !moveDoor && stage && savedSheet && replaceMode !== "groups" && stage.type !== TEAM_SESSION
+      ? await replaceWorldFor(session.eventId, stage.id, savedSheet, replaceMode === "sides").then((r) => ({
+          candidates: r.candidates,
+          world: r.world,
+          inSides: replaceMode === "sides",
+          weekly: tracksPerRound(attendanceMode),
+          scoringBasis: stage.scoringBasis,
+        }))
+      : null;
+  // The round's day at the club — its own, or the tournament's first day for
+  // the first round (as the late-entry cutoff reads it) — for which groups are out.
+  const roundDay = stage ? cleanIsoDate(stage.playedOn) || (stage.id === rounds[0]?.id ? cleanIsoDate(state.event.startOn) : "") : "";
   /**
    * The card THIS ROUND is played on, narrowed to the nine it uses.
    *
@@ -313,6 +343,31 @@ export default async function FoursomesPage({
   /** Where the holes are cut for this round — the editor below, and a row on every printed card. */
   const pinSheet = stage ? parsePinSheet(stage.pinSheet, holes) : [];
 
+  /**
+   * THE DRAW ASKS FOR THE MEMBERS (Cut A, event-first, Ajay 15 Nov 2026). The
+   * members list is never asked for before the first event; it is asked for
+   * HERE, where it is first needed: nobody has entered and the club's list is
+   * empty too. Asked of staff only, and only when the field is empty, so a
+   * running tournament never pays for the two reads. Once the club has a list
+   * the same card stays (so the import's answer is still on screen after it)
+   * and says to pick who is playing on Entries instead.
+   */
+  const entered = peopleEntered(state.confirmed.length, awaitingApproval(state.players).length, state.waitlist.length);
+  const askMembers =
+    isStaff && entered === 0
+      ? await (async () => {
+          const org = await prisma.organization.findUnique({
+            where: { id: state.event.organizationId },
+            select: { kind: true, country: true, communityNoun: true },
+          });
+          if (!org) return null;
+          const profile = orgProfile(org.kind, org.country, org.communityNoun);
+          if (!profile.sharedRoster) return null;
+          const memberCount = await prisma.member.count({ where: { organizationId: state.event.organizationId, status: "active" } });
+          return { noun: profile.noun, asked: membersAsked({ ...org, memberCount, fieldSize: entered }), memberCount };
+        })()
+      : null;
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -323,6 +378,8 @@ export default async function FoursomesPage({
           Once a round has been played you can re-pair off the leaderboard and send the leaders out last.
         </MoreInfo>
       </div>
+
+      {askMembers && <MembersAsk noun={askMembers.noun} asked={askMembers.asked} memberCount={askMembers.memberCount} />}
 
       {/* The list the sheet below is drawn from, and the control that changes
           it — in that order, above the draw, because a sheet drawn from the
@@ -374,8 +431,22 @@ export default async function FoursomesPage({
             )}{" "}
             Re-pair and publish again to put it right — the printed sheet leaves out anyone who has gone, so
             it is correct but shorter than you drew it.
+            {drift.undrawn.length > 0 && ` ${DRIFT_PLACE_LINE}`}
           </p>
         </div>
+      )}
+      {/* Mounted whenever staff have a saved sheet, though nobody is undrawn: the
+          refresh after placing the LAST player must not take away the line that
+          says where they went (round day-of-field-b-3, phone). The card draws
+          nothing when it has nothing to show. */}
+      {stage && savedSheet && isStaff && (
+        <PlaceInGroup
+          stageId={stage.id}
+          undrawn={undrawn.map((id) => ({ id, name: nameOf.get(id) ?? "" }))}
+          groups={markTeedOff(groupsWithRoom(savedSheet, new Set(fieldIds)), roundDay, clubWallClock(state.timeZone))}
+          door={placeDoor}
+          firstHole={firstHole}
+        />
       )}
       {stage && field.length > 1 && (
         <PairingRequests
@@ -386,6 +457,12 @@ export default async function FoursomesPage({
       )}
       <FoursomeMaker
         firstHole={firstHole}
+        canMove={canMove}
+        door={moveDoor}
+        saveDoor={doors?.save ?? null}
+        moveMode={stage ? moveModeOf(stage) : "groups"}
+        locks={slotLocks}
+        replace={replace}
         requests={requestClustersNow}
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         // The round's sides, so partners go out together — `groupBySides`.
@@ -407,6 +484,8 @@ export default async function FoursomesPage({
         savedGroups={savedSheet?.groups ?? []}
         savedStart={savedSheet?.startType}
         published={stage?.teeSheetPublished ?? false}
+        // Beside Publish (J39/J40 PR 2): how many of this sheet's field a tee-time push cannot reach.
+        noticesOff={noticesOffWords(await noticesOffAmong(session.eventId, field.map((p) => p.id)))}
         rounds={rounds.map((r) => ({
           id: r.id,
           label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn, locale) : ""),

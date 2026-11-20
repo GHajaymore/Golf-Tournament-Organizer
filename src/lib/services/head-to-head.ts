@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { loadEventState, parseMatchTiebreakers } from "@/lib/services/tournament";
-import { resolveCourse } from "@/lib/courses";
 import { decidedOutcome } from "@/lib/domain/standings";
+import { onBoard } from "@/lib/domain/board-hold";
 import { resolveMatch } from "@/lib/domain/match";
 import type { HoleResult } from "@/lib/domain/types";
 import { bracketDraws } from "@/lib/domain/my-tie";
@@ -73,11 +73,16 @@ export async function meetingsFor(organizationId: string, memberId: string): Pro
     const stageById = new Map(state.stages.map((s) => [s.id, s]));
     const tiebreak = {
       sequence: parseMatchTiebreakers(state.event.matchTiebreakers),
-      strokeIndex: resolveCourse(state.event).strokeIndex,
+      // Each meeting on the toughest holes of the card it was PLAYED on — an
+      // away match on the away card (J26) — exactly as that table decided it.
+      strokeIndex: state.countbackCardFor,
     };
     const eventDate = (s?: { playedOn: string }) => s?.playedOn || "";
 
-    for (const m of state.matches) {
+    // A result held in dispute is not a meeting anybody has won or halved yet:
+    // read as not played (`onBoard`, domain/board-hold.ts), exactly as the
+    // table it belongs to reads it, and `decidedOutcome` then skips it.
+    for (const m of state.matches.map(onBoard)) {
       if (!m.playerAId || !m.playerBId || m.teamAId) continue;
       const stage = stageById.get(m.stageId);
       if (!stage || roundIsStroke(stage.type, stage.format)) continue;

@@ -6,13 +6,15 @@ import Link from "next/link";
 import { isMatch } from "@/lib/tournament-shape";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, standingRows, settingsOf, cutLineNote, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
 import { canSeeLeaderboard, isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
-import { boardKind } from "@/lib/formats";
+import { teamMatchBoard } from "@/lib/services/teams";
+import { TeamMatchLeaderboard, TEAM_MATCH_BOARD_NOTE } from "@/components/TeamMatchLeaderboard";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { resultLinesFor } from "@/lib/services/tournament-result";
@@ -31,7 +33,7 @@ import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { ResultLines } from "@/components/ResultLines";
 import { TheDraw } from "@/components/TheDraw";
-import { isKnockoutRound } from "@/lib/stage-types";
+import { boardKindForRound, isKnockoutRound } from "@/lib/stage-types";
 import { drawnDraws } from "@/lib/domain/my-tie";
 import { seededDraws } from "@/lib/domain/draw-seeding";
 import { parsePlayBy, roundPlayBy, myTieCard } from "@/lib/domain/knockout-play-by";
@@ -39,7 +41,8 @@ import { formattingForEvent } from "@/lib/services/organization";
 import { MyKnockoutTie } from "@/components/MyKnockoutTie";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { bracketResults } from "@/lib/services/bracket-results";
-import { golfTermsForEvent } from "@/lib/services/organization";
+import { golfRegisterForEvent } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { cupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { PlayerPrizes } from "@/components/PlayerPrizes";
@@ -63,7 +66,7 @@ export default async function PlayBoardPage({
 }: {
   searchParams: Promise<{ round?: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePlayingViewer();
   const loaded = await loadEventState(session.eventId);
   if (!loaded) redirect("/");
   /**
@@ -76,7 +79,8 @@ export default async function PlayBoardPage({
   const { round } = await searchParams;
   const state = withBoardRound(loaded, round);
   // The club's own golf words — organizer or organiser (`golf-terms.ts`).
-  const terms = await golfTermsForEvent(session.eventId);
+  const register = await golfRegisterForEvent(session.eventId);
+  const terms = golfTermsFor(register);
   // What the committee has said, under the heading of every state this screen has: an update is for the
   // field whether or not there is a board to rank yet. See `CommentaryFeed`.
   const said = <CommentaryFeed eventId={session.eventId} organizer={terms.organizer} />;
@@ -205,7 +209,10 @@ export default async function PlayBoardPage({
   // player looking at their own board is the last person who should be shown a
   // ranking the app cannot actually compute for this round — they will read it
   // as where they stand.
-  const kind = boardKind(stage?.format);
+  // THE ROUND, not only the format (J23): `boardKind` alone sent a four-ball
+  // MATCH (a round robin) to the stroke standings table, which the console
+  // leaderboard, Reports and /live do not.
+  const kind = boardKindForRound(stage?.format, stage?.type);
   if (kind !== "standard") {
     /**
      * A TEAM ROUND HAS A BOARD; IT IS JUST NOT A BOARD OF PLAYERS.
@@ -277,6 +284,19 @@ export default async function PlayBoardPage({
             stage.countBest,
           )
         : null;
+    // A round robin of team matches is decided on the matches, not the cards:
+    // the same table the console leaderboard and /live draw.
+    const matchRows =
+      kind === "team-match" && stage
+        ? await teamMatchBoard(
+            state.event.id,
+            stage.id,
+            stage.format,
+            stage.handicapAllowance,
+            holes,
+            stage.allowanceWeights,
+          )
+        : null;
     // The pairs' total over the event's team rounds — the board the organizer
     // and the public link show above the round, so a member reads it too.
     const pairs = sides ? await eventPairTotals(state) : null;
@@ -293,7 +313,9 @@ export default async function PlayBoardPage({
           </MoreInfo>
         ) : (
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          {kind === "team"
+          {kind === "team-match"
+            ? TEAM_MATCH_BOARD_NOTE
+            : kind === "team"
               ? `This round ranks sides rather than players. ${teamBoardNote(
                   stage?.format ?? "",
                   sides?.length ?? 0,
@@ -319,6 +341,15 @@ export default async function PlayBoardPage({
             )}
           </div>
         )}
+        {matchRows && (
+          <div style={{ marginTop: 14 }}>
+            <TeamMatchLeaderboard
+              format={stage?.format ?? ""}
+              rows={matchRows}
+              system={isLeaguePointsSystem(state.event.leaguePoints) ? state.event.leaguePoints : "match"}
+            />
+          </div>
+        )}
         {sides && (
           <div style={{ marginTop: 14 }}>
             {pairs && <PairTotalsTable totals={pairs} />}
@@ -340,7 +371,7 @@ export default async function PlayBoardPage({
             standings has not published them, and listing each round's winner
             underneath would be the app overruling that. This branch is about
             the format, not about what the club has chosen to show. */}
-        <ResultLines lines={await resultLinesFor(state)} kind={state.event.playKind} />
+        <ResultLines lines={await resultLinesFor(state)} kind={state.event.playKind} register={register} />
         <PlayerPrizes prizes={prizes} />
         <WayForward
           links={[
@@ -369,7 +400,9 @@ export default async function PlayBoardPage({
   // Which row is theirs, by the registration email — the same linkage every
   // score guard uses, rather than matching on a name two people can share.
   const me = state.players.find(
-    (p) => p.email.trim().toLowerCase() === session.email.trim().toLowerCase(),
+    // A guest by the pass's own entry, never by an address: "" would match every
+    // entry made without one (the byAddress("") hazard, J39/J40).
+    (p) => (session.guest ? p.id === session.guest.playerId : !!session.email.trim() && p.email.trim().toLowerCase() === session.email.trim().toLowerCase()),
   );
 
   const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
@@ -459,7 +492,7 @@ export default async function PlayBoardPage({
           Headed with whatever the club called this one: "Outing result",
           "League result". Only where there is more than one round, because on
           a single-round medal the board below IS the result. */}
-      <ResultLines lines={lines} kind={state.event.playKind} />
+      <ResultLines lines={lines} kind={state.event.playKind} register={register} />
 
       {straightKnockout ? (
         drawSection ?? (

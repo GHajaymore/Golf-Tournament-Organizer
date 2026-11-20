@@ -322,7 +322,24 @@ export function LoginPanel({
       }}
     >
       <Icon name="warning-circle" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
-      <span>{error}</span>
+      <span>
+        {error}
+        {/* An invited address gets the same refusal as a wrong password (nobody
+            can tell who is on a roster by trying addresses), so the way to set a
+            first password is offered here, to everybody who is refused. */}
+        {(signupClosed || mode === "login") && !extra && error.startsWith("Wrong email or password") && (
+          <>
+            {" "}
+            <button
+              type="button"
+              onClick={() => { setExtra("claim"); setPassword(""); setError(""); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit", color: "inherit", textDecoration: "underline" }}
+            >
+              Invited, and never set a password?
+            </button>
+          </>
+        )}
+      </span>
     </p>
   ) : null;
 
@@ -473,8 +490,8 @@ export function LoginPanel({
           title="Set your password"
           sub={
             <>
-              <b>{email}</b> has been invited to a tournament. Choose a password to finish setting up
-              your account.
+              Choose a password for <b>{email}</b>. If this address was invited to a club or a tournament,
+              we&rsquo;ll email it a code to finish setting up. Not invited? Check the spelling{signupClosed ? "." : ", or sign up."}
             </>
           }
         />

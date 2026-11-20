@@ -3,23 +3,23 @@ import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
 import { playedOnBy } from "./courses";
-import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isStructuralStage } from "../stage-types";
 import {
   roundHandicapKey,
   type RoundHandicapRow,
 } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
-import { COURSE_REF, roundCard } from "./course-resolution";
+import { COURSE_REF, countbackCardsFor, roundCard } from "./course-resolution";
 import {
-  survivors,
   strokeCutOutcome,
+  roundRobinCutOutcome,
+  roundHasSomethingToCutOn,
   cutLineRows,
   cutTieRuleOf,
   cutTieDecisionsOf,
-  currentRoundCutRule,
+  currentRoundCutOf,
   fieldEnteringRound,
-  type CutCandidate,
   type CutTie,
 } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
@@ -27,7 +27,8 @@ import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-rea
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
-import { playingHandicapInRound } from "../round-allowance";
+import { playingHandicapInRound, playingHandicapPartsInRound } from "../round-allowance";
+import type { HandicapParts, TieWith } from "../domain/figure-working";
 import {
   holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import {
@@ -40,10 +41,17 @@ import {
   type StrokeCard,
 } from "../domain/stroke-agg";
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
+import { roundsWithResultsFrom } from "../domain/rounds-with-results";
 import {
-  countbackCompare,
+  // Imported under another name: this file's state also has a
+  // `countbackBetween` (the report's "back 9" between two board rows), and a
+  // local of that name would shadow the decision every board rank is read from.
+  countbackBetween as countbackDecision,
   countbackStep,
   countbackStepWords,
+  countbackCardOn,
+  netCountbackMethodFor,
+  fromTheOtherSide,
   compareOnBasis,
   levelOnBasis,
   type RankingBasis,
@@ -51,13 +59,12 @@ import {
 import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
 import { bracketDraws, openTieReport } from "../domain/my-tie";
 import { parseFlightPlan, planAgainstField, type FlightPlan } from "../domain/bracket-flights";
-import { resultsIn } from "../domain/lifecycle-state";
-import { resolveCourse } from "../courses";
+import { isLaunched, resultsIn } from "../domain/lifecycle-state";
 import { todayIso } from "../deadline";
 import { clubDay, clubToday } from "../domain/club-clock";
 import { zoneOfOrganization } from "./club-clock";
 import { cleanIsoDate } from "../domain/round-dates";
-import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal } from "../format";
+import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal, listNames } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import {
   computeStandings,
@@ -73,7 +80,7 @@ import {
   isBracketMode,
   parseBracketDraw,
   roundRobinMatchCount,
-  resolveMatch,
+  decidedOutcome,
   matchIsOver,
   storedMatchIsOver,
   courseHandicapMap,
@@ -91,8 +98,11 @@ import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domai
 import { holesPlayed, type CourseHandicaps } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
+import { holesToComplete } from "../domain/completed-round";
 import { isMatch, reviewsScores } from "../tournament-shape";
 import { flightLabel } from "../domain/flight-label";
+import { cardsOnBoard, heldFromBoard, onBoard } from "../domain/board-hold";
+import { endCheckRule, matchSidesOf, sidesAgree } from "./attestation";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -446,8 +456,16 @@ export interface StrokeStanding {
   missedCut?: string;
   /** Withdrew after beginning — WD on the sheet. See `withdrawnStandings`. */
   withdrew?: boolean;
+  /** Withdrew before teeing off, once launched — DNS on the results sheet. See `didNotStartStandings`. */
+  didNotStart?: boolean;
   /** Disqualified by the committee — DQ, the last line. See actions/disqualify.ts. */
   disqualified?: boolean;
+  /**
+   * The neighbours this row is LEVEL with on the score, and what the countback
+   * found between them — kept by the rank pass from the very decision that gave
+   * the places, so the board's "why" cannot be a second opinion (2026-10-24).
+   */
+  tiedWith?: TieWith[];
 }
 
 export interface EventState {
@@ -672,6 +690,12 @@ export interface EventState {
    */
   withdrawnStandings: StrokeStanding[];
   /**
+   * Players withdrawn BEFORE they teed off, once the tournament was launched —
+   * DNS rows, no figures and no place. Only the results sheet adds them
+   * (`resultsSheetRows`); the live boards do not.
+   */
+  didNotStartStandings: StrokeStanding[];
+  /**
    * What `strokeStandings` measures, and which rounds went into it.
    *
    * The board used to total every card in the event and label the column with
@@ -710,6 +734,13 @@ export interface EventState {
    */
   strokeHandicapFor: (playerId: string, stageId: string) => number;
   /**
+   * The same figure with what it was priced from — the course handicap before
+   * rounding, its source, the allowance and the strokes for the pars — for a
+   * card whose net says how it was reached. `strokeHandicapFor` is this one's
+   * `.playing`; both are built from one context (`strokeHandicapPartsResolver`).
+   */
+  strokeHandicapPartsFor: (playerId: string, stageId: string) => HandicapParts;
+  /**
    * The same, for a match that names its OWN tees.
    *
    * A league with no fixed venue records where a pair played at scoring time,
@@ -735,6 +766,15 @@ export interface EventState {
    * nine got 5, because only holes whose 18-hole index was <= 9 drew one.
    */
   strokeCourseFor: (stageId: string) => { pars: number[]; holeDifficulty: number[] };
+  /**
+   * THE STROKE INDEX A MATCH'S TOUGHEST HOLES ARE RANKED ON — the card it was
+   * played on (match venue, then its round's, then the tournament's, on the
+   * nine it was played over), from `countbackCardsFor` (J26). What the
+   * standings, the week view and the head-to-head record decide a halved
+   * match on, so the three cannot disagree and none reads the tournament's
+   * card for an away match.
+   */
+  countbackCardFor: (m: { id: string }) => number[];
   /**
    * HOW MANY PLAYERS THIS ROUND'S CARDS ARE OWED BY — an individual stroke
    * round's field, the denominator of its "Cards in N/M" — or null for a round
@@ -772,7 +812,19 @@ export interface EventState {
    */
   outOn: (stageId: string) => ReadonlySet<string>;
   advancingCount: number;
+  /**
+   * Who the BOARD lights: the cut the active round decides when there is one,
+   * otherwise the knockout's line (`qualifierIds`), otherwise nobody.
+   */
   advancingIds: Set<string>;
+  /**
+   * THE KNOCKOUT'S LINE, as it stands — who would be in the draw (J31 review,
+   * 2026-11-07). It was `advancingIds` whenever a bracket existed; now the
+   * board lights a pending cut first, so the panels LABELLED by the knockout's
+   * rule ("Top 8 overall", the qualification card and `/bracket`'s panel) read
+   * this and keep saying what their label says. Empty without a knockout.
+   */
+  qualifierIds: Set<string>;
   /**
    * Whether this round decides who goes on at all — a knockout fed by it, or
    * a cut into the next round (2026-10-09). Without one nobody is "advancing",
@@ -782,8 +834,9 @@ export interface EventState {
    */
   qualifying: boolean;
   /**
-   * TIES FOR THE LAST PLACE AT THE BOARD'S STROKE CUT THAT THE COMMITTEE HAS
-   * STILL TO SETTLE — a play-off, or a draw after countback (2026-10-23). Empty
+   * TIES FOR THE LAST PLACE AT THE BOARD'S CUT THAT THE COMMITTEE HAS STILL TO
+   * SETTLE — a play-off, or a draw after countback (2026-10-23; a round robin's
+   * cut too since J31, `roundRobinCutOutcome`, after the first result). Empty
    * under "ties go through", and wherever the line falls in a gap. Nobody in
    * one is in `advancingIds`, and nobody in one may be told they are out: the
    * board marks them `tiedAtCut`, and the cut cannot be made until they are
@@ -901,8 +954,12 @@ export function chainRoundStandings(
   matches: DbMatch[],
   domainPlayers: Player[],
   scoring: ScoringRules,
-  /** Stroke index per hole (1 = hardest), for the "toughest N holes" tiebreakers. */
-  holeDifficulty?: number[],
+  /**
+   * EACH MATCH'S OWN CARD for the "toughest N holes" steps — `countbackCardsFor`
+   * (course-resolution.ts), never the tournament's one card (J26). Required,
+   * and a function of the match, so no caller can hand every match one card.
+   */
+  countbackCard: (m: { id: string }) => number[],
   /** How an all-square match is decided, in order. */
   matchTiebreakers: MatchTiebreakKey[] = [],
 ): RankedPlayer[][] {
@@ -910,9 +967,10 @@ export function chainRoundStandings(
   const perStage: RankedPlayer[][] = [];
   for (let i = 0; i < rrStages.length; i += 1) {
     const stage = rrStages[i];
-    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
+    // A result in dispute is held off the standings (`onBoard`, domain/board-hold.ts).
+    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(onBoard).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
-    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
+    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, countbackCard, matchTiebreakers);
     perStage.push(overall);
     const next = rrStages[i + 1];
     // Points carry only between rounds counted in the same unit. Across a
@@ -1003,6 +1061,20 @@ export function strokeHandicapResolver(ctx: {
    */
   roundHandicapFor?: (playerId: string, stageId: string) => RoundHandicapRow | null;
 }): (playerId: string, stageId: string) => number {
+  const parts = strokeHandicapPartsResolver(ctx);
+  return (playerId, stageId) => parts(playerId, stageId).playing;
+}
+
+/**
+ * THE SAME FIGURE WITH ITS PARTS — what the round was priced from, for the
+ * card's net to say how its playing handicap was worked out (2026-10-24,
+ * "every figure explains itself"). `strokeHandicapResolver` is this one's
+ * `.playing`, so the number on the board and the parts in the sentence are one
+ * calculation (`playingHandicapPartsInRound`).
+ */
+export function strokeHandicapPartsResolver(
+  ctx: Parameters<typeof strokeHandicapResolver>[0],
+): (playerId: string, stageId: string) => HandicapParts {
   return (playerId, stageId) => {
     const stage = ctx.stageById.get(stageId);
     // This round's own map first — its tees and its hole count. The pair
@@ -1010,14 +1082,21 @@ export function strokeHandicapResolver(ctx: {
     // that supplies no per-stage maps behaves exactly as it did.
     const byRound =
       ctx.courseHcpByStage?.get(stageId) ?? (stage?.holes === 9 ? ctx.courseHcp9 : ctx.courseHcp18);
-    // One reader for the rule — `playingHandicapInRound` — so the board, the
-    // screen that shows the number, the freeze that writes it and a match's
-    // stored result cannot disagree.
-    return playingHandicapInRound(stage, ctx.roundHandicapFor?.(playerId, stageId) ?? null, {
+    // One reader for the rule — `playingHandicapPartsInRound` — so the board,
+    // the screen that shows the number, the freeze that writes it and a
+    // match's stored result cannot disagree.
+    const p = playingHandicapPartsInRound(stage, ctx.roundHandicapFor?.(playerId, stageId) ?? null, {
       whole: byRound.get(playerId) ?? ctx.fallback.get(playerId) ?? 0,
       exact: byRound.exact(playerId) ?? ctx.fallback.get(playerId) ?? 0,
       parStrokes: byRound.parStrokes(playerId),
     });
+    return {
+      courseExact: p.resolved.exact,
+      source: p.resolved.source,
+      allowance: p.allowance,
+      parStrokes: p.parStrokes,
+      playing: p.playing,
+    };
   };
 }
 
@@ -1336,9 +1415,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     );
   }
   /**
-   * AND PER MATCH, for the matches that name their own set.
+   * AND PER MATCH, for the matches that name their own set OR their own course.
    *
-   * Only those. In a league with no fixed venue a pair says where they played
+   * The course too (Fable's review of #1159): a match moved to another course
+   * with no set named fell to its ROUND's map, whose set is resolved against the
+   * round's course — so a match at the away course was priced off the home
+   * White, 20 where the away Gold gives 17. It priced right only while a stale
+   * `Match.teeId` kept it in this map by accident; `setMatchCourse` now clears
+   * that, as `teeAfterVenue` says. `services/handicaps.ts` already walked the
+   * match's own course for its reader, so the two now agree.
+   *
+   * Otherwise only those. In a league with no fixed venue a pair says where they played
    * at scoring time and, since `Match.teeId` exists, off which tees — and that
    * is a fact about one pairing, not about the round the other nine matches
    * are also in. A match that names nothing is not in this map at all and
@@ -1346,12 +1433,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * nothing.
    *
    * Built eagerly like the per-round maps, and bounded by the same thing: a
-   * match has to have had a set chosen ON it to appear here, which is a
+   * match has to have had a set or a venue chosen ON it to appear here, which is a
    * deliberate act by a scorer rather than something every row acquires.
    */
   const courseHcpByMatch = new Map<string, CourseHandicaps>();
   for (const m of matches) {
-    if (!m.teeId) continue;
+    if (!m.teeId && !m.courseId) continue;
     const stage = stages.find((s) => s.id === m.stageId);
     const matchTee = teeForPlay(
       tees,
@@ -1384,8 +1471,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // standings; a single Round Robin stage behaves exactly as before.
   const rrStages = roundRobinStages(stages);
   const domainPlayers = confirmed.map((p) => toDomainPlayer(p, hcpOf(p)));
-  const course = resolveCourse(event);
-  const holeDifficulty = course.strokeIndex;
+  /**
+   * EACH MATCH'S OWN CARD for its toughest-holes countback (J26) — the venue
+   * it was played on, not the tournament's. `countbackCardsFor` is the one
+   * answer; the week view and the head-to-head record read it off this state.
+   */
+  const countbackCardFor = countbackCardsFor(event, stages, matches, (id) => venuesById.get(id) ?? null);
 
   const playRounds = playingStages(stages);
   const activeRrIdx = currentRoundIndex(rrStages, matches);
@@ -1425,13 +1516,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
 
   for (let i = 0; i <= chainTo; i += 1) {
     const stage = rrStages[i];
-    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
+    // A result in dispute is held off the standings (`onBoard`, domain/board-hold.ts).
+    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(onBoard).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
 
-    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
+    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, countbackCardFor, matchTiebreakers);
     groupStandings = groups.map((g) => {
       const gp = confirmed.filter((p) => p.groupId === g.id).map((p) => toDomainPlayer(p, hcpOf(p)));
-      const ranked = computeStandings(gp, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
+      const ranked = computeStandings(gp, stageMatches, scoring, carryIn, countbackCardFor, matchTiebreakers);
       return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
     });
     activeDomainMatches = stageMatches;
@@ -1902,7 +1994,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * Shared with the weekly view via strokeHandicapResolver so a league night
    * and the event totals can never price the same card differently.
    */
-  const handicapFor = strokeHandicapResolver({
+  const handicapCtx: Parameters<typeof strokeHandicapResolver>[0] = {
     stageById,
     courseHcpByStage,
     courseHcp9,
@@ -1911,7 +2003,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     // One lookup, built once, so every board in this event reads the same row.
     // A round with no row resolves exactly as it did before this existed.
     roundHandicapFor: (playerId, stageId) => roundHandicapBy.get(roundHandicapKey(stageId, playerId)) ?? null,
-  });
+  };
+  const handicapFor = strokeHandicapResolver(handicapCtx);
+  // The same figure with its parts, off the same context — `handicapFor` is
+  // this one's `.playing` (see `strokeHandicapResolver`).
+  const handicapPartsFor = strokeHandicapPartsResolver(handicapCtx);
 
   /**
    * The course each round is played on, walking round → event.
@@ -1998,7 +2094,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * shared-ball format there is one card for two people. Crediting it to either
    * of them would put a round on the board that neither played.
    */
-  const joinedMatchCards = matchStrokeCards(matchCards, matches).filter((c) =>
+  // A match in dispute takes its cards off the board with it (`heldFromBoard`).
+  const joinedMatchCards = matchStrokeCards(matchCards, matches.filter((m) => !heldFromBoard(m.scoreStatus))).filter((c) =>
     strokeRoundIds.has(c.stageId),
   );
   const strokeAgg = aggregateStroke(
@@ -2010,7 +2107,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       // doubles a gross and reports 36 holes owed for an eighteen-hole round.
       // See `withoutSupersededStrokeCards` for why the match cards win.
       ...withoutSupersededStrokeCards(
-        scorecards.filter((c) => strokeRoundIds.has(c.stageId)),
+        // A card held in dispute is not ranked (`cardsOnBoard`); the review
+        // queue below still counts it, from `scorecards` itself.
+        cardsOnBoard(scorecards.filter((c) => strokeRoundIds.has(c.stageId))),
         joinedMatchCards,
       ),
       ...joinedMatchCards,
@@ -2077,34 +2176,36 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    */
   const lastStrokeRound = strokeRounds[strokeRounds.length - 1] ?? null;
   const lastRoundHoles = holesPlayed(lastStrokeRound?.holes);
+  /**
+   * On the basis the competition was RANKED on, which for a points
+   * competition is points.
+   *
+   * This read net strokes for Stableford too. Points are capped — nothing
+   * worse than a net double bogey scores at all — so two cards level on
+   * points can be several net strokes apart, and separating them on strokes
+   * decides a Stableford competition by a measure it does not use. The
+   * player who blobbed the 17th and 18th is behind on net strokes and level
+   * on points, which is the whole point of the format.
+   *
+   * And on a NET basis, the handicap comes off in fractions of the playing
+   * handicap (Committee Procedures 5A(7)) for an event created from
+   * 2026-11-09; one created before keeps hole-by-hole net
+   * (`netCountbackMethodFor`). `countbackCardOn` is the one place it is built.
+   */
+  const netCountback = netCountbackMethodFor(event.createdAt);
   const cbCard = (playerId: string, basis: RankingBasis) => {
     const perStage = strokeAgg.get(playerId)?.holesByStage;
     const card = lastStrokeRound ? perStage?.get(lastStrokeRound.id) : undefined;
-    return {
-      playerId,
-      total: 0, // unused: this is only ever handed to countbackCompare
-      /**
-       * On the basis the competition was RANKED on, which for a points
-       * competition is points.
-       *
-       * This read net strokes for Stableford too. Points are capped — nothing
-       * worse than a net double bogey scores at all — so two cards level on
-       * points can be several net strokes apart, and separating them on strokes
-       * decides a Stableford competition by a measure it does not use. The
-       * player who blobbed the 17th and 18th is behind on net strokes and level
-       * on points, which is the whole point of the format.
-       */
-      holes:
-        (basis === "stableford"
-          ? card?.points
-          : basis === "gross"
-            ? card?.gross
-            : card?.net) ?? [],
-    };
+    return countbackCardOn(playerId, card, basis, netCountback);
   };
   // Points run the other way: most wins. See countbackCompare's `higherWins`.
+  // The decision with its working (`countbackDecision`, the domain's
+  // `countbackBetween`), so the place a board prints and the sentence saying
+  // what decided it are one call.
+  const cbDecide = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>, basis: RankingBasis) =>
+    countbackDecision(a, b, lastRoundHoles, basis === "stableford");
   const cbCompare = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>, basis: RankingBasis) =>
-    countbackCompare(a, b, lastRoundHoles, basis === "stableford");
+    cbDecide(a, b, basis).order;
 
   /**
    * THE HOLES A PLAYER IS MEASURED OVER — which is NOT the holes they played.
@@ -2181,7 +2282,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * multiplier, and a single round is unchanged.
    */
   const isSeason = strokeRounds.length > 1;
-  const activeRoundId = isSeason ? null : (strokeUnitStage?.id ?? null);
+  /**
+   * AND A ROUND THE COMMITTEE HAS CLOSED IS NOT IN FLIGHT (15 Nov 2026). The
+   * live normalisation compares players who are different distances round; in
+   * a closed round nobody is still out, and a hole not played scores no points
+   * (Rule 21.1c). Left "in flight", twelve pars for 24 points read level with
+   * eighteen for 36 and above eighteen for 34: points per hole played, which is
+   * not the competition (Rule 21.1a, the most points wins). Closed, every card
+   * is charged the whole round and the order is the points
+   * (`a-short-card-is-judged-by-its-own-format.audit.test.ts`).
+   */
+  const activeRoundId = isSeason || strokeUnitStage?.closedAt ? null : (strokeUnitStage?.id ?? null);
   const levelRounds = strokeRounds.map((s) => ({ id: s.id, holes: holesPlayed(s.holes) }));
   const levelHoles = (a: StrokeAgg): number => chargedHoles(a, levelRounds, activeRoundId);
 
@@ -2211,9 +2322,30 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * own looser test rather than sharing this one.
    */
   const closedRoundIds = strokeRounds.filter((s) => s.closedAt).map((s) => s.id);
-  /** The first closed round this player has no card for, or null. */
+  /**
+   * The first closed round this player did not COMPLETE, or null: no card for
+   * it, or a card with holes missing (15 Nov 2026, G2). In stroke play every
+   * hole must be holed out (Rule 3.3c), and a closed round is one no more holes
+   * are coming for, so twelve holes of it are no more a round's score than
+   * none. Asking only "are the holes zero" ranked a player four under "thru
+   * 30" first among cards of 36
+   * (`a-short-card-in-a-closed-round-holds-no-place.audit.test.ts`).
+   *
+   * Against ONE round's length, though a round robin files several cards
+   * under one round: fewer holes than a single card owes is short whatever
+   * else is true, and a match that stopped early is `stoppedShort`'s to judge.
+   *
+   * ONLY A ROUND OF INDIVIDUAL STROKE PLAY OWES EVERY HOLE (`holesToComplete`,
+   * the one answer). A four-ball partner who picked up has completed the round
+   * (Rule 23.2b), and the first cut of this asked eighteen holes of them too:
+   * closing a four-ball round took the place of every partner with a blank
+   * hole (`a-short-card-is-judged-by-its-own-format.audit.test.ts`).
+   */
+  const holesOwedIn = new Map(strokeRounds.map((s) => [s.id, holesToComplete(s)]));
   const missedClosedRoundId = (a: StrokeAgg): string | null =>
-    stableford ? null : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0) ?? null);
+    stableford
+      ? null
+      : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) < (holesOwedIn.get(id) ?? 1)) ?? null);
   const missedAClosedRound = (a: StrokeAgg): boolean => missedClosedRoundId(a) !== null;
   /**
    * The closed round to NAME, whatever the board ranks on (2026-10-08, grid
@@ -2333,6 +2465,24 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     .sort((x, y) => Number(!!x.disqualified) - Number(!!y.disqualified) || compareOnBasis(x, y, rankingBasis));
 
   /**
+   * THE PLAYERS WHO DID NOT START (day-of field changes, PR B): withdrawn, with
+   * no hole on any card, in a tournament that has been launched — on the
+   * morning, out of a draw that was made. A scoring office lists them DNS
+   * beneath WD and above DQ, with no figures and no place. "WD" and "DNS" are
+   * not Rules terms; they are the office's codes for withdrew after starting
+   * and did not start, and the Golf Pro confirmed this usage (PR B). Before
+   * launch a withdrawal is not a non-starter, so nothing is listed then. In
+   * name order: there is no score to order them by.
+   */
+  const launchedEvent = !!event && isLaunched(event.status);
+  const didNotStartStandings: StrokeStanding[] = launchedEvent
+    ? players
+        .filter((p) => p.status === "withdrawn" && !withdrawnPlayed.some((w) => w.id === p.id))
+        .map((p) => ({ ...standingOf(p), ranked: false, rank: 0, missedCut: "", missedRound: "", didNotStart: true }))
+        .sort((x, y) => x.player.name.localeCompare(y.player.name))
+    : [];
+
+  /**
    * THE FIELD IN ORDER ON ONE BASIS, with its places: the board's own sort and
    * rank pass, handed the basis rather than reading it. The board is this on
    * `rankingBasis`; a prize named for gross or for net asks it on that basis
@@ -2427,9 +2577,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     const sameScore = prev !== null && prev.ranked && levelOnBasis(prev, s, basis);
     // The same comparison the sort used, through the same helper — these two
     // reading the countback differently is exactly what produced a rank the
-    // order did not support.
-    const level = sameScore && cbCompare(cbCard(prev!.player.id, basis), cbCard(s.player.id, basis), basis) === 0;
+    // order did not support. Kept, with its working, on both rows: what the
+    // board says decided a tie is this decision and no other.
+    const decision = sameScore ? cbDecide(cbCard(prev!.player.id, basis), cbCard(s.player.id, basis), basis) : null;
+    const level = sameScore && decision!.order === 0;
     s.rank = level ? ordered[i - 1].rank : i + 1;
+    if (decision) {
+      // The round the countback read, named where the board holds more than one.
+      const round = strokeRounds.length > 1 && lastStrokeRound ? nameOfRound(lastStrokeRound.id) : "";
+      prev!.tiedWith = [...(prev!.tiedWith ?? []), { name: s.player.name, decision, round }];
+      s.tiedWith = [...(s.tiedWith ?? []), { name: prev!.player.name, decision: fromTheOtherSide(decision), round }];
+    }
   }
   return ordered;
   };
@@ -2564,22 +2722,49 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // With neither a knockout nor a round cut, nobody is advancing yet.
   const hasKnockout = hasKnockoutStage(stages);
   let advancingIds: Set<string>;
-  // See `EventState.cutTiesUndecided`; set only by a stroke cut below.
+  // See `EventState.cutTiesUndecided`; set only by a stroke cut or a round robin's cut below.
   let cutTiesUndecided: CutTie[] = [];
+  const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
+  // `roundHasSomethingToCutOn` over the round's own rows — every place a score
+  // can live, as the draw (`roundRobinCutFrom`) reads them.
+  const feederHasSomethingToCutOn = (stageId: string) => {
+    const own = matches.filter((m) => m.stageId === stageId);
+    const ownIds = new Set(own.map((m) => m.id));
+    return roundHasSomethingToCutOn({
+      matches: own,
+      cards: [
+        ...scorecards.filter((c) => c.stageId === stageId),
+        ...teamCards.filter((c) => c.stageId === stageId),
+        ...matchCards.filter((c) => ownIds.has(c.matchId)),
+      ],
+    });
+  };
+  // The cut the active round DECIDES and the round it feeds (`currentRoundCutOf`
+  // → `cutDecidedBy`), the answer the rules sheet prints — past a medal too.
+  const cut = currentRoundCutOf(playRounds, activePlayIdx);
+  const cutRule = cut?.rule ?? null;
   // Whether anybody CAN advance — see `EventState.qualifying`.
-  let qualifying = hasKnockout;
-  if (hasKnockout) {
-    advancingIds = qualifierIds;
-  } else {
-    const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
-    const cutRule = currentRoundCutRule(playRounds, activePlayIdx);
-    qualifying = !!cutRule;
-    if (!cutRule) {
-      advancingIds = new Set<string>();
+  const qualifying = hasKnockout || !!cutRule;
+  {
+    /**
+     * A CUT THE ACTIVE ROUND DECIDES IS LIT FIRST, KNOCKOUT OR NOT (J31 review,
+     * 2026-11-07). This read `hasKnockout` first and lit the knockout's line
+     * (`qualifierIds`) whenever a bracket stood anywhere in the tournament. For
+     * round robin → round robin with a cut → main draw and plate — the shape
+     * the guide advertises — Round 1's board lit the knockout's top N off Round
+     * 1's table and marked no tie, while drawing Round 2 refused for a tie at
+     * ITS line. The next thing to happen to the field is the cut, so the board
+     * shows the cut; the knockout's line is shown once no cut is pending, and
+     * the knockout-labelled panels read `qualifierIds` themselves.
+     */
+    if (!cut || !cutRule) {
+      advancingIds = hasKnockout ? qualifierIds : new Set<string>();
     } else {
-      // Ranked in finishing order, which survivors() takes the front of — per
-      // flight or overall as the cut's scope dictates. Stroke ranks by returned
-      // cards (only those who've posted), match by the chained standings.
+      // A cut on a CARD is lit off the stroke standings, a cut on a TABLE off
+      // the chained standings — asked of `cut.kind` alone, never of the
+      // tournament's Scoring (`event.format`), which neither engine reads
+      // (`strokeCutOutcomeOf`, `roundRobinCutFrom`). `one-reading-of-a-cut.test.ts`
+      // refuses `isStroke` / `event.format` in this block.
       //
       // Restricted to the players who actually CONTESTED the round being cut
       // out of, which is the same rule generateCutRound applies. Without it the
@@ -2601,9 +2786,6 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const stillIn = contestedIds.size
         ? overall.filter((rp) => contestedIds.has(rp.player.id))
         : overall;
-      const ranked: CutCandidate[] = isStroke
-        ? strokeStandings.filter((s) => s.ranked).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
-        : stillIn.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
       /**
        * A STROKE CUT IS LIT THE WAY IT IS MADE: top N AND TIES (2026-10-04).
        *
@@ -2620,12 +2802,16 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        * records the play-off or the draw — `strokeCutOutcome`, the one answer
        * `applyStrokeCut` makes the cut with. Never a provisional pick.
        */
-      const activeRound = playRounds[activePlayIdx];
-      const nextRound = playRounds[activePlayIdx + 1];
-      const strokeCut =
-        isStroke && !!activeRound && !!nextRound &&
-        isIndividualStrokeRound(activeRound) && isIndividualStrokeRound(nextRound);
-      if (strokeCut) {
+      // The round the cut feeds; a stroke cut is the round just played's cards
+      // (`cut.kind`, from `cutFeederOf` — both rounds individual stroke play).
+      //
+      // WHATEVER THE TOURNAMENT'S SCORING SAYS (J31, 2026-11-07): this was
+      // `isStroke && cut.kind === "card"`, so medal → medal → round robin left
+      // at "Match play" — a mixed tournament, correct under either setting —
+      // lit the front of an empty match table (entry order) while
+      // `applyStrokeCut` cut on the cards.
+      const nextRound = cut.next;
+      if (cut.kind === "card") {
         const outcome = strokeCutOutcome(
           cutLineRows(strokeStandings, rankingBasis),
           cutRule,
@@ -2634,8 +2820,44 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         );
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
+      } else if (!feederHasSomethingToCutOn(playRounds[activePlayIdx].id)) {
+        /**
+         * A ROUND ROBIN'S CUT BEFORE ANY RESULT LIGHTS NOBODY (J31, 2026-11-07).
+         * Nothing entered in the round the cut is taken out of: the draw refuses
+         * to cut ("no results"), so nobody is lit, under either Scoring. This lit
+         * the front of the list under "Match play" — entry order, as if it were
+         * a result — and nobody under "Stroke play". Asked through
+         * `roundHasSomethingToCutOn`, the draw's own predicate (J31 review): the
+         * table's reading lit a round drawn but unplayed off its carried points,
+         * and stayed dark over a match with only halves entered.
+         */
+        advancingIds = new Set<string>();
       } else {
-        advancingIds = survivors(ranked, cutRule);
+        /**
+         * A ROUND ROBIN'S CUT IS LIT THE WAY IT IS MADE (J31, 2026-11-06):
+         * `roundRobinCutOutcome`, which `generateCutRound` draws the next round
+         * with. Everybody level on points goes through, or nobody in the tie is
+         * lit until the committee records the play-off or the draw — never the
+         * front of the list, which past the tie-breaks is entry order.
+         *
+         * Only once something has been played: before that the whole table is
+         * level on nought, and a tie of the whole field is nobody's play-off.
+         *
+         * And only where the cut is taken out of THIS table — the round robin
+         * the board holds — which `cutDecidedBy` guarantees: it is the cut
+         * whose feeder (`cutFeederOf`, the function the tie card and
+         * `settleCutTie` ask) is the active round.
+         *
+         * WHATEVER THE TOURNAMENT'S SCORING SAYS (round train-1107-3): this was
+         * `!isStroke && …`, so a tournament of round robins left at "Stroke
+         * play" — or a round robin feeding a medal, which `scoringMismatch`
+         * calls correct under either setting — lit nobody and marked no tie,
+         * while the draw, which never reads `event.format`, refused for the
+         * tie. `cut.kind` is the one reading of what a cut is taken on.
+         */
+        const outcome = roundRobinCutOutcome(stillIn, nextRound);
+        advancingIds = outcome.through;
+        cutTiesUndecided = outcome.undecided;
       }
     }
   }
@@ -2654,6 +2876,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const staffApproves = !autoConfirm;
   // Assembled here, counted once the draw exists below — a knockout report is
   // only waiting while the draw still holds its tie (`openTieReport`).
+  /**
+   * BOTH SIDES AGREE (2026-11-04): a result still pending that carries
+   * signatures is one the end-of-round check asked about. Asked only of those
+   * rows — the ordinary pending result has none — so this costs nothing on a
+   * tournament that does not use the check.
+   */
+  const signed = matches.filter((m) => m.scoreStatus === "pending" && m.attestedBy !== "[]" && m.attestedBy !== "");
+  const agreedIds = new Set<string>();
+  if (signed.length > 0) {
+    const rule = endCheckRule(settingsOf(event).attestBy);
+    for (const m of signed) if (sidesAgree(await matchSidesOf(m), m, rule)) agreedIds.add(m.id);
+  }
   const reviewInput = {
     matches: matches.map((m) => {
       let holes: HoleResultArr;
@@ -2669,6 +2903,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         // no result anybody can sign off.
         complete: matchIsOver(holes),
         status: effectiveScoreStatus(m, autoConfirm),
+        agreed: agreedIds.has(m.id),
       };
     }),
     cards: scorecards,
@@ -2979,43 +3214,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     stages,
     matches,
     /**
-     * Built from both tables, because a round's result lives in whichever one
-     * its format writes: a medal round returns `Scorecard` rows, a match round
-     * keeps the result on `Match.holes`, and net match play writes
-     * `MatchScorecard` as well. A set built from cards alone would call a
-     * round-robin night that has been played "upcoming" for ever.
-     *
-     * `/[1-9AaBbHh]/` is the same test `playRefusal` uses for "has anybody
-     * been out on the course" — one hole is enough.
+     * Every table a round's result can live in, ONE rule — `roundsWithResultsFrom`,
+     * which the state machine's reader (`tournamentFactsFor`'s `hasResult`) calls
+     * too, so the two cannot drift. `playedCards`, not `scorecards`: a side
+     * playing one ball files a `TeamScorecard` (2026-10-31; see the rule's note).
      */
-    roundsWithResults: new Set<string>([
-      /**
-       * `playedCards`, not `scorecards` (2026-10-31): a side playing one ball — a scramble, a
-       * best ball — files a `TeamScorecard`, and this set was built from the individual cards
-       * alone. A played scramble read "Upcoming" on Rounds & formats, was left out of the final
-       * report's round-by-round tables, and would have been called "not played" by completing.
-       * `playedCards` is the one spelling of "a card was returned", written above for exactly this.
-       */
-      ...playedCards.filter((c) => c.stageId).map((c) => c.stageId as string),
-      ...matchStrokeCards(matchCards, matches).map((c) => c.stageId),
-      ...matches.filter((m) => /[1-9AaBbHh]/.test(m.holes) || m.forfeitedBy).map((m) => m.stageId),
-      /**
-       * A KNOCKOUT'S RESULTS ARE NOT IN EITHER OF THOSE TABLES.
-       *
-       * `BracketWinner` is keyed by slot (`winners-0-1`) rather than by stage,
-       * so a bracket with every semi-final recorded holds no `Match` row and no
-       * card. Left out, the demo's Round 4 stayed "Upcoming" on a bracket whose
-       * final already had two names in it — which is how a rule fixed for one
-       * round type goes on being wrong for another.
-       *
-       * Any winner recorded means the knockout has started. Attributed to every
-       * knockout stage: the key does not name one, and a tournament with two
-       * brackets runs them off the same set of picks.
-       */
-      ...(bracketWinners.length > 0
-        ? stages.filter((s) => isKnockoutRound(s.type)).map((s) => s.id)
-        : []),
-    ]),
+    roundsWithResults: roundsWithResultsFrom({
+      stages,
+      cards: playedCards,
+      matchCards,
+      matches,
+      bracketWinners: bracketWinners.length,
+    }),
     rrStages,
     playRounds,
     activeStage,
@@ -3036,12 +3246,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     strokeRankingBasis: rankingBasis,
     countbackBetween,
     withdrawnStandings,
+    didNotStartStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,
     // so `boardIsNet` and this caption cannot disagree.
     strokeUnitLabel,
     strokeRounds,
     strokeHandicapFor: handicapFor,
+    strokeHandicapPartsFor: handicapPartsFor,
     /**
      * The round's answer unless this match named its own set.
      *
@@ -3065,6 +3277,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       });
     },
     strokeCourseFor: courseFor,
+    countbackCardFor,
     roundFieldSize: (stageId: string) => {
       const s = stages.find((x) => x.id === stageId);
       if (!s || isManualFormat(s.format) || needsTeams(s.format) || boardKind(s.format) === "nassau") return null;
@@ -3079,6 +3292,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     outOn,
     advancingCount,
     advancingIds,
+    qualifierIds: hasKnockout ? qualifierIds : new Set<string>(),
     qualifying,
     cutTiesUndecided,
     pendingConfirmations,
@@ -3181,7 +3395,24 @@ export function withBoardRound(state: EventState, stageId: string | undefined): 
   };
 }
 
+/** The board's rows: the field, then WD, then DQ. Every board and screen reads this one. */
 export function standingRows(state: EventState): StandingRow[] {
+  return boardRows(state, false);
+}
+
+/**
+ * THE RESULTS SHEET'S ROWS (day-of field changes, PR B): the board's, with a
+ * DNS line for each player withdrawn before teeing off, beneath WD and above DQ
+ * (`didNotStartStandings`). Read by the ORGANIZER's Leaderboard and by Reports,
+ * whose table is the printed results sheet and whose rows are the CSV. The live
+ * boards — the public one and a player's — keep `standingRows`: a player who
+ * never started has nothing to show there, and the calm board stays calm.
+ */
+export function resultsSheetRows(state: EventState): StandingRow[] {
+  return boardRows(state, true);
+}
+
+function boardRows(state: EventState, withDidNotStart: boolean): StandingRow[] {
   if (isManualFormat(state.activeStage?.format ?? "")) return [];
 
   /**
@@ -3278,9 +3509,10 @@ export function standingRows(state: EventState): StandingRow[] {
   // AND A STROKE CUT'S TIE THE COMMITTEE HAS STILL TO SETTLE (2026-10-23).
   // Nobody in it is lit, so the shared-place reading above cannot see it: the
   // play-off is for players level on the SCORE, whom the board's countback may
-  // have given different places.
+  // have given different places. And a round robin's cut's (J31): a play-off is
+  // for players level on POINTS, whom the table's tie-breaks may have placed.
   const tieBy = new Map<string, "playoff" | "draw">();
-  for (const t of state.boardIsStroke ? state.cutTiesUndecided : []) {
+  for (const t of state.cutTiesUndecided) {
     for (const id of t.playerIds) {
       tied.add(id);
       tieBy.set(id, t.by);
@@ -3292,8 +3524,17 @@ export function standingRows(state: EventState): StandingRow[] {
   // weekly sign-up keeps `absent` undefined on every row (see live-board.ts).
   const outHere = state.boardStage && state.outOn ? state.outOn(state.boardStage.id) : new Set<string>();
   if (state.boardIsStroke) {
-    // The field, then anybody who withdrew after beginning — WD, at the foot.
-    return [...state.strokeStandings, ...(state.withdrawnStandings ?? [])].map((s) => ({
+    // The field, then anybody who withdrew after beginning — WD, at the foot —
+    // then, on the results sheet only, who withdrew before teeing off (DNS),
+    // and the disqualified last of all.
+    const left = state.withdrawnStandings ?? [];
+    const sheet = [
+      ...state.strokeStandings,
+      ...left.filter((s) => !s.disqualified),
+      ...(withDidNotStart ? (state.didNotStartStandings ?? []) : []),
+      ...left.filter((s) => s.disqualified),
+    ];
+    return sheet.map((s) => ({
       // Out, and no card THIS week (the aggregate `thru` counts earlier weeks).
       ...(outHere.size > 0
         ? { absent: outHere.has(s.player.id) && state.roundThru(s.player.id, state.boardStage!.id) === 0 }
@@ -3319,6 +3560,10 @@ export function standingRows(state: EventState): StandingRow[] {
       net: s.net,
       toPar: asRanked(s),
       parKnown: s.parKnown,
+      // What the printed figure was worked from, and what decided a tie — for
+      // the board's "how was this worked out" (`figure-working.ts`).
+      parThru: s.parThru,
+      ...(s.tiedWith ? { tiedWith: s.tiedWith } : {}),
       points: s.points,
       thru: s.thru,
       holesOwed: s.holesOwed,
@@ -3330,6 +3575,7 @@ export function standingRows(state: EventState): StandingRow[] {
       missedCut: s.missedCut ?? "",
       withdrew: !!s.withdrew,
       disqualified: !!s.disqualified,
+      ...(s.didNotStart ? { didNotStart: true } : {}),
     }));
   }
   /**
@@ -3368,8 +3614,9 @@ export function standingRows(state: EventState): StandingRow[] {
       // Same flag the stroke rows carry, now that it is computed from the
       // ranking a match-play event is decided on.
       tiedAtCut: tied.has(r.player.id),
-      // A match board's ties are the knockout's line, never a stroke cut's.
-      cutTieBy: "" as const,
+      // A round robin's cut waiting on a tie says how it will be settled (J31);
+      // a knockout's line has no rule of its own yet (J30), so it says nothing.
+      cutTieBy: tieBy.get(r.player.id) ?? ("" as const),
       record: fmtRecord(r.stats),
       diff: fmtDiff(r.stats),
       pts: fmtPts(r.stats.totalPoints),
@@ -3383,6 +3630,9 @@ export function standingRows(state: EventState): StandingRow[] {
       // A match-play row with no stroke card has no par either, so the to-par
       // column reads "—" rather than the zero it used to print.
       parKnown: s?.parKnown ?? false,
+      // Same field the stroke row carries for "how was this worked out";
+      // nought with no stroke card, which `boardNetWorking` reads as nothing to explain.
+      parThru: s?.parThru ?? 0,
       points: s?.points ?? 0,
       thru: s?.thru ?? 0,
       holesOwed: s?.holesOwed ?? 0,
@@ -3437,6 +3687,25 @@ export function computeHighlights(state: EventState): Highlight[] {
   return state.drawFrozen ? all.filter((h) => h.kind !== "cut") : all;
 }
 
+/**
+ * The Leader / Winner card, for one name or a shared first place (2026-11-07).
+ *
+ * It read the top ROW of the board, and the top row of a tie is only first in
+ * the list: once three level players beating each other in a circle share 1st,
+ * "Ann won on 6 pts" named the earliest entry the champion over a board that
+ * prints 1, 1, 1. A shared first names nobody — `suggestChampion` already
+ * refuses a champion while `leaders.length > 1`, and the committee settles a
+ * single title (a play-off, or its published method).
+ */
+function sharedLead(names: string[], done: boolean, figure: string): Highlight {
+  if (names.length <= 1) {
+    return { icon: "🏆", title: done ? "Winner" : "Leader", text: `${names[0] ?? "—"} ${done ? "won" : "leads"} ${figure}.` };
+  }
+  return done
+    ? { icon: "🏆", title: "Level for first", text: `${listNames(names)} share first place ${figure}. Nothing separates them, so the committee decides the title.` }
+    : { icon: "🏆", title: "Leaders", text: `${listNames(names)} share the lead ${figure}.` };
+}
+
 function highlightsOf(state: EventState): Highlight[] {
   const out: Highlight[] = [];
   const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
@@ -3453,6 +3722,9 @@ function highlightsOf(state: EventState): Highlight[] {
     const done = state.event.status === "completed";
     const verb = done ? "won" : "leads";
     const leaderTitle = done ? "Winner" : "Leader";
+    // Everybody on the leader's place: more than one is a shared lead, and a
+    // completed board with a shared first names no winner (`sharedLead`).
+    const level = scored.filter((s) => s.rank === lead.rank).map((s) => s.player.name);
     if (stableford) {
       /**
        * The points AND the holes they came off, because one without the other
@@ -3467,11 +3739,11 @@ function highlightsOf(state: EventState): Highlight[] {
        * when they still legitimately differ.
        */
       const thru = lead.thru > 0 ? ` from ${lead.thru} holes` : "";
-      out.push({
-        icon: "🏆",
-        title: leaderTitle,
-        text: `${lead.player.name} ${verb} on ${lead.points} Stableford pts${thru}.`,
-      });
+      out.push(
+        level.length > 1
+          ? sharedLead(level, done, `on ${lead.points} Stableford pts${thru}`)
+          : { icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} on ${lead.points} Stableford pts${thru}.` },
+      );
     } else {
       /**
        * On the board's own basis, and GROSS only where there is no par.
@@ -3503,7 +3775,11 @@ function highlightsOf(state: EventState): Highlight[] {
        */
       const netBoard = unitIsNet(state.strokeUnitLabel);
       const total = netBoard ? ` (net ${lead.net})` : lead.parKnown ? ` (${lead.gross})` : "";
-      out.push({ icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} at ${par}${total}.` });
+      out.push(
+        level.length > 1
+          ? sharedLead(level, done, `at ${par}${total}`)
+          : { icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} at ${par}${total}.` },
+      );
     }
     // Only while it is a watch — see the match-play branch below, and
     // `qualifyingSettled` for why the two ways of being settled differ.
@@ -3662,14 +3938,22 @@ function highlightsOf(state: EventState): Highlight[] {
   if (leader && leader.stats.played > 0) {
     // A completed tournament has a winner — the stroke branch's rule (T59).
     const done = state.event.status === "completed";
-    out.push({
-      icon: "🏆",
-      title: done ? "Winner" : "Leader",
-      text: `${leader.player.name} ${done ? "won" : "leads"} on ${fmt(leader.stats.totalPoints)} pts.`,
-    });
+    // A SHARED FIRST PLACE NAMES NOBODY (2026-11-07): the top row of a tie is
+    // only first in the list. `sharedLead` says so, as `suggestChampion` does.
+    const level = state.overall.filter((r) => r.rank === leader.rank).map((r) => r.player.name);
+    out.push(sharedLead(level, done, `on ${fmt(leader.stats.totalPoints)} pts`));
   }
 
   // Longest current win streak across the field.
+  // Each match counted as the table counted it (`decidedOutcome`): a forfeit
+  // is a win, the all-square countback decides a halve, and a match not over —
+  // a result held in dispute among them, which `onBoard` blanks to no holes —
+  // neither extends a streak nor breaks one. `resolveMatch([]).complete` read
+  // a held result as a halve and ended the streak of the player who won it.
+  const tiebreak = {
+    sequence: parseMatchTiebreakers(state.event.matchTiebreakers),
+    strokeIndex: state.countbackCardFor,
+  };
   let best = { name: "", n: 0 };
   for (const rp of state.overall) {
     const ms = state.domainMatches
@@ -3677,10 +3961,10 @@ function highlightsOf(state: EventState): Highlight[] {
       .sort((a, b) => a.round - b.round);
     let streak = 0;
     for (const m of ms) {
-      const r = resolveMatch(m.holes);
-      if (!r.complete) continue;
+      const outcome = decidedOutcome(m, tiebreak);
+      if (outcome === null) continue;
       const isA = m.playerAId === rp.player.id;
-      const won = (r.winner === "A" && isA) || (r.winner === "B" && !isA);
+      const won = (outcome === "A" && isA) || (outcome === "B" && !isA);
       streak = won ? streak + 1 : 0;
     }
     if (streak > best.n) best = { name: rp.player.name, n: streak };

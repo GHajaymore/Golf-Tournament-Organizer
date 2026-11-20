@@ -82,6 +82,7 @@ export async function roundCardLines(eventId: string): Promise<RoundCardLine[]> 
 }
 
 /** The rounds that stop a launch — see `missingCardsRefusal`. */
-export async function roundsMissingCards(eventId: string): Promise<{ label: string; course: string }[]> {
-  return (await roundCardLines(eventId)).filter((l) => l.status === "missing").map(({ label, course }) => ({ label, course }));
+export async function roundsMissingCards(eventId: string): Promise<{ stageId: string; label: string; course: string }[]> {
+  // `stageId` with the words, so the machine says WHICH round needs its card (J16).
+  return (await roundCardLines(eventId)).filter((l) => l.status === "missing").map(({ stageId, label, course }) => ({ stageId, label, course }));
 }

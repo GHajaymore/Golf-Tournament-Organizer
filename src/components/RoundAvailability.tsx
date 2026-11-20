@@ -144,7 +144,8 @@ export function RoundAvailability({
   );
 
   const viewToggle = canCalendar && (
-    <div className="seg" style={{ flexShrink: 0 }}>
+    // Calendar or list: the view only, so live in an archived tournament (`archive-read-only.ts`).
+    <div className="seg" data-reads="" style={{ flexShrink: 0 }}>
       <label className="seg-opt">
         <input
           type="radio"

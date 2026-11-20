@@ -4,7 +4,7 @@ name: Nightly round
 # docs/testing-panel-2026-10-23.md).
 #
 # A change's round (round.yml, `round/**`) runs what that change can reach. This
-# runs everything a round can, every night, on whatever `main` is at 02:00 UTC:
+# runs everything a round can, every night, on whatever `main` is at 02:17 UTC:
 #
 #   every layer of a change's round, with ALL SIX countries in it
 #   the console crawl in full (every dropdown, choice and tick-box, four shares)
@@ -20,16 +20,16 @@ name: Nightly round
 # later one containing it — is clean. When this round is clean it calls the
 # deploy itself, so the change goes out the same night, outside the freeze.
 #
-# 02:00 UTC is the middle of the night in Europe, evening in the Americas and
+# 02:17 UTC (off the hour, when GitHub queues every schedule at once) is the middle of the night in Europe, evening in the Americas and
 # morning in Asia and Australia; the deploy that follows is still held by the
 # freeze wherever a club is playing (src/lib/domain/deploy-window.ts).
 #
 # Runs on main only (a schedule always does). "Run workflow" runs it by hand —
-# the emergency path for a core fix that cannot wait for 02:00.
+# the emergency path for a core fix that cannot wait for 02:17.
 
 on:
   schedule:
-    - cron: "0 2 * * *"
+    - cron: "17 2 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -41,9 +41,39 @@ permissions:
   actions: read
 
 jobs:
+  # B75: a SCHEDULED run on a commit another nightly already covers (finished clean, or queued/running)
+  # ends here, successfully. A dispatched run is never skipped. When `round` is skipped it posts no
+  # Round / Verdict check (the deploy gate reads only a successful one) and `deploy` below, which needs
+  # round.result == 'success', does not run.
+  dedupe:
+    name: Skip if covered
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      skip: ${{ steps.d.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: d
+        run: node scripts/qa/nightly-dedupe.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   round:
     name: Round
     uses: ./.github/workflows/round.yml
+    # (name and uses stay adjacent: deploy-gate-lean.test.ts reads the check name from them)
+    needs: dedupe
+    if: ${{ !cancelled() && needs.dedupe.outputs.skip != 'true' }}
+    # round.yml's Verdict job posts its verdict on the commit (statuses: write). A called
+    # workflow gets no more than its caller grants: without this line GitHub refuses to
+    # start the run at all (startup_failure, run 41809332472, 2026-11-04).
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
     with:
       round: "1"
       schedule: nightly

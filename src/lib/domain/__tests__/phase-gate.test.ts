@@ -114,8 +114,16 @@ describe("going live", () => {
     // `SetupFacts.missingCards` is optional (many fixtures build one), so the
     // service building the REAL facts is pinned to pass it — otherwise the
     // guide says "take it live" over a Launch the action then refuses.
-    const src = readSource("src/lib/services/setup-flow.ts");
-    expect(src).toContain("missingCards: await roundsMissingCards(eventId)");
+    // Since PR 2 of the state machine the real facts are the setup side of the
+    // one facts read: it asks `roundsMissingCards` per tournament, and
+    // the machine reads it from there. Since PR 9a the guide and the Launch
+    // dialog are one read: the rail (`setupRailFor`) is the machine's flow on
+    // those facts, and the dialog is its `.launch`.
+    expect(readSource("src/lib/services/tournament-status.ts")).toMatch(/const facts = await setupSideFactsFor\(eventId\);\s*return facts \? setupFlowOf\(facts\) : null;/);
+    const facts = readSource("src/lib/services/tournament-facts.ts");
+    expect(facts).toContain("await roundsMissingCards(id)");
+    expect(facts).toContain("missingCards: missing.get(id) ?? []");
+    expect(readSource("src/lib/domain/tournament-status.ts")).toContain("missingCards: f.missingCards");
   });
 
   it("takes whitespace as no date at all", () => {
@@ -181,39 +189,59 @@ describe("where the gates are enforced", () => {
    */
   it("is checked inside the actions, not only on the screen", () => {
     const actions = readSource("src", "app", "actions", "tournament.ts");
-    // Launch asks the setup flow's own verdict — `launchCheckFor` — since gap G3.
-    expect(actions).toMatch(/const \{ refusal \} = await launchCheckFor\(eventId\)/);
-    // Both facts, at the enforcement point. The screen alone passing
-    // `disputed` would leave the endpoint finishing over a dispute.
-    expect(actions).toMatch(/finishRefusal\(\{[^}]*pendingConfirmations[^}]*disputed: state\.reviewing\.disputed/);
+    // Since the state machine's PR 4 both actions ask the machine, as the
+    // dashboard's button does: launch its `refusals.launch` (the flow's own
+    // verdict first), a status move `statusRequestOf` (its `refusals.complete`).
+    expect(actions).toMatch(/const refusal = told\.status\.refusals\.launch;/);
+    expect(actions).toMatch(/const request = statusRequestOf\(told\.status, current\.status, status\);/);
+    expect(actions).toMatch(/if \(request\.kind === "refuse"\) return \{ ok: false, error: request\.error \};/);
+    // Both facts reach the machine's complete refusal from the live state, so
+    // the endpoint cannot finish over a dispute the screen alone knew about.
+    expect(readSource("src", "lib", "services", "tournament-facts.ts")).toMatch(
+      /review: state\s*\?\s*\{ pendingConfirmations: state\.pendingConfirmations, disputed: state\.reviewing\.disputed \}/,
+    );
+    const machine = readSource("src", "lib", "domain", "tournament-status.ts");
+    expect(machine).toMatch(/return st\.refusals\.complete \? \{ kind: "refuse", error: st\.refusals\.complete \}/);
     // And the refusal is returned rather than thrown away.
     expect(actions).toMatch(/if \(refusal\) return \{ ok: false, error: refusal \}/);
   });
 
   it("is checked on the screen too, from the same two functions", () => {
+    /**
+     * Since the state machine's PR 3 the screen asks the machine, which asks
+     * the same two functions: its launch refusal is the flow's own verdict
+     * (`launchCheck`, the builder `launchCheckFor` reads) and its complete
+     * refusal is `finishRefusal` then `completingCheckFor`. The dashboard hands
+     * the card the machine's answer (`statusCardOf`).
+     */
     const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
-    expect(dash).toMatch(/await launchCheckFor\(session\.eventId\)/);
-    expect(dash).toMatch(/finishRefusal\(\{/);
-    expect(dash).toMatch(/blockedReason=\{phaseBlock/);
+    expect(dash).toMatch(/await tournamentStatusFor\(session\.eventId, state\.today\)/);
+    expect(dash).toMatch(/status=\{statusCardOf\(told\.facts, status\)\}/);
+    const machine = readSource("src", "lib", "domain", "tournament-status.ts");
+    expect(machine).toMatch(/finishRefusal\(\{ pendingConfirmations: f\.review\.pendingConfirmations, disputed: f\.review\.disputed \}\)/);
+    expect(machine).toMatch(/const todayLaunch = flow\?\.launch \?\? null;/);
   });
 
-  it("disables the button and shows the reason", () => {
+  it("refuses the button in place and shows the reason, with the way out", () => {
     const bar = readSource("src", "components", "LifecycleBar.tsx");
-    expect(bar).toMatch(/disabled=\{pending \|\| !!blockedReason\}/);
-    // The reason is rendered, not merely held — a greyed-out button that
-    // explains nothing is the worst of both. Read from the same pair since
-    // it became a short line with the rest behind an ⓘ (2026-10-05); that it
-    // reaches the screen is RENDERED in `lifecycle-reason-shown.test.tsx`.
-    expect(bar).toMatch(/refused \|\| blockedReason/);
+    // A refusal known before the press is drawn by `RefusedAction` under the
+    // button it refuses; that it reaches the screen is RENDERED in
+    // `lifecycle-reason-shown.test.tsx`.
+    expect(bar).toMatch(/isAdmin && action && !action\.enabled && \(\s*<RefusedAction/);
+    expect(bar).toMatch(/reason=\{action\.disabledBecause \?\? ""\}/);
+    expect(bar).toMatch(/wayOut=\{action\.wayOut\}/);
+    // The live button is drawn only when the machine allows it.
+    expect(bar).toMatch(/isAdmin && action && action\.enabled && action\.kind !== "draw"/);
   });
 
   it("only gates the transitions that change what the field sees", () => {
     /**
      * Moving from draft to "taking entries" is a club saying what it is doing.
-     * Gating it would be the wizard this codebase decided against.
+     * Gating it would be the wizard this codebase decided against. The
+     * machine's next actions are Launch, Complete, Reopen and the two ways
+     * forward while live — never a status in between.
      */
-    const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
-    const block = dash.slice(dash.indexOf("const phaseBlock"), dash.indexOf("const phaseBlock") + 500);
-    expect(block).not.toMatch(/"draft"/);
+    const machine = readSource("src", "lib", "domain", "tournament-status.ts");
+    expect(machine).toMatch(/export type NextKind = "launch" \| "complete" \| "reopen" \| "draw" \| "schedule";/);
   });
 });

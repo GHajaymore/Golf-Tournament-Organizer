@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedCup, teardownCup, PARS, CUP_EVENT } from "./cup-fixture.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * A TEAM CUP, PLAYED BY ITS PLAYERS — the Ryder Cup shape a golf trip runs,
@@ -381,7 +382,7 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
 
   /**
    * A POINT OUTSIDE THE MATCHES (2026-10-19). The first real cup had a
-   * sixteenth point for the lower team net total, which CDG won and the app had
+   * sixteenth point for the lower team net total, which Pines won and the app had
    * nowhere to put. Worked by hand: three matches and one more point is four in
    * play, so 2½ to win — the Whites' 2 is no longer enough, and the cup is open
    * again until the point is given.
@@ -442,7 +443,7 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   await test.step("given to the Whites, it wins them the cup", async () => {
     await as(page, baseURL!, "organizer");
     await open(page, "/cup");
-    await page.getByRole("radiogroup", { name: "Who has Team net total" }).getByRole("radio", { name: "Whites" }).check();
+    await pressRadio(page.getByRole("radiogroup", { name: "Who has Team net total" }).getByRole("radio", { name: "Whites" }));
     await expect(async () => {
       await page.context().clearCookies();
       await open(page, `/live/${f.shareToken}`);

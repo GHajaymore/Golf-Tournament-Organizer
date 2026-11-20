@@ -8,6 +8,32 @@ const usable = (name: string) =>
   !name.startsWith("[") && !name.startsWith("_") && !name.startsWith("(");
 
 /**
+ * Standalone screens that open only for somebody holding a PLAY SESSION (a round code):
+ * a walk with no session is sent to `/play`, which would be measured in their place. They are
+ * driven signed in by their own spec (`play-board.spec.ts`) and kept out of the walks here.
+ */
+const NEEDS_A_PLAY_SESSION = new Set(["/play/board"]);
+
+/**
+ * A REDIRECT STUB: a page.tsx that only sends you elsewhere and draws nothing of
+ * its own — `/scorecard` to `/foursomes`, `/scoring` to `/stages`, and `/start`,
+ * where an installed app opens and is sent to its home (J39/J40 PR 2, G3). There
+ * is no layout of its own to measure, and asserting the URL afterwards fails on
+ * the redirect.
+ *
+ * Told by its SHAPE, not by where `redirect(` sits on a line: it calls
+ * `redirect(` and renders no element (no `</` and no `/>` once comments are
+ * stripped). The line-start test this replaced (console screens only; the
+ * standalone list had none, so `/start` was measured and failed "redirected
+ * away") would read `/choose` — a real screen whose guard calls `redirect(` on a
+ * line of its own — as a stub. Detected rather than listed, so a
+ * route that stops being a stub rejoins every sweep on its own.
+ */
+export function isRedirectStub(source: string): boolean {
+  return /\bredirect\(/.test(source) && !source.includes("</") && !source.includes("/>");
+}
+
+/**
  * Every CONSOLE screen, read off the filesystem rather than listed by hand.
  *
  * The hand-written list this replaced held fourteen of the twenty-two routes
@@ -36,14 +62,10 @@ export function consoleScreens(cwd: string = process.cwd()): string[] {
     for (const e of readdirSync(join(root, ...parts), { withFileTypes: true })) {
       if (!e.isDirectory() || !usable(e.name)) continue;
       const here = [...parts, e.name];
-      // Legacy redirect stubs — /scorecard sends you to /foursomes, /scoring to
-      // /stages. They have a page.tsx and no page: asserting the URL afterwards
-      // fails on the redirect, and there is no layout of their own to measure.
-      // Detected rather than listed, so a route that stops being a stub rejoins
-      // the sweep on its own.
+      // Legacy redirect stubs (`isRedirectStub`) have a page.tsx and no page.
       if (
         existsSync(join(root, ...here, "page.tsx")) &&
-        !/^\s*redirect\(/m.test(readSource("src", "app", "(app)", ...here, "page.tsx"))
+        !isRedirectStub(readSource("src", "app", "(app)", ...here, "page.tsx"))
       ) {
         found.push(`/${here.join("/")}`);
       }
@@ -109,14 +131,18 @@ export function standaloneScreens(cwd: string = process.cwd()): string[] {
       const here = join(root, e.name);
       // A route may be the directory itself (`/choose`) or one level down
       // (`/match/new`), so both are looked for rather than assumed.
+      // A redirect stub (`/start`) has nothing of its own to measure (`isRedirectStub`).
+      const screen = (...parts: string[]) =>
+        existsSync(join(root, ...parts, "page.tsx")) && !isRedirectStub(readSource("src", "app", ...parts, "page.tsx"));
       const paths: string[] = [];
-      if (existsSync(join(here, "page.tsx"))) paths.push(`/${e.name}`);
+      if (screen(e.name)) paths.push(`/${e.name}`);
       for (const child of readdirSync(here, { withFileTypes: true })) {
         if (!child.isDirectory() || !usable(child.name)) continue;
-        if (existsSync(join(here, child.name, "page.tsx"))) paths.push(`/${e.name}/${child.name}`);
+        if (screen(e.name, child.name)) paths.push(`/${e.name}/${child.name}`);
       }
       return paths;
     })
+    .filter((path) => !NEEDS_A_PLAY_SESSION.has(path))
     .sort();
 }
 

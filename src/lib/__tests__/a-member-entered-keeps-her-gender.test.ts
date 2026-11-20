@@ -76,6 +76,8 @@ describe("a member entered in a tournament keeps her gender", () => {
         "src/app/actions/match-setup.ts",
         "src/app/actions/register.ts",
         "src/app/actions/roster.ts",
+        // A guest typed in to replace a no-show on the tee sheet (B43): a roster row of their own, gender read from it.
+        "src/app/actions/tee-sheet.ts",
         "src/app/actions/tournament.ts",
       ]),
     );

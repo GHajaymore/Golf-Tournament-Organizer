@@ -59,7 +59,7 @@ const event = (name: string, moneyMode: string, n: number) =>
       // in-play tournament's name within a club.
       name: `${TAG} ${name}`,
       moneyMode,
-      status: "registration", shape: "single", format: "stroke", formationRule: "balanced",
+      status: "draft", shape: "single", format: "stroke", formationRule: "balanced",
       dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
       shareToken: `${TAG}-share-${n}`,
       registrationToken: `${TAG}-reg-${n}`,

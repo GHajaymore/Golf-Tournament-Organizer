@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { clickAndExplain, whileWatching } from "./stalled-click";
 import { seedOrganizer, teardownOrganizer, organizerEvent, returnACard } from "./organizer-fixture.mjs";
 
 /**
@@ -56,7 +57,8 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A series of rounds/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("the format list holds only what the kind of round can be scored in", async () => {
@@ -174,7 +176,7 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
  *   the two tiebreaks       named apart: the match on the day, then the table
  *   the knockout            after groups, the top players per flight — not overall
  */
-test("a match-play championship in groups, then a knockout", async ({ page }) => {
+test("a match-play championship in groups, then a knockout", async ({ page }, testInfo) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
   watchPageErrors(page, errors);
@@ -185,7 +187,8 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     await page.getByLabel("Tournament name").fill(NAME);
     await page.getByRole("button", { name: /^A series of rounds/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("two round robins of match play, then a bracket", async () => {
@@ -198,9 +201,19 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     expect(forGroups.some((o) => o.startsWith("Stroke Play")), "a round robin is offered Stroke Play").toBe(false);
     await page.getByLabel("How many rounds to add").fill("2");
     await page.getByRole("button", { name: /^Add 2 round robins/ }).click();
+    // THE NEXT PRESS COMES AT ONCE, as a quick organizer's does: Bracket right after Add, not after
+    // looking at the new rounds. CI run 41950657167 read the format as "" for 247s here. Bounded, so a
+    // repeat fails in ten seconds with the value, not after four minutes.
+    // A press that never returns (CI 43589900390, 41950657167: 240 s, no frames, no crash) says what the
+    // page was doing after 20 s: main thread, dialog, covered or detached. See e2e/stalled-click.ts.
+    await clickAndExplain(page, page.getByRole("button", { name: /^Bracket/ }), "Bracket after Add (Rounds & formats)", testInfo);
+    // The wait that failed in both runs is this 10 s one: watched at 15 s, i.e. only if it overran its own bound.
+    const formatSelect = page.getByLabel("Format for every round added");
+    await whileWatching(page, formatSelect, "Format held after Bracket (Rounds & formats)", testInfo, () => expect(formatSelect).toHaveValue("Match Play", { timeout: 10_000 }), 15_000);
     await expect(page.getByRole("button", { name: /^Round 2 · Round Robin/ })).toBeVisible({ timeout: 20_000 });
-    await page.getByRole("button", { name: /^Bracket/ }).click();
-    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play");
+    // And after the refresh has landed, the choice is still held and still sendable.
+    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play", { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /^Add bracket/ })).toBeEnabled({ timeout: 10_000 });
     await page.getByRole("button", { name: /^Add bracket/ }).click();
     await expect(page.getByRole("button", { name: /^Round 3 · Bracket Stage/ })).toBeVisible({ timeout: 20_000 });
   });

@@ -27,6 +27,16 @@ export const FIELD_ACTIONS = [
   "pairing-request",
   // The committee's ruling, and its undoing (2026-10-08).
   "disqualified", "reinstated",
+  // A withdrawal undone, and a late entrant placed in a flight (day-of field changes, PR A).
+  "put-back", "placed",
+  // One player's place on the tee sheet handed to another: a no-show, a cancellation (B43).
+  "replaced",
+  // A guest's player link (J39/J40): opened on a new phone, handed over, replaced, turned off.
+  "player-link.opened", "player-link.handed", "player-link.new", "player-link.off",
+  // PR 2 (S8): a guest muted or unmuted in messages.
+  "player-link.muted", "player-link.unmuted",
+  // PR 3: player link slips printed, and a lost sheet's links replaced in one press.
+  "player-link.slips", "player-link.new-for-all",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];
@@ -36,6 +46,8 @@ const SCORE_ACTIONS = [
   // A conceded match IS its result. Found filed under "Other" by
   // `every-change-has-a-heading.test.ts`, 2026-09-28.
   "match.forfeit", "match.forfeit.undo",
+  // Who keeps a group's card, moved by a take-over or a hand-over (2026-11-04).
+  "keeper.takeover", "keeper.handover",
 ];
 const ROUND_ACTIONS = [
   "round-closed", "cut-applied", "regenerate-flights", "play-suspended", "play-resumed",
@@ -43,12 +55,27 @@ const ROUND_ACTIONS = [
   "cut-tie-settled",
   // Round-day set-up: where the holes are cut, and the time allowed.
   "pin-sheet", "pace-set",
+  // Who enters a round's scores, and its end-of-round check (2026-11-04).
+  "round.scoring",
+  // A term of a round changed after play — allowance, split, basis, tees — with what was
+  // worked out again; and a drawn round's format changed (J12, state machine PR 7b).
+  "round.recomputed", "round.format",
+  // A player with no handicap index given strokes after a round's first card, with the reason (lane N).
+  "strokes-corrected",
+  // A published tee sheet changed (or taken back): by count, never by name (J12, state machine PR 7c).
+  "tee-sheet.changed",
 ];
 const SETTINGS_ACTIONS = [
   "rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on",
+  // The copy's first line: who made it from which tournament, games and all (2026-10-24).
+  "copy-tournament",
   // Who may read the final report, who sees its amounts, and a player's name
   // withheld from public pages (2026-10-24).
   "report.settings", "player.public-name",
+  // The tournament's own moments (state machine PR 5b; panel 8.0 F1): who launched,
+  // completed or reopened it — and the committee correction that opens one locked
+  // part of setup, with its reason (TD Q2).
+  "tournament-launched", "tournament-completed", "tournament-reopened", "committee-correction",
 ];
 
 export function changeKind(action: string): ChangeKind {

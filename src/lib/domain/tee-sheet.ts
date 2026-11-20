@@ -135,7 +135,7 @@ export function sameSheet(a: readonly TeeSheetGroup[], b: readonly TeeSheetGroup
 }
 
 /** A sheet's printed time ("12:45 PM", "8:10 AM", "13:05") as minutes after midnight, or null. */
-function minutesOf(display: string): number | null {
+export function minutesOfTeeTime(display: string): number | null {
   const m = /^\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s*$/.exec(display);
   if (!m) return null;
   let h = Number(m[1]);
@@ -158,12 +158,12 @@ function minutesOf(display: string): number | null {
  */
 export function drawTimesFrom(saved: readonly TeeSheetGroup[]): { firstTee?: string; interval?: number } {
   const first = saved[0];
-  const start = first ? minutesOf(first.time) : null;
+  const start = first ? minutesOfTeeTime(first.time) : null;
   if (start === null) return {};
   const pad = (n: number) => String(n).padStart(2, "0");
   const out: { firstTee?: string; interval?: number } = { firstTee: `${pad(Math.floor(start / 60))}:${pad(start % 60)}` };
   const next = saved.slice(1).find((g) => g.startHole === first.startHole && (g.half ?? "") === (first.half ?? ""));
-  const then = next ? minutesOf(next.time) : null;
+  const then = next ? minutesOfTeeTime(next.time) : null;
   if (then !== null && then > start) out.interval = then - start;
   return out;
 }
@@ -288,4 +288,155 @@ export function driftSentence(drift: TeeSheetDrift, cutOut: ReadonlySet<string> 
     parts.push(`${plural(drift.undrawn.length, "confirmed player has", "confirmed players have")} no tee time.`);
   }
   return parts.join(" ");
+}
+
+/* ------------------------------------------------- day-of changes (PR B) */
+
+/**
+ * THE MOST PLAYERS A GROUP TAKES: four. A group in stroke play goes out as a
+ * two-, three- or four-ball (the draw's own sizes, 2 to 4); nobody puts a fifth
+ * player into a group on the morning. A group drawn as a twosome still has room
+ * for two.
+ */
+export const GROUP_MOST = 4;
+
+/** A group a player could be put in, with how many of the field are in it now. */
+export interface GroupWithRoom {
+  /** Its place on the sheet — what the action is told. */
+  index: number;
+  name: string;
+  time: string;
+  startHole: number;
+  half?: "A" | "B";
+  /** Players in it who are still in the field. */
+  players: number;
+  /** Its starting time has come at the club (`markTeedOff`): the group is out on the course. */
+  teedOff?: boolean;
+}
+
+/**
+ * WHICH GROUPS ARE ALREADY OUT (panel review of #1029, must-fix 1). A group
+ * whose starting time has come on the round's day, by the club's wall clock,
+ * has teed off (Rule 5.3a); on a later day every group has. They stay
+ * selectable — whether a late arrival may join a group on the course is the
+ * Committee's call, not the app's — but are marked and listed LAST, so the
+ * groups still to go come first. `roundDay` "" (no day) marks nobody.
+ */
+export function markTeedOff(groups: readonly GroupWithRoom[], roundDay: string, now: { day: string; minutes: number }): GroupWithRoom[] {
+  const out = (g: GroupWithRoom) => {
+    if (!roundDay) return false;
+    if (now.day !== roundDay) return now.day > roundDay;
+    const at = minutesOfTeeTime(g.time);
+    return at !== null && now.minutes >= at;
+  };
+  const marked = groups.map((g) => ({ ...g, teedOff: out(g) }));
+  return [...marked.filter((g) => !g.teedOff), ...marked.filter((g) => g.teedOff)];
+}
+
+/**
+ * WHAT A WITHDRAWAL LEAVES OF A GROUP, in the club's golf words: "Group 3 goes
+ * out as a twosome. Leave it, or put someone in on the Tee sheet." Null when
+ * the group is still four strong. `round` is "" on a one-round tournament.
+ */
+export function shortGroupLine(
+  round: string,
+  short: { name: string; left: number },
+  terms: { groupOfTwo: string; groupOfThree: string },
+): string | null {
+  if (short.left >= GROUP_MOST) return null;
+  const how =
+    short.left === 3
+      ? `goes out as a ${terms.groupOfThree}`
+      : short.left === 2
+        ? `goes out as a ${terms.groupOfTwo}`
+        : short.left === 1
+          ? "goes out with one player"
+          : "has nobody left in it";
+  return `${round ? `${round}, ${short.name}` : short.name} ${how}. Leave it, or put someone in on the Tee sheet.`;
+}
+
+/** Said after the drift banner when the sheet leaves players with no tee time, pointing at "Put in a group". */
+export const DRIFT_PLACE_LINE = "Players with no tee time can go in a group below.";
+
+/** The one caution under a chosen group that is already out: two short sentences. */
+export function teedOffCaution(g: Pick<GroupWithRoom, "name" | "time">): string {
+  const when = g.time ? ` at ${g.time}` : "";
+  return `${g.name} teed off${when}. The Committee decides if a late arrival may join.`;
+}
+
+/**
+ * THE GROUPS WITH ROOM FOR ONE MORE, counted against the field as it stands: a
+ * player who has left the field leaves a place, though their id stays in the
+ * stored sheet (`teeSheetAsPlayed` is the view; nothing here rewrites history).
+ */
+export function groupsWithRoom(sheet: TeeSheet, fieldIds: ReadonlySet<string>): GroupWithRoom[] {
+  return sheet.groups
+    .map((g, index) => ({
+      index,
+      name: g.name || `Group ${index + 1}`,
+      time: g.time,
+      startHole: g.startHole,
+      half: g.half,
+      players: g.playerIds.filter((id) => fieldIds.has(id)).length,
+    }))
+    .filter((g) => g.players < GROUP_MOST);
+}
+
+/** The players in the field whom the sheet places nowhere — a late entry, a reserve who moved in. */
+export function undrawnOn(sheet: TeeSheet, fieldIds: readonly string[]): string[] {
+  const drawn = new Set(sheet.groups.flatMap((g) => g.playerIds));
+  return fieldIds.filter((id) => !drawn.has(id));
+}
+
+/**
+ * PUT ONE NAMED PLAYER INTO ONE GROUP (day-of field changes, PR B) — the office
+ * practice of writing a late entry or a reserve into a group that has room.
+ * Nobody else moves, no time changes and no group is re-made: only the one id
+ * is added to the one group. Refused, in words, for a player outside the
+ * round's field, a player already drawn (moving a placed player stays a
+ * re-draw), a group not on the sheet, and a full group.
+ */
+export function placeInGroup(
+  sheet: TeeSheet,
+  playerId: string,
+  groupIndex: number,
+  fieldIds: ReadonlySet<string>,
+): { ok: true; sheet: TeeSheet; group: TeeSheetGroup } | { ok: false; says: string } {
+  if (!fieldIds.has(playerId)) return { ok: false, says: "That player isn’t in this round’s field." };
+  const already = sheet.groups.find((g) => g.playerIds.includes(playerId));
+  if (already) return { ok: false, says: `They are already in ${already.name || "a group"}. To move them, re-draw the sheet.` };
+  const target = Number.isInteger(groupIndex) ? sheet.groups[groupIndex] : undefined;
+  if (!target) return { ok: false, says: "That group isn’t on the sheet." };
+  const name = target.name || `Group ${groupIndex + 1}`;
+  if (target.playerIds.filter((id) => fieldIds.has(id)).length >= GROUP_MOST) {
+    return { ok: false, says: `${name} is full. Choose a group with room.` };
+  }
+  const group = { ...target, playerIds: [...target.playerIds, playerId] };
+  return { ok: true, sheet: { ...sheet, groups: sheet.groups.map((g, i) => (i === groupIndex ? group : g)) }, group };
+}
+
+/**
+ * THE LAST STARTING TIME ON A SHEET, as written ("10:40 AM"), or null when no
+ * group's time can be read. Every group counts, an emptied one too: its time is
+ * still a slot a late entry could be written into.
+ */
+export function lastTeeTime(sheet: TeeSheet): string | null {
+  let last: { time: string; at: number } | null = null;
+  for (const g of sheet.groups) {
+    const at = minutesOfTeeTime(g.time);
+    if (at !== null && (!last || at > last.at)) last = { time: g.time.trim(), at };
+  }
+  return last?.time ?? null;
+}
+
+/**
+ * THE GROUP A WITHDRAWAL LEAVES SHORT, and how many of the field are left in
+ * it — for "Group 3 goes out as a twosome". Null when the player was in no
+ * group. `fieldAfter` is the field once they have gone.
+ */
+export function groupLeftShort(sheet: TeeSheet, playerId: string, fieldAfter: ReadonlySet<string>): { name: string; left: number } | null {
+  const at = sheet.groups.findIndex((g) => g.playerIds.includes(playerId));
+  if (at < 0) return null;
+  const g = sheet.groups[at];
+  return { name: g.name || `Group ${at + 1}`, left: g.playerIds.filter((id) => id !== playerId && fieldAfter.has(id)).length };
 }

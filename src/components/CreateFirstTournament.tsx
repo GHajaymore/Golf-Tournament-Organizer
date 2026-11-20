@@ -1,14 +1,17 @@
 "use client";
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createEvent, cloneEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
 import { askToJoinNamesake } from "@/app/actions/join";
 import { Icon } from "./Icon";
+import { CopyDayFields } from "./CopyDayFields";
 import { ORG_KINDS, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
+import { landingAfterCreate } from "@/lib/domain/after-create";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
 
 /**
@@ -181,6 +184,10 @@ export function CreateFirstTournament({
    * template key from an event id. Declared here because it reads `template`.
    */
   const copyFrom = copyable.find((e) => e.id === copiedEventId(template));
+  /** A copy is given its first day, as "Copy last event" gives one (`CopyDayFields`). */
+  const [startOn, setStartOn] = useState("");
+  const [endOn, setEndOn] = useState("");
+  const copyNeedsDay = !!copyFrom && !startOn;
 
   /**
    * THE PLAN OF THE ORGANIZATION THIS IS ACTUALLY FOR.
@@ -207,11 +214,11 @@ export function CreateFirstTournament({
   const submit = (confirmedClubName = false) => {
     // A COPY NEEDS NO SHAPE. It is played the way its source was, and asking
     // would let the two disagree — the same rule `EventSwitcher` states.
-    if (!name.trim() || (!copyFrom && !shape)) return;
+    if (!name.trim() || (!copyFrom && !shape) || copyNeedsDay) return;
     startTransition(async () => {
       if (copyFrom) {
-        const copied = await cloneEvent(copyFrom.id, name);
-        if (copied?.ok) router.push("/dashboard");
+        const copied = await cloneEvent(copyFrom.id, name, { startOn, endOn });
+        if (copied?.ok) router.push(landingAfterCreate("copied"));
         else setRefusal(copied?.error ?? "That could not be copied.");
         return;
       }
@@ -242,24 +249,34 @@ export function CreateFirstTournament({
       );
       if (!res?.ok) setRefusal(res?.error ?? "That could not be created.");
       if (res?.clubExists) setSameName(true);
-      if (res?.ok) router.push("/dashboard");
+      if (res?.ok) router.push(landingAfterCreate("created"));
       // The outfit may have just been named and given its kind on the way to
-      // a refusal (a society's members list comes first): refresh, so the
+      // a refusal (the same name is already here): refresh, so the
       // screen shows the setup it is now waiting on.
       else if (!res?.clubExists && orgName.trim()) router.refresh();
     });
   };
 
+  /**
+   * THE QUESTIONNAIRE IS THE FIRST WAY IN (Ajay, 2 Nov: "the main thing is ease
+   * of using the configuration and guided one"). A few plain questions, each
+   * already answered, make a reviewed draft at `/new`; this form — a name, a
+   * shape and a starting point — stays one press away as "set it up yourself".
+   */
+  const guided = (
+    <Link href="/new" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+      <Icon name="clipboard-text" /> Set up with a few questions
+    </Link>
+  );
+
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="btn btn-secondary"
-        style={{ alignSelf: "flex-start", marginTop: 18 }}
-      >
-        <Icon name="plus" /> Create another tournament
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
+        {guided}
+        <button type="button" onClick={() => setOpen(true)} className="btn btn-secondary">
+          <Icon name="plus" /> Create another tournament
+        </button>
+      </div>
     );
   }
 
@@ -269,8 +286,12 @@ export function CreateFirstTournament({
         <span className="card-title" style={{ fontSize: 15 }}>
           {first ? "Organizing an event?" : "Create a tournament"}
         </span>
-        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-          Just a name to start — dates, course, format and field all come next, and can be changed any time.
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>
+          Answer a few questions and see the whole tournament before anything is made — most events are covered.
+        </p>
+        {guided}
+        <p className="text-muted" style={{ fontSize: 13, margin: "14px 0 0" }}>
+          Or set it up yourself: just a name to start — dates, course, format and field all come next, and can be changed any time.
         </p>
       </div>
       <div className="field">
@@ -414,9 +435,14 @@ export function CreateFirstTournament({
         </select>
         <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           {copyFrom
-            ? `Copies the settings, rounds and courses from ${copyFrom.name.trim() || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
+            ? `Copies the settings, rounds, courses and side games from ${copyFrom.name.trim() || "that tournament"} — never its players, scores, money or access codes. Its entry window and rounds move with the day you pick, and everything stays editable.`
             : `${templateFor(template).blurb} A starting point only — every setting, format and round stays editable afterwards.`}
         </p>
+        {copyFrom && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 10 }}>
+            <CopyDayFields startOn={startOn} endOn={endOn} onStartOn={setStartOn} onEndOn={setEndOn} />
+          </div>
+        )}
       </div>
       {/* Names the organization created for this organizer's first tournament,
           so a club's events read under the club rather than under a person.
@@ -497,15 +523,13 @@ export function CreateFirstTournament({
                   </label>
                 ))}
               </div>
-              {/* Said BEFORE the click. A club or society adds its members
-                  before its first tournament (the club-first rule), so this
-                  choice leads to that list rather than straight to the
-                  tournament — and a refusal nobody was warned about reads as
-                  the form failing. */}
+              {/* Said BEFORE the click. Event-first (Cut A, 15 Nov 2026): the
+                  members list is never asked for before the tournament. It is
+                  asked for at the draw, and offered on Entries. */}
               {orgProfile(kindChoice, orgCountry, orgNoun).sharedRoster && (
                 <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-                  A {orgProfile(kindChoice, orgCountry, orgNoun).noun} keeps a members list, and adds it before its first
-                  tournament — every field is drawn from it. If yours is empty you&rsquo;ll be asked for it next.
+                  A {orgProfile(kindChoice, orgCountry, orgNoun).noun} keeps a members list. You don&rsquo;t need it yet:
+                  import it on Entries, or when you make the draw.
                 </p>
               )}
             </fieldset>
@@ -659,6 +683,7 @@ export function CreateFirstTournament({
             !name.trim() ||
             /* A copy needs no shape: it is played the way its source was. */
             (!copyFrom && !shape) ||
+            copyNeedsDay ||
             (clubNameRequired && !orgName.trim()) ||
             /* Steps with their own screen — the member list, today. Not
                answerable here, so the button waits rather than pretending. */
@@ -690,7 +715,7 @@ export function CreateFirstTournament({
           screen as a new society secretary — with a name and a shape chosen
           and the club still unnamed, the button was dead and said nothing. */}
       {!pending &&
-        (!name.trim() || (!copyFrom && !shape) || (clubNameRequired && !orgName.trim())) &&
+        (!name.trim() || (!copyFrom && !shape) || copyNeedsDay || (clubNameRequired && !orgName.trim())) &&
         elsewhere.length === 0 && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {!name.trim()
@@ -699,7 +724,9 @@ export function CreateFirstTournament({
                 : "Give it a name, then say how it's played."
               : !copyFrom && !shape
                 ? "Say how it's played — that decides what the rest of setup asks."
-                : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
+                : copyNeedsDay
+                  ? "Pick the day it is played — the entry window and rounds move with it."
+                  : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
           </p>
         )}
 

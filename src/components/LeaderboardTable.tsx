@@ -2,6 +2,8 @@ import { toParCell } from "@/lib/domain/ranked-score";
 import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-position";
 import { FlipTableBody } from "./FlipList";
 import { todaysThru } from "@/lib/domain/scoreboard";
+import { tieWorking, type TieWith } from "@/lib/domain/figure-working";
+import { FigureWhy } from "./FigureWhy";
 
 export interface StandingRow {
   id: string;
@@ -102,6 +104,8 @@ export interface StandingRow {
   missedCut?: string;
   /** Withdrew after beginning: WD, at the foot of the sheet, without a place. */
   withdrew?: boolean;
+  /** Withdrew before teeing off: DNS, beneath WD and above DQ — on the results sheet only (`resultsSheetRows`). */
+  didNotStart?: boolean;
   /** Disqualified by the committee: DQ, the last line, without a place. */
   disqualified?: boolean;
   /**
@@ -126,6 +130,10 @@ export interface StandingRow {
    * printing what it prints today.
    */
   parKnown?: boolean;
+  /** Par for the holes played — what a net figure's working is measured against. */
+  parThru?: number;
+  /** The neighbours this row is level with, and what the countback found (`tiedWith` on the standing). */
+  tiedWith?: TieWith[];
 }
 
 /**
@@ -137,6 +145,9 @@ export interface StandingRow {
  */
 export function unrankedNote(r: StandingRow): string {
   if (r.ranked) return "";
+  // Withdrew before teeing off — the results sheet's own line (PR B). Asked
+  // before "nothing returned", which it would otherwise be read as.
+  if (r.didNotStart) return "DNS — did not start";
   // No card at all for a round the committee closed — said, not left as a
   // row of dashes (grid cell T48, 2026-10-08).
   if (r.thru <= 0) return r.missedRound ? `Didn't play ${r.missedRound}` : "";
@@ -152,6 +163,19 @@ export function unrankedNote(r: StandingRow): string {
   return r.holesOwed > r.thru
     ? `Not ranked — ${r.thru} of ${r.holesOwed} holes played`
     : "Not ranked — card incomplete";
+}
+
+/**
+ * WHAT THE OFFICE CODES ON A RESULTS SHEET MEAN — only the codes the sheet
+ * carries, in the order they are listed (PR B): "DNS did not start. WD
+ * withdrew after beginning. DQ disqualified." Empty when the sheet has none.
+ */
+export function resultsLegend(rows: readonly StandingRow[]): string {
+  const codes: string[] = [];
+  if (rows.some((r) => r.didNotStart)) codes.push("DNS did not start.");
+  if (rows.some((r) => r.withdrew)) codes.push("WD withdrew after beginning.");
+  if (rows.some((r) => r.disqualified)) codes.push("DQ disqualified.");
+  return codes.join(" ");
 }
 
 /**
@@ -196,7 +220,7 @@ export function LeaderboardTable({
    *     2  Diego Alvarez        66
    *     3  Sang-woo Kim         65
    *     4  Elena Petrova        64
-   *     5  AJ                   68
+   *     5  Ned                 68
    *
    * — a leaderboard whose only score column does not descend, because the
    * order is gross and the column is net. Nothing is false; the column just
@@ -302,7 +326,19 @@ export function LeaderboardTable({
                     still see inconsistency"): the position was a grey and the
                     flight the muted tone, beside black names and scores. Only
                     to-par keeps a colour, because it means something. */}
-                <td style={num}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
+                <td style={{ ...num, position: "relative" }}>
+                  {/* A place that shares a score says what the countback found
+                      (2026-10-24) — the rank pass's own decision, on the row. */}
+                  <FigureWhy
+                    figure={holdsPosition(r) ? placeText(r, shared) : "—"}
+                    working={
+                      holdsPosition(r) && r.tiedWith?.length
+                        ? tieWorking(r.tiedWith, isStableford ? String(r.points) : toParCell(r), r.rank, { points: isStableford })
+                        : null
+                    }
+                    name={`${r.name}, place ${holdsPosition(r) ? placeText(r, shared) : "none"}`}
+                  />
+                </td>
                 <td style={{ fontWeight: 500 }}>
                   {r.name}
                   {/* On the page, not in a tooltip. A reader who finds someone
@@ -381,7 +417,18 @@ export function LeaderboardTable({
                   hero on `/me`. See `holdsPosition`. */}
               {/* The same one colour as the stroke table above. */}
               <td style={num}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
-              <td style={{ fontWeight: 500 }}>{r.name}</td>
+              <td style={{ fontWeight: 500 }}>
+                {r.name}
+                {/* A round robin's cut waiting on the committee (J31): the same
+                    note as the stroke board's, where it applies — a tie the cut's
+                    rule leaves to a play-off or a draw. A knockout's qualifying
+                    line has no rule of its own yet (J30) and says nothing here. */}
+                {r.cutTieBy && tieNote(r) && (
+                  <div className="text-muted" style={{ fontWeight: 400, fontSize: "0.85em" }}>
+                    {tieNote(r)}
+                  </div>
+                )}
+              </td>
               {showFlight && <td>{r.flight}</td>}
               {compact ? (
                 <td style={num}>{r.record}</td>

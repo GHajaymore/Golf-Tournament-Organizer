@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { generateAccessCode } from "@/lib/codes";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
 import { cleanSettings, usesAccessCodes } from "@/lib/tournament-settings";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * EVERY ROUND OF A CODE-USING TOURNAMENT HAS A CODE.
@@ -110,4 +111,24 @@ export async function strandedEntrantCount(eventId: string): Promise<number> {
     // Disqualified with withdrawn: neither has a card to be locked out of.
     where: { eventId, email: "", status: { notIn: LEFT_THE_FIELD } },
   });
+}
+
+/**
+ * AN ENTRY WITHOUT AN EMAIL TURNS ROUND CODES ON (no-email player identity,
+ * PR 1; Ajay, 2026-11-07: members may enter without an email, guests need none).
+ *
+ * On a tournament that signs players in by email only, such an entry would
+ * have no way to its card. So instead of refusing it — what Add, the roster and
+ * the import used to do — the tournament keeps email sign-in AND gains codes
+ * ("both"), as the CSV import has done for a names-only list since 2026-09-28.
+ * ONE place, for all three doors. True when it switched them on; the caller
+ * says so (`CODES_TURNED_ON`). A no-op where codes are already on.
+ */
+export async function codesOnForAnEntryWithoutEmail(eventId: string, why: string): Promise<boolean> {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event || usesAccessCodes(cleanSettings(event))) return false;
+  await prisma.event.update({ where: { id: eventId }, data: { playerAccess: "both" } });
+  await ensureRoundCodes(eventId);
+  await logAudit(eventId, "round-codes-on", `Round Codes turned on: ${why}`);
+  return true;
 }

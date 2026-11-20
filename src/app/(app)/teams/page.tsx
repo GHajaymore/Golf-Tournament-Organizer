@@ -1,6 +1,8 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
-import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { requireScreen } from "@/lib/page-helpers";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { NeedsStrokesNote } from "@/components/NeedsStrokesNote";
+import { needsStrokesNoteFor } from "@/lib/services/committee-figure";
 import { screenName } from "@/lib/nav";
 import { LeagueSection } from "@/components/LeagueSection";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
@@ -12,7 +14,7 @@ import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor, scopeLockFor } from "@/lib/services/tournament-status";
 
 /**
  * Drawing sides for the team formats.
@@ -66,20 +68,22 @@ export default async function TeamsPage({
   // A setup step in a team event (2026-09-26) — so it carries the same rail and
   // "next" footer as every other step, rather than being the one screen in the
   // guide that does not say where it sits.
-  const flow = await setupFlowFor(session.eventId);
-  // The lock every other setup screen reads; the actions here refuse it.
-  const lockState = await prisma.event.findUnique({
-    where: { id: session.eventId },
-    select: { status: true, configUnlocked: true },
-  });
-  const locked = !!lockState && isSetupLocked(lockState);
+  const flow = await setupRailFor(session.eventId);
+  // The machine's lock on the sides (PR 5a) — the one every action here asks
+  // (`refuseIfLocked(…, "sides", …)`), from the same request-cached facts as the
+  // rail, so the banner and the refusal are one answer.
+  const sidesLock = await scopeLockFor(session.eventId, "sides");
+  const locked = sidesLock !== null;
 
   return (
     <>
       <SetupFlowRail flow={flow} href="/teams" />
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
-      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner locks={sidesLock ? [sidesLock] : []} isAdmin={session.viewRole === "admin"} />
+      {/* A side's handicap is made from its players' (lane N): one with no index in a round scored net is
+          said here, as on Entries; the link only for somebody who may give strokes. */}
+      <NeedsStrokesNote note={await needsStrokesNoteFor(session.eventId, session.viewRole === "admin" || session.viewRole === "assistant")} />
       <TeamsClient
         locked={locked}
         rounds={teamStages.map((s) => ({

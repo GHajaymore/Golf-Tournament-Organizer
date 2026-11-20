@@ -2,10 +2,11 @@ import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 import { brandForEvent, type EventBrand } from "./organization";
-import { registrationStatus } from "../registration";
+import { entriesOpen } from "../registration";
 import { clubDay } from "../domain/club-clock";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { fieldLimitFor } from "./waitlist";
+import { entryLinkBudget } from "../domain/rate-limit";
 import { phoneRequiredFor } from "../plans";
 import { isPlayingRound } from "../stage-types";
 import { resolveLocale } from "../domain/locale";
@@ -159,7 +160,8 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
    * waitlist (walked 2026-09-30).
    */
   const capacity = await fieldLimitFor(event);
-  const status = registrationStatus({
+  const entries = entriesOpen({
+    registrationOpen: event.registrationOpen,
     eventStatus: event.status,
     deadline: event.regDeadline,
     opens: event.regOpens,
@@ -168,7 +170,8 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     override: event.registrationOverride,
     now: clubDay(event.organization?.timeZone),
   });
-  if (!status.acceptingEntries) return null;
+  if (!entries.open) return null;
+  const status = entries.status;
 
   const brand = await brandForEvent(event.id);
   const unlimited = capacity <= 0;
@@ -190,6 +193,30 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     brand,
     organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
   };
+}
+
+/**
+ * How many sign-ups this link may take in one `register-token` window: the
+ * rule (`entryLinkBudget`) given what the link's field can take. Asked by the
+ * limiter only once a link's count passes the floor. A bogus token and a link
+ * whose entries are off are the same to it — both the floor — so the budget is
+ * no better an oracle than the form itself, which already shows an open link.
+ */
+export async function entryLinkBudgetFor(token: string): Promise<number> {
+  const event = token
+    ? await prisma.event.findFirst({
+        where: { registrationToken: token },
+        select: {
+          registrationOpen: true,
+          capacity: true,
+          playerCountMode: true,
+          manualPlayerCount: true,
+          organizationId: true,
+        },
+      })
+    : null;
+  if (!event || !event.registrationOpen) return entryLinkBudget({ live: false });
+  return entryLinkBudget({ live: true, fieldLimit: await fieldLimitFor(event) });
 }
 
 export interface RegistrationPrefill {

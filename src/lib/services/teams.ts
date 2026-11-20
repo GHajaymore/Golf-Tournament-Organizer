@@ -3,7 +3,7 @@ import { roundCourseHandicaps, flightTeeByPlayer, confirmedField } from "./handi
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
-import { effectiveAllowance, playingHandicapPartsInRound, recommendedAllowance } from "../round-allowance";
+import { committeeSplitInForce, effectiveAllowance, playingHandicapPartsInRound, recommendedAllowance } from "../round-allowance";
 import { holesPlayed } from "../domain/handicap";
 import { hasLeftTheField } from "../domain/left-the-field";
 import { roundHandicapRows } from "./round-handicap";
@@ -13,10 +13,10 @@ import { countbackCompare } from "../domain/stroke-countback";
 import { oneCardPerSide } from "../domain/team-entry";
 import { teamMatchStandings, type TeamMatchStanding } from "../domain/team-match-standings";
 import { isLeaguePointsSystem } from "../domain/league-meeting";
+import { onBoard } from "../domain/board-hold";
 import type { HoleResult } from "../domain/types";
 import {
   sideHandicap,
-  committeeWeights,
   aggregateTeamCard,
   singleBallTeamCard,
   SCRAMBLE_WEIGHTS_2,
@@ -228,24 +228,69 @@ export async function teamsForStage(
       disqualified: m.player.status === "disqualified",
       };
     });
-    // Priced off the players who ACTUALLY PLAY — the same set `teamProblems`
-    // sizes the side by. Including a withdrawn player anchors a single-ball
-    // side (scramble/foursomes/greensomes) to strokes from somebody who never
-    // hit a shot, so the net on the board disagreed with the "X has withdrawn"
-    // warning beside it. If the whole side withdrew there is no card to score
-    // anyway, so fall back to the full set rather than handicap off nobody.
-    const playing = members.filter((m) => !m.withdrawn);
-    // The UNROUNDED figures: a side's handicap is rounded once, at the end.
-    const forHandicap = (playing.length > 0 ? playing : members).map((m) => m.handicapExact);
+    // Priced off the players who ACTUALLY PLAY, at their UNROUNDED figures —
+    // see `sideHandicapFromPartners`, the one place a side is priced.
     return {
       id: t.id,
       name: t.name,
       seed: t.seed,
       stageId: t.stageId,
       members,
-      playingHandicap: sidePlayingHandicap(forHandicap, format, allowanceOverride, weightsOverride),
+      playingHandicap: sideHandicapFromPartners(
+        members.map((m) => ({ exact: m.handicapExact, withdrawn: m.withdrawn })),
+        { format, handicapAllowance: allowanceOverride, allowanceWeights: weightsOverride },
+      ),
     };
   });
+}
+
+/**
+ * WHO A SIDE'S HANDICAP IS TAKEN FROM: the partners who actually play — the
+ * same set `teamProblems` sizes the side by.
+ *
+ * Including a withdrawn player anchors a single-ball side (scramble,
+ * foursomes, greensomes) to strokes from somebody who never hit a shot, so the
+ * net on the board disagreed with the "X has withdrawn" warning beside it. If
+ * the whole side withdrew there is no card to score anyway, so it falls back
+ * to the full set rather than handicap off nobody.
+ *
+ * Asked through `sideHandicapFromPartners`, so the Teams screen, the league
+ * table and the stored match cannot price one side two ways.
+ */
+export function partnersWhoPlay<T extends { withdrawn: boolean }>(members: readonly T[]): T[] {
+  const playing = members.filter((m) => !m.withdrawn);
+  return playing.length > 0 ? playing : [...members];
+}
+
+/**
+ * A SIDE'S PLAYING HANDICAP FROM ITS PARTNERS — the one place a side is priced.
+ *
+ * Rules of Handicapping, Appendix C (through `sidePlayingHandicap`), taken of
+ * the partners who ACTUALLY PLAY (`partnersWhoPlay`), each at the figure BEFORE
+ * any allowance (Rule 6.2a: the allowance is the last step, rounded once).
+ *
+ * `withdrawn` is REQUIRED of every partner, so a caller cannot hand over a list
+ * that forgot who left. That is how the stored match came to disagree with the
+ * Teams screen and the league table until 2026-11-04: `recomputeTeamMatch`
+ * passed every member's figure straight to `sidePlayingHandicap`, so a scramble
+ * of three with one partner withdrawn was priced as a three (30/20/10) on the
+ * match and as a two (35/15) on the screen beside it.
+ *
+ * Callers: `teamsForStage` (the Teams screen and the board), `leagueSideBalls`
+ * (the league table), `recomputeTeamMatch` (the stored match). A sweep in
+ * `a-withdrawn-partner-is-not-in-the-stored-match.test.ts` refuses any other
+ * call of `sidePlayingHandicap` in the app.
+ */
+export function sideHandicapFromPartners(
+  partners: readonly { exact: number; withdrawn: boolean }[],
+  round: { format: string; handicapAllowance: number; allowanceWeights?: number[] | null },
+): number {
+  return sidePlayingHandicap(
+    partnersWhoPlay(partners).map((p) => p.exact),
+    round.format,
+    round.handicapAllowance,
+    round.allowanceWeights,
+  );
 }
 
 /**
@@ -268,7 +313,7 @@ export function sidePlayingHandicap(
   // A committee's own split is the most specific thing they can say, so it
   // wins: it is only ever settable on formats that use one, and a club that
   // has typed "55 / 45" has said something a single percentage cannot.
-  const committee = committeeWeights(weightsOverride, courseHandicaps.length);
+  const committee = committeeSplitInForce(format, weightsOverride, courseHandicaps.length);
   if (committee) return sideHandicap(courseHandicaps, 0, committee);
   // A flat override replaces the whole scheme, including the scramble
   // weights: a committee that says "40%" means 40% of the combined handicaps,
@@ -398,6 +443,16 @@ export interface TeamStanding {
    * result on their phone.
    */
   memberIds: string[];
+  /**
+   * WHAT EACH MEMBER PLAYS OFF, in `members` order, where every player plays
+   * their own ball (four-ball, best ball, a shamble): `TeamMemberView.playing`,
+   * the round's allowance of the exact course handicap, rounded once. Null for a
+   * member of a side that shares one ball, and empty when the side has nobody.
+   * The board prints these and not `playingHandicap` for such a round, because
+   * no side plays off a combined figure there (backlog J23).
+   */
+  memberPlaying: (number | null)[];
+  /** The side's own handicap. A real figure only for a SHARED ball; on a two-ball round nobody plays off it. */
   playingHandicap: number;
   gross: number;
   net: number;
@@ -523,6 +578,9 @@ export async function teamStandingsWithCards(
       name: t.name,
       members: t.members.map((m) => m.name),
       memberIds: t.members.map((m) => m.playerId),
+      // A partner who has left the field (withdrawn, or disqualified) plays off
+      // nothing: the board lists the figures of who actually plays.
+      memberPlaying: t.members.map((m) => (m.withdrawn ? null : m.playing)),
       playingHandicap: t.playingHandicap,
       gross: card.grossTotal,
       net: card.netTotal,
@@ -633,6 +691,8 @@ export async function teamStandingsWithCards(
 export interface TeamMatchRow extends TeamMatchStanding {
   name: string;
   members: string[];
+  /** Who is on the side, by id, in `members` order — a screen finds its own side by id, never by name. */
+  memberIds: string[];
 }
 
 export async function teamMatchBoard(
@@ -647,7 +707,7 @@ export async function teamMatchBoard(
     teamsForStage(eventId, stageId, format, allowanceOverride, holes, weightsOverride),
     prisma.match.findMany({
       where: { eventId, stageId, NOT: { teamAId: "" } },
-      select: { teamAId: true, teamBId: true, holes: true },
+      select: { teamAId: true, teamBId: true, holes: true, scoreStatus: true },
     }),
     prisma.event.findUnique({ where: { id: eventId }, select: { leaguePoints: true } }),
   ]);
@@ -655,7 +715,8 @@ export async function teamMatchBoard(
   const pairings = matches.map((m) => {
     let holeResults: HoleResult[] = [];
     try {
-      holeResults = JSON.parse(m.holes) as HoleResult[];
+      // A result in dispute is held off the board (`onBoard`, domain/board-hold.ts).
+      holeResults = JSON.parse(onBoard(m).holes) as HoleResult[];
     } catch {
       // An unreadable card is not a finished match, and a throw here would
       // take the whole board down over one row.
@@ -675,6 +736,7 @@ export async function teamMatchBoard(
     ...r,
     name: byId.get(r.teamId)?.name ?? "",
     members: byId.get(r.teamId)?.members.map((m) => m.name) ?? [],
+    memberIds: byId.get(r.teamId)?.members.map((m) => m.playerId) ?? [],
   }));
 }
 

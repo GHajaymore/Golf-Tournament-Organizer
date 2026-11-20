@@ -3,7 +3,8 @@ import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { seed, memberSession, eventFacts, rng, MARK, COURSE, COURSE_CITY, PARS, createTournament, becomesEnabled } from "./kit.mjs";
+import { seed, memberSession, eventFacts, eachKeepsTheirOwn, rng, MARK, COURSE, COURSE_CITY, PARS, createTournament, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament F: the Eagle club's Foursomes & Four-Ball Day. The
@@ -93,6 +94,9 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
   const s = await seed();
   await as(context, baseURL!, s.club);
+  // Three sides each keep their one card on a member's phone, with no tee sheet
+  // published — under one scorer per group that is one group (`eachKeepsTheirOwn`).
+  await eachKeepsTheirOwn(F_NAME);
   // The console works on the ACTIVE tournament, an HttpOnly cookie a fresh
   // context does not have — choose this one, as a secretary would.
   if (await eventFacts(F_NAME)) {
@@ -209,7 +213,7 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
       await open(page, "/event");
       await page.locator("label", { hasText: "Anyone with the link" }).first().click();
       await page.getByRole("button", { name: /^Save/ }).last().click();
@@ -287,7 +291,7 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
           await page.waitForTimeout(3000);
         }
       }
-      await page.getByRole("button", { name: "Complete tournament" }).first().click();
+      await pressComplete(page);
       await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
       await expect.poll(async () => (await eventFacts(F_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       note(`status: completed`);

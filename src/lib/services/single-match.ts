@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "../db";
 import { loadEventState, playingStages } from "./tournament";
-import { resolveMatch } from "../domain/match";
+import { matchIsOver, resolveMatch } from "../domain/match";
+import { onBoard } from "../domain/board-hold";
 import { roundLabel } from "../domain/round-label";
 import {
   parseSingleMatchRule,
@@ -73,10 +74,14 @@ function winnerOfStageFrom(
       } catch {
         return null;
       }
-      const r = resolveMatch(holes as never);
       // A round with an unfinished match has no winner yet — saying otherwise
       // would put somebody in a final on the strength of a half-played round.
-      if (!r.complete) return null;
+      // `matchIsOver`, not `resolveMatch(...).complete`: an empty card (the
+      // column's default, and a result held in dispute) is complete and halved
+      // to `resolveMatch`, and was skipped as a halve instead of holding the
+      // round open.
+      if (!matchIsOver(holes as never)) return null;
+      const r = resolveMatch(holes as never);
       if (r.winner === "H") continue;
       const winner = r.winner === "A" ? m.playerAId : m.playerBId;
       if (winner) wins.set(winner, (wins.get(winner) ?? 0) + 1);
@@ -97,7 +102,7 @@ export async function singleMatchFor(eventId: string, stageId: string): Promise<
     prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, singleMatchRule: true } }),
     prisma.match.findMany({
       where: { eventId },
-      select: { id: true, stageId: true, playerAId: true, playerBId: true, holes: true, forfeitedBy: true },
+      select: { id: true, stageId: true, playerAId: true, playerBId: true, holes: true, forfeitedBy: true, scoreStatus: true },
     }),
   ]);
   if (!state || !stage) return null;
@@ -114,7 +119,9 @@ export async function singleMatchFor(eventId: string, stageId: string): Promise<
     standingIds: state.isStroke
       ? state.strokeStandings.filter((s) => s.ranked).map((s) => s.player.id)
       : state.overall.filter((r) => r.stats.played > 0).map((r) => r.player.id),
-    winnerOfStage: winnerOfStageFrom(matches),
+    // A result held in dispute decides no round (`onBoard`): it holds the
+    // round open, as an unfinished match does, until the Committee rules.
+    winnerOfStage: winnerOfStageFrom(matches.map(onBoard)),
     fieldIds: state.confirmed.map((p) => p.id),
   });
 

@@ -15,17 +15,17 @@ import { checkDraft, draftPrompt } from "../draft-check";
  * gets switched off, and then the one genuinely invented player sails through.
  */
 
-const field = ["Aj More", "Marcus Webb", "Priya Nair", "Sang-woo Kim", "Renée Dubois"];
+const field = ["Ned Calloway", "Marcus Webb", "Priya Nair", "Sang-woo Kim", "Renée Dubois"];
 
 describe("catching an invented player", () => {
   it("flags a name nobody in the field has", () => {
-    const d = checkDraft("A fine round from Aj More, chased hard by Tom Fletcher.", field);
+    const d = checkDraft("A fine round from Ned Calloway, chased hard by Tom Fletcher.", field);
     expect(d.unknownNames).toContain("Fletcher");
     expect(d.clean).toBe(false);
   });
 
   it("passes a draft that only names real players", () => {
-    const d = checkDraft("Aj More led from the front, with Priya Nair second.", field);
+    const d = checkDraft("Ned Calloway led from the front, with Priya Nair second.", field);
     expect(d.unknownNames).toEqual([]);
     expect(d.clean).toBe(true);
   });
@@ -67,12 +67,12 @@ describe("staying quiet where it should", () => {
 describe("degenerate input", () => {
   it("copes with an empty draft and an empty field", () => {
     expect(checkDraft("", field).clean).toBe(true);
-    expect(checkDraft("Aj More won.", []).clean).toBe(false);
+    expect(checkDraft("Ned Calloway won.", []).clean).toBe(false);
     expect(() => checkDraft("", [])).not.toThrow();
   });
 
   it("ignores punctuation stuck to a name", () => {
-    expect(checkDraft("The winner: Aj More, at last.", field).clean).toBe(true);
+    expect(checkDraft("The winner: Ned Calloway, at last.", field).clean).toBe(true);
   });
 });
 
@@ -108,9 +108,9 @@ describe("drafting cannot send", () => {
 
 describe("the instruction to the model", () => {
   it("hands over the real facts and says they are the only ones", () => {
-    const p = draftPrompt("a results email", "Spring Medal", "1. Aj More 68", "");
+    const p = draftPrompt("a results email", "Spring Medal", "1. Ned Calloway 68", "");
     expect(p).toContain("Spring Medal");
-    expect(p).toContain("Aj More 68");
+    expect(p).toContain("Ned Calloway 68");
     expect(p).toContain("ONLY facts");
   });
 

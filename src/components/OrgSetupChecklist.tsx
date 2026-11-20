@@ -88,7 +88,12 @@ export function OrgSetupChecklist({
               the very next row — which is exactly the fault this comment was
               written about, reintroduced in a new place and caught by reading
               the rendered line on 2026-09-11. */}
-          {state.blockedByClubSetup
+          {/* EVENT-FIRST (Cut A, 15 Nov 2026): when the one answer owed is the
+              name, the first-tournament form takes it, so the sentence sends
+              them there rather than saying the tournament waits. */}
+          {state.blockedByClubSetup && state.outstanding.every((s) => s.key === "profile")
+            ? `Name your ${state.profile.noun} as you create your first tournament — it is set once, for every tournament. Everything else you can do in any order.`
+            : state.blockedByClubSetup
             ? `Your ${state.profile.noun} comes first — the tournament step opens once ${
                 state.outstanding.length === 1 ? "that one is" : "those are"
               } answered. Everything else you can do in any order.`
@@ -149,7 +154,16 @@ export function OrgSetupChecklist({
            * that marking to the actual route guards would have read the merge
            * as a bug in `/choose`.
            */
-          const notYet = step.blocked || (step.key === "tournament" ? state.blockedByClubSetup : "");
+          /**
+           * EXCEPT WHEN THE ONLY ANSWER OWED IS THE NAME (2026-10-24). The
+           * first-tournament form on /choose asks "Who's running this?" and
+           * names the club on the way through, so the row can go there: holding
+           * it shut sent a secretary who had just added their members to the
+           * Menu to find a door the form would have opened. Found by measuring
+           * the time to a first event (`e2e/secretary-first-event.spec.ts`).
+           */
+          const nameOnTheWay = state.outstanding.every((s) => s.key === "profile");
+          const notYet = step.blocked || (step.key === "tournament" && !nameOnTheWay ? state.blockedByClubSetup : "");
           const inert = here || !!notYet;
           const Row = inert
             ? ({ children }: { children: React.ReactNode }) => (

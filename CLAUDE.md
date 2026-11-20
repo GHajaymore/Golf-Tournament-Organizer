@@ -35,6 +35,16 @@ These are not preferences. Breaking one has consequences that cannot be undone f
 7. **TourneyHQ calculates and records money. It never moves money.** Skins, payouts and prize
    splits are arithmetic and a record. No payment rails, no transfers.
 
+**Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
+every Bash and PowerShell command (`.claude/settings.json`) and refuses `git add -A`/`.`, any `git stash`,
+a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number or a
+local path (`C:\Users\<you>`), PowerShell writing a source file, `gh run watch`, a merge or `round/*` push from
+any session but the one named in the untracked `.claude/main-session` (or from a subagent), a migration applied
+to the shared dev database from anywhere but the main checkout (`--create-only` is fine), and — on the
+Windows desktop only — builds, dev servers and Playwright.
+A refusal names its rule. Text in quotes and heredocs is never read as a command. To change what it
+allows, edit the script with `src/lib/__tests__/claude-guard-hook.test.ts`.
+
 ## Test fixtures
 
 Use a throwaway organization and event, prefix every row with a mark (`zz-<purpose>`), invented
@@ -116,6 +126,28 @@ no help topic, a button the help names that a screen no longer draws (`player-he
 fourth is not testable and is yours: a flow that works differently under the same button names.
 The day this rule was written, the guide already held a sentence that morning's work had made
 false — "Only Manual lets you … set tees per flight".
+
+## The secretary's home: what's next, and copy last event
+
+The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **What's next** is one line for
+each job waiting on the person in every tournament they run at the open tournament's club — entries
+awaiting approval, a tee sheet for the next fortnight unpublished, a launch, the next draw or week,
+cards not returned, results not released — soonest first. Per-round facts come from the screens' own
+functions (`services/whats-next.ts`: `awaitingApproval`, `nextUnplayedRound`, `boardProgress`); each
+tournament's own job is the state machine's `nextAction`, with its refusal and way out
+(`lifecycleJob`), never worked out on the home. `whatsNext` in `domain/needs-you-now.ts` only words
+and orders them, so the home cannot disagree with the screen it sends you to. Buttons only with the
+club's `canEdit`; a job in another tournament opens it through `enterTournament(eventId, screen)`,
+which honours `JOB_SCREENS` (`/registration`, `/foursomes`, `/stages`, `/entry`, `/dashboard`) and nothing else.
+
+**Copy last event** is `cloneEvent` given a first day: `copiedCalendar` moves the entry window and the
+rounds by the same distance against the club's own today, side games come across as games with nobody
+in them (`CLONED_CONTEST_FIELDS` and its two siblings in `clone.ts`), and the copy is made only by the
+club's Commissioner or an Admin (`organizationAccessFor`). **The journeys are MEASURED and RATCHETED**
+(row 0b, 14 Nov): seven walks at a person's pace — sign-up to an entry link, a first event somebody can
+PLAY (held under ten minutes), copy last event, a member's and a guest's first hole, a signed-out member,
+a whole card on one bar — print one `JOURNEY {…}` line each, and fail CI over OR under their ceilings in
+`e2e/journey-budgets.ts`. Read `docs/claude/journeys.md` before touching one or answering a breach.
 
 ## End-to-end means across the board
 
@@ -209,7 +241,7 @@ manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
   money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
   on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`
   prints the exact branches; the Round workflow plans a pushed branch with the same function.
-- **The nightly** (scheduled 02:00 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
+- **The nightly** (scheduled 02:17 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
   console crawl in full, the Android tablet and the libraries' holes, and deploys what it cleared.
   **The weekly** (`weekly.yml`) runs Chrome, Edge and the front door's motion. A change's round
   runs the console crawl only when it touches input screens (`crawlNeeded`).
@@ -263,8 +295,11 @@ plan's 10 GB, the point at which Vercel may refuse a production deploy.
 panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
 verdict), an hourly schedule and *Run workflow*. `scripts/qa/deploy-gate.mjs` deploys a commit
 only when `verify` is green on it, every core commit since the last deploy is inside a clean
-nightly round, and no club is in its FREEZE — a tournament on today in the club's own time, or a
-weekend morning 05:00–14:00 in any club's zone. The freeze is asked of the APP
+nightly round, and no club is in its FREEZE. **Ajay, 2026-11-06:** the freeze is OFF until 20 Nov 2026
+(`FREEZE_RESUMES`, 20 Nov 00:00 in UTC+14); then, while sign-ins are held, only a PILOT club (one
+where somebody on `SIGNIN_ALLOW_EMAILS` is staff) playing today freezes, never a weekend morning;
+once live, a tournament on today at any club in its own time, or a weekend morning 05:00–14:00 in
+any club's zone (`deployWindowFor`; old wording in `docs/claude/retired.md`). The freeze is asked of the APP
 (`/api/deploy-window`, bearer `DEPLOY_WINDOW_TOKEN`, answering only `{frozen, reason}`), because
 this runner must never hold production's database credentials (below); unreachable means not
 frozen, said in the summary. A HOLD IS GREEN — the gate working — and the hourly run ships it
@@ -429,6 +464,7 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | If your task touches… | Read first | What is in it |
 | --- | --- | --- |
 | sign-in, sign-up, sessions, passwords, codes, known devices, launching accounts | `docs/claude/sign-ins.md` | the hold in full; proved address, leaked passwords, new-device codes |
+| starting or briefing any agent | `.claude/agents/STANDARDS.md` | the one standard every agent follows: no waiting on CI, other PRs' files, no real names, short hand-backs |
 | any date, deadline, "today", time zone, E2E_TZ | `docs/claude/club-clock.md` | why the day is the club's; the helpers that must be told it |
 | `src/app/page.tsx`, `src/lib/landing/*`, `/faq`, `/privacy`, `/terms` | `docs/claude/landing-page.md` | its stylesheet, its three rules, the green test, ownership |
 | writing or REPORTING a browser-test result; coverage | `docs/claude/e2e-across-the-board.md` | why a pass count is not a claim; reach instruments; mutation habits |
@@ -448,8 +484,10 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | card validation, the catalogue, `--revalidate` | `docs/claude/course-cards.md` | measure a guard before shipping it |
 | any Prisma schema change | `docs/claude/migrations.md` | datasource split, `A0NN` naming, stale-client trap |
 | themes, colour tokens, contrast, overflow | `docs/claude/design.md` | grounds, one club theme, outdoor legibility |
+| the logo, wordmark, brand colours, type, the QR mark, pictures, voice | `docs/brand-guide.md` | the one-page brand guide: files, sizes, grounds, contrast, what never to do |
 | editing files via PowerShell, Git Bash or `node -e`; a refusing rebase | `docs/claude/shell-traps.md` | encoding corruption, CRLF, eaten backslashes |
 | building a sweep/audit, walking screens, browser sessions | `docs/claude/sweeps-and-screen-walks.md` | controls, checks that pass on nothing, which session |
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |
 | the demo club, `isDemo`, `/demo`, the replay cron, anything that counts or messages clubs | `docs/claude/demo-club.md` | an invented club in production; every place it is left out, and the test for each |
+| a journey spec, `e2e/journey*.ts`, a `JOURNEY-BREACH` in CI, a press or screen added to a set-up or player path | `docs/claude/journeys.md` | the seven journeys, what is counted, the ratchet both ways, when a ceiling may be raised |
 | history only | `docs/claude/retired.md` | Paragraphs superseded by a later ruling, kept verbatim with the reason |

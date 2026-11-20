@@ -8,6 +8,8 @@
  * *column* is. A club whose spreadsheet says "Hcp Index" should not be
  * understood by one screen and rejected by the other.
  */
+import { HANDICAP_BODIES } from "./domain/handicap-body";
+import { standingWritten, type EntryStanding } from "./domain/entry-standing";
 
 /** Splits one CSV line, honouring quoted fields containing commas. */
 export function splitCsvLine(line: string): string[] {
@@ -46,6 +48,31 @@ export function splitCsvLine(line: string): string[] {
  * rejected import over the word "Mobile" is a support email rather than a
  * data problem.
  */
+/**
+ * A HANDICAP ID, WHOEVER ISSUED IT (no-email player identity, PR 1). Read into
+ * the `ghin` field — `Player.ghin` and `Member.ghin` already hold "the player's
+ * number with their own body". Each body's own name for its number comes from
+ * `HANDICAP_BODIES`, so a body added there brings its header with it.
+ */
+const HANDICAP_ID_ALIASES = [
+  ...new Set([
+    "ghin",
+    "ghin number",
+    "ghin #",
+    "ghin id",
+    "handicap number",
+    "handicap id",
+    "whs number",
+    "whs id",
+    "cdh",
+    "cdh number",
+    "golf id",
+    "golf ireland number",
+    "golf canada number",
+    ...HANDICAP_BODIES.map((b) => b.number.toLowerCase()),
+  ]),
+];
+
 export const CSV_COLUMN_ALIASES: Record<string, string[]> = {
   name: ["name", "player", "player name", "full name", "member", "member name"],
   firstName: ["first name", "firstname", "first", "given name", "forename"],
@@ -54,7 +81,11 @@ export const CSV_COLUMN_ALIASES: Record<string, string[]> = {
   email: ["email", "e-mail", "email address", "e-mail address"],
   phone: ["phone", "phone number", "mobile", "cell", "cell phone", "telephone", "contact"],
   handicapType: ["handicap type", "9/18", "hcp type", "holes"],
-  ghin: ["ghin", "ghin number", "ghin #", "ghin id", "handicap number"],
+  ghin: HANDICAP_ID_ALIASES,
+  /** Member or guest — read through `standingWritten` (`domain/entry-standing.ts`). */
+  standing: ["member or guest", "member/guest", "member / guest", "membership", "category", "standing"],
+  /** A column headed "Guest", where yes means a guest. */
+  guestFlag: ["guest", "guest?", "is guest"],
   homeClub: ["home club", "club", "home course"],
   gender: ["gender", "sex", "m/f"],
   memberNumber: ["member number", "member no", "member #", "membership number", "member id"],
@@ -157,6 +188,15 @@ export function cell(table: CsvTable, row: string[], field: string): string {
     if (value) return value;
   }
   return first === -1 ? "" : (row[first] ?? "").trim();
+}
+
+/**
+ * What the row's own member-or-guest column says, or null when the file says
+ * nothing readable (no such column, a blank, a word like "Social"). A
+ * "Member or guest" column is read before a "Guest" yes/no column.
+ */
+export function standingCell(table: CsvTable, row: string[]): EntryStanding | null {
+  return standingWritten(cell(table, row, "standing"), "standing") ?? standingWritten(cell(table, row, "guestFlag"), "guestFlag");
 }
 
 /**

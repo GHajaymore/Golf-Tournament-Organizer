@@ -4,6 +4,7 @@ import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { seed, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament I: the Eagle club's Two-Course Open. 36-hole gross
@@ -208,7 +209,7 @@ test("five I", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
     });
   }
 
@@ -327,7 +328,7 @@ test("five I", async ({ page, context, baseURL }, testInfo) => {
     await test.step("complete; the public board says the same", async () => {
       if ((await eventFacts(I_NAME))!.status !== "completed") {
         await open(page, "/dashboard");
-        await page.getByRole("button", { name: "Complete tournament" }).first().click();
+        await pressComplete(page);
         await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
         await expect.poll(async () => (await eventFacts(I_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       }

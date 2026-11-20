@@ -9,6 +9,7 @@ import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
 import { SALES_EMAIL, SUPPORT_EMAIL } from "@/lib/contact";
 import { interestSubject } from "@/lib/domain/interest";
+import { promotionReplyLine } from "@/lib/domain/promotion";
 import { EARLY_LIST } from "@/lib/go-live";
 import { signUpLinkFor } from "@/lib/domain/discount";
 import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
@@ -331,7 +332,9 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
 export async function sendEmailCodeEmail(
   to: string,
   code: string,
-  purpose: "signup" | "claim" | "device",
+  purpose: "signup" | "claim" | "device" | "entry" | "asked",
+  /** The tournament an entry code is for; typed by an organizer, so escaped below. */
+  eventName?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const words = EMAIL_CODE_WORDS.email;
   if (!resend) {
@@ -342,9 +345,20 @@ export async function sendEmailCodeEmail(
     console.warn(`[email] RESEND_API_KEY not set — the ${purpose} code for ${maskEmail(to)} is ${code}`);
     return { ok: true };
   }
-  const subject = purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : words.subject;
-  const intro = purpose === "claim" ? words.claimIntro : purpose === "device" ? words.deviceIntro : words.intro;
-  const ignore = purpose === "device" ? words.deviceIgnore : words.ignore;
+  const subject =
+    purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : purpose === "entry" ? words.entrySubject : purpose === "asked" ? words.askedSubject : words.subject;
+  const intro =
+    purpose === "claim"
+      ? words.claimIntro
+      : purpose === "device"
+        ? words.deviceIntro
+        : purpose === "entry"
+          ? escapeHtml(words.entryIntro(eventName || "a tournament"))
+          : purpose === "asked"
+            ? words.askedIntro
+            : words.intro;
+  const ignore =
+    purpose === "device" ? words.deviceIgnore : purpose === "entry" ? words.entryIgnore : purpose === "asked" ? words.askedIgnore : words.ignore;
   // Every word here is the app's own and the code is six digits it made, so
   // it all goes in raw; nothing anybody typed reaches this body.
   const body =
@@ -709,7 +723,7 @@ export async function sendInterestEmail(
           (who.note ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(who.note)}</blockquote>` : "") +
           `<p>${escapeHtml(told)}</p>`,
         "You're getting this because the /interest form on tourneyhq.club sends here.",
-        { preview: `${who.club || "A club"} — ${who.role || "interested"}.`, action: { label: "See every note", url: `${base}/owner#interest` } },
+        { preview: `${who.club || "A club"} — ${who.role || "interested"}.`, action: { label: "See every note", url: `${base}/owner?tab=accounts#interest` } },
       )),
     });
     if (error) {
@@ -856,6 +870,8 @@ export async function sendFieldStatusEmail(
     eventId: string;
     /** For the follow-up: an organizer needs to know who to call. */
     toName?: string;
+    /** Whole days from the CLUB's today to the first round; null/absent = unknown. */
+    daysToFirstRound?: number | null;
   },
 ): Promise<void> {
   if (!resend) {
@@ -867,6 +883,8 @@ export async function sendFieldStatusEmail(
   const eventName = escapeHtml(opts.eventName);
   const heading = where ? `<p>${where}</p>` : "";
 
+  const replyLine = opts.change === "promoted" ? promotionReplyLine(opts.daysToFirstRound ?? null) : null;
+
   const subject =
     opts.change === "promoted"
       ? `A place has opened - you're in the field for ${opts.eventName}`
@@ -877,11 +895,14 @@ export async function sendFieldStatusEmail(
       ? `<p>A place has opened in <strong>${eventName}</strong> and you have moved off the waitlist.</p>` +
         heading +
         `<p><strong>You are now confirmed in the field.</strong> Your place is held - there is nothing you need to do to accept it.</p>` +
-        // Asks for a reply within the same window the organizer's screen uses
-        // to decide who to chase, so the message and the badge agree. It is a
-        // request, not a deadline: the place is theirs either way, and saying
-        // otherwise would be a threat the software does not carry out.
-        `<p>If you can no longer play, please tell the organizer <strong>within 48 hours</strong> so the place can go to the next person on the list.</p>`
+        // Asks for a reply: with the first round three or more days away (or
+        // undated) in the same 48 hours the organizer's badge turns into a
+        // nudge; nearer than that, sooner ("as soon as you can", "straight
+        // away"), worded by `promotionReplyLine` from the club's day that
+        // `field-notify` tells it. A request, not a deadline: the place is
+        // theirs either way, and saying otherwise would be a threat the
+        // software does not carry out.
+        (replyLine ? `<p>${replyLine.before}<strong>${replyLine.strong}</strong>${replyLine.after}</p>` : "")
       : `<p>The field for <strong>${eventName}</strong> has been resized, and you have been moved to the waitlist.</p>` +
         heading +
         `<p><strong>You are not currently in the field, so please do not travel to the course expecting to play.</strong></p>` +

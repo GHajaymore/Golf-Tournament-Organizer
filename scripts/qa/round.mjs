@@ -53,6 +53,7 @@ import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync,
 import { join } from "node:path";
 import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES, targetLine } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
+import { shardFiles } from "./time-shard.mjs";
 import { E2E_OWNER_EMAIL } from "../../e2e/owner-email.mjs";
 import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "../../e2e/demo-fixture.mjs";
 
@@ -132,7 +133,8 @@ function stopServer() {
   if (process.platform === "win32") {
     spawnSync("powershell", ["-NoProfile", "-Command", `Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`]);
   } else {
-    spawnSync("sh", ["-c", `lsof -ti:${PORT} | xargs -r kill -9`]);
+    // Without lsof (Playwright's container image has none) the same is read from /proc.
+    spawnSync("sh", ["-c", `if command -v lsof >/dev/null 2>&1; then lsof -ti:${PORT} | xargs -r kill -9; else node scripts/qa/free-port.mjs ${PORT}; fi`]);
   }
 }
 
@@ -166,6 +168,12 @@ async function serve(mode) {
     DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
     // No mail leaves a test server (the owner-console spec presses Send on the early list).
     RESEND_API_KEY: "",
+    // As playwright.config.ts gives its server, for the same reasons: no model is asked, and the
+    // tee-time alerts card can reach the server's public key (the public half only; nothing is sent).
+    ANTHROPIC_API_KEY: "",
+    GOLFCOURSE_API_KEY: "",
+    VAPID_PRIVATE_KEY: "",
+    VAPID_PUBLIC_KEY: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
   };
   delete env.E2E_TZ;
@@ -227,12 +235,18 @@ if (dirty) finish(`NOT RUN — ${dirty} tracked files have uncommitted changes; 
 const commit = git("rev-parse", "--short", "HEAD");
 const app = appId();
 
-if (flag("build")) {
-  say(`building ${commit} (app ${app}) …`);
+// The database suite. `--audit-only` is the round's own job for it (round.yml `audit`, run BESIDE the build);
+// `--build` alone runs it first as it always did, and `--build --no-audit` is the round's build job, which
+// leaves it to that other job. Its verdict binds the round either way (merge.mjs `--audit=<job result>`).
+if (flag("audit-only") || (flag("build") && !flag("no-audit"))) {
   const audit = await run("npx vitest run --config vitest.audit.config.ts", { log: join(OUT, "audit.log"), minutes: 40 });
   const auditSaid = strip(readFileSync(join(OUT, "audit.log"), "utf8")).split("\n").filter((l) => /Test Files|Tests /.test(l)).map((l) => l.trim());
   say(`database suite: exit=${audit} ${auditSaid.join(" · ")}`);
   if (audit !== 0) finish("NOT RUN — the database suite failed", 8);
+  if (flag("audit-only")) finish(`DATABASE SUITE PASSED — ${commit}`, 0);
+}
+if (flag("build")) {
+  say(`building ${commit} (app ${app}) …`);
   stopServer();
   rmSync(DIST, { recursive: true, force: true });
   const built = await run("npm run build", { env: { NEXT_DIST_DIR: DIST, NEXT_NO_STANDALONE: "1", AUTH_SECRET: SECRET }, log: join(OUT, "build.log"), minutes: 30 });
@@ -331,7 +345,15 @@ for (const layer of layers) {
   const log = join(OUT, `${partFile(layer.key, PART)}.log`);
   // A share of the crawl is that one spec; every other part runs the layer's own list.
   const specs = CRAWL_ONLY ? ["e2e/every-control.spec.ts"] : layer.specs;
-  const command = ["npx playwright test", ...specs, ...projects.map((p) => `--project=${p}`), SHARD ? `--shard=${SHARD}` : "", "--reporter=line"].filter(Boolean).join(" ");
+  // A share of a phone size's WHOLE suite is cut by measured time (scripts/qa/time-shard.mjs), not by
+  // Playwright's --shard, which balances test count: the small phone ran 41.6 minutes whole and the
+  // iPhone's second share 40.6 beside its first's 30.8. Whole spec files, every file in exactly one
+  // share (ci-e2e-matrix.test.ts holds that); the desktop keeps --shard (its console crawl is cut
+  // apart and its timings here are not the CI's).
+  const [shardNo, shardOf] = SHARD ? SHARD.split("/").map(Number) : [0, 0];
+  const timeCut = Boolean(SHARD) && !CRAWL_ONLY && specs.length === 0 && projects.length === 1 && projects[0] !== "desktop";
+  const shardArgs = !SHARD ? [] : timeCut ? shardFiles(projects[0], shardNo, shardOf) : [`--shard=${SHARD}`];
+  const command = ["npx playwright test", ...specs, ...projects.map((p) => `--project=${p}`), ...shardArgs, "--reporter=line"].filter(Boolean).join(" ");
   // What the layer's spec writes as it goes, emptied first so only this run's is kept.
   if (layer.keeps) rmSync(layer.keeps, { recursive: true, force: true });
   const code = await run(command, { env, log, minutes: layer.minutes });

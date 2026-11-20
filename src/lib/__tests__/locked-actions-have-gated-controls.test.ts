@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join, posix, relative } from "node:path";
 import { readSource } from "./source";
+import { setupLockedByLaunch, tournamentFamily } from "@/lib/domain/tournament-status";
 
 /**
  * A CONTROL THAT REACHES A LOCK-REFUSING ACTION KNOWS ABOUT THE LOCK.
@@ -40,8 +41,11 @@ function lockRefusingActions(): Map<string, string> {
     const parts = src.split(/export async function /).slice(1);
     for (const part of parts) {
       const name = part.slice(0, part.indexOf("(")).trim();
-      // The body up to the next export — `split` already cut it there.
-      if (/\bassertUnlocked\(/.test(part)) out.set(name, relative(ROOT, f));
+      // The body up to the next export — `split` already cut it there. A scoped
+      // lock (`refuseIfLocked`, PR 5a) RETURNS its refusal rather than throwing,
+      // but a live control that can only be refused is still an invitation to a
+      // refused press, so its controls must know the lock all the same.
+      if (/\b(assertUnlocked|refuseIfLocked)\(/.test(part)) out.set(name, relative(ROOT, f));
     }
   }
   return out;
@@ -74,8 +78,9 @@ function callers(locked: Map<string, string>): Map<string, string[]> {
  * with the reason. A reason must be a FACT about where the file renders.
  */
 const EXEMPT: Record<string, string> = {
-  // Renders only for a casual round, which is created `configUnlocked: true`
-  // and never launched, so it cannot be locked — see match-setup.ts.
+  // Renders only for a casual round, which never locks: the machine's family rule
+  // (`setupLockedByLaunch`, proposal 8.2) — asserted below. Until state machine PR 9b
+  // it was the blanket flag `createMatch` wrote; that flag is not read any more.
   "src/components/CasualRoundPanel.tsx": "casual rounds never lock",
   // Not rendered at all while setup is locked — asserted below.
   "src/components/DescribeTournament.tsx": "not rendered when locked",
@@ -90,7 +95,8 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     // known members of the class, from the walk and the sweep.
     // (`addStage` left this list on 2026-09-27: adding a round is running the
     // event, not setting it up. Deleting one still refuses.)
-    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "removeStage", "setStageCut"]) {
+    // (`removeStage` left it on 2026-11-08, J12 PR 7b: deleting a round asks the rounds rule — swept below.)
+    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "setStageCarry", "setStageCut"]) {
       expect(locked.has(a), `${a} should refuse a locked tournament`).toBe(true);
     }
     for (const f of [
@@ -135,16 +141,212 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     // Withheld when locked — and, since 2026-10-16, where the club has no
     // drafting at all; the lock is still the first thing asked.
     expect(stages).toMatch(/const describeTournament =\s*locked \|\| [^?]*\? null :/);
+    /**
+     * THE CASUAL PANEL'S EXEMPTION, REPINNED TO ITS GUARANTEE (state machine PR 9b, test plan B7).
+     * It pinned that `createMatch` wrote the blanket flag; it pins now that the round it makes is a
+     * casual one and that the machine never locks a casual round — the reason the panel's controls
+     * need no lock, whatever any flag on the row says.
+     */
     const setup = readSource("src", "app", "actions", "match-setup.ts");
-    expect(setup).toMatch(/configUnlocked: true/);
+    expect(setup).toMatch(/status: "live",\s*shape: "match",/);
+    expect(setup).not.toMatch(/configUnlocked/);
+    expect(tournamentFamily({ shape: "match", rounds: [], bracketMode: "single", league: false })).toBe("casual");
+    for (const status of ["live", "completed"]) expect(setupLockedByLaunch(status, "casual"), status).toBe(false);
+    // CONTROL: the same rule locks every other family at launch, so the line above is the family's doing.
+    expect(setupLockedByLaunch("live", "stroke")).toBe(true);
+  });
+
+  /**
+   * THE FIELD ACTIONS ASK THEIR OWN RULE (day-of field changes, PR A): after
+   * launch Withdraw, Put back and a late entry stay open while setup is locked,
+   * so a control reaching one of them takes the field's DOORS (`fieldDoors`, or
+   * one door as a sentence), never the setup lock alone — the setup lock would
+   * shut the very controls the morning needs. Swept as a class like the above.
+   */
+  it("each control reaching a field action receives the field's doors", () => {
+    const fieldActions = new Set<string>();
+    for (const f of files(join(ROOT, "src", "app", "actions"), /\.ts$/)) {
+      for (const part of readSource(relative(ROOT, f)).split(/export async function /).slice(1)) {
+        // `fieldVerdictFor` is the same rule with its warning (J12, PR 7a): addSignup asks it.
+        if (/\bfield(?:Refusal|VerdictFor)\(/.test(part)) fieldActions.add(part.slice(0, part.indexOf("(")).trim());
+      }
+    }
+    // The control: the sweep finds the actions it is about.
+    for (const a of ["addSignup", "removeSignup", "reinstateWithdrawn", "approveSignup", "addMembersToEvent"]) {
+      expect(fieldActions.has(a), `${a} should ask the field rule`).toBe(true);
+    }
+    const reaching = callers(new Map([...fieldActions].map((a) => [a, ""])));
+    expect(reaching.has("src/components/RegistrationClient.tsx")).toBe(true);
+    expect(reaching.has("src/components/WithdrawnList.tsx")).toBe(true);
+    const DOORS = /\b(doors\??:\s*FieldDoors|door\??:\s*string \| null|fieldLocked\??:\s*string \| null)/;
+    const FIELD_EXEMPT: Record<string, string> = {
+      ...EXEMPT,
+      // Handed `locked={!!doors.add}` by RegistrationClient — the add door, as a boolean (asserted below).
+      "src/components/RosterPicker.tsx": "given the add door by its one caller",
+      // The Flights board shuts every move on the setup lock (and on a confirmed draw). After launch the
+      // field rule refuses "move-flight" too; the one move it allows — placing an unplaced late entrant —
+      // is offered on Entries instead. Stricter than the rule, never looser, so no refused press is offered.
+      "src/components/FlightBoard.tsx": "shuts every move on the setup lock, stricter than the field rule",
+    };
+    const blind = [...reaching.entries()]
+      .filter(([f]) => !(f in FIELD_EXEMPT))
+      .filter(([f]) => !DOORS.test(readSource(f)))
+      .map(([f, names]) => `${f} → ${names.join(", ")}`);
+    expect(blind, "controls reaching a field action without the field's doors").toEqual([]);
+    expect(readSource("src", "components", "RegistrationClient.tsx")).toMatch(/<RosterPicker [^>]*locked=\{!!doors\.add\}/);
+  });
+
+  /**
+   * THE ROUND ACTIONS ASK THEIR OWN RULE (J12, state machine PR 7b): after
+   * launch a round's format, allowance, tees, day and delete stay open until
+   * the round has scores, so a control reaching one of them on Rounds & formats
+   * takes the round's DOORS (`roundDoors`, or one door as a sentence) — the
+   * setup lock alone would shut the controls the rule leaves open. The tee
+   * selects elsewhere (Flights, Entries, Settings) say the server's refusal where the
+   * press was — a tee change after play is refused (option C, 8 Nov). Swept as a class.
+   */
+  it("each control reaching a round action on Rounds & formats receives the round's doors", () => {
+    const roundActions = new Set<string>();
+    for (const f of files(join(ROOT, "src", "app", "actions"), /\.ts$/)) {
+      for (const part of readSource(relative(ROOT, f)).split(/export async function /).slice(1)) {
+        if (/\b(beforeTermChange|roundVerdictFor|roundRefusal|acrossRoundsRefusal)\(/.test(part)) roundActions.add(part.slice(0, part.indexOf("(")).trim());
+      }
+    }
+    // The control: the sweep finds the actions it is about.
+    for (const a of ["setStageAllowance", "setStageAllowanceWeights", "setStageScoringBasis", "setStageFormat", "removeStage", "setStageCourse", "setFlightTee", "setPlayerTee", "setEventDefaultTee", "setStagePlayedOn", "setStageHoles"]) {
+      expect(roundActions.has(a), `${a} should ask the rounds rule`).toBe(true);
+    }
+    const reaching = callers(new Map([...roundActions].map((a) => [a, ""])));
+    const STAGES = ["src/components/StagesClient.tsx", "src/components/RoundAllowance.tsx", "src/components/RoundTeamScoring.tsx"];
+    for (const f of STAGES) expect(reaching.has(f), `${f} should be found calling a round action`).toBe(true);
+    const DOORS = /\b(doors\??:\s*RoundDoors|door\??:\s*string \| null|allowanceDoor\??:\s*string \| null)/;
+    const blind = STAGES.filter((f) => !DOORS.test(readSource(f)));
+    expect(blind, "Rounds & formats controls reaching a round action without the round's doors").toEqual([]);
+    // And the page hands them over, from the machine's own facts.
+    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/doors: \(\(\) => \{\s*const one = told \? roundChangeFactsOf\(told\.facts, s\.id, cutsMade\) : null;\s*return one \? roundDoors\(one\) : null;/);
+    // And the cuts it hands them are the one answer's (`cutsMadeAfter`, from `cutHasBeenMade`).
+    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/const cutsMade = cutsMadeAfter\(state\.stages\);/);
+    // The tee selects elsewhere say a refusal where the press was: a tee change after play is refused (option C, 8 Nov).
+    for (const [f, said] of [
+      ["src/components/FlightTeeSelect.tsx", /setError\(res\.error \?\? "Couldn't set those tees\."\)/],
+      ["src/components/FlightBoard.tsx", /refuse\(res\.error \?\? "Couldn't set those tees\.", g\.id\)/],
+      ["src/components/PlaySettings.tsx", /setError\(teeResult\.error \?\? "Couldn't save the tees\."\)/],
+      ["src/components/RegistrationClient.tsx", /setRowError\(result\.ok \? "" : result\.error \?\? "Couldn’t save those tees\.", playerId\)/],
+    ] as const) {
+      expect(readSource(f), `${f} drops a refused tee change`).toMatch(said);
+    }
   });
 
   it("each page hands its screen the lock", () => {
     expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/<StagesClient[\s\S]*?locked=\{locked\}/);
     expect(readSource("src", "app", "(app)", "teams", "page.tsx")).toMatch(/<TeamsClient\s+locked=\{locked\}/);
     expect(readSource("src", "app", "(app)", "event", "page.tsx")).toMatch(/<EventSetupClient[\s\S]*?locked=\{locked\}/);
-    expect(readSource("src", "app", "(app)", "bracket", "page.tsx")).toMatch(/<BracketModePicker[^>]*locked=\{isSetupLocked\(state\.event\)\}/);
-    expect(readSource("src", "app", "(app)", "entry", "page.tsx")).toMatch(/<EntryModes\s+setupLocked=\{isSetupLocked\(state\.event\)\}/);
+    // The machine's scoped lock (state machine PR 5b): the rounds' for the arrangement (as `setBracketMode` asks, and as
+    // the same picker on Rounds & formats draws — never the draw's, which a knockout in flights keeps open while live),
+    // the rounds' for clearing scores.
+    expect(readSource("src", "app", "(app)", "bracket", "page.tsx")).toMatch(/<BracketModePicker[^>]*locked=\{\(await scopeLockFor\(session\.eventId, "rounds"\)\) !== null\}/);
+    expect(readSource("src", "app", "(app)", "entry", "page.tsx")).toMatch(/<EntryModes\s+setupLocked=\{\(await scopeLockFor\(session\.eventId, "rounds"\)\) !== null\}/);
     expect(readSource("src", "components", "EntryModes.tsx")).toMatch(/<ClearScores[\s\S]*?locked=\{setupLocked\}/);
+  });
+});
+
+/**
+ * EVERY SCREEN THAT CAN BE REFUSED BY A SCOPE OFFERS THE WAY OUT WHERE THE PRESS ENDED (state
+ * machine PR 9b, design §4f; test plan B21).
+ *
+ * After 9b a tournament that held the retired blanket unlock meets the launch lock for the first
+ * time, and its way out is the committee correction — a BUTTON, with the refused part already
+ * chosen. A refusal on a screen that draws none names a button that is not there: one hop from a
+ * dead end. So every page whose components reach a lock-refusing action mounts `ScopeLockBanner`
+ * somewhere in what it renders — or the refusing control draws `CorrectionButton` itself, beside
+ * the lock it says (Clear scores on Score entry).
+ *
+ * Read as an import graph from each `page.tsx` down through `src/app` and `src/components`
+ * (static imports, re-exports and `import()`; `readSource`, so a commented import is no edge).
+ */
+type Graph = { exists: (f: string) => boolean; read: (f: string) => string };
+
+const IMPORT = /(?:^|[;\n])\s*(?:import|export)\s[^;]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
+
+function resolved(g: Graph, from: string, spec: string): string | null {
+  let p: string;
+  if (spec.startsWith("@/")) p = `src/${spec.slice(2)}`;
+  else if (spec.startsWith(".")) p = posix.normalize(posix.join(posix.dirname(from), spec));
+  else return null;
+  for (const c of [p, `${p}.tsx`, `${p}.ts`, `${p}/index.tsx`, `${p}/index.ts`]) if (g.exists(c)) return c;
+  return null;
+}
+
+/** Everything a page renders or calls, through its imports, within the screens (not the actions). */
+function reachOf(g: Graph, root: string): Set<string> {
+  const seen = new Set<string>([root]);
+  const queue = [root];
+  while (queue.length) {
+    const f = queue.shift()!;
+    for (const m of g.read(f).matchAll(IMPORT)) {
+      const to = resolved(g, f, m[1] ?? m[2]);
+      if (!to || seen.has(to) || to.startsWith("src/app/actions/")) continue;
+      if (!to.startsWith("src/app/") && !to.startsWith("src/components/")) continue;
+      seen.add(to);
+      queue.push(to);
+    }
+  }
+  return seen;
+}
+
+/** "page → client" for each page that reaches a refusing client and offers no way out on the screen. */
+export function pagesWithoutTheWayOut(g: Graph, pages: readonly string[], refusingClients: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const page of pages) {
+    const reach = reachOf(g, page);
+    if ([...reach].some((f) => /<ScopeLockBanner\b/.test(g.read(f)))) continue;
+    for (const c of refusingClients.filter((c) => reach.has(c))) {
+      if (/<CorrectionButton\b/.test(g.read(c))) continue;
+      out.push(`${page} → ${c}`);
+    }
+  }
+  return out.sort();
+}
+
+describe("every screen a scope can refuse mounts the banner with the way out (PR 9b, B21)", () => {
+  const disk: Graph = { exists: (f) => existsSync(f) && statSync(f).isFile(), read: (f) => readSource(f) };
+  const pages = files(join(ROOT, "src", "app"), /^page\.tsx$/).map((f) => relative(ROOT, f).split("\\").join("/"));
+  const refusing = [...callers(lockRefusingActions()).keys()].filter((f) => !(f in EXEMPT));
+
+  it("CONTROL: a planted screen whose control a scope refuses, with no banner, is seen — and the banner or the button beside the control clears it", () => {
+    const planted: Record<string, string> = {
+      "src/app/(app)/zz/page.tsx": `import { ZzFlights } from "@/components/ZzFlights";\nexport default function Page() { return <ZzFlights />; }`,
+      "src/components/ZzFlights.tsx": `"use client";\nimport { renameGroup } from "@/app/actions/tournament";\nexport function ZzFlights() { return <button onClick={() => renameGroup("a", "b")}>Rename</button>; }`,
+    };
+    const g = (extra: Record<string, string>): Graph => {
+      const all = { ...planted, ...extra };
+      return { exists: (f) => f in all, read: (f) => all[f] ?? "" };
+    };
+    const page = ["src/app/(app)/zz/page.tsx"];
+    expect(pagesWithoutTheWayOut(g({}), page, ["src/components/ZzFlights.tsx"])).toEqual(["src/app/(app)/zz/page.tsx → src/components/ZzFlights.tsx"]);
+    // The banner anywhere in what the page renders clears it…
+    const withBanner = { "src/app/(app)/zz/page.tsx": `import { ZzFlights } from "@/components/ZzFlights";\nimport { ScopeLockBanner } from "@/components/ScopeLockBanner";\nexport default function Page() { return <><ScopeLockBanner locks={[]} isAdmin /><ZzFlights /></>; }`, "src/components/ScopeLockBanner.tsx": "" };
+    expect(pagesWithoutTheWayOut(g(withBanner), page, ["src/components/ZzFlights.tsx"])).toEqual([]);
+    // …and so does the button drawn beside the control.
+    const withButton = { "src/components/ZzFlights.tsx": `"use client";\nexport function ZzFlights() { return <CorrectionButton scopes={["flights"]} />; }` };
+    expect(pagesWithoutTheWayOut(g(withButton), page, ["src/components/ZzFlights.tsx"])).toEqual([]);
+  });
+
+  it("CONTROL: the sweep reads the real screens — the pages it is about reach their refusing clients", () => {
+    expect(pages.length, "no pages found").toBeGreaterThan(40);
+    for (const [page, client] of [
+      ["src/app/(app)/stages/page.tsx", "src/components/StagesClient.tsx"],
+      ["src/app/(app)/registration/page.tsx", "src/components/RegistrationClient.tsx"],
+      ["src/app/(app)/teams/page.tsx", "src/components/TeamsClient.tsx"],
+      ["src/app/(app)/grouping/page.tsx", "src/components/FlightBoard.tsx"],
+      ["src/app/(app)/event/page.tsx", "src/components/EventSetupClient.tsx"],
+      ["src/app/(app)/entry/page.tsx", "src/components/ClearScores.tsx"],
+    ]) {
+      expect(reachOf(disk, page).has(client), `${page} does not reach ${client}`).toBe(true);
+    }
+  });
+
+  it("every page that reaches a refusing control offers the committee correction on the screen", () => {
+    expect(pagesWithoutTheWayOut(disk, pages, refusing), "mount <ScopeLockBanner> for the scope this screen's actions ask, or draw <CorrectionButton> beside the control").toEqual([]);
   });
 });

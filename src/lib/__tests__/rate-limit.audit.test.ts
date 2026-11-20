@@ -2,8 +2,8 @@ import "dotenv/config";
 import { describe, it, expect, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
-import { checkRateLimit, clearRateLimit } from "../rate-limit";
-import { RATE_LIMITS } from "../domain/rate-limit";
+import { checkRateLimit, clearRateLimit, clientGuessGate, clientKeyFor } from "../rate-limit";
+import { RATE_LIMITS, entryLinkBudget } from "../domain/rate-limit";
 
 /**
  * The limiter against the real database.
@@ -38,7 +38,7 @@ afterAll(async () => {
     // honest cleanup available. Delete anything already expired plus this
     // run's rows, found by re-deriving each key through the public API.
     for (const id of identifiers) {
-      for (const kind of ["signin", "round-code", "password-reset", "card-photo"] as const) {
+      for (const kind of ["signin", "round-code", "password-reset", "card-photo", "register-token"] as const) {
         await clearRateLimit(kind, id);
       }
     }
@@ -213,5 +213,107 @@ describe("attempts are counted in the database, not in this process", () => {
     await checkRateLimit("signin", email);
     const rows = await prisma.rateLimitHit.findMany({ where: { key: { contains: "@" } } });
     expect(rows).toEqual([]);
+  });
+});
+
+describe("an entry link's budget, asked through the real counter (2026-11-10)", () => {
+  /**
+   * Round G583-1: a 64-player field's link refused members 61 to 72 as "very
+   * busy". The budget now grows with the field (`entryLinkBudget`), and the
+   * limiter asks it only once the stored count passes the floor of sixty — so a
+   * link inside the floor costs no lookup before it is counted.
+   */
+  it("takes a 64-player field and eight waiting in one burst, asking the budget only past sixty", async () => {
+    const id = fresh("entry-link-64");
+    let asked = 0;
+    const budget = async () => {
+      asked += 1;
+      return entryLinkBudget({ live: true, fieldLimit: 64 });
+    };
+    for (let i = 1; i <= 72; i += 1) {
+      const d = await checkRateLimit("register-token", id, budget);
+      expect(d.allowed, `sign-up ${i} of 72`).toBe(true);
+    }
+    expect(asked, "asked once for each of sign-ups 61 to 72").toBe(72 - RATE_LIMITS["register-token"].limit);
+  });
+
+  it("stops a link that is not taking entries at the floor, in the kind's words", async () => {
+    const id = fresh("entry-link-closed");
+    const floor = RATE_LIMITS["register-token"].limit;
+    const budget = async () => entryLinkBudget({ live: false });
+    for (let i = 1; i <= floor; i += 1) await checkRateLimit("register-token", id, budget);
+    const d = await checkRateLimit("register-token", id, budget);
+    expect(d.allowed).toBe(false);
+    expect(d.message).toMatch(/^This entry form is very busy just now\./);
+  });
+
+  it("refuses, rather than guesses, when the budget cannot be read past the floor", async () => {
+    const id = fresh("entry-link-unreadable");
+    const floor = RATE_LIMITS["register-token"].limit;
+    const budget = async (): Promise<number> => {
+      throw new Error("zz-audit: the event could not be read");
+    };
+    for (let i = 1; i <= floor; i += 1) {
+      expect((await checkRateLimit("register-token", id, budget)).allowed, `inside the floor, ${i}`).toBe(true);
+    }
+    const d = await checkRateLimit("register-token", id, budget);
+    expect(d.allowed).toBe(false);
+    expect(d.message).toMatch(/couldn't check that just now/);
+  });
+});
+
+describe("the per-client round-code limit (clientGuessGate)", () => {
+  // Invented documentation addresses; keys are HMACs of them, expiring with the window.
+  const stamp = Date.now();
+  const enumerator = `203.0.113.${stamp % 200}`;
+  const clubhouse = `198.51.100.${stamp % 200}`;
+  const racer = `192.0.2.${stamp % 200}`;
+  const LIMIT = RATE_LIMITS["round-code-client"].limit;
+  const lookup = (code: string) => code === "REAL-CODE"; // stands in for the accessCode lookup
+
+  async function tryCode(address: string, code: string) {
+    const gate = await clientGuessGate("round-code-client", address);
+    if (!gate.decision.allowed) return "refused";
+    if (lookup(code)) {
+      await gate.succeeded();
+      return "in";
+    }
+    return "wrong";
+  }
+
+  afterAll(async () => {
+    // The SAME keys the gate wrote: clientKeyFor is what it keyed on.
+    for (const a of [enumerator, clubhouse, racer]) {
+      await prisma.rateLimitHit.deleteMany({ where: { key: clientKeyFor("round-code-client", a, Date.now()) } });
+    }
+  });
+
+  it("refuses the wrong code after the limit from one client while another client's correct code still works", async () => {
+    const results: string[] = [];
+    for (let i = 0; i < LIMIT + 1; i++) results.push(await tryCode(enumerator, `WRONG-${i}`));
+    expect(results.slice(0, LIMIT).every((r) => r === "wrong")).toBe(true);
+    expect(results[LIMIT]).toBe("refused");
+    expect(await tryCode(enumerator, "REAL-CODE")).toBe("refused");
+    expect(await tryCode(clubhouse, "REAL-CODE")).toBe("in");
+  });
+
+  it("never counts a successful entry: a hundred players on one address all get in", async () => {
+    for (let i = 0; i < 100; i++) expect(await tryCode(clubhouse, "REAL-CODE")).toBe("in");
+    expect(await tryCode(clubhouse, "WRONG-X")).toBe("wrong");
+  });
+
+  it("a burst of parallel wrong guesses from one client never gets more than the limit through", async () => {
+    const results = await Promise.all(Array.from({ length: LIMIT * 2 }, (_, i) => tryCode(racer, `WRONG-${i}`)));
+    expect(results.filter((r) => r === "wrong").length).toBe(LIMIT);
+    expect(results.filter((r) => r === "refused").length).toBe(LIMIT);
+  });
+
+  it("stores no bare address", async () => {
+    const keys = (await prisma.rateLimitHit.findMany({ where: { key: { startsWith: "round-code-client:" } }, select: { key: true } })).map((r) => r.key);
+    expect(keys.length).toBeGreaterThan(0);
+    for (const k of keys) {
+      expect(k).not.toContain(enumerator);
+      expect(k).not.toContain(createHash("sha256").update(enumerator).digest("hex"));
+    }
   });
 });

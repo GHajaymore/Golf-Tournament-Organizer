@@ -7,12 +7,14 @@
  * forty of forty-eight matches played sat on the dashboard labelled "Draft",
  * under a primary button offering to open registration.
  *
- * THAT BUTTON IS THE PART THAT IS FIXED, as of 2026-09-14 — see
- * `nextLifecycleAction`, which offers launching instead of entries once
- * anything has been played. The label on the chip is not "fixed" and should
- * not be: it still says Draft, beside a second chip saying the tournament is
- * being played, because this file reports the disagreement and the organizer
- * resolves it.
+ * THAT BUTTON IS THE PART THAT IS FIXED, as of 2026-09-14: the next thing to
+ * do is launching, not entries, once anything has been played. Since the state
+ * machine (proposal 3 Nov) the button, the chip and the "being played" notice
+ * are all `tournamentStatus(facts)`'s (`nextAction`, `chip`,
+ * `underWayUnlaunched`); the readers that said them here — `nextLifecycleAction`,
+ * `tournamentPhase`, `lifecycleMismatch`, `datesPassedUnlaunched` — were deleted
+ * by state machine PR 9a, and `the-tournament-is-asked-one-way.test.ts` refuses
+ * their names anywhere in src, e2e or scripts.
  *
  * That is not a cosmetic disagreement, which is why this warns rather than
  * tidies. But the reason it gave was WRONG, and stayed wrong on two screens
@@ -23,64 +25,6 @@
  * choose rather than have chosen for them because a score got typed in early.
  */
 
-import { isIsoDate } from "./round-dates";
-
-export interface LifecycleFacts {
-  /** draft | registration | ready | live | completed. */
-  status: string;
-  /**
-   * Results recorded ANYWHERE in the tournament — see `resultsIn`.
-   *
-   * It was `matchesScored`, fed from `matchProgress`, which counts the ACTIVE
-   * STAGE's `Match` rows and nothing else. Two consequences, and the second is
-   * the one that made this warning unreliable rather than merely narrow:
-   *
-   *   A PURE STROKE TOURNAMENT WAS NEVER WARNED AT ALL. No round robin means
-   *   no matches, so the count was 0 however many cards had come in, and a
-   *   medal played from start to finish in `draft` got silence.
-   *
-   *   AND IT WAS A DIFFERENT ROUND'S NUMBER. On the demo tournament it read 47
-   *   — settled matches on round 1 — while the card beside it said "Cards in
-   *   7/33" off round 2. Two counts of "results", side by side, about two
-   *   different rounds.
-   *
-   * Exactly the three faults `domain/review-queue.ts` was written to fix for
-   * the review stat, in the same screen, and the fix is the same one: count
-   * both sources over the whole tournament.
-   */
-  resultsIn: number;
-  /** Entries in the field. */
-  playersEntered: number;
-}
-
-export interface LifecycleWarning {
-  /**
-   * What to put BESIDE the stored status, so the chip is not the only word.
-   *
-   * "Tournament status: Draft" sat directly above this warning's own title
-   * saying 47 results were in — the screen stating a fact and then apologising
-   * for it an inch below. The stored status is still shown, because it is the
-   * organizer's and this file reports rather than corrects; what changes is
-   * that it no longer stands alone.
-   */
-  chip: string;
-  title: string;
-  detail: string;
-  /**
-   * `offerLaunch` USED TO BE HERE, and it is gone rather than kept for later.
-   *
-   * It answered "should the bar offer launching alongside this warning", was
-   * hardcoded `true` on the only object that ever carried it, and once the
-   * warning's own Launch button was removed as a duplicate it had no reader
-   * left in the app at all — just an assertion that a constant was still that
-   * constant, which is coverage in the decorative sense this repo keeps
-   * warning about.
-   *
-   * The question is real and `nextLifecycleAction` answers it properly, for
-   * every status rather than only the overtaken one.
-   */
-}
-
 /**
  * Statuses that have not yet given players access to the tournament.
  *
@@ -89,8 +33,16 @@ export interface LifecycleWarning {
  * field still cannot see any of this, and the warning below tells them again
  * once a score arrives. Two readers, one definition — a second copy is how the
  * two would come to disagree about what "launched" means.
+ *
+ * ONE WORD SINCE STATE MACHINE PR 8 (J14). It held three — `registration` and
+ * `ready` were steps of the old ladder, read as one Setting-up step since G1
+ * (31 Oct) and written by nothing since #976. Migration A045 moved every row
+ * still holding one to `draft` and kept the old word in `Event.legacyStatus`,
+ * which is where the only difference they still made (members may see it,
+ * `openToMembers`) is read now. `no-tournament-keeps-an-old-word.test.ts`
+ * refuses either word as a tournament's status anywhere in src, scripts or e2e.
  */
-export const PRE_LAUNCH_STATUSES = ["draft", "registration", "ready"];
+export const PRE_LAUNCH_STATUSES = ["draft"];
 const PRE_LAUNCH = PRE_LAUNCH_STATUSES;
 
 /**
@@ -119,48 +71,20 @@ export function isLaunched(status: string): boolean {
  *
  * Nothing derived, and deliberately not "has everything been played": four
  * rounds with one played and four rounds with four played both have cards.
- * See `tournamentPhase`, which learnt that the hard way.
+ * The machine's `step` learnt that the hard way (a returned card once read as
+ * FINISHED on a never-launched tournament, 2026-09-14).
  */
 export function isFinished(status: string): boolean {
   return status === "completed";
 }
 
-/**
- * ITS DAYS HAVE GONE BY AND IT WAS NEVER LAUNCHED (2026-10-30).
- *
- * Ajay's Tournaments list read "Draft" beside a matchplay dated 30 Jul to 26
- * Sep, a month after its last day. "Draft" is what the status column holds and
- * not what is true: nobody is building it any more, and nobody was ever shown it.
- *
- * Told the club's day (`clubToday`), never the server's, as every day helper
- * is. The last day is `endOn`, or `startOn` for a one-day tournament; an
- * undated tournament has not passed anything. The last day itself has not
- * passed: a draft played today is still today's.
+/*
+ * IS THE CONFIGURATION FROZEN lived here until state machine PR 9b, as
+ * "launched AND not unlocked by the blanket flag". The blanket is retired and its
+ * flag is not read; the one predicate is the machine's `setupLockedByLaunch(status,
+ * family)` in `tournament-status.ts`, which says what the flag used to say for a
+ * casual round: it never locks.
  */
-export function datesPassedUnlaunched(
-  event: { status: string; startOn: string; endOn: string },
-  today: string,
-): boolean {
-  const last = event.endOn || event.startOn;
-  return !isLaunched(event.status) && isIsoDate(last) && last < today;
-}
-
-/**
- * IS THE CONFIGURATION FROZEN — the composite, which was the one really being
- * copied.
- *
- * `isSetupLocked` in `page-helpers.ts` has said `launched && !configUnlocked`
- * for a long time, and four other places said it again by hand: the roster
- * screen, the roster action, `action-shared`'s guard and `LifecycleBar`. Five
- * copies of one sentence, and `page-helpers` is `server-only` so a client
- * component could not have called it even if somebody had thought to.
- *
- * Here instead, where both halves can reach it. `isSetupLocked` now delegates,
- * so the server-side name keeps working and there is still one answer.
- */
-export function configurationLocked(event: { status: string; configUnlocked: boolean }): boolean {
-  return isLaunched(event.status) && !event.configUnlocked;
-}
 
 /**
  * IS THE PLAYER APP SHUT TO A PLAYER — the other half of what launching means.
@@ -207,7 +131,7 @@ export function configurationLocked(event: { status: string; configUnlocked: boo
  * share a word.
  */
 export function playerAppShut(
-  event: { status: string; accessGated: boolean; registrationOpen: boolean },
+  event: { status: string; accessGated: boolean; registrationOpen: boolean; legacyStatus: string },
   isStaff: boolean,
 ): boolean {
   if (isStaff) return false;
@@ -231,14 +155,19 @@ export function playerAppShut(
  * switch is the PUBLISHED SIGN-UP LINK: from then on there is something true to
  * tell a member. And, so that nothing members could see before G1 disappears
  * (QA with the tournament director, customer success and security, 2026-10-31),
- * a row still STORED as `registration` or `ready` keeps the visibility it had —
- * those two were open to members under the old ladder. New tournaments never
- * reach either value (`statusMove` refuses the move), so going forward the
- * link is the switch. `draft` with no link stays closed, as it always was.
+ * a row that was STORED in one of the old ladder's two later words keeps the
+ * visibility it had — those two were open to members. Migration A045 (state
+ * machine PR 8) moved those rows to `draft` and kept the old word in
+ * `legacyStatus`, so that is what is asked here: any old word at all, because
+ * both were open. Nothing writes `legacyStatus`, so going forward the link is
+ * the switch. `draft` with no link and no old word stays closed, as it always was.
+ *
+ * Asked by TRUTH, not `!== ""`: a client generated before A045 hands back a row
+ * with no such field, and an absent word must read as none — never as "open".
+ * REQUIRED, so the compiler lists every caller that must select it.
  */
-const LEGACY_OPEN_STATUSES = ["registration", "ready"];
-export function openToMembers(event: { status: string; registrationOpen: boolean }): boolean {
-  return isLaunched(event.status) || event.registrationOpen || LEGACY_OPEN_STATUSES.includes(event.status);
+export function openToMembers(event: { status: string; registrationOpen: boolean; legacyStatus: string }): boolean {
+  return isLaunched(event.status) || event.registrationOpen || !!event.legacyStatus;
 }
 
 /**
@@ -257,7 +186,7 @@ export function openToMembers(event: { status: string; registrationOpen: boolean
  * a full scorecard with "Certify my card" on it.
  *
  * The code agrees with the measurement. `launchTournament` writes
- * `status: "live"`, `launchedAt` and `configUnlocked: false`, and
+ * `status: "live"`, and `launchedAt`, and
  * `PRE_LAUNCH_STATUSES` is read only here and in the setup rail — neither of
  * which gates anything. What a player may see is decided by
  * `canSeeLeaderboard`, which reads `leaderboardVisibility` and nothing else.
@@ -284,48 +213,11 @@ export function openToMembers(event: { status: string; registrationOpen: boolean
  * One string, both readers, for the reason the constant above exists.
  */
 export const LAUNCH_DOES =
-  "Launching marks it live and locks the configuration until you unlock it again.";
+  "Launching marks it live and locks the configuration; after that an Organizer changes one part at a time with a committee correction. Players can score only once it is launched; each round is closed on its own.";
 
 /** And the half that was being attributed to launch by mistake. */
 export const VISIBILITY_IS_ELSEWHERE =
   "It doesn't decide what the field can see — that's “Who can see the leaderboard” on Tournament details.";
-
-export function lifecycleMismatch(facts: LifecycleFacts): LifecycleWarning | null {
-  const { status, resultsIn, playersEntered } = facts;
-
-  if (PRE_LAUNCH.includes(status) && resultsIn > 0) {
-    return {
-      chip: "Being played",
-      title: `${resultsIn} ${resultsIn === 1 ? "result is" : "results are"} in, but this tournament hasn’t been launched`,
-      /**
-       * The nudge stands; the reason for it has changed.
-       *
-       * It used to be "the field cannot see any of this", which is false. The
-       * real cost is plainer and still worth saying: the tournament is being
-       * played and the app is calling it a draft, in front of
-       * ${playersEntered} people who can already open the board.
-       *
-       * AND IT STOPS THERE NOW. It used to close with `LAUNCH_DOES` and
-       * `VISIBILITY_IS_ELSEWHERE` as well, which made one paragraph explain
-       * the disagreement, what launching writes, that configuration locks, and
-       * where leaderboard visibility really lives — then point at a fourth
-       * screen to settle the question it had just raised. Four topics in a
-       * warning is a warning nobody finishes.
-       *
-       * Both sentences are still shown, on the launch dialog, which is where
-       * the organizer is actually deciding to press it. A description of what
-       * a button does belongs on the button, not on the notice that suggests
-       * it.
-       */
-      detail:
-        `Scoring works either way, so nothing is stuck — but ` +
-        `${playersEntered > 0 ? `the ${playersEntered} in the field can` : "anyone in the field can"} ` +
-        `already open the board and their card, on a tournament that still says it is setting up.`,
-    };
-  }
-
-  return null;
-}
 
 /**
  * HOW MANY RESULTS THIS TOURNAMENT HOLDS, from both sources, over all of it.
@@ -341,8 +233,9 @@ export function lifecycleMismatch(facts: LifecycleFacts): LifecycleWarning | nul
  * "a card that has come in means somebody is out there".
  *
  * So: any match with a hole on it, and any card that exists. Counted over
- * every round rather than the active one, which is the whole point — see
- * `LifecycleFacts.resultsIn` for the two faults that came from counting one.
+ * every round rather than the active one, which is the whole point: counting
+ * the active stage's matches alone never warned a pure stroke tournament, and
+ * read a different round's number beside the card's own.
  *
  * Pure, and the caller supplies the rows, exactly as `reviewQueue` does.
  */
@@ -353,119 +246,6 @@ export function resultsIn(input: {
   cards: ReadonlyArray<unknown>;
 }): number {
   return input.matches.filter((m) => m.played).length + input.cards.length;
-}
-
-/**
- * WHERE THE TOURNAMENT ACTUALLY IS — one rule, and every screen reads it.
- *
- * This is `TournamentJourney`'s `current`, lifted out of the component. It was
- * fixed there on 2026-09-14 after one returned card reported a never-launched
- * tournament as FINISHED, and the fix is worth restating because it is the
- * whole reason this function exists rather than the expression:
- *
- *   finished           a decision somebody made — `status === "completed"`.
- *                      Nothing derived can know it: four rounds with one
- *                      played and four rounds with four played both have
- *                      cards.
- *   launched || scored play has started. `launched` is the ordinary route;
- *                      `scored` is the evidence route.
- *
- * So a result can only ever move this FORWARD to Play, never to Finish.
- *
- * IT LIVES HERE BECAUSE THE DASHBOARD HAD ITS OWN ANSWER. The journey card on
- * `/event` and the status chip on `/dashboard` were describing the same
- * tournament from two computations, and on the demo tournament they disagreed:
- * the card said Play and the chip said Draft. Fixing one and leaving the other
- * to be fixed later is how they came to disagree in the first place — same
- * reasoning as `PRE_LAUNCH_STATUSES` and `LAUNCH_DOES` above, both of which
- * are single strings for exactly this reason.
- */
-export type TournamentPhase = "setup" | "launch" | "play" | "results";
-
-export function tournamentPhase(facts: {
-  /**
-   * THE STATUS ITSELF, not two booleans derived from it.
-   *
-   * This took `launched` and `finished` as separate flags, so `/event/page.tsx`
-   * computed `status === "live" || status === "completed"` and
-   * `status === "completed"` and handed both down through `EventSetupClient`,
-   * which used neither and passed them straight on. A page deriving fragments
-   * of the lifecycle and posting them through two components is how the
-   * dashboard and the journey card came to disagree in the first place.
-   *
-   * One fact in, one phase out, and the rule about what "launched" means stays
-   * in this file with `PRE_LAUNCH_STATUSES`.
-   */
-  status: string;
-  /** Any result anywhere — see `resultsIn`. */
-  scored: boolean;
-  /** Whether the setup flow reports itself finished. */
-  setupComplete: boolean;
-}): TournamentPhase {
-  return isFinished(facts.status)
-    ? "results"
-    : isLaunched(facts.status) || facts.scored
-      ? "play"
-      : facts.setupComplete
-        ? "launch"
-        : "setup";
-}
-
-/**
- * THE ONE THING TO DO NEXT, so that three buttons stop competing.
- *
- * The dashboard offered "Start taking entries" on the status card, "Launch
- * tournament" in the warning below it, and "Leaderboard" in the header — three
- * primary-weighted controls at once, two of them about a lifecycle that
- * scoring had already overtaken. Nothing said which one to press.
- *
- * THE FIRST BRANCH IS THE FIX, and it is a behaviour change rather than a
- * restyle. A tournament sitting in `draft` with results in it used to be
- * offered the next NOMINAL step — "Start taking entries" — which invites an
- * organizer to open registration on a tournament 47 results into being played.
- * The step that actually reconciles the disagreement is launching, and
- * `launchTournament` does not care which pre-launch status it is called from:
- * it gates on `launchRefusal` (a round, and somebody in the field), both of
- * which such a tournament passes by construction.
- *
- * Returning the action rather than rendering it means the page can ask what it
- * will be — the header demotes its own primary when this returns one — without
- * keeping a second copy of the rule.
- */
-export interface LifecycleAction {
-  label: string;
-  /**
-   * `launch` opens the confirmation dialog; `status` writes `to` directly.
-   *
-   * Launching is the only one that asks first, and that is deliberate: it is
-   * the transition that locks configuration, and the dialog is where this app
-   * says what the button does. See the dialog in `LifecycleBar`.
-   */
-  kind: "launch" | "status";
-  /** The status to write, for `kind: "status"`. */
-  to?: string;
-}
-
-export function nextLifecycleAction(facts: {
-  status: string;
-  resultsIn: number;
-}): LifecycleAction | null {
-  /**
-   * ONE "SETTING UP" STEP BEFORE LAUNCH (Ajay, 2026-10-31 — gap G1 of the
-   * workflow review). The ladder draft → "Start taking entries" → "Mark ready"
-   * → Launch asked an organizer to press two buttons that gated nothing: taking
-   * entries is the published sign-up link and its dates (`registrationStatus`),
-   * and readiness is what `launchRefusal` and the setup flow already answer.
-   * So every pre-launch status is offered Launch, refused in place while setup
-   * cannot be scored, and `resultsIn` no longer changes the answer.
-   */
-  void facts.resultsIn;
-  if (PRE_LAUNCH.includes(facts.status)) return { label: "Launch tournament", kind: "launch" };
-  if (facts.status === "live") return { label: "Complete tournament", kind: "status", to: "completed" };
-  // A finished tournament can be reopened to correct a card — the committee's
-  // remedy everywhere, and `setEventStatus` already allows it (2026-10-10).
-  if (facts.status === "completed") return { label: "Reopen tournament", kind: "status", to: "live" };
-  return null;
 }
 
 /**
@@ -490,10 +270,9 @@ export function nextLifecycleAction(facts: {
  * of three is not a final anything; a round nobody has finished is not either.
  *
  * So the only thing that earns the word is the organizer saying the
- * tournament is over. That is a deliberate choice they make — `lifecycleMismatch`
- * above exists precisely because this app reports the lifecycle rather than
- * correcting it — and it is the one signal that cannot be produced by a score
- * arriving early.
+ * tournament is over. That is a deliberate choice they make — this app reports
+ * the lifecycle rather than correcting it — and it is the one signal that
+ * cannot be produced by a score arriving early.
  */
 export interface SnapshotStanding {
   /** What to call the panel. */

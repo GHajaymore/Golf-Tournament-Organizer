@@ -434,6 +434,9 @@ model Organization {
 
   members      OrganizationMember[]
   joinRequests JoinRequest[]
+  /** Notices that a club of this name was set up nearby: for this club's Commissioner. */
+  namesakeNotices      NamesakeNotice[] @relation("NoticeFor")
+  namesakeNoticesAbout NamesakeNotice[] @relation("NoticeAbout")
   roster       Member[]
   courses      Course[]
   events       Event[]
@@ -792,6 +795,40 @@ model JoinRequest {
   @@unique([organizationId, userId])
   @@index([organizationId, status])
   @@index([userId])
+}
+
+/**
+ * A CLUB OF THIS NAME WAS SET UP NEARBY, told to the club that was here first (Ajay, 7 Nov).
+ *
+ * Club names are not unique by design: the person setting up the second one is asked, answers
+ * "mine is a different one", and carries on. The FIRST club was never told. One row per pair,
+ * written by `services/namesake-notice.ts` at the moment a club takes the name, shown to the
+ * existing club's Commissioner on Staff & access, dismissed by its staff. It holds three facts
+ * about the new club and no more: its name, its town and the NAME of whoever set it up. Never an
+ * email, phone, roster or tournament (the same fields the other-way question reveals).
+ */
+model NamesakeNotice {
+  id                String    @id @default(cuid())
+  /// The club that was here first, and is told.
+  organizationId    String
+  /// The club that took the name. Its deletion removes the notice.
+  newOrganizationId String
+  name              String
+  town              String    @default("")
+  byName            String    @default("")
+  /// new (a club made with the name) | renamed (a club that already existed took it)
+  how               String    @default("new")
+  /// open | dismissed
+  status            String    @default("open")
+  createdAt         DateTime  @default(now())
+  dismissedAt       DateTime?
+  dismissedBy       String    @default("")
+
+  organization    Organization @relation("NoticeFor", fields: [organizationId], references: [id], onDelete: Cascade)
+  newOrganization Organization @relation("NoticeAbout", fields: [newOrganizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, newOrganizationId])
+  @@index([organizationId, status])
 }
 
 model OrganizationMember {
@@ -1301,6 +1338,13 @@ model Event {
   registrationToken    String  @default("")
   registrationOpen     Boolean @default(false)
   registrationApproval String  @default("auto") // auto | approve
+  /// J39/J40 PR 3: guests may enter themselves on the sign-up link. Off by default; every such entry
+  /// waits for a staff press. Never cloned.
+  guestEntryOpen       Boolean @default(false)
+  /// J39/J40 PR 3: the short, typed form of the sign-up link (8 characters of the round code's alphabet).
+  /// "" until a staff press first needs it; rotates and ends with registrationToken; never cloned.
+  /// Unique by a PARTIAL index in A047 (unique where <> ''), as registrationToken is.
+  registrationCode     String  @default("")
 
   inviteMessage String @default("")
 
@@ -1478,8 +1522,34 @@ model Event {
   shareToken            String  @unique
 
   // Lifecycle
-  status         String    @default("draft") // draft | registration | ready | live | completed
-  configUnlocked Boolean   @default(false) // organizer override to edit after launch
+  // draft | live | completed — and nothing else: A045's CHECK "Event_status_is_one_the_app_writes"
+  // (SQL only; Prisma cannot express it, docs/claude/migrations.md).
+  status         String    @default("draft")
+  /**
+   * THE OLD WORD OF A ROW MOVED TO `draft` (state machine PR 8, J14; migration
+   * A045). Before 31 Oct a tournament could be stored as `registration` or
+   * `ready`; A045 moved each to `draft` and kept its old value here, verbatim,
+   * so nothing is lost and a member who could see it still can
+   * (`openToMembers`). Any other stray word was mapped to live or completed,
+   * its word kept here too. "" on every other row, and on every row made since:
+   * nothing in the app writes it. Reversal (code rollback FIRST; see the
+   * rollback plan in A045's migration.sql): status = legacyStatus only where
+   * status is still `draft` (a row launched since stays launched), then blank
+   * the rest.
+   */
+  legacyStatus   String    @default("")
+  configUnlocked Boolean   @default(false) // the retired blanket unlock; read by nothing; the column goes in 9d
+  /**
+   * THE COMMITTEE CORRECTION (state machine PR 5b; TD Q2). The Organizer opens
+   * ONE lock scope for a stated reason; it lapses at `correctionUntil` (the end
+   * of the club's day when it was opened) or when Done is pressed, which clears
+   * all four. All nullable: null means no correction is open. Read into the
+   * facts' `correction` only while `correctionUntil` is still ahead.
+   */
+  correctionScope  String?
+  correctionReason String?
+  correctionBy     String?
+  correctionUntil  DateTime?
   /**
    * Whether LAUNCHING this tournament gates player access to it.
    *
@@ -1542,6 +1612,7 @@ model Event {
   matches         Match[]
   attendance      RoundAttendance[]
   skinsPots       SkinsPot[]
+  scoringKeepers  ScoringKeeper[]
   playoffHoles    LeaguePlayoffHole[]
   bracketWinners  BracketWinner[]
   bracketReports  BracketReport[]
@@ -1562,6 +1633,8 @@ model Event {
   sideGames       SideGame[]
   threads         Thread[]
   cupPoints       CupPoint[]
+  /// Guests' personal player links (J39/J40, A044): gone with the tournament.
+  playerPasses    PlayerPass[]
 
   @@index([organizationId])
   @@index([courseId])
@@ -1636,6 +1709,13 @@ model Player {
   handicapSource String  @default("manual") // ghin | manual | none
   handicapType   String  @default("18") // 9 | 18 — which index this handicap number represents
   /**
+   * MEMBER OR GUEST (A039, Ajay 2026-11-07): "member" | "guest" | "" — and
+   * "" is every entry made before A039, which reads as a member. Read only
+   * through `entryStanding` (`domain/entry-standing.ts`): a blank email no
+   * longer says guest, because a member may enter without one.
+   */
+  standing       String  @default("")
+  /**
    * Which tees this entry plays from.
    * Null means the round's default. It matters because the Course Handicap
    * depends on the tees: the same index is worth different strokes off the
@@ -1659,15 +1739,23 @@ model Player {
    * reader.
    */
   publicNameWithheld Boolean       @default(false)
+  /**
+   * When a guest's details were anonymised, 90 club days after the event
+   * (J39/J40 PR 4). Null for everyone today; nothing writes it yet.
+   */
+  anonymisedAt       DateTime?
 
   event           Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   group           Group?            @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  /// A guest's personal player link, made on the organizer's first press (J39/J40).
+  pass            PlayerPass?
   // Removing someone from the roster must not delete tournaments they played
   // in — the entry stays, detached, preserving the result.
   member          Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
   tee             Tee?              @relation(fields: [teeId], references: [id], onDelete: SetNull)
   teamMemberships TeamMember[]
   attendance      RoundAttendance[]
+  keeping         ScoringKeeper[]
   captainOf       Group[]           @relation("FlightCaptain")
   viceCaptainOf   Group[]           @relation("FlightViceCaptain")
   skinsEntries    SkinsEntry[]
@@ -1675,6 +1763,97 @@ model Player {
   @@index([eventId])
   @@index([groupId])
   @@index([memberId])
+}
+
+/**
+ * A GUEST'S PERSONAL PLAYER LINK (J39/J40, Ajay 2026-11-07: guests need no
+ * email and no app). One link = one guest entry in one event, nothing wider.
+ * Read only through `services/player-link.ts`; the rules are
+ * `domain/player-link.ts`.
+ *
+ * The code itself is never stored. `lookup` is a keyed HMAC of it (the one
+ * way a typed code finds its row: a database dump is no oracle without the
+ * app secret); `sealed` is AES-256-GCM of it under a second derived key, so
+ * the organizer can show the SAME link again mid-event (D3: re-sending is not
+ * rotating). `version` goes up on New link and is signed into every guest
+ * cookie, so a rotation ends every phone holding the old one.
+ */
+model PlayerPass {
+  id           String    @id @default(cuid())
+  playerId     String    @unique
+  eventId      String
+  lookup       String    @unique
+  sealed       String
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now())
+  createdBy    String    @default("")
+  rotatedAt    DateTime?
+  revokedAt    DateTime?
+  revokedBy    String    @default("")
+  lastOpenedAt DateTime?
+  /// PR 3: an optional address the guest proved, for a lost link only. Never Player.email.
+  recoveryEmail           String    @default("")
+  recoveryEmailVerifiedAt DateTime?
+  /// PR 2: the guest's own "turn off direct messages" (D7's switch). An account's lives on Member.
+  messagesOptOut Boolean   @default(false)
+  /// PR 2 (S8): the organizer's Mute. The pass stays live; the guest may still write to the organizers.
+  mutedAt        DateTime?
+  mutedBy        String    @default("")
+  /// PR 3: the slip in the guest's pocket — when it was printed, and for which version of the link.
+  /// `slipPrintedVersion < version` means the printed slip no longer opens (New link was pressed).
+  slipPrintedAt      DateTime?
+  slipPrintedVersion Int?
+  /// PR 3: what a self-entered guest typed under "Who invited you?". Staff only. Dies with the pass.
+  entryNote          String    @default("")
+  /// PR 3: keyed hash of the Ask-to-play nonce (event + device bound), so a weak-signal retry returns
+  /// the same entry. "" once its window is past.
+  entryNonceHash     String    @default("")
+  entryNonceAt       DateTime?
+
+  player  Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  event   Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  devices PlayerPassDevice[]
+  pushes  PlayerPassPush[]
+
+  @@index([eventId])
+}
+
+/**
+ * A browser a GUEST turned notices on in (J39/J40 PR 2). Bound to the pass's
+ * VERSION: New link, Turn off and the entry ending all stop it at once, because
+ * every send asks `livePass(passId, passVersion)`; and it cascades with the
+ * pass. Apart from `PushSubscription` (an account's, `endpoint @unique`), so a
+ * guest's subscribe on a browser that also holds an account never overwrites it.
+ */
+model PlayerPassPush {
+  id          String   @id @default(cuid())
+  passId      String
+  passVersion Int
+  endpoint    String
+  p256dh      String
+  auth        String
+  createdAt   DateTime @default(now())
+
+  pass PlayerPass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@unique([passId, endpoint])
+}
+
+/**
+ * The browsers a player link was opened on — a keyed hash of the browser's
+ * `ng_device` value under its own label, so it cannot be joined to
+ * `KnownDevice`. Only a TAP on /p records one (S1): a page load never does.
+ */
+model PlayerPassDevice {
+  id          String   @id @default(cuid())
+  passId      String
+  deviceHash  String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  pass PlayerPass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@unique([passId, deviceHash])
 }
 
 model Group {
@@ -2108,6 +2287,23 @@ model Stage {
    * which is every round that existed before this field.
    */
   printLog          String  @default("")
+  /**
+   * WHO ENTERS THIS ROUND'S SCORES (2026-11-04, sprint 2 part B): one of
+   *   group      one scorer per group keeps the group's card (`ScoringKeeper`)
+   *   each       each player enters their own — every round before this field
+   *   organizer  the committee enters them from paper cards; players may not
+   * Read only through `roundScoring` (lib/domain/round-scoring.ts), which reads
+   * an unknown value as "each". A new round gets `scoringDefaults(shape)`.
+   * The tournament's own "staff" setting (`Event.scoreEntryBy`) always wins.
+   */
+  scoreKeeping      String  @default("each")
+  /**
+   * THE END-OF-ROUND CHECK: "on" | "off". On, the other side confirms a match
+   * result (each player confirms their own card in stroke play) before it is
+   * final, and a disputed one is held off the board (`heldFromBoard`). Read
+   * through `roundScoring`; unknown reads as "off".
+   */
+  endCheck          String  @default("off")
 
   event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -2115,6 +2311,7 @@ model Stage {
   teams      Team[]
   attendance RoundAttendance[]
   skinsPots  SkinsPot[]
+  keepers    ScoringKeeper[]
   playoffHoles LeaguePlayoffHole[]
   /// The player-less Group rows that exist only to hold this round's matches —
   /// see `Group.stageId`. Never a flight; a flight has no round.
@@ -2135,6 +2332,40 @@ model Stage {
  * organizer flip a forty-player league to opt-out without writing forty
  * rows, and lets "by default you're in" be literally true.
  */
+/**
+ * THE ONE PHONE THAT KEEPS A GROUP'S CARD (2026-11-04, sprint 2 part B).
+ *
+ * At a real team cup (2026-10-18) every phone in a four-ball could write the
+ * match, and two did. On a round whose `Stage.scoreKeeping` is "group", one
+ * player per group holds the card: this row says who. `groupKey` is the
+ * published tee-sheet group, else the match, else the whole round — decided by
+ * `groupKeyFor` in lib/domain/group-keeping.ts and nowhere else.
+ *
+ * `epoch` counts hand-overs. A phone keeps the epoch it was given; a save
+ * carrying an older one is refused in words, so a scorer who was taken over
+ * cannot write beside the new one from a phone left in a pocket.
+ *
+ * A claim is an UPSERT on (stageId, groupKey), never a read-then-write: two
+ * phones pressing "I'll keep score" together leave one row, and the second
+ * press is told who has it.
+ */
+model ScoringKeeper {
+  id        String   @id @default(cuid())
+  eventId   String
+  stageId   String
+  groupKey  String
+  playerId  String
+  epoch     Int      @default(1)
+  claimedAt DateTime @default(now())
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage  Stage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, groupKey])
+  @@index([eventId])
+}
+
 model RoundAttendance {
   id        String   @id @default(cuid())
   eventId   String
@@ -3194,7 +3425,8 @@ model Thread {
    */
   scopeKey       String
   title          String   @default("")
-  createdByEmail String   @default("")
+  /// Who started it: an account's lower-cased email, or `guest:<playerId>` for a guest's link (the who-key, J39/J40 PR 2). The column keeps its old name: no SQL.
+  createdByKey   String   @default("") @map("createdByEmail")
   createdByName  String   @default("")
   createdAt      DateTime @default(now())
   /**
@@ -3221,7 +3453,8 @@ model Thread {
 model Message {
   id          String    @id @default(cuid())
   threadId    String
-  authorEmail String
+  /// The who-key of who wrote it (an email, or `guest:<playerId>`). Column name unchanged (@map, no SQL).
+  authorKey   String    @map("authorEmail")
   authorName  String    @default("")
   body        String
   createdAt   DateTime  @default(now())
@@ -3245,12 +3478,13 @@ model Message {
 model ThreadParticipant {
   id       String @id @default(cuid())
   threadId String
-  email    String
+  /// The who-key (an email, or `guest:<playerId>`). Column and index names unchanged (@map, no SQL).
+  whoKey   String @map("email")
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  @@unique([threadId, email])
-  @@index([email])
+  @@unique([threadId, whoKey], map: "ThreadParticipant_threadId_email_key")
+  @@index([whoKey], map: "ThreadParticipant_email_idx")
 }
 
 /**
@@ -3261,13 +3495,14 @@ model ThreadParticipant {
 model ThreadRead {
   id         String   @id @default(cuid())
   threadId   String
-  email      String
+  /// The who-key (an email, or `guest:<playerId>`). Column and index names unchanged (@map, no SQL).
+  whoKey     String   @map("email")
   lastReadAt DateTime @default(now())
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  @@unique([threadId, email])
-  @@index([email])
+  @@unique([threadId, whoKey], map: "ThreadRead_threadId_email_key")
+  @@index([whoKey], map: "ThreadRead_email_idx")
 }
 
 /**
@@ -3471,17 +3706,17 @@ model CourseCatalog {
 }
 
 /**
- * A name on the club's board — the permanent record, not a view of the data.
- * Deliberately DENORMALISED, and that is the whole design. Every field a board
- * needs is captured when the committee confirms it, so the record survives
- * everything that happens afterwards: a member leaving the roster, a tournament
- * being renamed, an event deleted under the retention policy, or a scoring
- * correction that would otherwise re-decide a championship years later. A board
- * that changes when you fix a bug is not a board.
- * There is no foreign key to Event for the same reason. `eventId` is kept so a
- * confirmed tournament can be recognised, but the entry does not depend on the
- * row still existing — a club's oldest records are exactly the ones whose
- * events are gone.
+ * A name on the club's board — a record kept as written, not a view of the data.
+ * Deliberately DENORMALISED. Every field a board needs is captured when the
+ * committee confirms it, so the entry survives a member leaving the roster, a
+ * tournament being renamed, or a scoring correction that would otherwise
+ * re-decide a championship years later. A board that changes when you fix a bug
+ * is not a board.
+ * There is no foreign key to Event. `eventId` is kept so a confirmed tournament
+ * can be recognised, but the entry does NOT survive that tournament being
+ * deleted: deleting a tournament is a purge (Ajay, 2026-11-07), and
+ * `services/purge.ts` removes its entries by hand because no cascade reaches
+ * them.
  * Unique on (eventId, playerId) rather than on eventId alone: the same player
  * cannot be recorded twice for one tournament, but two CAN share a title. The
  * domain refuses to break a tie precisely so a committee can declare a shared

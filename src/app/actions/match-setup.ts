@@ -11,9 +11,10 @@ import { money } from "@/lib/domain/money-format";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { memberGender } from "@/lib/services/roster";
 import { boardChanged } from "@/lib/services/board-refresh";
-import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
+import { planMatch, casualScoreKeeping, type MatchSetupInput } from "@/lib/domain/quick-match";
 import { expiryFrom } from "@/lib/domain/round-expiry";
 import { generateAccessCode } from "@/lib/codes";
+import { scoringDefaults } from "@/lib/domain/round-scoring";
 
 /**
  * Create ONE casual round, whole, in one call.
@@ -135,14 +136,17 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        * this tournament hasn't been launched") addressed to a field of two
        * standing on the fairway.
        *
-       * `configUnlocked` is the other half and is not an oversight: live
-       * normally locks configuration, because changing a format under a field
-       * that has already been told what it is playing is a real harm. Two
-       * people who decide on the 1st tee to play nine instead of eighteen are
-       * not betraying anybody's expectations — they ARE the expectations.
+       * And never locked, by the FAMILY RULE, not by a flag: live normally
+       * locks configuration, because changing a format under a field that has
+       * already been told what it is playing is a real harm. Two people who
+       * decide on the 1st tee to play nine instead of eighteen are not
+       * betraying anybody's expectations — they ARE the expectations. Until
+       * state machine PR 9b this row wrote the blanket unlock flag to stay
+       * open; the machine's `setupLockedByLaunch(status, family)` now says a
+       * casual round ("match" shape) is never locked (proposal 8.2), and the
+       * flag is neither written nor read.
        */
       status: "live",
-      configUnlocked: true,
       shape: "match",
       // Where the round is being played decides what its stake is counted in
       // — see `local-currency.ts`. "" follows the organization, as before.
@@ -213,8 +217,9 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        *
        * "participants" rather than "staff": a member picked off the roster can
        * sign in and should see the round they are playing. What changes is
-       * that sharing it becomes a DECISION — the round stays `configUnlocked`,
-       * so anyone who does want a public link can turn one on.
+       * that sharing it becomes a DECISION — a casual round's setup is never
+       * locked (the family rule), so anyone who does want a public link can
+       * turn one on.
        */
       leaderboardVisibility: "participants",
       scoreEntryBy: "players",
@@ -347,6 +352,12 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        * this effectively never happen, and "effectively never" is not never.
        */
       accessCode: await issueCode(),
+      // Who keeps the card and who checks it — a casual round signs nothing,
+      // so its check starts off (`scoringDefaults`). Who enters scores is the
+      // setup's one line: one phone for the group unless they each keep their
+      // own (`casualScoreKeeping`, 2026-11-05).
+      ...scoringDefaults(event.shape),
+      scoreKeeping: casualScoreKeeping(input),
     },
   });
 

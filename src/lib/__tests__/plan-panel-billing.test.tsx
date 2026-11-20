@@ -17,7 +17,7 @@ import { PLANS, parsePricingOverrides } from "@/lib/plans";
 const NONE = parsePricingOverrides(undefined);
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ");
 const panel = (planKey: string, billing?: { enabled: boolean; hasSubscription: boolean; pastDue: boolean; canEdit: boolean }) =>
-  text(renderToStaticMarkup(<PlanPanel planKey={planKey} overrides={NONE} currency="USD" billing={billing} />));
+  text(renderToStaticMarkup(<PlanPanel country="" planKey={planKey} overrides={NONE} currency="USD" billing={billing} />));
 
 describe("buying a plan from the plan panel", () => {
   it("with billing off, says plans are arranged directly and offers no button", () => {

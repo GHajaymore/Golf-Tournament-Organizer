@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { makeBoardPublic, readPublicBoard } from "./public-board";
+import { expectLaunched } from "./end-early";
 
 /**
  * A 36-HOLE CLUB CHAMPIONSHIP WITH A CUT, RUN FROM NOTHING.
@@ -91,6 +92,17 @@ async function finish(page: Page, round: string) {
   const closedNotes = page.getByText(/Closed\. Untick it/);
   const before = await closedNotes.count();
   await box.click();
+  /**
+   * Cards typed or imported by the committee are not approved yet, so closing
+   * asks first, naming whose (state machine PR 4; the TD's ruling, panel 8.1
+   * Q4) — and the secretary closing the round over them answers Close anyway.
+   */
+  const anyway = page.getByRole("button", { name: "Close anyway" });
+  await expect(closedNotes.nth(before).or(anyway)).toBeVisible({ timeout: 30_000 });
+  if (await anyway.isVisible()) {
+    await expect(page.getByRole("group", { name: "Close the round anyway?" })).toContainText(`approved yet. Close ${round} anyway?`);
+    await anyway.click();
+  }
   await expect(closedNotes).toHaveCount(before + 1, { timeout: 30_000 });
 }
 
@@ -105,7 +117,8 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A series of rounds/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
   });
 
   await test.step("date and course", async () => {
@@ -126,7 +139,7 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     await open(page, "/registration");
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
-      await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
+      await page.getByRole("textbox", { name: /^Email · optional/ }).fill(medalEmail(i));
       // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
       await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
@@ -186,7 +199,7 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   await test.step("round 1 cards", async () => {

@@ -111,15 +111,15 @@ Measured on the seeded fixture, `/leaderboard`, mid-round:
 
 ```
 #   PLAYER                       THRU  GROSS  NET  TO PAR
-1   Aj Moore                        9     36   34   E
+1   Ned Calloway                        9     36   34   E
 2   Sang-woo Kim                   18     71   56   E
 3   Síle Ní Bhraonáin-O’Dwyer      18     71   60   E
 4   Marcus Webb                    18     71   63   E
 ```
 
-All four are level par. Aj Moore is first on **net 34 against net 56** — a
+All four are level par. Ned Calloway is first on **net 34 against net 56** — a
 number that is lower only because it covers nine holes rather than eighteen.
-The dashboard states it outright: *"Aj Moore leads at level par (net 34)."*
+The dashboard states it outright: *"Ned Calloway leads at level par (net 34)."*
 
 The mechanism is one line. `compareOnBasis` in `domain/stroke-countback.ts`
 compares `scoreOnBasis`, which is the raw `gross`, `net` or `points` total.
@@ -151,7 +151,7 @@ RANKED on". It returns `toParText(row.toPar)`, and `toPar` is
 So both boards read:
 
 ```
-1  Aj Moore                   thru 9   E
+1  Ned Calloway                   thru 9   E
 2  Sang-woo Kim               F        E
 3  Síle Ní Bhraonáin-O’Dwyer  F        E
 4  Marcus Webb                F        E
@@ -1397,7 +1397,11 @@ the table says nothing for a side of three. Recommended: work it from the side's
 size and the round's count where the table gives a figure, keep 85% and say
 "club convention" where it does not, and ask before cards are re-scored. Until
 then a committee running best 1 of 4 should set 75% itself, which the round's
-card lets it do.
+card lets it do. **In a MATCH, fixed 2026-11-09:** a Best Ball round on a
+head-to-head stage (round robin, knockout, cup session) is recommended 90%, four-ball
+match play (`FOUR_BALL_MATCH_PLAY`, `recommendedAllowance`); it had been offered the
+stroke-play 85%. A committee's own figure still wins. The stroke-play side sizes
+above are unchanged.
 
 And one thing that is deliberate: **a round frozen before 2026-10-13 keeps the
 strokes it was played off**, which were worked the old way. It holds the whole
@@ -1418,6 +1422,17 @@ not something the row knows. Giving a stroke on a guess is worse than giving
 none. To do it properly a tee (or the course card per tee) needs its par by nine.
 Until then a committee can set a player's handicap for the round by hand, on the
 round's card.
+
+**A nine is rated as half its set's eighteen, front or back** (seen 2026-11-14,
+fixing Which nine wiping a round's tees, `teeAfterVenue` in `domain/venue.ts`).
+A tee stores one Course Rating and Slope for eighteen holes, and `nineHoleTee`
+halves the rating and par for either nine, so the front and the back of one set
+price a player alike. Where a club has published its own nine-hole ratings
+(Rule 6.1b allows them, and they often differ by a few tenths between the nines)
+the app cannot hold them: that needs a rating and slope per nine on the tee, a
+schema change, and its own decision. The tees the ROUND is played from are now
+kept when the nine changes (`a-rounds-tees-survive-its-nine.audit.test.ts`, and a
+`matrix.test.ts` cell); which nine-hole figures those tees carry is this entry.
 
 **A side that shares one ball gives none either** (foursomes, greensomes, a
 scramble). Appendix C says how the side's handicap is taken from its players';
@@ -1504,6 +1519,16 @@ because the fix changes how the leaderboard breaks a tie — all three readers a
 yet. Do it with a test that halves a match at an away course whose hardest holes differ from
 the home card's, and asserts the winner both ways.
 
+**DONE — J26, 2026-11-06.** Four readers, not three: the cut out of a match-play round
+(`regroup.ts`) read the same card. All four now decide each match on its own venue's card
+through ONE function, `matchCountbackIndex` (`course-resolution.ts`; match venue, then the
+round's, then the tournament's, narrowed to the nine played — the per-match twin of `roundCard`
+above), reached by `countbackCardsFor` and `state.countbackCardFor`. The standings' own "toughest
+N holes" tiebreaker ranks each match's own card too. Sweep with a control:
+`the-countback-card-is-the-match-venue.test.ts`; the test asked for above, both ways and by
+property: `an-away-match-is-decided-on-the-away-card.test.ts`; on real rows:
+`an-away-match-countback.audit.test.ts` and `e2e/an-away-halve-on-the-away-card.spec.ts`.
+
 **Captions tied to no box: about thirty candidates, measured 2026-10-14, read-only.** The
 invitation box on Registration had `<label>Message</label>` with no `htmlFor`, so a screen
 reader announced an unnamed text area; that one is fixed, and its browser test finds the box
@@ -1532,10 +1557,20 @@ used. Do it as a choice on the knockout's card ("If players tie for the last pla
 countback, then draw"), and with a play-off the draw waits until the committee names who went
 through. Test with a field where two players are level on every step of the ladder.
 
-**Net countback off a full handicap.** Committee Procedures 5A(6) suggests taking 1/2, 1/3 and
-1/6 of the handicap from the last nine, six and three where hole-by-hole net scores are not
-used. The engine counts back on hole-by-hole net, which the same section also allows; check
-which a club's terms of competition expect before changing anything.
+**Net countback off a full handicap. — DONE 2026-11-09 (the Golf Pro and the Tournament
+Director, on Ajay's "decide on best practice").** Committee Procedures 5A(7) recommends taking
+1/2, 1/3, 1/6 and 1/18 of the handicap off the last nine, six, three and one in a handicap
+stroke-play competition, and keeps the strokes "as they were applied" only where the stroke
+table scores the competition (four-ball stroke play, Stableford, par/bogey). An individual net
+stroke round now counts back by those fractions of the playing handicap the round actually gave
+(gross less net over the card), and a nine-hole round by 2/3, 1/3 and 1/9
+(`countbackCardOn` in `stroke-countback.ts`, used by the board, its cut, the report and a league
+night). An event CREATED before 2026-11-09 00:00 UTC keeps hole-by-hole net for its whole life
+(`netCountbackMethodFor`), because places are worked out on read and a finished event must not
+re-order itself. Left for later: a committee option on the round to choose hole-by-hole net
+(there is no stroke-countback setting to hang it on today), and the same fractions for a
+shared-ball team medal (foursomes, a scramble), whose countback in `services/teams.ts` is still
+the side's hole-by-hole net.
 
 **A halved round-robin match is half a point each**, with the all-square tiebreakers applied
 only where the organizer ticks them. Most leagues play it that way; some award no points.
@@ -1560,7 +1595,39 @@ dashboard's tie panel, are the pattern to copy. Left because the bracket's draw,
 
 **A round robin's cut** (`generateCutRound`, `survivors`) still takes the standings' order,
 whose last fallback is the club's tiebreak chain. Same shape, same fix, not asked for.
+**DONE in J31 (2026-11-06):** the same rule and the same setting — `cutLineOutcome` (the one
+function; `strokeCutOutcome` is its stroke name) asked of the table through
+`roundRobinCutOutcome`, on points for "ties" and a play-off and on the table's shared places
+(its own tie-breaks) for a countback. `generateCutRound` refuses to draw through an unsettled
+tie, the board lights and marks it the same way, and the committee records it on the round the
+cut draws (`settleCutTie`, `roundRobinCutOf`). The knockout's qualification tie (J30, ruled for
+after launch) is still list order; it is to call `cutLineOutcome` with its own rows and no
+"ties" (a draw of fixed size, Committee Procedures 5A(7)).
 
-**Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
-board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
+**A head-to-head cycle at a round robin's line is ranked by entry order — SEEN in the J31 review,
+NOT CHANGED (2026-11-07).** Round robin → round robin with a cut → a second cut on countback.
+Round 2 among four: Ann beats all three; Bea b Cat, Cat b Dot, Dot b Bea, each 1 up. Bea, Cat
+and Dot are level on 2 points, each won 1 hole and lost 2, and their meetings go round in a
+circle — nothing they DID separates them, so the countback should end in a draw by lot for the
+one place. `rankPlayers` (`domain/standings.ts`) sorts the three by the club's chain (all zero)
+and then seed, and gives shared places by asking `separated` of each NEIGHBOURING PAIR's own
+meeting: Bea b Cat, Cat b Dot — so it numbers them 2, 3, 4, and the cut sends Bea, the earliest
+entry, through. The board and the draw agree (they read the same table), so nothing on screen
+disagrees; both are wrong the same way. Pinned as an `it.todo` in
+`the-board-and-the-draw-agree-on-a-cut.audit.test.ts`. The fix is in `rankPlayers`: decide a
+shared place over the whole level GROUP's mini-league (as the sort already does), not pair by
+pair. Left because it moves every round robin board in the app, not only a cut, and wants its
+own matrix cells and three rounds.
+**DONE (2026-11-07, `claude/h2h-cycle-mini-league`):** `domain/level-places.ts` decides a
+level group's places over the group — head-to-head as the mini-league among only the tied,
+re-asked of any part still level; a cycle goes on to the next step together; whoever the chain
+cannot separate shares the place. `rankPlayers` and the league of clubs' `orderClubs` (which had
+the same fault as an intransitive sort) both use it. The `it.todo` is a real test on real rows
+(board and draw both owe a draw for the one place, in two entry orders); the matrix carries a
+3-cycle and a 4-player partial cycle; `a-head-to-head-cycle-shares-the-place.test.ts` works the
+rule by hand in every entry order and sweeps for a second copy. Long form:
+`docs/claude/knockouts-and-leagues.md`, "A table's ties".
+
+**Net countback off a full handicap** (above) was unchanged then (fractions since 2026-11-09),
+and the cut's countback is the board's: hole-by-hole net at the time. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
 fractional method agrees, and says so.

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readSource } from "@/lib/__tests__/source";
 import { summariseEmailTrouble, type EmailFailureRow } from "@/lib/domain/email-trouble";
+import { promotionReplyLine, PROMOTION_FOLLOW_UP_MS } from "@/lib/domain/promotion";
 
 const src = (...parts: string[]) => readSource(...parts);
 
@@ -35,7 +36,12 @@ describe("a player is told when their place in the field changes", () => {
      * WHERE the code lived, not what it did.
      */
     const waitlist = src("src", "lib", "services", "waitlist.ts");
-    expect(tournament).toMatch(/await drainWaitlist\(eventId\);/);
+    // IN THE WITHDRAWAL ITSELF (day-of field changes, PR A): `removeSignup` now asks
+    // `promoteFromWaitlist`, the same rule answering WHO moved in; `drainWaitlist` is it, counted.
+    // Pinned to that body — the file-wide match this was passed on other callers alone.
+    const remove = tournament.slice(tournament.indexOf("export async function removeSignup("), tournament.indexOf("export async function removeSignups("));
+    expect(remove).toMatch(/await promoteFromWaitlist\(eventId\)/);
+    expect(waitlist).toMatch(/export async function drainWaitlist\([^)]*\)[^{]*\{\s*return \(await promoteFromWaitlist\(eventId\)\)\.length;/);
     expect(waitlist).toMatch(/notifyFieldChange\(/);
     expect(waitlist).toMatch(/"promoted"/);
   });
@@ -137,7 +143,10 @@ describe("a promotion is recorded so it can be followed up", () => {
   it("asks for a reply in the same window the badge uses", () => {
     // The email and the screen must agree about what 48 hours means, or the
     // organizer chases somebody the software never asked to reply.
-    expect(email).toContain("within 48 hours");
+    // The far-out wording keeps the 48 hours (`promotionReplyLine`, tested in
+    // promotion-reply-line.test.ts); the email takes its line from there.
+    expect(email).toContain("promotionReplyLine(");
+    expect(promotionReplyLine(5).strong).toBe(`within ${PROMOTION_FOLLOW_UP_MS / 3_600_000} hours`);
   });
 
   it("does not claim the place is conditional", () => {

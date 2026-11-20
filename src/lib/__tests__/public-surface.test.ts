@@ -209,11 +209,22 @@ describe("the public leaderboard ships no contact details", () => {
   });
 
   it("the live page hands no raw database row to a client component", () => {
-    const src = stripComments(read("app", "live", "[token]", "page.tsx"));
     // The whole Event row is fetched (settings, share token and all). It must
     // stay on the server: rendered fields only, never passed down as an object.
-    expect(src).not.toMatch(/event=\{event\}/);
-    expect(src).not.toMatch(/\{\.\.\.event\}/);
+    // Both doors to the board (`/live` and, since 2026-11-05, `/play/board`) and the board itself.
+    const board = stripComments(read("components", "PublicBoard.tsx"));
+    for (const src of [
+      stripComments(read("app", "live", "[token]", "page.tsx")),
+      stripComments(read("app", "play", "board", "page.tsx")),
+      board,
+    ]) {
+      expect(src).not.toMatch(/event=\{event\}/);
+      expect(src).not.toMatch(/\{\.\.\.event\}/);
+    }
+    // And what crosses into the board is the six fields it draws from, picked, not the row.
+    expect(board).toMatch(/export function boardEventOf/);
+    expect(stripComments(read("app", "live", "[token]", "page.tsx"))).toMatch(/event=\{boardEventOf\(event\)\}/);
+    expect(stripComments(read("app", "play", "board", "page.tsx"))).toMatch(/event=\{boardEventOf\(event\)\}/);
   });
 });
 

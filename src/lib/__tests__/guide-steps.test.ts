@@ -13,7 +13,10 @@ import { GUIDE_STEPS } from "../guide-steps";
  */
 
 const PINNED: [label: string, file: string][] = [
-  ["Publish the link", "src/components/RegistrationClient.tsx"],
+  ["Open entries", "src/lib/registration.ts"],
+  ["Close entries", "src/lib/registration.ts"],
+  ["Reopen entries", "src/lib/registration.ts"],
+  ["Save entry terms", "src/components/EntryTermsCard.tsx"],
   ["Keep their money as it is", "src/components/OrgKindPicker.tsx"],
   ["Switch anyway", "src/components/OrgKindPicker.tsx"],
   ["Generate flights", "src/components/GroupingControls.tsx"],
@@ -26,16 +29,51 @@ const PINNED: [label: string, file: string][] = [
   ["Suspend play now", "src/components/PlayStatusControl.tsx"],
   ["Start this game", "src/components/ContestsClient.tsx"],
   ["Everyone with a card", "src/components/SkinsPotClient.tsx"],
-  ["Unlock setup", "src/components/SetupLockBanner.tsx"],
+  // The committee correction replaces the blanket Unlock (state machine PR 5b): the one button, on every banner and the dashboard.
+  ["Make a committee correction", "src/components/CommitteeCorrection.tsx"],
+  // Day-of field changes (PR A): the under-way Entries screen.
+  ["Withdraw", "src/components/RegistrationClient.tsx"],
+  ["Put back", "src/components/WithdrawnList.tsx"],
+  ["Add late entry", "src/components/RegistrationClient.tsx"],
   ["Save scorecard", "src/components/StrokePlayEntry.tsx"],
   ["Certify my card", "src/components/PlayerCard.tsx"],
   ["Draw sides automatically", "src/components/TeamsClient.tsx"],
   ["Divide the field", "src/components/BracketFlights.tsx"],
+  // The secretary's home (2026-10-24): its copy card, and the buttons its job lines carry.
+  ["Create the copy", "src/components/CopyLastEvent.tsx"],
+  ["Approve entries", "src/lib/domain/needs-you-now.ts"],
+  ["Open score entry", "src/lib/domain/needs-you-now.ts"],
+  // Since the state machine's PR 6 the tournament's own job is the dashboard's next action, in its words.
+  ["Launch tournament", "src/lib/domain/tournament-status.ts"],
+  ["Complete tournament", "src/lib/domain/tournament-status.ts"],
   // The Print kit (2026-10-23) and its doors.
   ["Reprint these", "src/components/print/PrintKitClient.tsx"],
   ["Print the signs", "src/components/PlaySettings.tsx"],
+  ["Share", "src/components/PlaySettings.tsx"],
   ["Print…", "src/app/(app)/foursomes/page.tsx"],
   ["Print…", "src/app/(app)/cup/page.tsx"],
+  // Member or guest (the no-email player identity, PR 1): the CSV preview's buttons.
+  ["Download template", "src/components/RegistrationClient.tsx"],
+  // Cut A (event-first, 15 Nov): the members list asked for at the draw and offered on Entries.
+  ["Import members", "src/components/ImportMembers.tsx"],
+  ["Add a player", "src/components/ImportMembers.tsx"],
+  ["Create tournament", "src/components/CreateFirstTournament.tsx"],
+  ["Make guest", "src/components/RegistrationClient.tsx"],
+  ["Make member", "src/components/RegistrationClient.tsx"],
+  ["Choose another file", "src/components/RegistrationClient.tsx"],
+  // A guest's player link panel (J39/J40): its words are the link's one module, drawn by PlayerLinkPanel.
+  ["Player link", "src/lib/domain/player-link.ts"],
+  ["Show QR", "src/lib/domain/player-link.ts"],
+  ["Read it out", "src/lib/domain/player-link.ts"],
+  ["Copy link", "src/lib/domain/player-link.ts"],
+  ["New link", "src/lib/domain/player-link.ts"],
+  ["Turn off link", "src/lib/domain/player-link.ts"],
+  // PR 2 (S8): the panel's mute, from the same words module.
+  ["Mute in messages", "src/lib/domain/player-link.ts"],
+  ["Unmute in messages", "src/lib/domain/player-link.ts"],
+  // PR 3: player link slips on the Print kit, from the slips' one words module.
+  ["Make new links for all", "src/lib/domain/player-link-slips.ts"],
+  ["Print the new slips", "src/lib/domain/player-link-slips.ts"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */
@@ -76,5 +114,28 @@ describe("the step-by-step guide names buttons the app really has", () => {
       expect(s.blocks.length, s.id).toBeGreaterThan(0);
     }
     expect(new Set(GUIDE_STEPS.map((s) => s.id)).size).toBe(GUIDE_STEPS.length);
+  });
+});
+
+describe("the guide teaches money in the order a tournament office does", () => {
+  const text = (s: (typeof GUIDE_STEPS)[number]) => JSON.stringify(s.blocks);
+  const index = (id: string) => GUIDE_STEPS.findIndex((s) => s.id === id);
+
+  it("sets money and the prize list up BEFORE the Launch part (setup audit item 16)", () => {
+    const setup = GUIDE_STEPS.findIndex((s) => text(s).includes("[[Add a prize]]"));
+    expect(setup, "the guide never says how to write the prize list").toBeGreaterThan(-1);
+    expect(setup, "the prize list is taught after launch").toBeLessThan(index("launch"));
+    const modes = GUIDE_STEPS.findIndex((s) => text(s).includes("Tournament kitty"));
+    expect(modes, "the money modes are taught after launch").toBeLessThan(index("launch"));
+  });
+
+  it("points at the menu Prizes & payouts is actually in", () => {
+    const where = GUIDE_STEPS.flatMap((s) => s.blocks)
+      .filter((b): b is { kind: "where"; text: string } => b.kind === "where" && b.text.includes("Prizes & payouts"));
+    expect(where.length, "no part says where Prizes & payouts is").toBeGreaterThan(0);
+    for (const w of where) {
+      expect(w.text, "Prizes & payouts is in Set up, not Afterwards").not.toMatch(/Afterwards\s*→\s*Prizes/);
+      expect(w.text).toMatch(/Set up\s*→\s*Prizes/);
+    }
   });
 });

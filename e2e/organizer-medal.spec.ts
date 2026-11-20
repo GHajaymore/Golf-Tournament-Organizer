@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE, organizerEvent, setRoundFormat } from "./organizer-fixture.mjs";
+import { pressRadio } from "./press-radio";
+import { expectLaunched, pressComplete } from "./end-early";
 
 /**
  * A CLUB MEDAL, RUN FROM NOTHING BY SOMEBODY WHO HAS NEVER USED THE APP.
@@ -80,7 +82,8 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await page.getByLabel("Tournament name").fill(TOURNAMENT);
     await page.getByRole("button", { name: /^A single round/ }).click();
     await page.getByRole("button", { name: "Create tournament" }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+    await page.goto("/dashboard");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
 
@@ -108,7 +111,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
 
     // The link the club sends its members — off until somebody says so.
     await open(page, "/event");
-    await page.getByRole("radio", { name: /Anyone with the link/ }).check();
+    await pressRadio(page.getByRole("radio", { name: /Anyone with the link/ }));
     const saveSettings = page.getByRole("button", { name: "Save settings" });
     await saveSettings.click();
     await expect(saveSettings).toHaveCount(0, { timeout: 20_000 });
@@ -118,7 +121,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await open(page, "/registration");
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
-      await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
+      await page.getByRole("textbox", { name: /^Email · optional/ }).fill(medalEmail(i));
       // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
       await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
@@ -169,7 +172,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
     await setRoundFormat(stages[0].id, "Stroke Play");
     await dialog.getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   await test.step("type in each returned card", async () => {
@@ -271,7 +274,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
 
   await test.step("complete", async () => {
     await open(page, "/dashboard");
-    await page.getByRole("button", { name: "Complete tournament" }).click();
+    await pressComplete(page);
     const confirm = page.getByRole("alertdialog");
     // A free club's completed tournament is kept read-only for fifteen days and
     // then deleted (2026-10-21), so the warning offers the report first.

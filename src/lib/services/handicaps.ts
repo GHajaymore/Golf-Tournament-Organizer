@@ -1,5 +1,5 @@
 import "server-only";
-import { playedOnBy } from "./courses";
+import { playedOnBy, playedOnByAny } from "./courses";
 import { prisma } from "../db";
 import {
   nineHoleTee,
@@ -540,34 +540,122 @@ export async function teesForEvent(eventId: string): Promise<TeeView[]> {
     include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } },
   });
 
-  const out: TeeView[] = [];
-  for (const c of courses) {
-    // parseHoleArray returns null for anything unparseable, and an empty array
-    // is the honest representation of "no data" for every consumer here.
-    const coursePars = parseHoleArray(c.pars) ?? [];
-    const courseYards = parseHoleArray(c.yards) ?? [];
-    const courseSi = parseHoleArray(c.strokeIndex) ?? [];
-    for (const t of c.tees) {
-      const pars = parseHoleArray(t.pars) ?? [];
-      const yards = parseHoleArray(t.yards) ?? [];
-      const si = parseHoleArray(t.strokeIndex) ?? [];
-      out.push({
-        id: t.id,
-        courseId: c.id,
-        courseName: c.name,
-        name: t.name,
-        gender: t.gender,
-        courseRating: t.courseRating,
-        slopeRating: t.slopeRating,
-        par: t.par,
-        rated: isRated(t),
-        pars: pars.length ? pars : coursePars,
-        yards: yards.length ? yards : courseYards,
-        strokeIndex: si.length ? si : courseSi,
-      });
+  return courses.flatMap(teeViewsOf);
+}
+
+/**
+ * THE TEES EACH TOURNAMENT'S FIELD IS ACTUALLY PLAYING, for several tournaments
+ * in ONE batch (a handful of queries, however many tournaments).
+ *
+ * Resolved by `teeIdFor`, the one resolver, exactly as `handicapsForRound` does
+ * per player: tournament policy, the flight's set, the ladies' set, the player's
+ * own, then the round's default (`teeForPlay`). A tee nobody resolves to is not
+ * in play, so an unrated set sitting unused on the course is not reported.
+ * With nobody entered yet, the round's default set is the one in play.
+ *
+ * `courses` says whether a fixed course exists at all, which is what separates
+ * "no tees are set up" from "players choose their own".
+ */
+export async function teesInPlayFor(
+  events: readonly { id: string; teePolicy: string; defaultTeeId: string | null; courseId: string | null; courseMode: string }[],
+): Promise<Map<string, { tees: TeeView[]; hasCourse: boolean; open: boolean }>> {
+  const out = new Map<string, { tees: TeeView[]; hasCourse: boolean; open: boolean }>();
+  if (events.length === 0) return out;
+  const ids = events.map((e) => e.id);
+  const [courses, players, groups] = await Promise.all([
+    prisma.course.findMany({
+      where: playedOnByAny(ids),
+      include: {
+        tees: { orderBy: [{ position: "asc" }, { name: "asc" }] },
+        events: { where: { eventId: { in: ids } }, select: { eventId: true } },
+        defaultFor: { where: { id: { in: ids } }, select: { id: true } },
+      },
+    }),
+    prisma.player.findMany({
+      where: { eventId: { in: ids }, status: "confirmed" },
+      select: { eventId: true, teeId: true, groupId: true, gender: true },
+    }),
+    prisma.group.findMany({ where: { eventId: { in: ids } }, select: { id: true, teeId: true } }),
+  ]);
+  const flightTee = new Map(groups.map((g) => [g.id, g.teeId]));
+  for (const e of events) {
+    const mine = courses.filter((c) => c.events.some((x) => x.eventId === e.id) || c.defaultFor.some((x) => x.id === e.id));
+    const views = mine.flatMap(teeViewsOf);
+    const open = e.courseMode === "open";
+    const base = { hasCourse: mine.length > 0, open };
+    if (views.length === 0) {
+      out.set(e.id, { tees: [], ...base });
+      continue;
     }
+    const byId = new Map(views.map((t) => [t.id, t]));
+    const like: TeeLike[] = views.map((t, i) => ({ id: t.id, courseId: t.courseId, name: t.name, courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par, position: i }));
+    const playedCourse = e.courseId ?? (mine.length === 1 ? mine[0].id : null);
+    const defaultTeeId = teeForPlay(like, { eventDefaultTeeId: e.defaultTeeId }, playedCourse);
+    const playingAt = defaultTeeId ? byId.get(defaultTeeId)?.courseId : undefined;
+    const onThisCourse = (id: string) => (playingAt ? byId.get(id)?.courseId === playingAt : true);
+    const ladies = ladiesTeeOn(
+      views.map((t) => [t.id, { courseId: t.courseId, gender: t.gender, courseRating: t.courseRating }] as const),
+      playingAt,
+    );
+    const inPlay = new Set<string>();
+    for (const p of players.filter((x) => x.eventId === e.id)) {
+      const id = teeIdFor(e.teePolicy, p.teeId, flightTee.get(p.groupId ?? "") ?? null, defaultTeeId, onThisCourse, ladiesTeeFor(p.gender, ladies));
+      if (id) inPlay.add(id);
+    }
+    if (inPlay.size === 0 && defaultTeeId) inPlay.add(defaultTeeId);
+    out.set(e.id, { tees: views.filter((t) => inPlay.has(t.id)), ...base });
   }
   return out;
+}
+
+/**
+ * ONE COURSE'S TEES, each with its card resolved — the rule `teesForEvent`
+ * applies, for a reader that has the course and not a tournament (the setup
+ * questionnaire shows the card before the tournament exists). One place, so
+ * the card checked there is the card the round is scored off.
+ */
+export function teeViewsOf(c: {
+  id: string;
+  name: string;
+  pars: string;
+  yards: string;
+  strokeIndex: string;
+  tees: Array<{
+    id: string;
+    name: string;
+    gender: string;
+    courseRating: number;
+    slopeRating: number;
+    par: number;
+    pars: string;
+    yards: string;
+    strokeIndex: string;
+  }>;
+}): TeeView[] {
+  // parseHoleArray returns null for anything unparseable, and an empty array
+  // is the honest representation of "no data" for every consumer here.
+  const coursePars = parseHoleArray(c.pars) ?? [];
+  const courseYards = parseHoleArray(c.yards) ?? [];
+  const courseSi = parseHoleArray(c.strokeIndex) ?? [];
+  return c.tees.map((t) => {
+    const pars = parseHoleArray(t.pars) ?? [];
+    const yards = parseHoleArray(t.yards) ?? [];
+    const si = parseHoleArray(t.strokeIndex) ?? [];
+    return {
+      id: t.id,
+      courseId: c.id,
+      courseName: c.name,
+      name: t.name,
+      gender: t.gender,
+      courseRating: t.courseRating,
+      slopeRating: t.slopeRating,
+      par: t.par,
+      rated: isRated(t),
+      pars: pars.length ? pars : coursePars,
+      yards: yards.length ? yards : courseYards,
+      strokeIndex: si.length ? si : courseSi,
+    };
+  });
 }
 
 /**

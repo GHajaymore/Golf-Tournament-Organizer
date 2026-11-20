@@ -60,6 +60,16 @@ const UNREACHED: Record<string, string> = {
     "Flights that have fielded a side. The league screens ask `flightsIn` instead, which is the right question before the first nomination — see its comment.",
   "tournament.ts:expectedRrTotal":
     "How many matches a full round robin should have. The draw checks its own arithmetic now.",
+  // `tournament-facts.ts:tournamentFactsFor` came off in the state machine's
+  // PR 3: the dashboard, Tournament details, Rounds & formats and every
+  // console screen's context bar call it through `tournamentStatusFor`.
+  // `group-keeping.ts:keeperFor` came off 2026-11-05: /play asks it (phase 2).
+
+  // ── The state machine's retired readers ──
+  // `setup-flow.ts:launchCheckFor` came off in PR 9a (14 Nov): DELETED, with its file; the three
+  // audit tests that held the flow's launch verdict through it read the dialog (`setupRailFor(id).launch`).
+  "tournament-facts.ts:setupFactsFor":
+    "The setup flow's own facts, read only by `launchCheckFor` — dead the moment PR 9a deleted that. Not deleted in 9a only because `tournament-facts.ts` is held by another open pull request (#1144); the second half of 9a deletes it. `setupSideFactsFor` is the live reader.",
 };
 
 /** Every `.ts` under services. */

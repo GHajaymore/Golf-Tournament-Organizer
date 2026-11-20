@@ -2,11 +2,13 @@
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { setStageCut, setStageCutScope, setStageCutTies } from "@/app/actions/tournament";
-import { cutAdvancesEveryone, cutTieRuleOf, type CutTieRule } from "@/lib/domain/cut";
+import { cutAdvancesEveryone, cutTieRuleOf, type CutTieRule, type CutLineKind } from "@/lib/domain/cut";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
+import { useCaughtUp } from "./useAction";
 import { plural } from "@/lib/format";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { useKeptInView } from "@/lib/bring-into-view";
 
 export function CutControl({
   formId,
@@ -22,16 +24,20 @@ export function CutControl({
   locked = false,
   tiesGoThrough = false,
   tieRule = "ties",
+  decidedOn = "card",
 }: {
   /**
-   * A cut between two stroke rounds, where a tie for the last place is settled
-   * the way `tieRule` says (`strokeCutOutcome`) — and offered here. Under the
-   * default, everyone level goes through, which the count says so "2 of 5
-   * advance" is not read as a promise of exactly two.
+   * A cut that settles a tie for the last place the way `tieRule` says
+   * (`cutLineOutcome`) — between two stroke rounds, or out of a round robin's
+   * table (J31) — and offered here. Under the default, everyone level goes
+   * through, which the count says so "2 of 5 advance" is not read as a promise
+   * of exactly two.
    */
   tiesGoThrough?: boolean;
   /** "ties" | "playoff" | "countback" — the stored `Stage.cutTies`. */
   tieRule?: string;
+  /** What "level" and "countback" mean here: a card's score, or a table's points and tie-breaks. */
+  decidedOn?: CutLineKind;
   /** Setup is locked, which both cut actions refuse — see `SetupLocked`. */
   locked?: boolean;
   /** Stable id for radio/name grouping — doesn't need to be a real stage id yet. */
@@ -58,6 +64,11 @@ export function CutControl({
   const [sc, setSc] = useState(scope === "perFlight" ? "perFlight" : "overall");
   const [ties, setTies] = useState<CutTieRule>(cutTieRuleOf(tieRule));
   const [saving, startTransition] = useTransition();
+  const [refused, setRefused] = useState("");
+  // Said under the box, and still in view once the screen has caught up with the lock: the banner
+  // arrives above it, and at the top of the page nothing else holds the place (`useKeptInView`).
+  const refusedRef = useKeptInView(refused, locked);
+  const caughtUp = useCaughtUp();
   // "and anyone tied" only where the ties DO go through.
   const allTied = tiesGoThrough && ties === "ties";
 
@@ -65,7 +76,7 @@ export function CutControl({
     setTies(next);
     startTransition(async () => {
       const stageId = await getStageId();
-      await setStageCutTies(stageId, next);
+      caughtUp(await setStageCutTies(stageId, next));
     });
   };
   // The number saves when its box is left — said beside it, as every other
@@ -78,7 +89,7 @@ export function CutControl({
     setSc(next);
     startTransition(async () => {
       const stageId = await getStageId();
-      await setStageCutScope(stageId, next);
+      caughtUp(await setStageCutScope(stageId, next));
     });
   };
 
@@ -87,9 +98,16 @@ export function CutControl({
     setM(nextMode);
     setN(nextN);
     setPct(nextPct);
+    setRefused("");
     startTransition(async () => {
       const stageId = await getStageId();
-      await setStageCut(stageId, nextOn, nextMode, nextN, nextPct);
+      const res = caughtUp(await setStageCut(stageId, nextOn, nextMode, nextN, nextPct));
+      // Refused (the setup lock, drawn before it): the box goes back and the reason is said under it
+      // — it used to be caught up with and never said.
+      if (res && !res.ok) {
+        setOn(enabled);
+        setRefused(res.error ?? "That could not be changed.");
+      }
     });
   };
 
@@ -129,6 +147,11 @@ export function CutControl({
       </label>
       {/* Outside the label, so the checkbox's name is not "… Saved". */}
       <SaveState status={saveStatus} />
+      {refused && (
+        <p role="alert" className="form-error" style={{ margin: 0, fontSize: 13 }} ref={refusedRef}>
+          {refused}
+        </p>
+      )}
       {on && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <div className="seg" role="radiogroup" aria-label={`How the cut for ${roundLabel} is counted`}>
@@ -250,11 +273,17 @@ export function CutControl({
             ))}
           </div>
           <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
-            {ties === "ties"
-              ? "A tie for the last place: everybody level on that score goes through, so the field can be a little bigger than the number."
-              : ties === "playoff"
-                ? "A tie for the last place: the players level on that score play off, and you record who won before the cut is made. Nobody in the tie is out until you do."
-                : "A tie for the last place: the better last 9 holes go through, then the last 6, 3 and the last hole, on what the round is decided by — gross, net or points. If they are still level, you draw lots and record who went through before the cut is made."}
+            {decidedOn === "table"
+              ? ties === "ties"
+                ? "A tie for the last place: everybody level on points goes through, so the field can be a little bigger than the number."
+                : ties === "playoff"
+                  ? "A tie for the last place: the players level on points play off, and you record who won before the next round is drawn. Nobody in the tie is out until you do."
+                  : "A tie for the last place: the table's tie-breaks decide it, in the order set under Ties on this round. If they are still level, you draw lots and record who went through before the next round is drawn."
+              : ties === "ties"
+                ? "A tie for the last place: everybody level on that score goes through, so the field can be a little bigger than the number."
+                : ties === "playoff"
+                  ? "A tie for the last place: the players level on that score play off, and you record who won before the cut is made. Nobody in the tie is out until you do."
+                  : "A tie for the last place: the better last 9 holes go through, then the last 6, 3 and the last hole, on what the round is decided by — gross, net or points. If they are still level, you draw lots and record who went through before the cut is made."}
           </span>
         </div>
       )}

@@ -3,16 +3,18 @@ import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useId, useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
-import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
-import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
+import { playKindsFor } from "@/lib/domain/play-kind";
+import { eventWords } from "@/lib/domain/event-words";
+import { useGolfRegister } from "@/components/GolfTermsProvider";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+import { useCaughtUp } from "./useAction";
 import { StickySave } from "./StickySave";
-import { TournamentJourney } from "./TournamentJourney";
+import { TournamentJourney, type JourneyPhase } from "./TournamentJourney";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TITLE_MAX } from "@/lib/domain/typed-limits";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -78,8 +80,7 @@ export function EventSetupClient({
   hasBracket = true,
   roundFormats = [],
   setup = null,
-  status = "draft",
-  scored = false,
+  journey = "setup",
   locale = DEFAULT_LOCALE,
   locked = false,
   fieldCap = null,
@@ -145,24 +146,21 @@ export function EventSetupClient({
     currentHref?: string;
   } | null;
   /**
-   * The tournament's status, passed through to the journey card.
+   * Where the tournament is, for the journey card — the state machine's
+   * `journey` (PR 3), passed through untouched.
    *
-   * This was `launched` and `finished`, two booleans this component never
-   * read — it forwarded both and nothing else. Passing the status instead
-   * means the rule about what launched MEANS lives with the list that defines
-   * it rather than in the page above.
-   *
-   * Defaults to "draft", the quietest answer: a caller that forgets it gets a
-   * journey card at the start of the journey, which understates. The value it
-   * replaced derived "finished" from a card count and OVERSTATED — it told an
+   * Defaults to "setup", the quietest answer: a caller that forgets it gets a
+   * journey card at the start of the journey, which understates. An earlier
+   * value derived "finished" from a card count and OVERSTATED — it told an
    * organizer to settle the money mid-round.
    */
-  status?: string;
-  scored?: boolean;
+  journey?: JourneyPhase;
 }) {
   const [f, setF] = useState<EventForm>(initial);
   // The club's golf words — "a league or golf group", "a league or society".
   const golfWords = useGolfTerms();
+  const register = useGolfRegister();
+  const words = eventWords(f.playKind, register);
   // Captions below are real <label>s for their controls (a screen reader said
   // an unnamed "edit text" for the name, dates, course and deadline).
   const fid = useId();
@@ -170,6 +168,7 @@ export function EventSetupClient({
   /** Scored matches a resize would destroy, once the action refuses. */
   const [resizeScored, setResizeScored] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   /** A refused "Save event", said beside it. */
   const [saveError, setSaveError] = useState("");
   // The button reflects real dirty state against the last-saved snapshot,
@@ -235,11 +234,6 @@ export function EventSetupClient({
    */
   const [startDate, setStartDate] = useState(initial.startOn);
   const [endDate, setEndDate] = useState(initial.endOn);
-  // The deadline is the exception: it is stored as the ISO date it is, so the
-  // picker can be filled from it and — the reason any of this matters —
-  // deadlinePassed can read it. Legacy free text parses to "" and leaves the
-  // picker empty, exactly as before.
-  const [deadlineDate, setDeadlineDate] = useState(() => parseDeadlineIso(initial.regDeadline));
 
   const onStartDate = (v: string) => {
     setStartDate(v);
@@ -253,17 +247,6 @@ export function EventSetupClient({
     if (!startDate) setStartDate(v);
     setF((prev) => ({ ...prev, startOn: start, endOn: v, dates: v ? formatDayRange(start, v, locale) : prev.dates }));
   };
-  const onDeadlineDate = (v: string) => {
-    setDeadlineDate(v);
-    // Stored as ISO, NOT as the display string. Running the picker's value
-    // through fmtDate here is the whole of D1: `deadlinePassed` requires ISO
-    // and returns false for anything else, so every deadline set on this
-    // screen was decorative — the public form stayed open indefinitely while
-    // printing the date it was ignoring. The screen formats for display below;
-    // the column keeps the date.
-    if (v) set("regDeadline", v);
-  };
-
   /**
    * One choice writes both fields.
    *
@@ -475,23 +458,23 @@ export function EventSetupClient({
             onChange={(e) => set("playKind", e.target.value)}
             style={{ minHeight: 46 }}
           >
-            {PLAY_KINDS.map((k) => (
+            {playKindsFor(register, f.playKind).map((k) => (
               <option key={k.key} value={k.key}>
                 {k.label}
               </option>
             ))}
           </select>
           {/* One line, the rest an ⓘ away (Ajay, 2026-10-05). */}
-          <MoreInfo short={<>Members see &ldquo;this {playNoun(f.playKind)}&rdquo;.</>} style={{ marginTop: 6 }}>
-            Members see this word: &ldquo;this {playNoun(f.playKind)}&rdquo;, and the results card
-            reads &ldquo;{resultHeading(f.playKind)}&rdquo;. It changes nothing about how the golf is
+          <MoreInfo short={<>Members see &ldquo;this {words.kindLower}&rdquo;.</>} style={{ marginTop: 6 }}>
+            Members see this word: &ldquo;this {words.kindLower}&rdquo;, and the results card
+            reads &ldquo;{words.resultHeading}&rdquo;. It changes nothing about how the golf is
             scored.
           </MoreInfo>
         </div>
         <div className="pair-grid">
           <div className="field">
             <label htmlFor={`${fid}-start`}>
-              Tournament dates{" "}
+              {words.kind} dates{" "}
               {!f.dates.trim() && <span style={{ color: "var(--color-accent-200)" }}>· required to launch</span>}
             </label>
             {/* `minWidth: 0` on the inputs, not just `flex: 1`.
@@ -610,10 +593,22 @@ export function EventSetupClient({
                 </p>
               </FieldInfo>
             </span>
-            <div className="seg">
-              <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "match"} onChange={() => set("format", "match")} />Match play</label>
-              <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "stroke"} onChange={() => set("format", "stroke")} />Stroke play</label>
-            </div>
+            {/* ASKED ONLY ONCE THERE IS A ROUND (setup audit item 6, 5 Nov).
+                With no rounds the answer was overwritten by the first one
+                (`addStage` decides a round with no opponents on strokes), so
+                the secretary watched their choice change underneath them. A
+                choice made with rounds in place is never overwritten. */}
+            {roundFormats.length === 0 ? (
+              <p className="muted" style={{ margin: 0 }}>
+                Decided by your first round: a medal or Stableford round makes this stroke play; a head-to-head
+                first round leaves it as it is, match play to begin with. Add rounds on Rounds &amp; formats; you can change it here afterwards.
+              </p>
+            ) : (
+              <div className="seg">
+                <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "match"} onChange={() => set("format", "match")} />Match play</label>
+                <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "stroke"} onChange={() => set("format", "stroke")} />Stroke play</label>
+              </div>
+            )}
           </div>
         </div>
 
@@ -724,72 +719,20 @@ export function EventSetupClient({
           <div className="field"><label htmlFor={`${fid}-address`}>Address</label><input id={`${fid}-address`} className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
         </div>
 
-        {/* Was one heading, "Entries", over three unrelated
-            things — and it collided by name with the SCREEN called Registration
-            & field at /registration, which the "Recommended flow" card on this
-            very page then told organizers to go to. Two different things
-            wearing one name is how somebody ends up on the wrong one.
-
-            What actually sat under it: the deadline and the capacity, which
-            together decide whether the public form takes an entry
-            (`registrationState` reads exactly those two) — and then a control
-            called "Player count" whose Apply button waitlists confirmed
-            players, invents placeholder rows named "Player N", DELETES SCORED
-            MATCHES and rebuilds the schedule. That is not a registration
-            setting; it is a tool that rewrites the field. Filed under its own
-            heading below. */}
-        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Registration</span>
-        <div className="pair-grid">
-          {/* Members see both dates on their list of the club's tournaments,
-              and entries are refused before this one — see
-              `registrationStatus`. Empty means "as soon as self sign-up is on",
-              which is how every tournament behaved before it existed. */}
-          <div className="field">
-            <label htmlFor="reg-opens">Entries open</label>
-            <input
-              id="reg-opens"
-              className="input"
-              type="date"
-              value={parseDeadlineIso(f.regOpens)}
-              max={parseDeadlineIso(f.regDeadline) || undefined}
-              onChange={(e) => set("regOpens", e.target.value)}
-            />
-            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-              {f.regOpens ? formatDeadline(f.regOpens, locale) : "Leave empty to open as soon as sign-up is on"}
-            </p>
-          </div>
-          <div className="field">
-            <label htmlFor={`${fid}-deadline`}>Registration deadline</label>
-            <input id={`${fid}-deadline`} className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
-            {f.regDeadline && (
-              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-                {formatDeadline(f.regDeadline, locale)}
-              </p>
-            )}
-          </div>
-          <div className="field">
-            <label>Field capacity</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <div className="seg">
-                <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity > 0} onChange={() => set("capacity", f.capacity > 0 ? f.capacity : 32)} />Fixed</label>
-                <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity <= 0} onChange={() => set("capacity", 0)} />Open</label>
-              </div>
-              {f.capacity > 0 && (
-                <input aria-label="Field capacity (players)" className="input" type="number" value={f.capacity} max={fieldCap ?? undefined} onChange={(e) => set("capacity", figureOr(readWhole(e.target.value), 0))} style={{ width: 90 }} />
-              )}
-            </div>
-            {fieldCap !== null && (
-              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-                Your plan holds up to {fieldCap} players, so an open field or anything larger takes {fieldCap} while
-                you are on it.
-              </p>
-            )}
-          </div>
-        </div>
+        {/* THE ENTRY TERMS LIVE ON ENTRIES (the entries cleanup, 2026-11-05).
+            When entries open and close, how many places, and approval were set
+            here while the sign-up link was on Entries, which showed the deadline
+            read-only and sent the organizer back to this page. A tournament
+            office decides them together, so they are one card on Entries; this
+            page keeps the event's facts and says where the rest went. */}
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
+          When entries open and close, how many places there are, and whether you approve each one are set on{" "}
+          <a href="/registration">Entries</a>.
+        </p>
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Where the field size comes from</span>
         <div className="field">
-          <label>Player count</label>
-          <div className="seg">
+          <span className="field-caption" id={`${fid}-pcmode`}>Player count</span>
+          <div className="seg" role="group" aria-labelledby={`${fid}-pcmode`}>
             <label className="seg-opt"><input type="radio" name="pcmode" checked={f.playerCountMode === "registration"} onChange={() => set("playerCountMode", "registration")} />From registrations</label>
             <label className="seg-opt"><input type="radio" name="pcmode" checked={f.playerCountMode === "manual"} onChange={() => set("playerCountMode", "manual")} />Manual</label>
           </div>
@@ -807,8 +750,9 @@ export function EventSetupClient({
                 disabled={pending || locked}
                 onClick={() =>
                   startTransition(async () => {
-                    const res = await applyManualCount(manualTarget);
+                    const res = caughtUp(await applyManualCount(manualTarget));
                     if (res.needsConfirm) setResizeScored(res.scoredMatches ?? 0);
+                    else if (!res.ok) setSaveError(res.error ?? "That didn't save. Try again.");
                   })
                 }
               >
@@ -843,8 +787,9 @@ export function EventSetupClient({
                     disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
-                        await applyManualCount(manualTarget, true);
+                        const res = caughtUp(await applyManualCount(manualTarget, true));
                         setResizeScored(null);
+                        if (!res.ok) setSaveError(res.error ?? "That didn't save. Try again.");
                       })
                     }
                   >
@@ -877,7 +822,7 @@ export function EventSetupClient({
           // (organizer.spec "each form's save follows only its own form").
           note={
             locked
-              ? "Unsaved changes to the tournament — setup is locked, so unlock it at the top to save them"
+              ? "Unsaved changes to the tournament — the details are locked, so make a committee correction at the top to save them"
               : "Unsaved changes to the tournament"
           }
         >
@@ -896,14 +841,14 @@ export function EventSetupClient({
               }
               const sent = f;
               startTransition(async () => {
-                const result = await saveEvent({
+                const result = caughtUp(await saveEvent({
                   name, playKind: sent.playKind, dates: sent.dates, datesTentative: sent.datesTentative,
                   // The calendar dates with their label — see `saveEvent`.
                   startOn: sent.startOn, endOn: sent.endOn,
                   format: sent.format, course: sent.course, courseId: sent.courseId, city: sent.city,
-                  address: sent.address, regDeadline: sent.regDeadline, regOpens: sent.regOpens, capacity: sent.capacity, playerCountMode: sent.playerCountMode,
+                  address: sent.address, playerCountMode: sent.playerCountMode,
                   courseMode: sent.courseMode,
-                });
+                }));
                 if (!result.ok) {
                   setSaveError(result.error ?? "That didn't save. Try again.");
                   return;
@@ -941,8 +886,7 @@ export function EventSetupClient({
         {!isMatch && (
         <TournamentJourney
           setup={setup}
-          status={status}
-          scored={scored}
+          journey={journey}
           hasBracket={hasBracket}
         />
         )}

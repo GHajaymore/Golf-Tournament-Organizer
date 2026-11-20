@@ -4,7 +4,6 @@ import {
   matchIsOver,
   matchIsOverAfter,
   marginToHoles,
-  parseResultTranscript,
   aggregateStats,
   computeStandings,
   groupCutoff,
@@ -114,27 +113,6 @@ describe("marginToHoles round-trips through resolveMatch", () => {
     const r = resolveMatch(holes);
     expect(r.winner).toBe("H");
     expect(r.resultText).toBe("AS");
-  });
-});
-
-describe("parseResultTranscript", () => {
-  it("detects halve keywords", () => {
-    expect(parseResultTranscript("all square", "Sam", "Lee")).toEqual({
-      winner: "H",
-      margin: "AS",
-    });
-  });
-  it("detects a player name and an N&M margin", () => {
-    expect(parseResultTranscript("Sam wins 3 and 2", "Sam", "Lee")).toEqual({
-      winner: "A",
-      margin: "3&2",
-    });
-  });
-  it("detects N up", () => {
-    expect(parseResultTranscript("Lee 2 up", "Sam", "Lee")).toEqual({
-      winner: "B",
-      margin: "2 UP",
-    });
   });
 });
 
@@ -430,7 +408,7 @@ describe("stroke play", () => {
   it("computes gross/net/to-par and nines", () => {
     const pars = [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 4, 5, 4, 3, 4, 5]; // par 72
     const strokes = [4, 5, 3, 5, 4, 4, 3, 6, 4, 4, 4, 3, 5, 5, 4, 3, 4, 5]; // gross 75
-    const card = computeStrokeCard(strokes, pars, 8);
+    const card = computeStrokeCard(strokes, pars, 8, pars.map((_, i) => i + 1));
     expect(card.gross).toBe(75);
     expect(card.toPar).toBe(3);
     expect(card.net).toBe(67); // 75 - 8
@@ -439,7 +417,7 @@ describe("stroke play", () => {
   });
   it("handles partial rounds and formats to-par", () => {
     const pars = [4, 4, 3, 5];
-    const card = computeStrokeCard([4, 4, null, null], pars, 0);
+    const card = computeStrokeCard([4, 4, null, null], pars, 0, [1, 2, 3, 4]);
     expect(card.gross).toBe(8);
     expect(card.played).toBe(2);
     expect(card.toPar).toBe(0);
@@ -522,23 +500,6 @@ describe("bracket", () => {
     expect(consolation.length).toBe(8);
     expect(winners[0].id).toBe("q0");
     expect(consolation[0].id).toBe("q8");
-  });
-});
-
-describe("voice result attribution between prefix names", () => {
-  it("credits Samantha, not Sam, when Samantha wins", () => {
-    // Substring matching credited whoever was checked first: "samantha wins
-    // 3 and 2" contains "sam", so Sam took Samantha's match. Whole-word
-    // matching with the longer name tried first.
-    const r = parseResultTranscript("samantha wins 3 and 2", "Sam", "Samantha");
-    expect(r.winner).toBe("B");
-    expect(r.margin).toBe("3&2");
-  });
-
-  it("still hears the shorter name on its own", () => {
-    const r = parseResultTranscript("sam wins 2 up", "Sam", "Samantha");
-    expect(r.winner).toBe("A");
-    expect(r.margin).toBe("2 UP");
   });
 });
 

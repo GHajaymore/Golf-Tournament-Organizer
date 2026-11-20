@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { verifyByCode } from "./verify-by-code";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * A MEMBER ENTERS THE CLUB'S COMPETITION FROM THE LINK, AND SCORES THEIR OWN
@@ -66,7 +67,8 @@ test("a member enters from the link, signs in, and scores their own card", async
       await page.getByLabel("Tournament name").fill(TOURNAMENT);
       await page.getByRole("button", { name: /^A single round/ }).click();
       await page.getByRole("button", { name: "Create tournament" }).click();
-      await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+      await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+      await page.goto("/dashboard");
 
       await open(page, "/event");
       const today = new Date().toISOString().slice(0, 10);
@@ -90,9 +92,9 @@ test("a member enters from the link, signs in, and scores their own card", async
       await playScratch(page, "Round 1");
 
       await open(page, "/registration");
-      await page.getByRole("button", { name: /Let players sign themselves up/ }).click();
-      await page.getByRole("button", { name: "Publish the link" }).click();
-      await expect(page.getByRole("button", { name: "Take the link down" })).toBeVisible({ timeout: 20_000 });
+      // One button opens entries, and the sign-up link it publishes shows itself.
+      await page.getByRole("button", { name: /^Open entries/ }).click();
+      await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
       // The read-only box beside "Copy link" holds the address to send round.
       link = await page.locator("input").evaluateAll((els) =>
         (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "",
@@ -104,7 +106,10 @@ test("a member enters from the link, signs in, and scores their own card", async
       const poster = page.locator("#signup-poster section.signup-poster");
       await expect(poster, "the sign-up poster was not drawn").toBeVisible({ timeout: 20_000 });
       expect(await poster.getAttribute("data-link"), "the poster's QR is not the sign-up link").toBe(link);
-      await expect(poster.locator("svg path"), "the poster has no QR drawn").toHaveCount(1);
+      await expect(poster.locator("svg[role=img] > path"), "the poster has no QR drawn").toHaveCount(1);
+      // The TourneyHQ mark in its centre, and the code a link to its own address (2026-11-05).
+      await expect(poster.locator("svg [data-qr-logo]"), "the poster's QR has no mark in its centre").toHaveCount(1);
+      await expect(poster.locator("a.sp-link"), "the poster's QR is not tappable").toHaveAttribute("href", link);
       await expect(poster).toContainText("Scan to sign up");
       await poster.screenshot({ path: test.info().outputPath("poster.png") });
       await expect(page.getByRole("button", { name: "Print poster" })).toBeVisible();
@@ -117,6 +122,9 @@ test("a member enters from the link, signs in, and scores their own card", async
       await member.getByLabel("Handicap index").fill("12");
       await member.getByLabel(/^Mobile/).fill("5550500");
       await member.getByRole("button", { name: "Register" }).click();
+      // The address is proved before anybody is entered under it (2026-11-13): the
+      // code is typed back, and only then does the receipt say "You're in!".
+      await verifyByCode(member, MEMBER_EMAIL);
       await expect(member.getByRole("heading", { name: "You're in!" })).toBeVisible({ timeout: 20_000 });
     });
 
@@ -130,6 +138,10 @@ test("a member enters from the link, signs in, and scores their own card", async
       await member.getByPlaceholder("you@email.com").locator("visible=true").first().fill(MEMBER_EMAIL);
       await member.getByPlaceholder("Your password").locator("visible=true").first().fill(MEMBER_PASSWORD);
       await member.locator('button[type="submit"]', { hasText: "Log in" }).locator("visible=true").first().click();
+      // An address with no password yet is refused like a wrong password
+      // (2026-11-13); the refusal offers the way to a first password.
+      await expect(member.getByText(/Wrong email or password/).locator("visible=true").first()).toBeVisible({ timeout: 20_000 });
+      await member.getByRole("button", { name: "Invited, and never set a password?" }).locator("visible=true").first().click();
       await expect(member.getByText("Set your password")).toBeVisible({ timeout: 20_000 });
       await member.getByPlaceholder("Choose a password").fill(MEMBER_PASSWORD);
       await member.getByRole("button", { name: "Set password & continue" }).click();
@@ -145,7 +157,7 @@ test("a member enters from the link, signs in, and scores their own card", async
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
     });
 
     await test.step("member: keeps their own card, hole by hole, and certifies it", async () => {

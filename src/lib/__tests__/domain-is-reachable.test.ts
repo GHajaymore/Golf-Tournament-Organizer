@@ -179,7 +179,6 @@ const KNOWN_DEAD: string[] = [
   // render tests (render.test.tsx, back-nine-hole-numbers.test.tsx) still pin the old full-page card;
   // moving them to the new card and deleting this is the Print kit's slice 2.
   "components/TeeSheetPrint.tsx:TeeSheetPrint",
-  "lib/domain/attendance.ts:isAttendanceMode",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
   "lib/domain/bracket.ts:splitBrackets",
@@ -214,6 +213,20 @@ const KNOWN_DEAD: string[] = [
   "lib/services/identity-repair.ts:loadRepair",
   "lib/services/league-nomination.ts:clubsIn",
   "lib/services/tournament.ts:expectedRrTotal",
+  // The state machine's retired readers. PR 9a (14 Nov) DELETED five of them —
+  // `lifecycleMismatch`, `nextLifecycleAction`, `datesPassedUnlaunched`,
+  // `tournamentPhase` and `services/setup-flow.ts:launchCheckFor` — with the
+  // shadow test that was their only reader; `the-tournament-is-asked-one-way.test.ts`
+  // refuses their names anywhere in src, e2e or scripts.
+  //
+  // Left for the second half of 9a, and ONLY because another open pull request
+  // holds the file its deletion must edit: the player switcher's old "Play
+  // complete" (PR 6 moved the note to the machine's step) — its unit test,
+  // `tournament-switcher.test.ts`, is held by #1149. And the setup flow's own
+  // facts read, whose only caller was `launchCheckFor` — `tournament-facts.ts`
+  // is held by #1144 (`setupSideFactsFor` is the live reader).
+  "lib/domain/tournament-switcher.ts:playOverOf",
+  "lib/services/tournament-facts.ts:setupFactsFor",
 ];
 
 const dead: Dead[] = [];

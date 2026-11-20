@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { completeControl } from "./end-early";
 
 /**
  * COMPLETING ASKS ABOUT A ROUND NOBODY HAS PLAYED (2026-10-31), as the organizer meets it.
@@ -10,7 +11,9 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
  * A two-round outing, Round 1 on the cards and Round 2 untouched, on a new club's free plan.
  * Until this day one confirm closed Round 2 as not played. Now, on the dashboard:
  *
- *   - Complete tournament asks the panel's question FIRST, naming Round 2;
+ *   - ending it — "End this event early…" under the status card's More while Round 2 is still to be
+ *     played (the PM, 10 Nov: never a Complete button while golf remains) — asks the panel's question
+ *     FIRST, naming Round 2;
  *   - Keep playing leaves the tournament live and Round 2 open, in the database;
  *   - Complete anyway is followed by the free plan's keeping notice (one topic per dialog),
  *     and only Complete it there completes it — Round 2 closed as not played.
@@ -66,7 +69,11 @@ test("completing with a round nobody has played asks first, and only the answer 
     }
     ids.round2 = rounds[1];
     const wren = await prisma.player.create({ data: { eventId: event.id, name: "Wren Halloway", email: `zz-unplayed-wren-${size}@example.invalid`, seed: 1, status: "confirmed" } });
-    await prisma.scorecard.create({ data: { eventId: event.id, stageId: rounds[0], playerId: wren.id, strokes: JSON.stringify(PARS) } });
+    // Round 1's card is IN (certified and approved): the dashboard's button offers no Complete while a
+    // round's cards are still coming in (the panel and the PM, 9–10 Nov), and keeps it, quietly, once they are.
+    await prisma.scorecard.create({
+      data: { eventId: event.id, stageId: rounds[0], playerId: wren.id, strokes: JSON.stringify(PARS), status: "approved", certifiedBy: "zz", certifiedAt: new Date(), approvedBy: "zz", approvedAt: new Date() },
+    });
     await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Unplayed Organizer", role: "admin" } });
     await ctx.addCookies([
       { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },
@@ -76,8 +83,8 @@ test("completing with a round nobody has played asks first, and only the answer 
     const page = await ctx.newPage();
     watchPageErrors(page, errors);
     await page.goto(`/dashboard?bust=${Date.now()}`);
-    const complete = page.getByRole("button", { name: "Complete tournament" }).first();
-    await expect(complete, "Complete tournament is not offered").toBeEnabled({ timeout: 30_000 });
+    const complete = await completeControl(page);
+    await expect(complete, "ending the event early is not offered").toBeEnabled({ timeout: 30_000 });
 
     // The question, first, in the panel's words.
     await complete.scrollIntoViewIfNeeded();

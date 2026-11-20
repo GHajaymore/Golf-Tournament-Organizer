@@ -38,6 +38,14 @@ interface Found {
   announced: boolean;
 }
 
+/**
+ * A panel that docks beside the page on a wide screen is not modal THERE, and says so; below the
+ * dock it must still be the full modal dialog. The one shape allowed: the role and the modal flag
+ * both chosen by the SAME `docked`, with "dialog" and "true" as the undocked answers.
+ */
+const DOCKED_ROLE = /role=\{docked \? "region" : "dialog"\}/;
+const DOCKED_MODAL = /aria-modal=\{docked \? undefined : "true"\}/;
+
 function dialogs(): Found[] {
   const out: Found[] = [];
   for (const entry of readdirSync(COMPONENTS)) {
@@ -45,7 +53,8 @@ function dialogs(): Found[] {
     const src = readSource(join(COMPONENTS, entry));
     // `side-panel-backdrop` too (2026-10-30): the redesign's panel is modal, at the side.
     const modal = src.includes("dialog-backdrop") || src.includes("side-panel-backdrop");
-    const announced = /role="(?:alert)?dialog"/.test(src);
+    // Or a role chosen by width (2 Nov): `SidePanel` docked from 1280 is a region, a dialog below it.
+    const announced = /role="(?:alert)?dialog"/.test(src) || DOCKED_ROLE.test(src);
     if (modal || announced) out.push({ file: entry, modal, announced });
   }
   return out.sort((a, b) => a.file.localeCompare(b.file));
@@ -72,9 +81,15 @@ describe("every dialog is accounted for", () => {
     // measured at every width by `e2e/go-live-switch.spec.ts`, where it is opened.
     expect(found).toEqual([
       { file: "CardConflict.tsx", modal: false, announced: true },
+      // The committee correction's dialog (state machine PR 5b): which part of setup, and why.
+      { file: "CommitteeCorrection.tsx", modal: true, announced: true },
       { file: "LifecycleBar.tsx", modal: true, announced: true },
+      // The confirm before a strokes correction re-scores a card (lane N): in place under its row, not modal.
+      { file: "NeedsStrokesBand.tsx", modal: false, announced: true },
       { file: "OwnerAccounts.tsx", modal: true, announced: true },
       { file: "PlayerSignOut.tsx", modal: true, announced: true },
+      // Suspend play's confirm: a sheet pinned to the top on a phone (B64), not modal (the page behind stays usable).
+      { file: "PlayStatusControl.tsx", modal: false, announced: true },
       // The redesign's one-thing-open panel (2026-10-30). Its geometry is in
       // `e2e/dialog.spec.ts` ("the round's side panel", Rounds & formats' timeline).
       { file: "SidePanel.tsx", modal: true, announced: true },
@@ -93,8 +108,8 @@ describe("every dialog is accounted for", () => {
      */
     for (const d of found.filter((x) => x.modal)) {
       const src = readSource(join(COMPONENTS, d.file));
-      expect(src, `${d.file} has no role="dialog"`).toContain('role="dialog"');
-      expect(src, `${d.file} does not say it is modal`).toContain('aria-modal="true"');
+      expect(src.includes('role="dialog"') || DOCKED_ROLE.test(src), `${d.file} has no role="dialog"`).toBe(true);
+      expect(src.includes('aria-modal="true"') || (DOCKED_ROLE.test(src) && DOCKED_MODAL.test(src)), `${d.file} does not say it is modal`).toBe(true);
       expect(src, `${d.file} is announced without a name`).toContain("aria-labelledby");
     }
   });

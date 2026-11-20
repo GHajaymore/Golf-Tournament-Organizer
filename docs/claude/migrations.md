@@ -29,6 +29,29 @@ in production, because a deploy is always a fresh build.
 So after `prisma migrate deploy`: `npx prisma generate`, then stop and restart the dev server
 before believing anything the browser tells you.
 
+**There is ONE generated client for every worktree (2026-11-07).** `.claude/settings.json` links each
+worktree's `node_modules` to the main checkout's, so `node_modules/.prisma/client` is shared. On 6-7 Nov
+an engineer ran `prisma generate` from a branch adding `Event.correctionScope`, and three other engineers'
+tsc and audit runs failed with "The column Event.correctionScope does not exist" — which reads like their
+own bug. The guard hook (`.claude/hooks/guard.mjs`, `sharedClientRefusal`) now refuses `prisma generate`
+and `npm run db:generate` in a worktree whose `prisma/schema.prisma` differs from the main checkout's;
+from the main checkout itself it is allowed (that is the repair). So a branch with a schema change does
+not generate: `node scripts/prisma-client-check.mjs` (read-only) says whose schema the shared client
+holds, the engineer's report says the client is stale for the new columns, and the main session
+regenerates from main after the merge and restarts the dev server. `PRISMA_SHARED_CLIENT_OK=1` in front
+of the command overrides, only when nobody else is mid-run. A true per-worktree client would need a copy
+of `@prisma/client` and `.prisma/client` in each worktree (Node resolves the real path of a symlink) —
+heavier than the problem, and not done.
+
+**Type-checking a schema change no longer waits for CI (2026-11-17).** "Client stale" left a branch that adds
+a column with no local type check, and the main session's train-tip check had started skipping tsc for one
+(train D: #1158's `slipPrintedAt`). `node scripts/qa/typecheck-own-client.mjs` is the fix: when the
+checkout's schema differs from the shared client's it generates that schema's client into
+`.qa/tmp/own-client` (a custom `output`), points `@prisma/client` at it with a private tsconfig extending the
+real one, runs tsc, and hashes the shared client's schema copy before and after (changed = exit 2). Measured
+on train D's tip: 58 s, its new column accepted, an invented column refused, the shared client untouched. It
+covers TYPES only; an audit test that reads a new column still needs the migration applied to the database.
+
 **An index Prisma cannot express lives in SQL alone (2026-11-01).** `A036_a_name_in_play_is_the_clubs_once`
 makes `Event_name_in_play_key`, a partial unique index on an expression (one name in play per club;
 the rule is `domain/tournament-name.ts`). It is not in `schema.prisma`, only a comment beside
@@ -40,3 +63,21 @@ holds two in-play tournaments of one name, so production's real events are never
 blocked; where it was skipped the app's own check still holds, and its SQL can be run again by
 hand with `prisma db execute --file` (it is idempotent) once the clubs have resolved their duplicates. Check whether it exists
 with `select indexname from pg_indexes where indexname = 'Event_name_in_play_key'`.
+
+**A CHECK Prisma cannot express, the same way (state machine PR 8, 2026-11-13).**
+`A045_old_setting_up_rows_keep_their_word` moved every `Event` stored as `registration` or `ready` to
+`draft`, keeping the old word in `Event.legacyStatus` (read by `openToMembers`), and then adds
+`Event_status_is_one_the_app_writes`: `CHECK ("status" IN ('draft', 'live', 'completed'))`. From then on
+`isLaunched` is "not `draft`", so a row written in any other word would read as LAUNCHED; the CHECK
+refuses the writer. It is not in `schema.prisma` (a comment beside `status` says so). So that the deploy
+cannot fail on a word nobody expected (Ajay, 14 Nov: the only real risk is a deploy that fails partway,
+P3009), every other status is first MAPPED by one written rule: `live` (what the old code read any such
+word as), or `completed` where `live` would share a name in play under A036's index; the word is kept
+in `legacyStatus`. The CHECK is still GUARDED like A036 (a NOTICE, never a failure), and every
+statement is safe to run twice. Rollback is the CODE first, then the reversal in the file's comment
+(it touches only rows still `draft`), then deleting A045's `_prisma_migrations` row; a failed apply is
+`prisma migrate resolve --rolled-back` by the owner. So a fixture, seed or audit test that writes an invented status (`"active"`, `"complete"`
+were found in twelve audit files and moved to `"live"`) now fails at the insert, loudly. Check it with
+`select pg_get_constraintdef(oid) from pg_constraint where conname = 'Event_status_is_one_the_app_writes'`.
+The proof is `a-legacy-row-keeps-its-word.audit.test.ts`, which runs the file's own text against a
+scratch copy of a zz- club's rows.

@@ -1,6 +1,7 @@
 import { byAddress } from "@/lib/domain/my-entry";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
+import { scopeLockFor } from "@/lib/services/tournament-status";
 import { roundLabel } from "@/lib/domain/round-label";
 import { playedOnBy, clubCourses } from "@/lib/services/courses";
 import { pickedCardNote } from "@/lib/domain/picked-card";
@@ -29,7 +30,7 @@ import { generatesPairings, isHeadToHead, isKnockoutRound } from "@/lib/stage-ty
 import { isMatch } from "@/lib/tournament-shape";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
-import { aggregateTeamCard, singleBallTeamCard, matchStrokesPerHole } from "@/lib/domain/team";
+import { aggregateTeamCard, singleBallTeamCard, matchStrokesPerHole, matchStrokesCount } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { TeamScoreImport } from "@/components/TeamScoreImport";
 import { isNetBasis } from "@/lib/domain/match-entry";
@@ -49,6 +50,7 @@ import { CupSessionNav } from "@/components/CupSessionNav";
 import { CasualRoundScreen } from "@/components/CasualRoundScreen";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { roundRefusalsFor } from "@/lib/services/round-change";
 import Link from "next/link";
 import { MatchKeeper } from "@/components/MatchKeeper";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
@@ -56,7 +58,9 @@ import { matchCardFor } from "@/lib/services/match-card";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
 import { resolveMatch, matchIsOver } from "@/lib/domain/match";
-import { ConfirmMatchResult } from "@/components/ConfirmMatchResult";
+import { ConfirmMatchResult, ReopenMatchResult } from "@/components/ConfirmMatchResult";
+import { scoreEntryTies, thirdPlaceCard } from "@/lib/domain/knockout-ties";
+import { bracketDraws } from "@/lib/domain/my-tie";
 
 export const metadata = screenMetadata("/entry");
 
@@ -238,14 +242,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         })
       : [];
     const row = rows.find((r) => r.id === pickedMatchId) ?? rows[0] ?? null;
-    // A side's match is held from side A; a singles match from player A.
-    const tapCard = row
-      ? await matchCardFor(
-          row.teamAId
-            ? { match: row, holderId: "", holderSides: [row.teamAId] }
-            : { match: row, holderId: row.playerAId, holderSides: [] },
-        )
-      : null;
+    // Side A first, as drawn — the same card every phone keeps it on.
+    const tapCard = row ? await matchCardFor({ match: row }) : null;
     /**
      * WHAT IS WAITING TO BE SIGNED OFF (2026-10-20) — by the review queue's
      * own rule: a FINISHED match whose effective status is pending. The
@@ -264,7 +262,16 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         }
         const resolved = resolveMatch(holes);
         const status = effectiveScoreStatus(r, autoConfirm);
-        return [r.id, { waiting: matchIsOver(holes) && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
+        return [
+          r.id,
+          {
+            waiting: matchIsOver(holes) && status === "pending",
+            disputed: status === "disputed",
+            // Signed off by the committee: taps no longer change it (`unanchoredMatchSave`), so it is reopened here.
+            signedOff: r.scoreStatus === "confirmed",
+            result: resolved.resultText,
+          },
+        ] as const;
       }),
     );
     const rowSignOff = row ? signOff.get(row.id) : undefined;
@@ -312,6 +319,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         {isStaff && row && rowSignOff?.waiting && (
           <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
         )}
+        {session.viewRole === "admin" && row && rowSignOff?.signedOff && (
+          <ReopenMatchResult key={`reopen-${row.id}`} matchId={row.id} result={rowSignOff.result} />
+        )}
         {tapCard && row && (
           <DistanceUnitProvider unit={tapCard.unit}>
             <MatchKeeper
@@ -323,7 +333,6 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               cardStrokeIndex={tapCard.cardStrokeIndex}
               firstHole={tapCard.firstHole}
               matchShots={tapCard.matchShots}
-              voiceEntry={settingsOf(state.event).voiceEntry}
               stageId={stage.id}
               roundLabel={roundLabel(state.stages, stage.id)}
               eventName={state.event.name}
@@ -512,6 +521,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               playerId: "",
               playerName: "",
               handicap: 0,
+              received: teamMatchPlay ? matchStrokesCount(t.playingHandicap, low) : null,
               shots: matchStrokesPerHole(t.playingHandicap, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, ""),
               pickedUp: picksOf(teamId, matchId, ""),
@@ -520,6 +530,10 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               playerId: m.playerId,
               playerName: m.name,
               handicap: m.handicap,
+              // Said, not scored on: a partner who has left the field plays off
+              // nothing, and the words list who actually plays.
+              playing: m.withdrawn ? null : m.playing,
+              received: teamMatchPlay && !m.withdrawn ? matchStrokesCount(m.playing ?? 0, low) : null,
               shots: matchStrokesPerHole(m.playing ?? 0, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, m.playerId),
               pickedUp: picksOf(teamId, matchId, m.playerId),
@@ -554,6 +568,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         matchId,
         opponentName,
         playingHandicap: t.playingHandicap,
+        matchLow: teamMatchPlay && matchId ? low : null,
         cards: cardRows,
         grossTotal: card.grossTotal,
         netTotal: card.netTotal,
@@ -814,6 +829,37 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
    * Every one of them made the copy agree with the resolver about one more
    * thing. Deleting the copy is the version of that fix that stays fixed.
    */
+  /**
+   * WHICH ROUNDS' COURSE AND TEES ARE SHUT, and the sentence why — the rounds
+   * rule's own map (`roundRefusalsFor`), the one `setStageCourse` reads its
+   * refusal out of, so the Tees box is drawn shut rather than offered and then
+   * refused (round G594-1, 10 Nov). Staff only: nobody else is shown the box.
+   */
+  const teeDoors = isStaff ? await roundRefusalsFor(session.eventId, { kind: "round-tees" }) : new Map<string, string>();
+  /**
+   * THE KNOCKOUT AS A LIST OF TIES, for staff (cut 3, 2026-11-14): reported ties
+   * first, then ties to play, then decided ones, every flight included
+   * (`bracketDraws`). Read once; the knockout round below carries it.
+   */
+  const knockoutTies =
+    isStaff && rrStages.some((s) => isKnockoutRound(s.type))
+      ? await (async () => {
+          const [reports, results] = await Promise.all([
+            prisma.bracketReport.findMany({
+              where: { eventId: session.eventId },
+              orderBy: { createdAt: "asc" },
+              select: { key: true, winnerId: true, result: true, reportedBy: true },
+            }),
+            prisma.bracketWinner.findMany({ where: { eventId: session.eventId }, select: { key: true, result: true } }),
+          ]);
+          const nameById = new Map(state.players.map((p) => [p.id, p.name]));
+          return {
+            ...scoreEntryTies(bracketDraws(state.brackets), reports, Object.fromEntries(results.map((r) => [r.key, r.result]))),
+            // The play-off for third, its own card in the list: the refusal that names it links there.
+            thirdPlace: thirdPlaceCard(state.matches, (id) => nameById.get(id) ?? "A player no longer in the field"),
+          };
+        })()
+      : undefined;
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage) => {
       const holeCount = holesPlayed(stage.holes);
@@ -1025,6 +1071,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         cup: stage.type === TEAM_SESSION,
         // The knockout is recorded on the Bracket, and the screen says so.
         bracket: isKnockoutRound(stage.type),
+        ties: isKnockoutRound(stage.type) ? knockoutTies : undefined,
         matches: stageMatches,
         netMode,
         scoreInput: stage.scoreInput,
@@ -1032,6 +1079,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         scoringBasis: stage.scoringBasis,
         courseId: stage.courseId ?? "",
         teeId: stage.teeId ?? "",
+        teesDoor: teeDoors.get(stage.id) ?? null,
         /**
          * WHAT "THE TOURNAMENT'S" TEES ARE, for the picker's inherit option.
          *
@@ -1267,7 +1315,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
 
   const entry = (
     <EntryModes
-      setupLocked={isSetupLocked(state.event)}
+      // The rounds' lock (PR 5b) — the one `clearRoundScores` asks (`refuseIfLocked(…, "rounds")`).
+      setupLocked={(await scopeLockFor(session.eventId, "rounds")) !== null}
       meId={casualRound ? await hostPlayerId() : undefined}
       sessionNav={cupNav}
       cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}

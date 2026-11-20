@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
-import { requireSession } from "@/lib/page-helpers";
+import { requireAccountViewer } from "@/lib/page-helpers";
 import { clubEventsFor, clubSeasonFor } from "@/lib/services/club-events";
 import { enterTournament } from "@/app/actions/auth";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -57,7 +57,7 @@ async function openTournament(formData: FormData): Promise<void> {
  * in `clubEventsFor`, from the same `registrationStatus` the organizer reads.
  */
 export default async function ClubEventsPage() {
-  const session = await requireSession();
+  const session = await requireAccountViewer();
   const events = await clubEventsFor(session.email);
   // The club's own season, so this list groups the way its fixture card reads.
   const season = await clubSeasonFor(session.eventId);
@@ -117,6 +117,30 @@ export default async function ClubEventsPage() {
           Your calendar
           <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
             Every round you&rsquo;re in, on the days they&rsquo;re played
+          </span>
+        </span>
+        <Icon name="arrow-right" className="text-muted" />
+      </Link>
+
+      {/* MY SEASON — the member's own tournaments, places and prizes this
+          season (2026-10-24). The same slim row: a screen to look back on. */}
+      <Link
+        href="/me/season"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 12px",
+          textDecoration: "none",
+          color: "var(--color-text)",
+          fontSize: 14,
+        }}
+      >
+        <Icon name="trophy" style={{ color: "var(--color-accent-200)", fontSize: 18 }} />
+        <span style={{ flex: 1, minWidth: 0 }}>
+          My season
+          <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
+            Your places, best scores and prizes this season
           </span>
         </span>
         <Icon name="arrow-right" className="text-muted" />

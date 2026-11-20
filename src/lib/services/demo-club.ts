@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { purgeEvents } from "@/lib/services/purge";
 import { clubToday } from "@/lib/domain/club-clock";
 import { formatDayRange } from "@/lib/domain/locale";
 import { eventLinks } from "@/lib/domain/event-page";
@@ -21,6 +22,7 @@ import { writeScorecard } from "@/lib/services/scorecard-write";
 import { settingsOf } from "@/lib/services/tournament";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { boardChanged } from "@/lib/services/board-refresh";
+import { scoringDefaults } from "@/lib/domain/round-scoring";
 import { addCourseToLibrary } from "@/lib/services/course-library";
 
 /**
@@ -170,7 +172,7 @@ export async function buildDemoClub(input: { mark: string; at?: Date }): Promise
   const orgId = (await prisma.organization.findFirstOrThrow({ where: { id: org.id, isDemo: true }, select: { id: true } })).id;
 
   // Clear the demo's own rows: its tournaments (and everything under them), then its course.
-  await prisma.event.deleteMany({ where: { organizationId: orgId } });
+  await purgeEvents({ organizationId: orgId });
   const courses = await prisma.course.findMany({ where: { organizationId: orgId }, select: { id: true } });
   await prisma.tee.deleteMany({ where: { courseId: { in: courses.map((c) => c.id) } } });
   await prisma.course.deleteMany({ where: { organizationId: orgId } });
@@ -294,6 +296,7 @@ async function buildFinished(orgId: string, courseId: string, teeId: string, tok
         playedOn: day,
         teeSheet: teeSheet(players),
         teeSheetPublished: true,
+        ...scoringDefaults(event.shape),
       },
     });
     for (const [i, p] of players.entries()) {
@@ -337,6 +340,7 @@ async function buildToday(orgId: string, courseId: string, teeId: string, token:
       playedOn: today,
       teeSheet: teeSheet(players),
       teeSheetPublished: true,
+      ...scoringDefaults(event.shape),
     },
   });
   await ensureRoundCodes(event.id);

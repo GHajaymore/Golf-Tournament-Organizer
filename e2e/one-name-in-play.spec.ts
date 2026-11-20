@@ -49,8 +49,8 @@ test("a name in play is the club's once: create, copy, rename and reopen are ref
   try {
     // Calendar dates only, and no typed label: the year on the list is `tellApart`'s, not the row's own.
     const dated = (day: string) => ({ startOn: day, endOn: day, dates: "" });
-    const last = await makeEvent(club, "Spring Medal", { status: "completed", configUnlocked: true, stages: [{}], players: 0, event: dated("2025-04-12") });
-    const now = await makeEvent(club, "Spring Medal", { status: "registration", configUnlocked: true, stages: [{}], players: 0, event: dated("2026-04-11") });
+    const last = await makeEvent(club, "Spring Medal", { status: "completed", stages: [{}], players: 0, event: dated("2025-04-12") });
+    const now = await makeEvent(club, "Spring Medal", { status: "draft", stages: [{}], players: 0, event: dated("2026-04-11") });
     const held = now.event.name;
     await signIn(context, baseURL!, club, now.event.id);
     const spring = () => prisma.event.count({ where: { organizationId: club.orgId, name: { equals: held, mode: "insensitive" } } });
@@ -89,6 +89,7 @@ test("a name in play is the club's once: create, copy, rename and reopen are ref
       await box.fill(held);
       const from = page.getByLabel("Start from", { exact: true });
       await from.selectOption(`copy:${last.event.id}`);
+      await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
       await centre(create);
       await create.click();
       await expect(refused, "a copy under a held name was not refused").toBeVisible({ timeout: 20_000 });
@@ -98,6 +99,7 @@ test("a name in play is the club's once: create, copy, rename and reopen are ref
       expect(await spring(), "the refused copy was made anyway").toBe(2);
       await box.fill(free);
       await from.selectOption(`copy:${last.event.id}`);
+      await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
       await create.click();
       await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
       expect(await prisma.event.count({ where: { organizationId: club.orgId, name: free, status: "draft" } }), "the free name was not taken").toBe(1);

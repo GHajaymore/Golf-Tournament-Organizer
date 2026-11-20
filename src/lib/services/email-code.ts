@@ -4,6 +4,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { SECURE_COOKIES } from "@/lib/secure-cookies";
 import { sendEmailCodeEmail } from "@/lib/email";
+import { giveBackClientAttempt } from "@/lib/rate-limit";
+import { clientAddress } from "@/lib/client-address";
 import {
   EMAIL_CODE_DAILY_TRIES,
   EMAIL_CODE_MAX_TRIES,
@@ -48,6 +50,10 @@ export interface PendingProof {
   name?: string;
   kind?: string;
   discountCode?: string;
+  /** An entry on a tournament's public link, held until the address is proved:
+   *  the link's token and the entrant as the server cleaned them. Nothing in it
+   *  is anybody's entry yet. */
+  entry?: { token: string; person: Record<string, unknown> };
 }
 
 /** This browser's code value, hashed — made (and set) when asked to. */
@@ -72,7 +78,13 @@ function readPending(value: Prisma.JsonValue | null): PendingProof {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const v = value as Record<string, unknown>;
   const text = (k: string) => (typeof v[k] === "string" ? (v[k] as string) : undefined);
-  return { passwordHash: text("passwordHash"), name: text("name"), kind: text("kind"), discountCode: text("discountCode") };
+  const held = v.entry;
+  const entry =
+    held && typeof held === "object" && !Array.isArray(held) && typeof (held as { token?: unknown }).token === "string" &&
+    (held as { person?: unknown }).person && typeof (held as { person?: unknown }).person === "object"
+      ? { token: (held as { token: string }).token, person: (held as { person: Record<string, unknown> }).person }
+      : undefined;
+  return { passwordHash: text("passwordHash"), name: text("name"), kind: text("kind"), discountCode: text("discountCode"), entry };
 }
 
 /**
@@ -89,6 +101,8 @@ export async function sendEmailCode(input: {
   email: string;
   purpose: EmailCodePurpose;
   pending: PendingProof | null;
+  /** For an entry code's email: the tournament it is for. */
+  eventName?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const browser = await browserHash(true);
   if (!browser) return { ok: false, error: EMAIL_CODE_WORDS.couldNotSend };
@@ -105,7 +119,7 @@ export async function sendEmailCode(input: {
     },
     select: { id: true },
   });
-  const sent = await sendEmailCodeEmail(input.email, code, input.purpose);
+  const sent = await sendEmailCodeEmail(input.email, code, input.purpose, input.eventName);
   if (!sent.ok) {
     await prisma.emailCode.deleteMany({ where: { id: row.id } });
     return { ok: false, error: EMAIL_CODE_WORDS.couldNotSend };
@@ -175,8 +189,13 @@ export async function checkEmailCode(email: string, typed: unknown): Promise<Che
   // Every try on this address in the last day, from every browser — see
   // EMAIL_CODE_DAILY_TRIES. Read before this try is counted, so the twenty-first
   // is refused without being compared.
+  // EACH KIND OF CODE HAS ITS OWN DAY'S TRIES (2026-11-13). Entry codes and "asked"
+  // codes can be caused by anybody who types an address into a public form, so
+  // wrong tries on them must not spend the tries of the sign-in, new-device or
+  // claim code of the person who owns the address (a locked-out owner or secretary).
+  const kind = row.purpose === "entry" || row.purpose === "asked" ? { purpose: row.purpose } : { purpose: { notIn: ["entry", "asked"] } };
   const today = await prisma.emailCode.aggregate({
-    where: { userId: user.id, createdAt: { gt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+    where: { userId: user.id, ...kind, createdAt: { gt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
     _sum: { attempts: true },
   });
   if ((today._sum.attempts ?? 0) >= EMAIL_CODE_DAILY_TRIES) return { ok: false, error: refusal.today };
@@ -193,6 +212,8 @@ export async function checkEmailCode(email: string, typed: unknown): Promise<Che
 
   const spent = await prisma.emailCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
   if (spent.count === 0 || !isEmailCodePurpose(row.purpose)) return { ok: false, error: refusal.expired };
+  // Proved by the inbox's owner: the send it cost this connection is given back.
+  await giveBackClientAttempt("code-send-client", await clientAddress());
   return { ok: true, userId: user.id, purpose: row.purpose, pending: readPending(row.pending) };
 }
 

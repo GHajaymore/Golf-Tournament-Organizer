@@ -2,6 +2,7 @@ import { test, expect } from "./coverage";
 import { openSettingsTab } from "./settings-tabs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pressRadio } from "./press-radio";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
 
@@ -30,7 +31,7 @@ test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
  * short ASCII names was letting every width assertion pass without ever being
  * asked a hard question. See the note beside `names` in the fixture.
  */
-const FIELD = ["Aj Moore", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
+const FIELD = ["Ned Calloway", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
 
 test("an organizer lands in the console, not the player app", async ({ page }) => {
   await page.goto("/");
@@ -295,7 +296,7 @@ test("the settings save follows you once there is something to save", async ({ p
 
   // Change the first thing in the block, which is the furthest from the save.
   const blind = scoring.getByRole("radio", { name: /organizers only/i }).first();
-  await blind.check();
+  await pressRadio(blind);
 
   await expect(page.getByText("Unsaved changes to players & scoring")).toBeVisible();
   await expect(save.locator("xpath=..")).toHaveCSS("position", "sticky");

@@ -1,6 +1,7 @@
 import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
+import { isInMatch } from "./match-membership";
 
 /**
  * Whether this person is actually in this match.
@@ -30,20 +31,7 @@ export async function playsInMatch(
     where: { eventId, ...byAddress(email) },
     select: { id: true },
   });
-  const mine = new Set(own.map((p) => p.id));
-  if (mine.size === 0) return false;
-
-  if (match.playerAId && mine.has(match.playerAId)) return true;
-  if (match.playerBId && mine.has(match.playerBId)) return true;
-
   // A team round leaves the player columns empty and puts the sides in the
-  // team columns. Being in one of those teams is being in the match.
-  const teamIds = [match.teamAId, match.teamBId].filter((id): id is string => !!id);
-  if (teamIds.length === 0) return false;
-
-  const member = await prisma.teamMember.findFirst({
-    where: { teamId: { in: teamIds }, playerId: { in: [...mine] } },
-    select: { id: true },
-  });
-  return !!member;
+  // team columns: the one membership rule, `isInMatch` (2026-11-04).
+  return isInMatch(match, own.map((p) => p.id));
 }

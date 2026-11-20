@@ -42,6 +42,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { removeTeamMember } from "@/app/actions/teams";
+import { correctionColumns } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-REMOVE";
@@ -66,9 +67,9 @@ beforeAll(async () => {
       organizationId: org.id,
       status: "live",
       // Teams are a structural change, so a launched tournament refuses them
-      // until the organizer unlocks. This is the state a committee re-drawing
-      // a side is actually in.
-      configUnlocked: true,
+      // until the organizer opens the sides with a committee correction (PR 9b).
+      // This is the state a committee re-drawing a side is actually in.
+      ...correctionColumns(`${TAG} four-ball`, "sides"),
       shape: "single",
       format: "stroke",
       sideStyle: "teams",

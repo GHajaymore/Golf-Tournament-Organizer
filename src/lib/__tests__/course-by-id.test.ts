@@ -48,7 +48,10 @@ describe("resolving a card by id, not by the name beside it", () => {
     const resolvers = files.filter((f) =>
       /resolveCourse\(|courseForRound\(|courseForMatch\(/.test(stripComments(readFileSync(f, "utf8"))),
     );
-    expect(resolvers.length).toBeGreaterThan(8);
+    // Eight since J26 (2026-11-06): four readers that resolved the tournament's
+    // card only to decide match countbacks on it now take each match's card
+    // from `countbackCardsFor`, which resolves inside course-resolution.ts.
+    expect(resolvers.length).toBeGreaterThanOrEqual(8);
   });
 
   it("every one of them loads the course, or takes it from tournament state", () => {

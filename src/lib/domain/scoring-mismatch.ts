@@ -101,12 +101,20 @@ export function scoringMismatch(
    * whatever is DECIDED from the standings — the players a knockout is seeded
    * from and a cut is made on (`liveQualifiers`, the cut candidates) — so that
    * is what the organizer is told.
+   *
+   * AND THEN NOT EVEN THAT, FOR A CUT (J31, 2026-11-07). A cut is taken on a
+   * card or a table by `cutFeederOf`'s kind; neither engine ever read the
+   * setting, and since J31 the board does not either
+   * (`one-reading-of-a-cut.test.ts`). A knockout fed by a round is seeded on
+   * that round's own format (`qualifiesOnCards`). So the words no longer warn
+   * of a cut "made on stroke totals" — they say the rounds are ranked and cut
+   * on their own results, and the setting should be put right to match.
    */
   if (scoring === "match" && !anyHeadToHead) {
     return {
       scoring,
       message:
-        "This tournament is set to Match play, but no round in it draws opponents. The leaderboard ranks the cards, but a knockout draw or a cut made from these standings would be made on match points that nobody has earned. Set Scoring to Stroke play on Tournament details.",
+        "This tournament is set to Match play, but no round in it is played head to head. Each round is still ranked and cut on its own scores. Set Scoring to Stroke play on Tournament details so the setting matches the rounds.",
     };
   }
 
@@ -114,7 +122,7 @@ export function scoringMismatch(
     return {
       scoring,
       message:
-        "This tournament is set to Stroke play, but every round in it is played head to head. The leaderboard ranks the matches, but a knockout draw or a cut made from these standings would be made on stroke totals that match play does not produce. Set Scoring to Match play on Tournament details.",
+        "This tournament is set to Stroke play, but every round in it is played head to head. Each round is still ranked and cut on its own results. Set Scoring to Match play on Tournament details so the setting matches the rounds.",
     };
   }
 

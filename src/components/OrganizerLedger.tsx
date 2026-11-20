@@ -213,6 +213,8 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
         type="button"
         className="btn btn-secondary"
         onClick={() => setShowLines((v) => !v)}
+        // A disclosure, said so — which is also why an archived tournament leaves it live.
+        aria-expanded={showLines}
         style={{ alignSelf: "flex-start", fontSize: 13 }}
       >
         <Icon name={showLines ? "ph ph-caret-up" : "ph ph-caret-down"} /> The {view.expenses.length} expense

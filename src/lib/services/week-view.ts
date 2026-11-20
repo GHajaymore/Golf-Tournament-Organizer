@@ -1,8 +1,8 @@
 import "server-only";
 import { prisma } from "../db";
-import { resolveCourse } from "../courses";
 import { holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import { aggregateStroke, emptyAgg, netOf } from "../domain/stroke-agg";
+import { holesToComplete } from "../domain/completed-round";
 import { skinsPotFor, type SkinsPotView } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel, type SkinsScope } from "../domain/skins-pot";
 import { roundIsStroke } from "../stage-types";
@@ -30,6 +30,8 @@ import {
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { formattingForEvent } from "./organization";
 import { standingsThroughRound } from "./standings-through";
+import { cardsOnBoard } from "../domain/board-hold";
+import { countbackCardOn, netCountbackMethodFor } from "../domain/stroke-countback";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -53,8 +55,12 @@ export interface WeekResult {
   net: number;
   points: number;
   thru: number;
-  /** Position on the night, ties sharing a place. */
-  position: number;
+  /**
+   * Position on the night, ties sharing a place. Null for a card with holes
+   * missing in a week of stroke play the committee has closed: listed beneath
+   * the field, without a place (Rule 3.3c; `holesToComplete`).
+   */
+  position: number | null;
 }
 
 /**
@@ -234,11 +240,12 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     where: { eventId },
     select: { stageId: true },
   });
-  const course = await resolveCourse(state.event);
-  // Event level on purpose, and the only thing still resolved that way here:
-  // this orders MATCH tiebreaks across a whole season's chain, not one round's
-  // card. Anything that scores a card goes through `state.strokeCourseFor`.
-  const holeDifficulty = course.strokeIndex ?? [];
+  // No card is resolved at the tournament's level here any more. The MATCH
+  // tiebreaks across a season's chain were (J26, 2026-11-06): "event level on
+  // purpose", which decided an away week's halved match on the home club's
+  // toughest holes. Each match now ranks its own card (`state.countbackCardFor`,
+  // in `standingsWithMovement`); anything that scores a card goes through
+  // `state.strokeCourseFor`.
 
   // The resolvers loadEventState built, not copies of them. Rebuilding either
   // here is exactly the drift handicap-wiring.test.ts exists to stop: both
@@ -257,7 +264,8 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   // adding them up would produce a ranking the club never played for.
   const manual = isManualFormat(stage.format);
 
-  const thisWeek = manual ? [] : parseStrokeCards(cards.filter((c) => c.stageId === stage.id));
+  // A card held in dispute is not ranked (`cardsOnBoard`, domain/board-hold.ts).
+  const thisWeek = manual ? [] : parseStrokeCards(cardsOnBoard(cards.filter((c) => c.stageId === stage.id)));
   const agg = aggregateStroke(thisWeek, {
     courseFor,
     handicapFor,
@@ -391,7 +399,10 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   const basis = weekBasis(stage.scoringBasis, stage.format);
   // A level night is broken by the SAME countback the leaderboard and `/live`
   // use — see `compareNight`. Each row carries this round's per-hole card on the
-  // night's basis so the tiebreak has something to count back over.
+  // night's basis so the tiebreak has something to count back over — built by
+  // the board's own `countbackCardOn`, net by fractions of the playing handicap
+  // in an event created from 2026-11-09 (Committee Procedures 5A(7)).
+  const netCountback = netCountbackMethodFor(state.event.createdAt);
   const scored = state.confirmed
     .map((p) => {
       const a = agg.get(p.id) ?? emptyAgg();
@@ -402,7 +413,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
         gross: a.gross,
         net: netOf(a),
         points: a.points,
-        cbHoles: (basis === "stableford" ? h?.points : basis === "gross" ? h?.gross : h?.net) ?? [],
+        countback: countbackCardOn(p.id, h, basis, netCountback),
         thru: a.thru,
         /**
          * The card is IN — not merely started.
@@ -438,10 +449,27 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    */
   const nightKind = boardKind(stage.format);
   const ranksPlayers = nightKind === "standard" || nightKind === "modified-stableford";
-  const ranked = ranksPlayers
-    ? positionWithTies(scored, (a, b) => nightLevel(basis, stage.holes, a, b))
+  /**
+   * AND A CLOSED WEEK OF STROKE PLAY PLACES ONLY THE CARDS THAT COMPLETED IT
+   * (15 Nov 2026). This table ranks on the raw figure, so twelve holes in 45
+   * read "1st … thru 12" above every card of eighteen, closed or not. Open,
+   * that is a card still in play; closed, it is a round not completed, which
+   * holds no place (Rule 3.3c) — asked of `holesToComplete`, the leaderboard's
+   * own answer, so the sheet and the board agree. Listed beneath, not dropped:
+   * the card is real and the committee may need to see it. Points are left
+   * alone: a hole not played scores none and the card counts (Rule 21.1c).
+   */
+  const owed = stage.closedAt != null && basis !== "stableford" ? holesToComplete(stage) : 1;
+  const ranked: Array<(typeof scored)[number] & { position: number | null }> = ranksPlayers
+    ? [
+        ...positionWithTies(
+          scored.filter((r) => r.thru >= owed),
+          (a, b) => nightLevel(basis, stage.holes, a, b),
+        ),
+        ...scored.filter((r) => r.thru < owed).map((r) => ({ ...r, position: null })),
+      ]
     : [];
-  // Exactly `WeekResult` — the countback card (`cbHoles`) is a ranking input, not
+  // Exactly `WeekResult` — the countback card (`countback`) is a ranking input, not
   // something the client needs, so it does not ride along in the payload.
   const results: WeekResult[] = ranked.map((r) => ({
     playerId: r.playerId,
@@ -520,7 +548,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   // as though this one had been counted.
   const standings = manual
     ? []
-    : await standingsWithMovement(state, weeks, idx, { holeDifficulty });
+    : await standingsWithMovement(state, weeks, idx);
   /**
    * Does this week's result reach the season table?
    *
@@ -634,11 +662,6 @@ async function standingsWithMovement(
   state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>,
   weeks: Array<{ id: string }>,
   idx: number,
-  opts: {
-    // The match-play tiebreak order, which is an event-level chain. A stroke
-    // season's cards are the board's business, per round.
-    holeDifficulty: number[];
-  },
 ): Promise<WeekRow[]> {
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p.name]));
 
@@ -650,7 +673,9 @@ async function standingsWithMovement(
       state.matches,
       state.domainPlayers,
       state.scoring,
-      opts.holeDifficulty,
+      // Each match decided on its OWN venue's toughest holes — an away week
+      // on the away card (J26), exactly as the leaderboard decides it.
+      state.countbackCardFor,
       parseMatchTiebreakers(state.event.matchTiebreakers),
     );
     /**

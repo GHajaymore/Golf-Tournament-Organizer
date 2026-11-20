@@ -49,13 +49,13 @@ describe("a league night breaks a tie on the leaderboard's countback", () => {
     gross: 72,
     net: 72,
     points: 0,
-    cbHoles: [4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4, 4, 5, 4, 4, 4, 4, 4],
+    countback: { playerId: "", total: 0, holes: [4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4, 4, 5, 4, 4, 4, 4, 4] },
   };
   const B = {
     gross: 74,
     net: 72,
     points: 0,
-    cbHoles: [4, 4, 5, 4, 5, 4, 4, 4, 4, 4, 3, 4, 4, 4, 4, 3, 4, 4],
+    countback: { playerId: "", total: 0, holes: [4, 4, 5, 4, 5, 4, 4, 4, 4, 4, 3, 4, 4, 4, 4, 3, 4, 4] },
   };
 
   it("puts the better back nine first, though its gross is higher", () => {

@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, stripComments } from "./source";
+import { setupFlow } from "../domain/setup-flow";
+import { setupFactsOf, tournamentStatus } from "../domain/tournament-status";
+import { screenName } from "../nav";
+import { FAMILY_FIXTURES, FAMILIES } from "../domain/__tests__/tournament-facts-fixtures";
 
 /**
  * THE LAUNCH FACTS ARE BUILT ONCE (gap G3, 2026-10-31).
@@ -58,22 +62,54 @@ describe("one builder of the launch facts", () => {
   });
 
   it("the dashboard and the action ask the setup flow's verdict", () => {
-    expect(readSource("src/app/(app)/dashboard/page.tsx")).toMatch(/await launchCheckFor\(session\.eventId\)/);
-    expect(readSource("src/app/actions/tournament.ts")).toMatch(/const \{ refusal \} = await launchCheckFor\(eventId\)/);
+    /**
+     * Since the state machine's PR 3 the dashboard's button asks the machine
+     * (`tournamentStatusFor`), and the machine's launch refusal IS the flow's
+     * verdict first — `todayLaunch.refusal`, from the same builder — then the
+     * panel's added holds. Since PR 4 the action asks the SAME refusal
+     * (`refusals.launch`, through `tournamentStatusNow`), so the button and the
+     * action cannot disagree in either direction: the guarantee this test
+     * exists for. Pinned in source here and in behaviour below.
+     */
+    expect(readSource("src/app/(app)/dashboard/page.tsx")).toMatch(/await tournamentStatusFor\(session\.eventId, state\.today\)/);
+    expect(readSource("src/lib/domain/tournament-status.ts")).toMatch(/const todayLaunch = flow\?\.launch \?\? null;/);
+    expect(readSource("src/lib/domain/tournament-status.ts")).toMatch(/:\s*\(todayLaunch\?\.refusal \?\? /);
+    expect(readSource("src/app/actions/tournament.ts")).toMatch(/const told = await tournamentStatusNow\(eventId\);\s*if \(!told\) return \{ ok: false, error: "This tournament could not be found\." \};\s*const refusal = told\.status\.refusals\.launch;/);
+    expect(readSource("src/lib/services/tournament-status.ts")).toMatch(/return tournamentStatusFor\(eventId, await todayForEvent\(eventId\)\)/);
     // And the flow's verdict is the builder's, so the rail asks it too.
     expect(readSource("src/lib/domain/setup-flow.ts")).toMatch(/launchCheck\(/);
     expect(readSource("src/lib/domain/launch-check.ts")).toMatch(/launchRefusal\(launchFactsFrom\(f\)\)/);
   });
 
+  it("the machine refuses everything the action's gate refuses, in the gate's own words (PR 3)", () => {
+    for (const family of FAMILIES.filter((f) => f !== "casual")) {
+      for (const over of [{}, { dated: false }, { confirmed: 0 }, { rounds: [] }, { missingCards: [{ stageId: "r1", label: "Round 1", course: "Invented Links" }] }]) {
+        const f = { ...FAMILY_FIXTURES[family](), ...over };
+        const gate = setupFlow(setupFactsOf(f), (h) => screenName(h)).launch.refusal;
+        if (gate) expect(tournamentStatus(f).refusals.launch, `${family} ${JSON.stringify(over)}`).toBe(gate);
+      }
+    }
+  });
+
   it("SECURITY: the action reads setup only after the organizer gate, for the event it resolved", () => {
     // `launchTournament` is a public endpoint. Its refusals name this
     // tournament's rounds and screens, so they must be behind the gate.
+    // Since PR 4 the body behind the gate is `launchNow`, which is NOT exported
+    // (an export would be an endpoint with no gate) and is reached only from
+    // behind the two doors' gates.
     const src = readSource("src/app/actions/tournament.ts");
     const body = src.slice(src.indexOf("export async function launchTournament("));
     const gate = body.indexOf("await adminEventOrRefusal()");
-    const facts = body.indexOf("await launchCheckFor(eventId)");
+    const facts = body.indexOf("return launchNow(gate.eventId)");
     expect(gate).toBeGreaterThan(-1);
     expect(facts, "launch reads setup before the organizer gate").toBeGreaterThan(gate);
     expect(body.slice(gate, facts)).toMatch(/if \("refused" in gate\) return \{ ok: false, error: gate\.refused \}/);
+    expect(src).toMatch(/\nasync function launchNow\(eventId: string\)/);
+    expect(src).not.toMatch(/export async function launchNow/);
+    const status = src.slice(src.indexOf("export async function setEventStatus("));
+    const statusGate = status.indexOf("await adminEventOrRefusal()");
+    expect(statusGate).toBeGreaterThan(-1);
+    expect(status.indexOf("return launchNow(eventId)"), "setEventStatus launches before its gate").toBeGreaterThan(statusGate);
+    expect(src.match(/launchNow\(/g)?.length, "launchNow reached from a third place").toBe(3);
   });
 });

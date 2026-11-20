@@ -97,36 +97,48 @@ describe("the templates this was blocking", () => {
 
 describe("the paths that ask", () => {
   /**
-   * Read from source, because the rule is only worth anything where it is
-   * actually consulted — and three of these four call sites cannot be reached
-   * by a unit test without a database.
+   * SINCE 2026-11-07 NO ORGANIZER DOOR REFUSES AN ENTRY FOR WANT OF AN EMAIL.
+   *
+   * Ajay's ruling on the no-email player identity: members may enter without
+   * one, guests need none. What this block used to pin — "an email-only
+   * tournament refuses a blank address" — was the right answer to the old
+   * rule and is now the defect. The guarantee is the other half of the same
+   * idea it always protected (nobody is entered with no way to their card):
+   * an entry without an email on an email-only tournament turns Round Codes on
+   * beside email sign-in, in ONE place, `codesOnForAnEntryWithoutEmail`, and
+   * all three organizer doors go through it.
+   *
+   * Read from source because three of the four call sites cannot be reached by
+   * a unit test without a database.
    */
-  it("has all three organizer entry paths ask the tournament", () => {
+  it("has all three organizer entry paths turn codes on rather than refuse", () => {
     const actions = readSource("src", "app", "actions", "tournament.ts");
     const roster = readSource("src", "app", "actions", "roster.ts");
     // The by-hand add, and the entry CSV import.
-    expect(actions.match(/entryNeedsEmail\(/g) ?? []).toHaveLength(2);
-    // Adding from the club roster. Since 2026-09-26 this goes through ONE sink
-    // shared with the roster picker (which shows the gap before the tick):
-    // `entryContactNeeds` asks the tournament, `contactGap` applies it. So pin
-    // that the action uses both, and that the sink really asks `entryNeedsEmail`
-    // — the guarantee, not the old spelling of it.
-    expect(roster).toMatch(/entryContactNeeds\(event\)/);
-    expect(roster).toMatch(/contactGap\(m, needs\)/);
-    const service = readSource("src", "lib", "services", "roster.ts");
-    const sink = service.slice(service.indexOf("export async function entryContactNeeds"));
-    expect(sink.slice(0, sink.indexOf("\n}"))).toMatch(/email: entryNeedsEmail\(/);
+    expect(actions.match(/codesOnForAnEntryWithoutEmail\(/g) ?? []).toHaveLength(2);
+    // Adding from the club roster.
+    expect(roster.match(/codesOnForAnEntryWithoutEmail\(/g) ?? []).toHaveLength(1);
+    // And the sink really asks the tournament before switching anything: a
+    // tournament already on codes is left alone.
+    const service = readSource("src", "lib", "services", "round-codes.ts");
+    const sink = service.slice(service.indexOf("export async function codesOnForAnEntryWithoutEmail"));
+    const body = sink.slice(0, sink.indexOf("\n}"));
+    expect(body).toMatch(/usesAccessCodes\(cleanSettings\(event\)\)\) return false/);
+    expect(body).toMatch(/playerAccess: "both"/);
+    expect(body).toMatch(/ensureRoundCodes\(eventId\)/);
+    // The roster's contact needs no longer carry an email at all.
+    const rosterService = readSource("src", "lib", "services", "roster.ts");
+    const needs = rosterService.slice(rosterService.indexOf("export async function entryContactNeeds"));
+    expect(needs.slice(0, needs.indexOf("\n}"))).not.toMatch(/email/);
   });
 
-  it("refuses a missing email only when the tournament asks for one", () => {
+  it("refuses a roster member for a missing mobile only, never a missing email", () => {
     // Behaviour, not spelling: the rule the roster path and the picker share.
-    const blank = { email: "", phone: "07700 900123" };
-    expect(contactGap(blank, { email: true, phone: false })).toBe("email");
-    expect(contactGap(blank, { email: false, phone: false })).toBeNull();
-    // Email is reported before mobile, the order the action has always used.
-    expect(contactGap({ email: "", phone: "" }, { email: true, phone: true })).toBe("email");
-    expect(contactGap({ email: "a@example.invalid", phone: "" }, { email: true, phone: true })).toBe("mobile");
-    expect(contactGap({ email: "a@example.invalid", phone: "07700 900123" }, { email: true, phone: true })).toBeNull();
+    const blank = { email: "", phone: "" };
+    expect(contactGap(blank, { phone: false })).toBeNull();
+    expect(contactGap(blank, { phone: true })).toBe("mobile");
+    // CONTROL: a member with a real mobile and no email passes where a mobile is asked.
+    expect(contactGap({ phone: "07700 900123" }, { phone: true })).toBeNull();
   });
 
   it("leaves open registration asking every stranger", () => {
@@ -137,7 +149,8 @@ describe("the paths that ask", () => {
      * (`checkRateLimit("register-email", …)`), has nothing else to
      * de-duplicate a stranger on, and emails them a confirmation. An organizer
      * typing a name in is none of those: they are authenticated and holding
-     * the list.
+     * the list. (Guests entering themselves on the link is a later change of
+     * the no-email design, behind the organizer's own switch.)
      *
      * Absence, which is the comment-proof direction — the prose above names
      * `entryNeedsEmail` and would satisfy a positive match happily.
@@ -149,46 +162,27 @@ describe("the paths that ask", () => {
   });
 
   it("does not let the form contradict the rule", () => {
-    // The screen marked the field "required, grants sign-in" and disabled its
-    // Add button without one, on every tournament — so even with the server
-    // relaxed, a society still could not type anybody in.
+    // The Add form says email is optional, and its button does not wait for one.
     const client = readSource("src", "components", "RegistrationClient.tsx");
-    expect(client).toMatch(/needsEmail \? "· required, grants sign-in"/);
-    expect(client).toMatch(/\(needsEmail && !email\.trim\(\)\)/);
+    expect(client).toMatch(/· optional, lets them sign in/);
+    expect(client).not.toMatch(/needsEmail && !email\.trim\(\)/);
+    expect(client).not.toMatch(/required=\{needsEmail\}/);
+    // The page still tells the screen how the tournament signs players in, for the contact-gap line.
     const page = readSource("src", "app", "(app)", "registration", "page.tsx");
     expect(page).toMatch(/needsEmail=\{entryNeedsEmail\(settingsOf\(state\.event\)\)\}/);
   });
 
-  it("keeps no unconditional copy of the refusal anywhere", () => {
+  it("keeps no copy of the refusal anywhere", () => {
     /**
-     * THE ONE THE FIRST CUT MISSED, and it is the reason this test exists in
-     * this shape rather than as three positive assertions.
-     *
-     * `submitAdd` carried its own `!email.trim()` early return with the same
-     * message, so the server was relaxed, the label read "optional", the
-     * button was enabled — and clicking it still refused. Walked on
-     * 2026-09-11 on a charity day, which is exactly the tournament this whole
-     * change is for.
-     *
-     * A count, because the message is legitimately written twice — once in the
-     * action, once in the client — and both must now be reached only through a
-     * `needsEmail` test. Any THIRD copy, or either of these two losing its
-     * condition, is what this catches.
+     * The refusal was written twice once — in the action and in `submitAdd` —
+     * and the client copy outlived the server's relaxing (walked 2026-09-11).
+     * Now it is written nowhere, and this is the sweep that keeps it that way.
      */
-    const guarded = [
+    for (const parts of [
       ["src", "app", "actions", "tournament.ts"],
       ["src", "components", "RegistrationClient.tsx"],
-    ] as const;
-    for (const parts of guarded) {
-      const src = readSource(...parts);
-      const refusals = src.match(/"Email is required[^"]*"/g) ?? [];
-      expect(refusals.length, parts.join("/")).toBe(1);
-      // And the line that produces it is reached only behind the rule.
-      expect(src, parts.join("/")).toMatch(/needsEmail(\)| &&)|entryNeedsEmail\(/);
-    }
-    // Nowhere else in the product states it at all.
-    for (const parts of [
       ["src", "app", "actions", "roster.ts"],
+      ["src", "components", "RosterPicker.tsx"],
       ["src", "lib", "plans.ts"],
       ["src", "lib", "services", "player-access.ts"],
     ] as const) {

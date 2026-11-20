@@ -1,3 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TeamStandingsTable } from "@/components/TeamLeaderboard";
+import { tournamentTerms } from "@/lib/rules";
+import { recommendedAllowance, parStrokesApply, playingHandicapInRound } from "@/lib/round-allowance";
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_INPUT,
@@ -14,8 +19,9 @@ import {
   sideSizeRange,
   GOLF_FORMATS,
 } from "@/lib/formats";
-import { sideHandicap, aggregateTeamCard } from "@/lib/domain/team";
-import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead } from "@/lib/stage-types";
+import { sideHandicap, aggregateTeamCard, matchHolesOffTheLow } from "@/lib/domain/team";
+import { leagueSideBalls } from "@/lib/services/league";
+import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead, boardKindForRound } from "@/lib/stage-types";
 import {
   LEADERBOARD_VISIBILITY,
   SCORE_ENTRY_BY,
@@ -38,6 +44,11 @@ import {
 import type { Role } from "@/lib/roles";
 import { bracketSizeFor, buildBracket, seedOrder, drawBrackets, firstRoundLosers, bracketFinishOrderAll, flightKind } from "@/lib/domain/bracket";
 import { planFlights, proposeShapes } from "@/lib/domain/bracket-flights";
+import { laterTieHold, type Draws } from "@/lib/domain/knockout-ties";
+
+/** The refusal in words, or null: what the server says where the press was. */
+const laterTieRefusal = (...a: Parameters<typeof laterTieHold>) => laterTieHold(...a)?.said ?? null;
+import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { flightCountFor, formGroups } from "@/lib/domain/grouping";
 import { groupByStandings, positionLookup } from "@/lib/domain/draw";
 import {
@@ -45,26 +56,32 @@ import {
   survivors,
   nextRoundFlights,
   strokeCutOutcome,
+  roundRobinCutOutcome,
   CUT_TIE_RULES,
   type CutLineRow,
   type CutCandidate,
   type CutRule,
   type NextRoundFlight,
 } from "@/lib/domain/cut";
-import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
+import { aggregateStats, rankPlayers, computeStandings } from "@/lib/domain/standings";
+import { onBoard } from "@/lib/domain/board-hold";
+import { cutFeederOf, cutAfterRound } from "@/lib/domain/cut-ready";
+import { countbackCardsFor } from "@/lib/services/course-resolution";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
 import { resolveMatch } from "@/lib/domain/match";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "@/lib/domain";
+import { countbackBetween, countbackCardOn } from "@/lib/domain/stroke-countback";
 import {
   handicapToFreeze,
   isReturnedCard,
   resolveRoundHandicap,
   roundHandicapKey,
 } from "@/lib/domain/round-handicap";
-import { playingHandicapFrom, courseHandicapMap, teeIdFor } from "@/lib/domain/handicap";
+import { playingHandicapFrom, courseHandicapMap, teeIdFor, courseHandicapExact, courseHandicap } from "@/lib/domain/handicap";
 import { TEE_POLICY } from "@/lib/tournament-settings";
+import { teeAfterVenue } from "@/lib/domain/venue";
 import {
   effectiveAllowance,
   snakeDraw,
@@ -75,6 +92,15 @@ import { orderClubs, type ClubRecord, type HeadToHead } from "@/lib/domain/leagu
 import { placesByValue } from "@/lib/domain/flight-places";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
+import type { BracketView } from "@/lib/domain/bracket";
+import { tournamentStatus, drawFacts, addRoundLockOf, locksFor, lockFactsOf, type Family, type TournamentFacts } from "@/lib/domain/tournament-status";
+import { FAMILY_FIXTURES as STATUS_FAMILIES, launched as launchedFacts } from "@/lib/domain/__tests__/tournament-facts-fixtures";
+import { fieldChangeAllowed, fieldFactsOf, fieldStepOf, partOf, type FieldChange, type FieldStep, type FieldVerdict } from "@/lib/domain/field-change";
+import { teeSheetChangeAllowed, teeSheetStepOf, toldCount, type TeeSheetChangeAsk, type TeeSheetStep } from "@/lib/domain/tee-sheet-change";
+import type { TeeSheet } from "@/lib/domain/tee-sheet";
+import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
+import { formatFitsRound } from "@/lib/domain/round-choices";
+import { needsCommitteeFigure } from "@/lib/domain/committee-figure";
 
 /**
  * The combination sweep.
@@ -466,6 +492,148 @@ describe("a tie on the stroke cut line, at every field size", () => {
   }
 });
 
+/**
+ * A TIE EXACTLY AT A ROUND ROBIN'S CUT LINE, IN FLIGHTS (J31, 2026-11-06).
+ *
+ * A real table from real matches, ranked by `rankPlayers`: in each flight a
+ * strict ladder — everybody beats everybody listed below them, 1 up — except
+ * that the two players either side of the line HALVE their meeting. That
+ * leaves them level on points and on every tie-break the round has (they
+ * halved head-to-head; their holes won and lost are the same), so the line
+ * falls exactly through a tie the table cannot split. How it is settled is
+ * the committee's published method — Committee Procedures 5A(6) — never the
+ * order the list happens to be in, which past the tie-breaks is entry order:
+ *
+ *   - everyone above the pair is through, everyone below it is not, under
+ *     every rule, in every flight;
+ *   - "ties": both go through and nothing is owed;
+ *   - a play-off or a countback: neither goes through, one tie of exactly the
+ *     pair is owed for one place — by play-off, or by lot (the tie-breaks ran
+ *     out) — in that flight;
+ *   - recorded, the draw's winner goes through, even the one listed lower, and
+ *     the flight sends exactly N.
+ *
+ * Flights of one to three; a cut of N bigger than a flight takes all of it.
+ */
+describe("a tie exactly at a round robin's cut line, in flights, at every field size", () => {
+  const oneUp: HoleResult[] = ["A", ...new Array<HoleResult>(17).fill("H")];
+  const allSquare: HoleResult[] = new Array<HoleResult>(18).fill("H");
+  for (const n of FIELD_SIZES) {
+    it(`a field of ${n}, in one to three flights, every cut, every rule`, () => {
+      for (const flights of [1, 2, 3].filter((f) => f <= n)) {
+        for (const count of [1, 2, 3]) {
+          const players = field(n).map((p, i) => ({ ...p, groupId: `f${i % flights}` }));
+          const byFlight = new Map<string, string[]>();
+          for (const p of players) byFlight.set(p.groupId, [...(byFlight.get(p.groupId) ?? []), p.id]);
+          const matches: Match[] = [];
+          for (const [g, ids] of byFlight) {
+            for (let i = 0; i < ids.length; i += 1) {
+              for (let j = i + 1; j < ids.length; j += 1) {
+                const atLine = i === count - 1 && j === count;
+                matches.push({ id: `${ids[i]}-${ids[j]}`, stageId: "r1", groupId: g, round: 1, playerAId: ids[i], playerBId: ids[j], holes: atLine ? allSquare : oneUp });
+              }
+            }
+          }
+          const table = rankPlayers(players, aggregateStats(players, matches, DEFAULT_SCORING), DEFAULT_SCORING, matches);
+          for (const scope of flights === 1 ? (["perFlight", "overall"] as const) : (["perFlight"] as const)) {
+            for (const tie of CUT_TIE_RULES) {
+              const label = `n=${n} ${flights} flight(s) top ${count} ${scope} ${tie}`;
+              const next = { cutScope: scope, cutMode: "count", cutCount: count, cutPercent: 50, cutTies: tie, cutTieDecisions: "[]" };
+              const out = roundRobinCutOutcome(table, next);
+              const owed = out.undecided.flatMap((u) => u.playerIds);
+              expect(owed.filter((id) => out.through.has(id)), `${label}: through AND owed`).toEqual([]);
+              expect(out.through.size + owed.length, `${label}: inside the field`).toBeLessThanOrEqual(n);
+              for (const [g, ids] of byFlight) {
+                const flightLabel = `${label}, flight ${g} of ${ids.length}`;
+                if (count >= ids.length) {
+                  for (const id of ids) expect(out.through.has(id), `${flightLabel}: ${id} — the cut takes the flight`).toBe(true);
+                  continue;
+                }
+                const pair = [ids[count - 1], ids[count]];
+                for (const id of ids.slice(0, count - 1)) expect(out.through.has(id), `${flightLabel}: ${id} is above the line`).toBe(true);
+                for (const id of ids.slice(count + 1)) {
+                  expect(out.through.has(id) || owed.includes(id), `${flightLabel}: ${id} is below the line`).toBe(false);
+                }
+                const theirs = out.undecided.filter((u) => u.playerIds.some((id) => pair.includes(id)));
+                if (tie === "ties") {
+                  for (const id of pair) expect(out.through.has(id), `${flightLabel}: ${id} is level, and ties go through`).toBe(true);
+                  expect(theirs, flightLabel).toEqual([]);
+                } else {
+                  for (const id of pair) expect(out.through.has(id), `${flightLabel}: ${id} is in a tie nobody has settled`).toBe(false);
+                  expect(theirs, flightLabel).toEqual([
+                    { groupId: scope === "overall" ? null : g, playerIds: pair, places: 1, by: tie === "playoff" ? "playoff" : "draw" },
+                  ]);
+                }
+              }
+              // Every owed tie recorded for its LOWER-listed player: nothing owed,
+              // and each flight sends exactly N — the draw's winner among them.
+              const decisions = out.undecided.map((u) => ({ tied: u.playerIds, through: [u.playerIds[u.playerIds.length - 1]] }));
+              const settled = roundRobinCutOutcome(table, { ...next, cutTieDecisions: JSON.stringify(decisions) });
+              expect(settled.undecided, `${label}: settled`).toEqual([]);
+              if (tie === "ties") continue;
+              for (const [g, ids] of byFlight) {
+                const went = ids.filter((id) => settled.through.has(id));
+                expect(went.length, `${label}, flight ${g}: settled, N go`).toBe(Math.min(count, ids.length));
+                if (count < ids.length) expect(went, `${label}, flight ${g}: the draw's winner`).toContain(ids[count]);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+});
+
+/**
+ * WHAT A CUT IS TAKEN OUT OF, IN EVERY SHAPE OF TOURNAMENT (J31 review, 2026-11-07).
+ *
+ * Written by hand from what the two engines do, not from `cutFeederOf`:
+ * `applyStrokeCut` cuts a stroke round on the stroke round just before it
+ * (the cards), and `generateCutRound` cuts anything else on the table of the
+ * last round robin before it BY POSITION — a medal between them does not move
+ * it. The tie card, the record of a play-off and the board ask this one
+ * function; it once asked the round beside the cut, and for round robin →
+ * medal → cut round named no feeder while the draw refused for a tie.
+ */
+describe("the round a cut is taken out of, for every shape of tournament", () => {
+  const RR = { type: "Round Robin", format: "Match Play" };
+  const RR_MEDAL = { type: "Round Robin", format: "Stroke Play" };
+  const MEDAL = { type: "Stroke Play Round", format: "Stroke Play" };
+  const SCRAMBLE = { type: "Stroke Play Round", format: "Scramble" };
+  type Shape = { type: string; format: string };
+  // [the rounds, in order — the last is the cut round], the round it is taken out of (index), on what.
+  const cells: [string, Shape[], number | null, "card" | "table" | null][] = [
+    ["round robin → round robin", [RR, RR], 0, "table"],
+    ["round robin → medal", [RR, MEDAL], 0, "table"],
+    ["round robin → medal → round robin", [RR, MEDAL, RR], 0, "table"],
+    ["round robin → scramble → medal", [RR, SCRAMBLE, MEDAL], 0, "table"],
+    ["round robin → round robin → medal → round robin", [RR, RR, MEDAL, RR], 1, "table"],
+    ["round robin → medal → medal (the cards)", [RR, MEDAL, MEDAL], 1, "card"],
+    ["medal → medal", [MEDAL, MEDAL], 0, "card"],
+    ["round robin at stroke play → medal (the cards)", [RR_MEDAL, MEDAL], 0, "card"],
+    // A card cut needs BOTH rounds individual stroke play (`applyStrokeCut`); the round after is head to head, so this is
+    // `generateCutRound`'s cut, which is always taken on the last round robin's table — whatever that round robin was scored as.
+    ["round robin at stroke play → round robin", [RR_MEDAL, RR], 0, "table"],
+    ["medal → round robin: no table before it", [MEDAL, RR], null, null],
+    ["scramble → medal: neither engine cuts it", [SCRAMBLE, MEDAL], null, null],
+    ["one round: nothing before it", [RR], null, null],
+  ];
+  for (const [name, shapes, from, kind] of cells) {
+    it(name, () => {
+      const rounds = shapes.map((s, i) => ({ id: `r${i + 1}`, ...s }));
+      const line = cutFeederOf(rounds, rounds[rounds.length - 1].id);
+      expect(line ? [line.feeder.id, line.kind] : null).toEqual(from === null ? null : [`r${from + 1}`, kind]);
+      // And the rules sheet prints that cut on exactly ONE round's sheet — the
+      // round that decides it, the same one — and on none where nothing does.
+      const withCut = rounds.map((r, i) => ({
+        ...r, cutEnabled: i === rounds.length - 1, cutScope: "overall", cutMode: "count", cutCount: 2, cutPercent: 50, cutTies: "playoff",
+      }));
+      const printedOn = withCut.filter((r) => cutAfterRound(withCut, r.id) !== null).map((r) => r.id);
+      expect(printedOn, `${name}: the sheets that print the cut`).toEqual(from === null ? [] : [`r${from + 1}`]);
+    });
+  }
+});
+
 describe("flights, at every field size", () => {
   for (const n of FIELD_SIZES) {
     it(`never leaves a lone player in a flight at n=${n}`, () => {
@@ -709,6 +877,171 @@ describe("standings, at every field size", () => {
     const stats = aggregateStats([], [], DEFAULT_SCORING);
     expect(rankPlayers([], stats, DEFAULT_SCORING, [])).toEqual([]);
   });
+
+  /**
+   * A HEAD-TO-HEAD CYCLE, at every field size it fits in (2026-11-07).
+   *
+   * The decisive round robin above, with ONE result turned round: the player
+   * at window+2 beats the player at window. Worked by hand: in the decisive
+   * table the three hold W, W-1 and W-2 wins; turning the one meeting round
+   * gives each of them W-1 — level on points — and their meetings now go in a
+   * circle (w b w+1, w+1 b w+2, w+2 b w). Every match is 10&8 (ten holes
+   * won), and each of the three won and lost the same NUMBER of matches, so
+   * hole difference and holes lost are level too. Nothing they did separates
+   * them: Committee Procedures 5A(6) leaves the committee's chain to decide,
+   * and the chain runs out — they SHARE place w+1. Everyone else keeps their
+   * own position. Run in two entry orders, so a ranking that falls back on
+   * the seed shows as two different boards.
+   *
+   * Under the pairwise rule this cell read w+1, w+2, w+3: each neighbouring
+   * pair had a winner.
+   */
+  const flip = (matches: Match[], winner: string, loser: string): Match[] =>
+    matches.map((m) =>
+      m.playerAId === loser && m.playerBId === winner
+        ? { ...m, holes: new Array(18).fill("B") as Match["holes"] }
+        : m.playerAId === winner && m.playerBId === loser
+          ? { ...m, holes: new Array(18).fill("A") as Match["holes"] }
+          : m,
+    );
+  const reseeded = (players: Player[]) => players.map((p, i) => ({ ...p, seed: players.length - i }));
+  const rankOf = (players: Player[], matches: Match[]) =>
+    Object.fromEntries(
+      rankPlayers(players, aggregateStats(players, matches, DEFAULT_SCORING), DEFAULT_SCORING, matches).map((r) => [
+        r.player.id,
+        r.rank,
+      ]),
+    );
+
+  for (const n of FIELD_SIZES.filter((s) => s >= 3)) {
+    it(`a three-way head-to-head cycle in a field of ${n} shares the place`, () => {
+      const players = field(n);
+      const w = Math.floor((n - 3) / 2);
+      const [x, y, z] = [players[w].id, players[w + 1].id, players[w + 2].id];
+      const matches = flip(decisive(players), z, x);
+      const expected = Object.fromEntries(
+        players.map((p, i) => [p.id, i >= w && i <= w + 2 ? w + 1 : i + 1]),
+      );
+      expect(rankOf(players, matches), `${x} b ${y}, ${y} b ${z}, ${z} b ${x}`).toEqual(expected);
+      expect(rankOf(reseeded(players), matches), "entered the other way round").toEqual(expected);
+    });
+  }
+
+  /**
+   * A FOUR-PLAYER PARTIAL CYCLE: one of four level players beat the other
+   * three, who go round in a circle among themselves. A window of six inside
+   * the decisive table (everyone above beats all six, everyone below loses to
+   * all six, so the window's own results decide it). Within the window, every
+   * win 10&8:
+   *   A  b B, C, D; lost E, F                   3 wins
+   *   B  b C, E, F; lost A, D                   3 wins ┐
+   *   C  b D, E, F; lost A, B                   3 wins ├ B b C, C b D, D b B
+   *   D  b B, E, F; lost A, C                   3 wins ┘
+   *   E  b A, F                                 2 wins
+   *   F  b A                                    1 win
+   * A, B, C, D level. Their mini-league: A +3, B, C, D -1 each — A first.
+   * Asked again of B, C, D alone: 0, 0, 0, a cycle; each won 3 and lost 2
+   * matches, so hole difference and holes lost are level: they share the next
+   * place. Then E, then F.
+   */
+  for (const n of FIELD_SIZES.filter((s) => s >= 6)) {
+    it(`a four-player partial cycle in a field of ${n}: one on top, three sharing the next place`, () => {
+      const players = field(n);
+      const w = Math.floor((n - 6) / 2);
+      const [A, B, C, D, E, F] = players.slice(w, w + 6).map((p) => p.id);
+      // Decisive already has A b B, C, D, E, F; B b C, D, E, F; C b D, E, F; D b E, F; E b F.
+      let matches = decisive(players);
+      for (const [winner, loser] of [[E, A], [F, A], [D, B]] as const) matches = flip(matches, winner, loser);
+      const expected = Object.fromEntries(
+        players.map((p, i) => {
+          const at = i - w;
+          if (at === 0) return [p.id, w + 1];
+          if (at >= 1 && at <= 3) return [p.id, w + 2];
+          return [p.id, i + 1];
+        }),
+      );
+      expect(rankOf(players, matches), `${A} on top; ${B}, ${C}, ${D} in a circle`).toEqual(expected);
+      expect(rankOf(reseeded(players), matches), "entered the other way round").toEqual(expected);
+    });
+  }
+});
+
+/**
+ * A HALVED MATCH IS DECIDED ON THE CARD IT WAS PLAYED ON — at every field size,
+ * on nine holes and eighteen, with the venue named at every level (J26,
+ * 2026-11-06).
+ *
+ * Committee Procedures 5A(6): a tied match is decided as the Terms say, and a
+ * "toughest holes" countback names holes by the stroke index of the course
+ * PLAYED (Rules of Handicapping, Appendix E allocates an index per course).
+ *
+ * Eighteen holes: the tournament's own card holds the 1st hardest, the away
+ * card is the same layout indexed the other way (the 18th hardest). NINE holes
+ * are the BACK nine, on cards laid out as clubs lay them out — odd indexes out,
+ * even home — so the nine is a real axis: the home back nine's hardest is the
+ * 10th (its index 2), the away back nine's the 18th (also index 2). Read off the
+ * FRONT nine's indexes instead, both cards would make the first hole of the nine
+ * the hardest (index 1) and the away match would go to A — the narrowing to the
+ * nine played is what tells them apart.
+ *
+ * Every match in the round robin is halved the same way: side A won the first
+ * holes, side B the last ones — so on the HOME card every countback goes to A
+ * and on the AWAY card every one goes to B. A board that read one card for every
+ * match ranks the field exactly upside down from one that reads the right one,
+ * and the wins are asserted as numbers, not as an order alone.
+ */
+describe("a halved match's countback, at every field size, hole count and venue level", () => {
+  const ODDS = [1, 3, 5, 7, 9, 11, 13, 15, 17];
+  const HOME_CARD = (holes: number) => (holes === 18 ? Array.from({ length: 18 }, (_, i) => i + 1) : [...ODDS, 2, 4, 6, 8, 10, 12, 14, 16, 18]);
+  const AWAY_CARD = (holes: number) => (holes === 18 ? Array.from({ length: 18 }, (_, i) => 18 - i) : [...ODDS, 18, 16, 14, 12, 10, 8, 6, 4, 2]);
+  const awayCourse = (holes: number) => ({
+    id: "zz-away",
+    name: "zz-away",
+    city: "",
+    pars: JSON.stringify(new Array(18).fill(4)),
+    yards: "",
+    strokeIndex: JSON.stringify(AWAY_CARD(holes)),
+  });
+  // A wins the first two holes, B the last two, the rest halved: all square.
+  const halved = (holes: number): HoleResult[] =>
+    Array.from({ length: holes }, (_, i) => (i < 2 ? "A" : i >= holes - 2 ? "B" : "H"));
+
+  for (const holes of [9, 18]) {
+    for (const level of ["match", "round", "event"] as const) {
+      for (const n of FIELD_SIZES) {
+        it(`${n} player(s), ${holes} holes, venue on the ${level}: every halve goes to the side that won the played card's hardest holes`, () => {
+          const players = field(n);
+          const rows: Array<{ id: string; stageId: string; courseId: string | null }> = [];
+          const matches: Match[] = [];
+          for (let i = 0; i < n; i += 1) {
+            for (let j = i + 1; j < n; j += 1) {
+              const id = `c${i}-${j}`;
+              rows.push({ id, stageId: "wk", courseId: level === "match" ? "zz-away" : null });
+              matches.push({ id, stageId: "wk", groupId: "g1", round: 1, playerAId: players[i].id, playerBId: players[j].id, holes: halved(holes) });
+            }
+          }
+          const cards = countbackCardsFor(
+            { course: "zz-home", city: "", customPars: JSON.stringify(new Array(18).fill(4)), customYards: "", customStrokeIndex: JSON.stringify(HOME_CARD(holes)) },
+            [{ id: "wk", courseId: level === "round" ? "zz-away" : null, holes, nine: holes === 9 ? "back" : "full" }],
+            rows,
+            (id) => (id === "zz-away" ? awayCourse(holes) : null),
+          );
+          const ranked = computeStandings(players, matches, { ...DEFAULT_SCORING, tiebreakers: [] }, {}, cards, ["toughest-1"]);
+          const away = level !== "event";
+          // Player at index k is side A against everybody after them and side B
+          // against everybody before them. Away, B takes every countback.
+          for (let k = 0; k < n; k += 1) {
+            const s = ranked.find((r) => r.player.id === players[k].id)!.stats;
+            const wins = away ? k : n - 1 - k;
+            expect({ wins: s.wins, losses: s.losses, ties: s.ties }, `${players[k].id}`).toEqual({ wins, losses: n - 1 - wins, ties: 0 });
+            expect(s.totalPoints).toBe(wins * DEFAULT_SCORING.winPts);
+          }
+          // The board itself: away, the LAST entrant leads; at home, the first.
+          if (n >= 2) expect(ranked[0].player.id).toBe(away ? players[n - 1].id : players[0].id);
+        });
+      }
+    }
+  }
 });
 
 /**
@@ -1053,6 +1386,51 @@ describe("round handicaps, at every field size and every allowance", () => {
 });
 
 /**
+ * A PLAYER WITH NO HANDICAP INDEX, swept (lane N, PR A; review of #1144). Every format × stage type ×
+ * scoring basis × "in a net side game" × field size from ONE, with every other player holding no index:
+ *
+ *   1  who is asked: exactly the no-index players, in a round that counts their strokes (any basis but
+ *      gross, or a net side game they are in — a net skins pot or low net on a gross round), and nobody in
+ *      a gross round with no net game. Worked from the basis by name, not through `isNetBasis`.
+ *   2  what a committee's figure prices to: a Course Handicap for the round (Rules of Golf 3.3b(4)), so the
+ *      allowance is taken of it and rounded ONCE, a half up (Rules of Handicapping 6.2a, Appendix C), then
+ *      the strokes for a higher par added (6.2b) — worked in integer hundredths here, a route the code
+ *      does not take: floor((F × A + 50) / 100) + par strokes.
+ */
+describe("a player with no handicap index, at every format, round type, basis and field size", () => {
+  const BASES = ["gross", "net", "both", "stableford"];
+  const FIGURES = [0, 1, 9, 10, 14, 18, 27, 36, 54];
+  for (const n of FIELD_SIZES) {
+    it(`asks for exactly the no-index players, and prices a given figure by the Rule, in a field of ${n}`, () => {
+      const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, handicapSource: i % 2 === 0 ? "none" : "manual" }));
+      const noIndex = players.filter((p) => p.handicapSource === "none").length;
+      for (const format of FORMAT_NAMES) {
+        for (const type of STAGE_TYPES) {
+          for (const scoringBasis of BASES) {
+            for (const netGame of [false, true]) {
+              const at = `${format} / ${type} / ${scoringBasis}${netGame ? " + net side game" : ""}`;
+              const countsStrokes = scoringBasis !== "gross" || netGame;
+              const asked = players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, null)).length;
+              expect(asked, at).toBe(countsStrokes ? noIndex : 0);
+              // Once a figure is given (or frozen), nobody is asked, whatever the cell.
+              expect(players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, { override: 0, frozen: null })).length, at).toBe(0);
+              expect(players.filter((p) => needsCommitteeFigure({ scoringBasis, netGame }, p, { override: null, frozen: 0 })).length, at).toBe(0);
+            }
+            const round = { format, type, scoringBasis, handicapAllowance: 0 };
+            const allowance = effectiveAllowance(format, 0, type);
+            const par = parStrokesApply(format, scoringBasis) ? 1 : 0;
+            for (const f of FIGURES) {
+              const byTheRule = Math.floor((f * allowance + 50) / 100) + par;
+              expect(playingHandicapInRound(round, { override: f }, { whole: 0, exact: 0, parStrokes: 1 }), `${format} / ${type} / ${scoringBasis}: given ${f} at ${allowance}%`).toBe(byTheRule);
+            }
+          }
+        }
+      }
+    });
+  }
+});
+
+/**
  * Team draws, swept.
  *
  * The sweep checked `needsTeams(format)` returned a BOOLEAN and stopped
@@ -1264,6 +1642,92 @@ describe("forfeits, at every field size", () => {
         if (i === 0) expect(rank, "the board starts at 1").toBe(1);
         else expect([ranks[i - 1], i + 1], `rank ${i} skipped or went backwards`).toContain(rank);
       });
+    });
+  }
+});
+
+/**
+ * A result held in dispute, at every field size (2026-11-08, found by J49).
+ *
+ * The server holds a disputed match off the table by blanking its holes to
+ * `"[]"` (`onBoard`), and `resolveMatch([])` is complete and halved — so the
+ * table gave both players a match played and a halve while the Committee had
+ * not ruled. Rule 3.2a(3): a match is decided when one side leads by more holes
+ * than remain; with none played, nothing is decided.
+ *
+ * The invariant, in every cell: a held result moves NOTHING — the table with
+ * it is the table without it — and once the hold is lifted it counts exactly
+ * once, for both players. Every other match in the round is a played-out
+ * halve, so a phantom halve is indistinguishable by shape and only the
+ * counting can tell them apart.
+ */
+describe("a result held in dispute, at every field size", () => {
+  const PLAYED_HALVE = [...new Array(9).fill("A"), ...new Array(9).fill("B")] as Match["holes"];
+  /** What the disputed card says: A won 3&2. */
+  const DISPUTED_CARD = [...new Array(3).fill("A"), ...new Array(13).fill("H"), null, null] as Match["holes"];
+  const SCORING = { ...DEFAULT_SCORING, playPts: 1 };
+
+  const asStored = (scoreStatus: string, holes: Match["holes"]): Match["holes"] =>
+    JSON.parse(onBoard({ scoreStatus, holes: JSON.stringify(holes), forfeitedBy: "" }).holes) as Match["holes"];
+
+  const roundRobin = (players: Player[], firstStatus: string): Match[] => {
+    const out: Match[] = [];
+    for (let i = 0; i < players.length; i += 1) {
+      for (let j = i + 1; j < players.length; j += 1) {
+        const first = out.length === 0;
+        out.push({
+          id: `m${i}-${j}`,
+          stageId: "s1",
+          groupId: "g1",
+          round: 1,
+          playerAId: players[i].id,
+          playerBId: players[j].id,
+          holes: first ? asStored(firstStatus, DISPUTED_CARD) : PLAYED_HALVE,
+          forfeitedBy: "",
+        });
+      }
+    }
+    return out;
+  };
+
+  for (const n of FIELD_SIZES) {
+    it(`a ${n}-player round robin with one result held: the table is the table without it`, () => {
+      const players = field(n);
+      const withHeld = roundRobin(players, "disputed");
+      const withoutHeld = withHeld.slice(1);
+
+      const held = aggregateStats(players, withHeld, SCORING);
+      const absent = aggregateStats(players, withoutHeld, SCORING);
+      expect(held.size).toBe(n);
+      for (const p of players) {
+        expect(held.get(p.id), `${p.id}'s line moved for a held result`).toEqual(absent.get(p.id));
+      }
+
+      // Counted from what SHOULD be there: every played-out match is one
+      // halve for each of its two players, and the held one is none.
+      const decided = withoutHeld.length;
+      const sum = (f: (s: { played: number; ties: number }) => number) => [...held.values()].reduce((t, s) => t + f(s), 0);
+      expect(sum((s) => s.played)).toBe(2 * decided);
+      expect(sum((s) => s.ties)).toBe(2 * decided);
+
+      const rankedHeld = rankPlayers(players, held, SCORING, withHeld);
+      const rankedAbsent = rankPlayers(players, absent, SCORING, withoutHeld);
+      expect(rankedHeld.map((r) => [r.player.id, r.rank])).toEqual(rankedAbsent.map((r) => [r.player.id, r.rank]));
+
+      // Lifted: the Committee rules, the card comes back, and A's 3&2 counts
+      // once for each of the two players and nobody else.
+      if (n >= 2) {
+        const settled = aggregateStats(players, roundRobin(players, "confirmed"), SCORING);
+        const [a, b] = [withHeld[0].playerAId, withHeld[0].playerBId];
+        for (const p of players) {
+          const before = held.get(p.id)!;
+          const after = settled.get(p.id)!;
+          const inIt = p.id === a || p.id === b;
+          expect(after.played - before.played, `${p.id} played`).toBe(inIt ? 1 : 0);
+        }
+        expect(settled.get(a)!.wins - held.get(a)!.wins).toBe(1);
+        expect(settled.get(b)!.losses - held.get(b)!.losses).toBe(1);
+      }
     });
   }
 });
@@ -1579,6 +2043,98 @@ describe("tee policy, on every field size", () => {
     expect(teeIdFor("own", "home-blue", null, "home-white", atThisCourse, null)).toBe("home-blue");
     // And the round's own set is taken whether or not the predicate likes it.
     expect(teeIdFor("one", "home-blue", null, "away-red", atThisCourse, null)).toBe("away-red");
+  });
+});
+
+/**
+ * A NINE-HOLE ROUND KEEPS THE COMMITTEE'S TEES WHEN ITS NINE CHANGES — every
+ * field size from ONE × every nine move × every tee policy (QA Director, item 1,
+ * 14 Nov).
+ *
+ * `setStageCourse` wrote `Stage.teeId = null` on every call that did not restate
+ * the tees, so the rounds screen's **Which nine** (course and nine, no tees)
+ * threw away the set chosen on Score entry and the round fell back to the
+ * tournament's. `teeAfterVenue` is now the one rule the action and
+ * `setMatchCourse` ask: a set is kept while the course is the same, cleared when
+ * it changes, set or cleared only when the caller names it.
+ *
+ * The invariant, not the feature: after a nine change, every player plays off
+ * the set the ORGANIZER decided — the round's, unless their flight or they
+ * themselves were put elsewhere and the policy lets that count (`teeIdFor`) —
+ * and their nine-hole Course Handicap is Rule 6.1b's, worked in WHOLE NUMBERS
+ * (an index in tenths, a rating in tenths, everything over 2260: half the index
+ * × slope ÷ 113 + (half the rating − half the par)), sharing neither formula
+ * nor floating point with `domain/handicap.ts`. Front and back price alike: a
+ * set stores its eighteen's rating and a nine is half of it (`nineHoleTee`).
+ */
+describe("a nine-hole round keeps the committee's tees when its nine changes, on every field size, nine and tee policy", () => {
+  /** The round's set (Score entry), the tournament's, one flight's. Ratings in tenths. */
+  const SETS = {
+    blue: { rating10: 734, slope: 135, par: 72 },
+    white: { rating10: 712, slope: 126, par: 72 },
+    red: { rating10: 690, slope: 118, par: 72 },
+  } as const;
+  type SetId = keyof typeof SETS;
+  const RATINGS = new Map(
+    (Object.keys(SETS) as SetId[]).map((id) => [id, { courseRating: SETS[id].rating10 / 10, slopeRating: SETS[id].slope, par: SETS[id].par, courseId: "home" }]),
+  );
+  const ch2260 = (index10: number, id: SetId) => index10 * SETS[id].slope + (SETS[id].rating10 - 10 * SETS[id].par) * 113;
+  /** Rounded once, a half upward (Rule 6.1), in whole numbers — plus handicaps included. */
+  const halfUp = (num: number, den: number) => Math.floor((2 * num + den) / (2 * den));
+  /** Decimal indexes, a plus handicap (+2.4) among them: the axis whole-number fixtures miss. */
+  const index10s = (n: number) => Array.from({ length: n }, (_, i) => (i % 7 === 6 ? -24 : (i % 10) * 43 + 6));
+  /** i % 4: on the round's set; in the red flight; moved to white; both. */
+  const levels = (i: number) => ({ flight: i % 4 === 1 || i % 4 === 3 ? ("red" as const) : null, own: i % 4 >= 2 ? ("white" as const) : null });
+  /** The set each player SHOULD be on, worked from the policy without `teeIdFor`. */
+  const shouldBe = (policy: string, i: number, round: SetId): SetId => {
+    const { flight, own } = levels(i);
+    if (policy === "one") return round;
+    if (policy === "flight") return flight ?? round;
+    return own ?? flight ?? round;
+  };
+  const MOVES: Array<[string, string]> = [["front", "back"], ["back", "front"], ["full", "front"], ["back", "full"]];
+
+  it("one row by hand: index 18.4 off Blue on a nine is 12, off the tournament's White 10", () => {
+    // 9.2 × 135/113 + (36.7 − 36) = 11.69 → 12; 9.2 × 126/113 + (35.6 − 36) = 9.86 → 10.
+    expect(halfUp(ch2260(184, "blue"), 2260)).toBe(12);
+    expect(halfUp(ch2260(184, "white"), 2260)).toBe(10);
+    const one = courseHandicapMap([{ id: "a", handicap: 18.4, teeId: null, flightTeeId: null }], RATINGS, "blue", 9, "own");
+    expect(one.get("a")).toBe(12);
+  });
+
+  for (const n of FIELD_SIZES) {
+    for (const policy of TEE_POLICY) {
+      it(`${n} in the field · ${policy}: every nine move keeps the round on Blue and every player on the organizer's set`, () => {
+        const players = index10s(n).map((index10, i) => ({
+          id: `p${i}`,
+          handicap: index10 / 10,
+          teeId: levels(i).own,
+          flightTeeId: levels(i).flight,
+        }));
+        for (const [from, to] of MOVES) {
+          // Score entry put the round on Blue; the rounds screen now sends the course and the nine.
+          const round = { courseId: "home", teeId: "blue", nine: from };
+          const kept = teeAfterVenue(round, { courseId: "home" });
+          expect(kept, `${from} → ${to} dropped the round's tees`).toBe("blue");
+          const m = courseHandicapMap(players, RATINGS, kept, 9, policy);
+          players.forEach((p, i) => {
+            const want = halfUp(ch2260(index10s(n)[i], shouldBe(policy, i, "blue")), 2260);
+            expect(m.get(p.id), `${p.id} (index ${p.handicap}) after ${from} → ${to}`).toBe(want);
+          });
+        }
+      });
+    }
+  }
+
+  it("the rule's other three answers: a new course clears, a named set sets, a named null clears", () => {
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "away" })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: null, teeId: "blue" }, { courseId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "home", teeId: "white" })).toBe("white");
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: "home", teeId: null })).toBeNull();
+    expect(teeAfterVenue({ courseId: "home", teeId: null }, { courseId: "home" })).toBeNull();
+    // A set named with no course to be on is not stored.
+    expect(teeAfterVenue({ courseId: "home", teeId: "blue" }, { courseId: null, teeId: "blue" })).toBeNull();
   });
 });
 
@@ -2106,6 +2662,100 @@ describe("what a side plays off, on every team format and size", () => {
 });
 
 /**
+ * A LEAGUE WEEK ON A SHARED BALL, on every one-ball format and every side size
+ * from ONE (backlog J22, 2026-11-03).
+ *
+ * `leagueMeetings` priced every card by its player, and a side's shared card
+ * has none — so every foursomes, greensomes and scramble side in a league week
+ * played off scratch, and the league table, its holes-won countback and the
+ * play-off seeding were decided off nought. The block above sweeps what a side
+ * plays off on the TEAMS screen and could not see it: the league never called
+ * that path.
+ *
+ * Asserted against Appendix C, held HERE as its own table (not read from
+ * `formats.ts`), in whole tenths so the rounding is the Rule's — .5 upwards,
+ * once, at the end. A side of ONE is outside the appendix (a pair reduced by a
+ * withdrawal the committee let play): it must still not be scratch, and must
+ * not play off more than its one player.
+ *
+ * And the cell's MATCH invariant, which needs no table: two sides on level
+ * gross, the low one priced however it is, the other wins exactly as many holes
+ * as it receives strokes — the difference, off the low SIDE.
+ */
+describe("a league week on a shared ball, on every one-ball format and side size", () => {
+  const SHARED = GOLF_FORMATS.filter((f) => f.ball === "single" && !f.manual);
+  const FLAT_HALF = { 2: [50, 50] } as Record<number, number[]>;
+  const SIXTY_FORTY = { 2: [60, 40] } as Record<number, number[]>;
+  const SCRAMBLE = { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } as Record<number, number[]>;
+  // Rules of Handicapping, Appendix C (2024), lowest handicap first.
+  const APPENDIX_C: Record<string, Record<number, number[]>> = {
+    Foursomes: FLAT_HALF,
+    "Alternate Shot": FLAT_HALF,
+    Greensomes: SIXTY_FORTY,
+    "Chapman / Pinehurst": SIXTY_FORTY,
+    Scramble: SCRAMBLE,
+    "Texas Scramble": SCRAMBLE,
+  };
+  // Exact Course Handicaps with a decimal, distinct and spread, NOT in order.
+  const TENTHS = [227, 48, 315, 131];
+  const SI = Array.from({ length: 18 }, (_, i) => i + 1);
+  const LEVEL = JSON.stringify(new Array(18).fill(5));
+  const noPlayer = (id: string): number => {
+    throw new Error(`a shared ball was priced by a player ("${id}")`);
+  };
+
+  it("has one-ball formats to sweep, and Appendix C names every one of them", () => {
+    // The control: a filter that matched nothing would make every cell vacuous.
+    expect(SHARED.length, "no shared-ball formats found").toBeGreaterThanOrEqual(4);
+    // A new one-ball format fails here until somebody reads the appendix for it.
+    for (const f of SHARED) expect(APPENDIX_C[f.name], `${f.name} has no Appendix C row here`).toBeDefined();
+  });
+
+  for (const format of SHARED) {
+    const { max } = sideSizeRange(format.name);
+    for (let size = 1; size <= max; size += 1) {
+      it(`${format.name}, side of ${size}`, () => {
+        const tenths = TENTHS.slice(0, size);
+        const partners = tenths.map((t) => ({ exact: t / 10, withdrawn: false }));
+        const round = { format: format.name, handicapAllowance: 0, allowanceWeights: [] as number[] };
+        const balls = leagueSideBalls(round, [{ playerId: "", strokes: LEVEL }], partners, noPlayer);
+
+        expect(balls, "a shared ball is ONE ball").toHaveLength(1);
+        const got = balls[0].playingHandicap;
+        expect(Number.isFinite(got)).toBe(true);
+        // THE J22 INVARIANT: partners who all receive strokes are not scratch.
+        expect(got, `${format.name} side of ${size} priced at scratch`).toBeGreaterThan(0);
+
+        const shares = APPENDIX_C[format.name]?.[size];
+        if (shares) {
+          const best = [...tenths].sort((a, b) => a - b);
+          const n = best.reduce((sum, t, i) => sum + t * (shares[i] ?? 0), 0); // in 1000ths
+          const rule = Math.floor((2 * n + 1000) / 2000);
+          expect(got, `${format.name} side of ${size} is not Appendix C's figure`).toBe(rule);
+        } else {
+          expect(size, "only a side of one is outside the appendix").toBe(1);
+          expect(got, "a side of one plays off more than its one player").toBeLessThanOrEqual(Math.round(tenths[0] / 10));
+        }
+
+        // Against a scratch side on level gross: wins exactly the holes it
+        // receives a stroke on — the hardest `got` of them, the rest halved.
+        const scratch = leagueSideBalls(
+          round,
+          [{ playerId: "", strokes: LEVEL }],
+          [{ exact: 0, withdrawn: false }],
+          noPlayer,
+        );
+        const holes = matchHolesOffTheLow(scratch, balls, SI, 18);
+        const strokes = Math.min(18, got);
+        expect(holes.filter((h) => h === "B").length, "holes won off the low side").toBe(strokes);
+        expect(holes.slice(0, strokes).every((h) => h === "B"), "on the hardest holes").toBe(true);
+        expect(holes.filter((h) => h === "A").length).toBe(0);
+      });
+    }
+  }
+});
+
+/**
  * A SIDE'S TO-PAR, AT EVERY STAGE OF A HOLE BEING PLAYED.
  *
  * The block above sweeps what a side plays OFF. This sweeps what its card then
@@ -2264,6 +2914,1161 @@ describe("a knockout in flights, at every field size and every shape", () => {
           }
         }
       }
+    });
+  }
+});
+
+/**
+ * A KNOCKOUT'S PLAY IS OVER WHEN EVERY DRAW'S FINAL IS DECIDED — in every mode,
+ * at every field size, with THREE draws where the mode has flights (CLAUDE.md:
+ * "flights are separate knockouts; test with THREE").
+ *
+ * The state machine's knockout row (proposal 3 Nov, panel changes 2–3): play
+ * over is every draw in `bracketDraws()` decided, plus the play-off for third
+ * when it is on — never `playOverOf`, which a Bracket Stage cannot satisfy.
+ *
+ * THE EXPECTATION IS WORKED BY A ROUTE THE CODE DOES NOT TAKE. The code asks
+ * the bracket for its champion. The Rules route counts ties: in a
+ * single-elimination draw every tie (Rule 3.2) puts exactly one player out and
+ * a bye puts out nobody, so a draw of n entrants has its Final decided exactly
+ * when n − 1 ties have a winner. Each cell plays a draw out tie by tie, the
+ * higher seed winning, and checks both.
+ */
+describe("a knockout is over when every draw's Final is decided, in every mode", () => {
+  const winnersIn = (kind: string, winners: Record<string, string>) => Object.keys(winners).filter((k) => k.startsWith(`${kind}-`)).length;
+
+  /** Decide ties in order, top seed through, leaving `stopShort` ties undecided. */
+  const playOut = (kind: Parameters<typeof buildBracket>[0], players: Player[], winners: Record<string, string>, fieldComplete = true, stopShort = 0) => {
+    const total = Math.max(0, players.length - 1);
+    for (let guard = 0; guard < 200 && winnersIn(kind, winners) < total - stopShort; guard++) {
+      const view = buildBracket(kind, players, winners, fieldComplete);
+      const tie = view.rounds.flatMap((r) => r.matches).find((m) => m.a.playerId && m.b.playerId && !m.winnerId);
+      if (!tie) break;
+      winners[tie.key] = tie.a.playerId!;
+    }
+    return buildBracket(kind, players, winners, fieldComplete);
+  };
+
+  type Mode = "single" | "split" | "plate" | "flights";
+  /** The draws a mode makes of `n` players, each played out (or one tie short where `short(i)`). */
+  const drawsFor = (mode: Mode, n: number, short: (i: number) => boolean) => {
+    const players = field(n);
+    const winners: Record<string, string> = {};
+    const left = (i: number) => (short(i) ? 1 : 0);
+    if (mode === "single") return [{ label: "", players, view: playOut("winners", players, winners, true, left(0)), results: winners }];
+    if (mode === "split") {
+      const d = drawBrackets(players, "split");
+      return [
+        { label: d.mainLabel, players: d.main, view: playOut("winners", d.main, winners, true, left(0)), results: winners },
+        { label: d.secondLabel, players: d.second, view: playOut("consolation", d.second, winners, true, left(1)), results: winners },
+      ];
+    }
+    if (mode === "plate") {
+      const main = playOut("winners", players, winners, true, left(0));
+      const losers = firstRoundLosers(main, new Map(players.map((p) => [p.id, p])));
+      return [
+        { label: "Main draw", players, view: main, results: winners },
+        { label: "Plate", players: losers, view: playOut("consolation", losers, winners, false, left(1)), results: winners },
+      ];
+    }
+    // Three flights, top-down, each its own knockout.
+    const size = Math.ceil(n / 3);
+    return [0, 1, 2].map((i) => {
+      const own = players.slice(i * size, (i + 1) * size);
+      return { label: `Flight ${i + 1}`, players: own, view: playOut(flightKind(i), own, winners, true, left(i)), results: winners };
+    });
+  };
+
+  const statusOf = (mode: Mode, draws: ReturnType<typeof drawsFor>, thirdPlace = { on: false, decided: false }) =>
+    tournamentStatus({
+      ...launchedFacts(STATUS_FAMILIES[mode === "flights" ? "flightedKnockout" : "knockout"]()),
+      bracketMode: mode,
+      knockout: { draws: draws.map((d) => drawFacts({ label: d.label, view: d.view })), thirdPlace },
+    });
+
+  // Recorded results only: a bye advances a player with no tie played.
+  const decidedTies = (d: { view: BracketView; results: Record<string, string> }) => winnersIn(d.view.kind, d.results);
+
+  for (const mode of ["single", "split", "plate", "flights"] as Mode[]) {
+    for (const n of FIELD_SIZES) {
+      it(`${mode}, ${n} players: a Final is decided exactly when n − 1 ties are, and play is over only then`, () => {
+        const all = drawsFor(mode, n, () => false);
+        for (const d of all) {
+          const where = `${mode} ${n} ${d.label || "draw"}`;
+          // The Rules route: a draw of e entrants is decided after e − 1 ties.
+          expect(decidedTies(d), where).toBe(Math.max(0, d.players.length - 1));
+          const own = drawFacts({ label: d.label, view: d.view });
+          expect(own.entrants, where).toBe(d.players.length);
+          if (d.players.length >= 2) expect(own.finalDecided, `${where}: every tie played and no champion`).toBe(true);
+        }
+        const real = all.filter((d) => d.players.length >= 2).length;
+        expect(statusOf(mode, all).step, `${mode} ${n}: ${real} draws with a tie in them, all decided`).toBe(real > 0 ? "play-over" : "live");
+
+        // One tie short in the LAST draw with a tie in it — the others decided — is not over.
+        const lastReal = all.map((d, i) => (d.players.length >= 2 ? i : -1)).filter((i) => i >= 0).pop();
+        if (lastReal !== undefined) {
+          const short = drawsFor(mode, n, (i) => i === lastReal);
+          expect(decidedTies(short[lastReal]), `${mode} ${n}`).toBe(short[lastReal].players.length - 2);
+          expect(drawFacts({ label: "", view: short[lastReal].view }).finalDecided, `${mode} ${n}`).toBe(false);
+          expect(statusOf(mode, short).step, `${mode} ${n}: draw ${lastReal + 1} one tie short`).toBe("live");
+        }
+      });
+    }
+
+    it(`${mode}: with a play-off for third on, play is over only once it is decided too (F3)`, () => {
+      const all = drawsFor(mode, 8, () => false);
+      expect(statusOf(mode, all, { on: true, decided: false }).step).toBe("live");
+      expect(statusOf(mode, all, { on: true, decided: true }).step).toBe("play-over");
+    });
+  }
+
+  it("CONTROL: the flights mode makes three draws, each its own bracket with players in it", () => {
+    const three = drawsFor("flights", 28, () => false);
+    expect(three.map((d) => d.players.length)).toEqual([10, 10, 8]);
+    expect(new Set(three.map((d) => d.view.kind)).size).toBe(3);
+  });
+});
+
+/**
+ * WHAT A TEAM BOARD PRINTS FOR HANDICAP, ON EVERY TEAM FORMAT, SIDE SIZE AND KIND
+ * OF ROUND (backlog J21, J23).
+ *
+ * Invariants, not features:
+ *   - where every player plays their own ball the column holds one figure PER
+ *     PLAYER and never the side's combined figure (nobody plays off it);
+ *   - where the side shares a ball it holds the side's figure and no other;
+ *   - the rules sheet states an allowance, and it is the resolver's
+ *     (`recommendedAllowance`) unless the format is scored by a split.
+ */
+describe("what a team board and the rules sheet say about handicap, on every team format", () => {
+  const TEAM_FORMATS = GOLF_FORMATS.filter((f) => f.sideSize > 1);
+  const HANDICAPS = [4, 11, 19, 28];
+  // Distinct from every player's own figure, so a board that printed the side's by mistake is seen.
+  const SIDE = 777;
+
+  it("has team formats to sweep", () => {
+    expect(TEAM_FORMATS.length, "no team formats found").toBeGreaterThan(4);
+  });
+
+  const textOf = (s: string): string => {
+    let out = "";
+    let inTag = false;
+    for (const ch of s) {
+      if (ch === "<") inTag = true;
+      else if (ch === ">") inTag = false;
+      else if (!inTag) out += ch;
+    }
+    return out;
+  };
+
+  // Pinned to the RULES, not to the resolver the sweep below reads.
+  // Rules of Handicapping, Appendix C: four-ball stroke play 85%, four-ball match play 90%.
+  const stated = (format: string, type: string) =>
+    tournamentTerms({
+      format, type, holes: 18, scoringBasis: "net", handicapAllowance: 0, countBest: 0,
+      tiebreakers: [], cutAfter: null, carryForwardEnabled: false, carryForwardPct: 0, netCountback: "fractions",
+    }).find((t) => t.label === "Handicap allowance")?.value;
+  it("Appendix C: a four-ball stroke round states 85%", () => {
+    expect(stated("Four-Ball", "Stroke Play Round")).toContain("85%");
+  });
+  it("Appendix C: a four-ball match round states 90%", () => {
+    expect(stated("Four-Ball", "Round Robin")).toContain("90%");
+  });
+
+  for (const format of TEAM_FORMATS) {
+    const { min, max } = sideSizeRange(format.name);
+    for (let size = min; size <= max; size += 1) {
+      for (const type of STAGE_TYPES) {
+        it(`${format.name}, side of ${size}, ${type}`, () => {
+          const ownBall = format.ball !== "single";
+          const members = HANDICAPS.slice(0, size);
+          const row = {
+            teamId: "t1",
+            name: "zz-side",
+            members: members.map((_, i) => `zz-p${i}`),
+            memberIds: members.map((_, i) => `p${i}`),
+            memberPlaying: members.map((h) => (ownBall ? h : null)),
+            playingHandicap: SIDE,
+            gross: 70,
+            net: 60,
+            points: 0,
+            played: 18,
+            toPar: -2,
+            place: 1,
+          };
+          if (isHeadToHead(type)) {
+            // A round of MATCHES is not ranked on the team stroke table at all:
+            // every board asks `boardKindForRound` and draws the matches
+            // (`TeamMatchLeaderboard`), which has no handicap column. The
+            // handicap-column invariant below belongs to the stroke board only.
+            expect(boardKindForRound(format.name, type), "a head-to-head team round has the matches' board").toBe("team-match");
+          } else {
+            expect(boardKindForRound(format.name, type), "a stroke team round has the team stroke board").toBe("team");
+            const html = renderToStaticMarkup(createElement(TeamStandingsTable, { basis: "net", rows: [row] }));
+            const cell = [...html.match(/<tbody>.*?<\/tr>/s)![0].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => textOf(m[1]))[2];
+            if (ownBall) {
+              expect(cell, "a two-ball board must list each player's own figure").toBe(members.join(" · "));
+              expect(html).not.toContain(`>${SIDE}<`);
+            } else {
+              expect(cell, "a shared-ball board prints the side's figure").toBe(String(SIDE));
+            }
+          }
+
+          const words = tournamentTerms({
+            format: format.name,
+            type,
+            holes: 18,
+            scoringBasis: "net",
+            handicapAllowance: 0,
+            countBest: 0,
+            tiebreakers: [],
+            cutAfter: null,
+            carryForwardEnabled: false,
+            carryForwardPct: 0, netCountback: "fractions",
+          }).find((t) => t.label === "Handicap allowance")?.value;
+          expect(words, "the rules sheet states no allowance").toBeTruthy();
+          if (!format.weightsBySideSize) expect(words).toContain(`${recommendedAllowance(format.name, type)}%`);
+        });
+      }
+    }
+  }
+});
+
+/**
+ * AN UPSTREAM EDIT TO THE FIELD, EVERY FAMILY × EVERY STEP (J12, state machine
+ * PR 7a; the proposal's test plan, "an upstream edit, every scope × every
+ * step", for the field and flights rows).
+ *
+ * The expectation is worked HERE from the panel's table and its Q3, never read
+ * off the function:
+ *
+ *   - before the draw anything goes (nothing is locked yet);
+ *   - stroke play and Stableford take a late entrant after the draw with a
+ *     WARNING — the unplaced flag where flights exist (J04) — and with a flight
+ *     chosen, plainly; once Round 1 has a card in (no published sheet here),
+ *     the competition has begun and a new name would have no score for it, so
+ *     REFUSE;
+ *   - a round robin in flights REFUSES a late entrant with no flight (no
+ *     flight, no fixtures) and takes one with a flight as a RE-DRAW (their
+ *     matches drawn against it); refused once begun;
+ *   - a knockout REFUSES after its draw — launched, or a result recorded
+ *     before launch (D2) — and the way out is a reserve; the reserve itself is
+ *     never refused before the results are final;
+ *   - a match or a cup: the draw is the field, REFUSE after launch;
+ *   - a league or a casual round changes week to week: open;
+ *   - completed: REFUSE, every family (Rule 20.2e, results final).
+ *
+ * Field sizes start at ONE (a knockout of one, a medal of one); a flighted
+ * knockout has THREE flights (CLAUDE.md, knockouts). Invariants in every cell:
+ * the step the facts stand in is the step meant; every refusal has words and a
+ * screen; a refusal naming a correction is opened by it; a withdrawal is open
+ * until completed; the scope returned is the change's part.
+ */
+describe("an upstream edit to the field, every family × every step (J12)", () => {
+  type Want = "open" | "warn" | "redraw" | "refuse";
+  const STEPS: FieldStep[] = ["before-draw", "after-draw", "after-scores", "completed"];
+  const FAMILIES = Object.keys(STATUS_FAMILIES) as Family[];
+  /** No published sheet: Round 1's first card closes late entries (PR A's rule). */
+  const CLOCK = { lastTee: null, now: { day: "2026-11-29", minutes: 8 * 60 } };
+  const FLIGHTED: Family[] = ["stroke", "stableford", "roundRobinFlights"];
+
+  /** A family at a step, n entered, with `flights` flights where the family has them — three draws for a flighted knockout. */
+  function factsAt(family: Family, step: FieldStep, n: number, flights: number): TournamentFacts {
+    const base = STATUS_FAMILIES[family]();
+    const f: TournamentFacts = {
+      ...base,
+      confirmed: n,
+      groups: FLIGHTED.includes(family) ? flights : base.groups,
+      knockout:
+        family === "flightedKnockout"
+          ? {
+              // Three flights, the field dealt between them as the division would (n = 1 leaves two empty).
+              draws: ["Flight A", "Flight B", "Flight C"].map((label, i) => ({ label, entrants: Math.floor((n + 2 - i) / 3), finalDecided: false })),
+              thirdPlace: { on: false, decided: false },
+            }
+          : base.knockout,
+    };
+    const played = (x: TournamentFacts): TournamentFacts => ({ ...x, rounds: x.rounds.map((r, i) => (i === 0 ? { ...r, hasResult: true } : r)) });
+    switch (step) {
+      case "before-draw":
+        // A casual round is created live, and never locked (8.2); everything else is still being set up.
+        return family === "casual" ? f : { ...f, status: "draft" };
+      case "after-draw":
+        return launchedFacts(f);
+      case "after-scores":
+        return played(launchedFacts(f));
+      case "completed":
+        return { ...played(f), status: "completed" };
+    }
+  }
+
+  /** "add" — a late entrant with no flight. */
+  function wantAdd(family: Family, step: FieldStep, flights: number): Want {
+    if (step === "completed") return "refuse";
+    if (step === "before-draw") return "open";
+    if (family === "league" || family === "casual") return "open";
+    if (family === "stroke" || family === "stableford") return step === "after-draw" ? (flights > 0 ? "warn" : "open") : "refuse";
+    // A round robin needs a flight; a knockout's draw, a match's draw and a cup's sides are the field.
+    return "refuse";
+  }
+
+  /** "add-to-flight" — a late entrant with a flight, where the family has flights to give. */
+  function wantAddWithFlight(family: "stroke" | "stableford" | "roundRobinFlights", step: FieldStep): Want {
+    if (step === "completed" || step === "after-scores") return "refuse";
+    if (step === "before-draw") return "open";
+    return family === "roundRobinFlights" ? "redraw" : "open";
+  }
+
+  const kind = (v: FieldVerdict): Want => (!v.ok ? "refuse" : v.warn === "unplaced" ? "warn" : v.warn === "matches-drawn" ? "redraw" : "open");
+
+  const invariants = (facts: ReturnType<typeof fieldFactsOf>, change: FieldChange, v: FieldVerdict, at: string) => {
+    expect(v.scope, `${at}: the scope is the change's part`).toBe(partOf(change, facts.family));
+    if (v.ok) return;
+    expect(v.says.trim().length, `${at}: a refusal in words`).toBeGreaterThan(10);
+    expect(v.wayOut.href, `${at}: a way out to a screen`).toMatch(/^\//);
+    const named = /to the field|open the field/.test(v.says) ? "field" : /to the flights|open the flights/.test(v.says) ? "flights" : null;
+    if (named && fieldStepOf(facts) !== "completed") {
+      const opened = { ...facts, correction: { scope: named as "field" | "flights" } };
+      expect(fieldChangeAllowed(opened, change).ok, `${at}: the correction its refusal names opens it`).toBe(true);
+    }
+  };
+
+  /**
+   * A CASUAL ROUND HAS NO LATER STEP (proposal 8.2, "Casual: locks none"; state machine PR 9b).
+   * Launched and played, its field reads as before any draw, and a late entrant is taken. Until 9b
+   * this held only for a row carrying the retired blanket flag; a casual row without it was locked.
+   */
+  it("casual · launched and played · its field never passes the draw", () => {
+    for (const n of [1, 2, 8]) {
+      for (const facts of [factsAt("casual", "after-draw", n, 0), factsAt("casual", "after-scores", n, 0)]) {
+        const field = fieldFactsOf(facts, CLOCK);
+        expect(fieldStepOf(field), `${n} entered`).toBe("before-draw");
+        expect(kind(fieldChangeAllowed(field, "add")), `${n} entered`).toBe("open");
+      }
+    }
+  });
+
+  for (const family of FAMILIES) {
+    for (const step of STEPS) {
+      // Unreachable for a casual round since PR 9b — asserted just above.
+      if (family === "casual" && (step === "after-draw" || step === "after-scores")) continue;
+      for (const n of [1, 2, 3, 8, 28]) {
+        const flightCounts = family === "stroke" || family === "stableford" ? [0, Math.min(3, n)] : [Math.min(3, n)];
+        for (const flights of flightCounts) {
+          it(`${family} · ${step} · ${n} entered · ${flights} flights`, () => {
+            const facts = fieldFactsOf(factsAt(family, step, n, flights), CLOCK);
+            expect(fieldStepOf(facts), "the fixture stands in the step meant").toBe(step);
+
+            const add = fieldChangeAllowed(facts, "add");
+            expect(kind(add), "a late entrant with no flight").toBe(wantAdd(family, step, flights));
+            invariants(facts, "add", add, "add");
+
+            if (family === "stroke" || family === "stableford" || family === "roundRobinFlights") {
+              const withFlight = fieldChangeAllowed(facts, "add-to-flight");
+              expect(kind(withFlight), "a late entrant with a flight").toBe(wantAddWithFlight(family, step));
+              invariants(facts, "add-to-flight", withFlight, "add-to-flight");
+            }
+
+            if (family === "knockout" || family === "flightedKnockout") {
+              // After the draw the way out is a reserve, and the reserve is taken.
+              if (step === "after-draw" || step === "after-scores") {
+                expect(add.ok ? null : add.wayOut, "the reserve is the way out").toEqual({ says: "Add them as a reserve on Entries", href: "/registration" });
+              }
+              expect(fieldChangeAllowed(facts, "reserve").ok, "a reserve, until the results are final").toBe(step !== "completed");
+            }
+
+            // A withdrawal never reopens anything: open until completed, every family, every size.
+            expect(fieldChangeAllowed(facts, "withdraw").ok).toBe(step !== "completed");
+          });
+        }
+      }
+    }
+  }
+
+  it("a knockout whose draw was made before launch (D2) refuses a late entrant, a correction or not", () => {
+    for (const family of ["knockout", "flightedKnockout"] as Family[]) {
+      const base = STATUS_FAMILIES[family]();
+      const drawn: TournamentFacts = { ...base, status: "draft", rounds: base.rounds.map((r) => ({ ...r, hasResult: true })) };
+      const facts = fieldFactsOf(drawn, CLOCK);
+      expect(fieldStepOf(facts)).toBe("after-scores");
+      expect(fieldChangeAllowed(facts, "add").ok, family).toBe(false);
+      expect(fieldChangeAllowed(facts, "reserve").ok, family).toBe(true);
+      // A qualifying round's card is NOT the knockout's draw: before launch a knockout after a medal still takes entries.
+      const qualifying: TournamentFacts = {
+        ...base,
+        status: "draft",
+        rounds: [{ ...base.rounds[0], id: "q1", type: "Stroke Play Round", format: "Stroke Play", hasResult: true }, { ...base.rounds[0], id: "k1", position: 1 }],
+      };
+      expect(fieldChangeAllowed(fieldFactsOf(qualifying, CLOCK), "add").ok, `${family} after a medal`).toBe(true);
+    }
+  });
+
+  /**
+   * THE CONSTANT-OFFSET CHECK (combination sweep): two cells asserted whole,
+   * against the panel's words, so a rule that shifted every cell the same way
+   * cannot pass on the cells agreeing with each other.
+   */
+  it("two rows by hand: a medal's late entrant flagged, a knockout's refused with the reserve", () => {
+    const medal = fieldFactsOf(factsAt("stroke", "after-draw", 28, 3), CLOCK);
+    expect(fieldChangeAllowed(medal, "add")).toEqual({ ok: true, scope: "field", warn: "unplaced" });
+    const knockout = fieldFactsOf(factsAt("knockout", "after-scores", 8, 0), CLOCK);
+    expect(fieldChangeAllowed(knockout, "add")).toEqual({
+      ok: false,
+      scope: "field",
+      says: "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. To draw it again, clear its results on the Bracket.",
+      wayOut: { says: "Add them as a reserve on Entries", href: "/registration" },
+    });
+  });
+});
+
+/**
+ * AN UPSTREAM EDIT TO A ROUND, EVERY FORMAT × STAGE TYPE × STEP × FIELD SIZE
+ * (J12, state machine PR 7b; the proposal's test plan, "an upstream edit,
+ * every scope × every step", for the rounds-and-format rows).
+ *
+ * The expectation is worked HERE from section 3's table and the Golf Pro's
+ * answers, never read off the function:
+ *
+ *   allowance / basis                     open · open · WARN (confirm, recompute, log) · refuse
+ *     — except a round whose result is a MATCH: refused after scores, since a
+ *       decided match stands (Rule 3.2a(5)) and is not worked out again;
+ *   a round's tees or course (8 Nov, C)   open · open · REFUSE · refuse — its handicaps were
+ *                                         frozen off its tees, and the index they were frozen
+ *                                         with is not stored, so nothing is re-frozen;
+ *   the tournament's / a flight's tees    refused after scores where a round of CARDS is reached;
+ *                                         a round of matches keeps its frozen strokes, so open there;
+ *   format                                open · RE-DRAW if it now draws differently · refuse
+ *                                         both ways (Rule 21.1b vs 3.3b(3); Committee
+ *                                         Procedures 5A) · refuse;
+ *   holes (8 Nov, format-like)            open · open · refuse · refuse;
+ *   a cut made OUT of the round (8 Nov)   its allowance, basis and tees (and the tournament's) refused after
+ *                                         scores, the way out the cut's undo on Rounds & formats;
+ *   delete                                open · WARN (its draw goes with it) · refuse · refuse;
+ *   a round's day                         open · open · WARN (schedules) · refuse.
+ *
+ * Which rounds file MATCHES is written out by hand from the catalogue — a
+ * head-to-head round in any format not scored on strokes or points — not by
+ * the predicate the rule uses. Launch is not a step: every cell before
+ * completion runs both unlaunched and launched. Field sizes start at ONE: a
+ * head-to-head round of one has nobody to be drawn against, so it stays
+ * before the draw whatever happens around it. Invariants in every cell: the
+ * step meant; every refusal in words with a screen to go to; none offers a
+ * committee correction (a correction never opens over recorded scores — TD,
+ * panel 8.1); scores send to Score entry (a knockout's results to the Bracket), completion to the dashboard.
+ */
+describe("an upstream edit to a round, every format × stage type × step × field size (J12)", () => {
+  type Want = "open" | "warn" | "redraw" | "refuse";
+  const STEPS: RoundStep[] = ["before-draw", "after-draw", "after-scores", "completed"];
+  const HEAD_TO_HEAD = ["Round Robin", "Single Match Stage", "Bracket Stage", "Team Session"];
+  /** Scored on strokes or points, never hole by hole (the catalogue's stroke, Stableford and modified-Stableford games). */
+  const ON_CARDS = ["Stroke Play", "Stableford", "Modified Stableford"];
+  const matchesFiled = (type: string, format: string) => HEAD_TO_HEAD.includes(type) && !ON_CARDS.includes(format);
+
+  /** `cut`: a cut has been made OUT of this round — the next round's field was decided on its figures (8 Nov). */
+  function want(kind: RoundChangeAsk["kind"], step: RoundStep, matches: boolean, redraws: boolean, cut = false): Want {
+    if (step === "completed") return "refuse";
+    switch (kind) {
+      case "allowance":
+        return step === "after-scores" ? (matches || cut ? "refuse" : "warn") : "open";
+      case "round-tees":
+        // Option C (8 Nov): a scored round's handicaps were frozen off its tees, and the index is not stored.
+        return step === "after-scores" ? "refuse" : "open";
+      case "field-tees":
+        // A scored round of cards refuses; a round of matches keeps the strokes it was frozen at.
+        return step === "after-scores" && !matches ? "refuse" : "open";
+      case "format":
+        return step === "after-scores" ? "refuse" : step === "after-draw" && redraws ? "redraw" : "open";
+      case "holes":
+        // Format-like (8 Nov): another length makes the cards mean something else.
+        return step === "after-scores" ? "refuse" : "open";
+      case "delete":
+        return step === "after-scores" ? "refuse" : step === "after-draw" ? "warn" : "open";
+      case "day":
+        return step === "after-scores" ? "warn" : "open";
+    }
+  }
+  const kind = (v: RoundVerdict): Want => (!v.ok ? "refuse" : v.warn === null ? "open" : v.warn === "redraw" ? "redraw" : "warn");
+
+  /** A round of `type` in `format` at `step`, for a field of `n`. Head to head, the pairings are the field halved — none for one. */
+  function roundAt(type: string, format: string, step: RoundStep, n: number): { round: RoundChangeRound; meant: RoundStep } {
+    const h2h = HEAD_TO_HEAD.includes(type);
+    const pairings = h2h ? Math.floor(n / 2) : 0;
+    // A head-to-head round with nobody to draw has no draw and no result.
+    const undrawable = h2h && pairings === 0;
+    const drawn = step !== "before-draw" && !undrawable;
+    const played = (step === "after-scores" || step === "completed") && !undrawable;
+    const meant: RoundStep = step === "completed" ? "completed" : undrawable ? "before-draw" : step;
+    return {
+      round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: played, matches: drawn ? pairings : 0, teeSheetSaved: h2h ? null : drawn, cutMadeAfter: false },
+      meant,
+    };
+  }
+
+  const invariants = (v: RoundVerdict, at: string, type: string) => {
+    if (v.ok) return;
+    expect(v.says.trim().length, `${at}: a refusal in words`).toBeGreaterThan(10);
+    expect(v.wayOut.href, `${at}: a way out to a screen`).toMatch(/^\//);
+    expect(v.says, `${at}: never a correction over scores`).not.toMatch(/committee correction/i);
+    // A made cut is undone where it is made — reopening the round on Rounds & formats.
+    const scoresWayOut = /^The cut after /.test(v.says) ? "/stages" : type === "Bracket Stage" ? "/bracket" : "/entry";
+    expect(v.wayOut.href, `${at}: the way out of its step`).toBe(v.step === "completed" ? "/dashboard" : scoresWayOut);
+  };
+
+  const PAIRS = STAGE_TYPES.flatMap((type) => GOLF_FORMATS.filter((f) => formatFitsRound(type, f.name)).map((f) => ({ type, format: f.name })));
+
+  it("CONTROL: the sweep has both kinds of round to judge — cards and matches, in more than one type", () => {
+    expect(PAIRS.some((p) => matchesFiled(p.type, p.format))).toBe(true);
+    expect(PAIRS.some((p) => !matchesFiled(p.type, p.format))).toBe(true);
+    expect(new Set(PAIRS.map((p) => p.type)).size).toBeGreaterThan(2);
+  });
+
+  for (const { type, format } of PAIRS) {
+    const matches = matchesFiled(type, format);
+    const fitting = GOLF_FORMATS.filter((f) => f.name !== format && formatFitsRound(type, f.name)).map((f) => f.name);
+    // The format it would become: one of the OTHER draw where the type allows it (a re-draw), else one of the same.
+    const other = fitting.find((f) => matchesFiled(type, f) !== matches);
+    const to = other ?? fitting[0];
+    for (const step of STEPS) {
+      for (const n of [1, 2, 3, 8, 28]) {
+        it(`${type} · ${format} · ${step} · ${n} in the field`, () => {
+          const { round: base, meant } = roundAt(type, format, step, n);
+          // A cut can only have been made OUT of a played round of cards (`cutHasBeenMade`: individual stroke rounds, the feeder closed).
+          const cuts = base.hasResult && !matches ? [false, true] : [false];
+          for (const cut of cuts) {
+            const round = { ...base, cutMadeAfter: cut };
+            for (const status of step === "completed" ? ["completed"] : ["draft", "live"]) {
+              const facts = { status, round };
+              const at = `${status}${cut ? " · cut made after it" : ""}`;
+              expect(roundStepOf(facts), `${at}: the round stands in the step meant`).toBe(meant);
+              for (const k of ["allowance", "round-tees", "holes", "delete", "day"] as const) {
+                const v = roundChangeAllowed(facts, { kind: k });
+                expect(kind(v), `${at}: ${k}`).toBe(want(k, meant, matches, false, cut));
+                invariants(v, `${at}: ${k}`, type);
+              }
+              if (to) {
+                const v = roundChangeAllowed(facts, { kind: "format", to });
+                expect(kind(v), `${at}: format → ${to}`).toBe(want("format", meant, matches, other !== undefined, cut));
+                invariants(v, `${at}: format`, type);
+              }
+              // The tournament's tees, over a tournament of this one round.
+              const across = acrossRounds({ status, rounds: [{ ...STATUS_FAMILIES.stroke().rounds[0], ...round }] }, { kind: "field-tees" }, new Set(cut ? ["r1"] : []));
+              expect(kind(across), `${at}: field tees`).toBe(want("field-tees", meant, matches, false, cut));
+              // Never re-frozen (option C): a refusal names the round and the way out, in the rule's words.
+              if (!across.ok && meant === "after-scores") expect(across.says, `${at}: field tees refused in words`).toBe(teesFrozenWords("Round 1", type === "Bracket Stage" ? { what: "results", where: "on the Bracket" } : undefined));
+              invariants(across, `${at}: field tees`, type);
+            }
+          }
+        });
+      }
+    }
+  }
+
+  it("adding a round is refused only once completed, every family and step (section 3, 'Add a round')", () => {
+    for (const family of Object.keys(STATUS_FAMILIES) as Family[]) {
+      const base = STATUS_FAMILIES[family]();
+      const played = { ...launchedFacts(base), rounds: base.rounds.map((r) => ({ ...r, hasResult: true })) };
+      for (const [f, refused] of [
+        [{ ...base, status: "draft" }, false],
+        [launchedFacts(base), false],
+        [played, false],
+        [{ ...played, status: "completed" }, true],
+      ] as const) {
+        // A casual round locks none, completed too (8.2) — as its row's blanket flag kept it until state machine PR 9b.
+        expect(addRoundLockOf(locksFor(lockFactsOf(f))) !== null, `${family} · ${f.status}`).toBe(refused && family !== "casual");
+      }
+    }
+  });
+});
+
+/**
+ * "RECOMPUTE" IS THE RESOLVER'S OWN ANSWER, AND THE RULES' (J12, PR 7b; the
+ * Golf Pro's Q2: warn, recompute and log). After scores an allowance change
+ * re-prices every player off the figure FROZEN at the first card — the exact
+ * Course Handicap, the allowance taken of it, rounded ONCE (Rules of
+ * Handicapping, Rule 6.1 and 6.2, Appendix C) — and the moves the audit line
+ * names are exactly the players whose playing handicap changed.
+ *
+ * Worked by hand here from decimal indexes off one rated set (Slope 131,
+ * Course Rating 72.4, Par 71): Course Handicap = Index × Slope ÷ 113 +
+ * (Course Rating − Par), never rounded before the allowance. Every format that
+ * takes an individual allowance, on every type that plays it on cards, field
+ * sizes from one.
+ */
+describe("an allowance changed after play re-prices off the frozen figure, by the Rules (J12)", () => {
+  const SLOPE = 131;
+  const RATING = 72.4;
+  const PAR = 71;
+  const exactOf = (index: number) => (index * SLOPE) / 113 + (RATING - PAR);
+  /** Rounded once, .5 up (Rule 6.1 — the figure is never negative in these fields). */
+  const once = (x: number) => Math.floor(x + 0.5);
+  const indexes = (n: number) => Array.from({ length: n }, (_, i) => Number(((i % 10) * 4.3 + 0.6).toFixed(1)));
+
+  const CARDS = [
+    { type: "Stroke Play Round", format: "Stroke Play" },
+    { type: "Stroke Play Round", format: "Stableford" },
+    { type: "Round Robin", format: "Stroke Play" },
+  ];
+
+  for (const { type, format } of CARDS) {
+    for (const n of [1, 2, 3, 8, 28]) {
+      it(`${type} · ${format} · ${n} in the field: 95% → 85% moves exactly the players the Rules move`, () => {
+        // After scores, a round of cards: the rule asks and lets it through to be worked out again.
+        const v = roundChangeAllowed({ status: "live", round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: true, matches: 0, teeSheetSaved: true, cutMadeAfter: false } }, { kind: "allowance" });
+        expect(v).toEqual({ ok: true, scope: "rounds", step: "after-scores", warn: "rescore" });
+
+        const field = indexes(n).map((index, i) => {
+          const exact = exactOf(index);
+          return { playerId: `p${i}`, row: { frozen: once(exact), frozenExact: exact, frozenParStrokes: 0, override: null }, exact };
+        });
+        const priced = (allowance: number) =>
+          field.map((p) => ({
+            playerId: p.playerId,
+            // The member's live figures are deliberately wrong: a frozen round must not read them.
+            figure: playingHandicapInRound({ format, type, scoringBasis: "net", handicapAllowance: allowance }, p.row, { whole: 99, exact: 99, parStrokes: 7 }),
+          }));
+        const before = priced(95);
+        const after = priced(85);
+        expect(before.map((p) => p.figure)).toEqual(field.map((p) => once((p.exact * 95) / 100)));
+        expect(after.map((p) => p.figure)).toEqual(field.map((p) => once((p.exact * 85) / 100)));
+        const hand = field
+          .map((p) => ({ playerId: p.playerId, from: once((p.exact * 95) / 100), to: once((p.exact * 85) / 100) }))
+          .filter((m) => m.from !== m.to);
+        expect(handicapMoves(before, after)).toEqual(hand);
+      });
+    }
+  }
+
+  /**
+   * THE CONSTANT-OFFSET CHECK: one player whole, against the Rules by hand, so
+   * a re-pricing that rounded the Course Handicap first (16 → 85% = 13.6 → 14)
+   * or took the live figure instead of the frozen one cannot pass on the cells
+   * agreeing with each other. Index 12.4: 12.4 × 131 ÷ 113 = 14.3752…; + 1.4 =
+   * 15.7752…; 95% = 14.986… → 15; 85% = 13.408… → 13.
+   */
+  it("one row by hand: index 12.4 plays off 15 at 95% and 13 at 85%, and the move says 15 → 13", () => {
+    const row = { frozen: 16, frozenExact: 15.775221238938052, frozenParStrokes: 0, override: null };
+    const at = (allowance: number) => playingHandicapInRound({ format: "Stroke Play", type: "Stroke Play Round", scoringBasis: "net", handicapAllowance: allowance }, row, { whole: 0, exact: 0, parStrokes: 0 });
+    expect(at(95)).toBe(15);
+    expect(at(85)).toBe(13);
+    expect(handicapMoves([{ playerId: "p", figure: at(95) }], [{ playerId: "p", figure: at(85) }])).toEqual([{ playerId: "p", from: 15, to: 13 }]);
+  });
+});
+
+/**
+ * THE ALLOWANCE A ROUND PLAYS AT, ON EVERY FORMAT x EVERY STAGE TYPE x EVERY
+ * FIELD SIZE, AGAINST APPENDIX C HELD HERE (the accuracy sweep, 2026-11-09).
+ *
+ * The first block of this file sweeps every format on every stage type for
+ * COHERENCE and asserts no figure. `round-allowance.test.ts` pins Four-Ball's
+ * two figures and reads the rest off the format table — the code's own route.
+ * This cell holds the Rules of Handicapping, Appendix C (2024), as its OWN
+ * table, and asks the one reader (`recommendedAllowance(format, stage.type)`)
+ * for every cell: a four-ball is 85 in a medal and 90 in a match, and nothing
+ * else in the catalogue moves with the round.
+ *
+ * Then a VALUE at every field size from ONE: each individual net format,
+ * on every stage type, prices a field of decimal indexes (plus handicaps
+ * included) through `playingHandicapInRound` — what the board prices a round
+ * with — and every player must play off the Rule worked in WHOLE NUMBERS
+ * (an index in tenths, everything over 1130 x 100), sharing neither formula
+ * nor floating point with `domain/handicap.ts`.
+ *
+ * And which formats give the strokes for tees of a higher par (Rule 6.2b), by
+ * format and by the basis a round is set to.
+ */
+describe("the allowance a round plays at, on every format, stage type and field size, against Appendix C", () => {
+  /** Appendix C, held here. `match` is the figure where the round is head-to-head. */
+  const APPENDIX_C: Record<string, { stroke: number; match: number; weights?: Record<number, number[]> }> = {
+    "Match Play": { stroke: 100, match: 100 }, // individual match play
+    "Stroke Play": { stroke: 95, match: 95 }, // individual stroke play (a medal, wherever it is held)
+    Stableford: { stroke: 95, match: 95 }, // individual Stableford
+    "Modified Stableford": { stroke: 95, match: 95 }, // individual Stableford, a committee's table
+    Nassau: { stroke: 100, match: 100 }, // three individual matches
+    "Four-Ball": { stroke: 85, match: 90 }, // four-ball stroke play / match play
+    // A pair counting its better ball is a four-ball: 85 / 90 (moved here from the
+    // departures on 2026-11-09). Best 1 of 4 (75%) and 3 of 4 (100%) at stroke play
+    // still play 85 — `docs/deferred-register.md`, "Best Ball plays at 85%".
+    "Best Ball": { stroke: 85, match: 90 },
+    Foursomes: { stroke: 50, match: 50 }, // 50% of the combined
+    "Alternate Shot": { stroke: 50, match: 50 }, // foursomes by another name
+    Greensomes: { stroke: 100, match: 100, weights: { 2: [60, 40] } }, // 60% low + 40% high
+    "Chapman / Pinehurst": { stroke: 100, match: 100, weights: { 2: [60, 40] } },
+    Scramble: { stroke: 25, match: 25, weights: { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } },
+    "Texas Scramble": { stroke: 25, match: 25, weights: { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } },
+  };
+  /**
+   * Formats Appendix C does not name, at the figure the app states for them and
+   * says is a convention or carries no allowance of its own. Held so that a
+   * format added to the catalogue must be placed in one table or the other.
+   */
+  const NO_PUBLISHED_FIGURE: Record<string, number> = { Skins: 100, Shamble: 85, "Other (scored by hand)": 100 };
+  /**
+   * KNOWN DEPARTURES FROM APPENDIX C — asserted to be STILL THERE, so that the
+   * day one is fixed this list goes red and the cell moves into the table.
+   * Empty since 2026-11-09, when Best Ball in a match went to 90% (it held
+   * `{ format: "Best Ball", headToHead: true, app: 85, rules: 90 }`).
+   */
+  const KNOWN_DEPARTURES: Array<{ format: string; headToHead: boolean; app: number; rules: number }> = [];
+
+  it("CONTROL: every format in the catalogue is in exactly one table, and both kinds of round exist", () => {
+    for (const f of FORMAT_NAMES) {
+      const placed =
+        Number(f in APPENDIX_C) + Number(f in NO_PUBLISHED_FIGURE) + Number(KNOWN_DEPARTURES.some((d) => d.format === f));
+      expect(placed, `${f} is placed ${placed} times`).toBe(1);
+    }
+    expect(STAGE_TYPES.some((t) => isHeadToHead(t))).toBe(true);
+    expect(STAGE_TYPES.some((t) => !isHeadToHead(t))).toBe(true);
+  });
+
+  for (const format of FORMAT_NAMES) {
+    for (const type of STAGE_TYPES) {
+      it(`${format} on a ${type}`, () => {
+        const h2h = isHeadToHead(type);
+        const got = recommendedAllowance(format, type);
+        const rule = APPENDIX_C[format];
+        if (rule) {
+          expect(got, `${format} on a ${type}`).toBe(h2h ? rule.match : rule.stroke);
+          expect(findFormat(format).weightsBySideSize, `${format}'s shares`).toEqual(rule.weights);
+          return;
+        }
+        if (format in NO_PUBLISHED_FIGURE) {
+          expect(got).toBe(NO_PUBLISHED_FIGURE[format]);
+          return;
+        }
+        const d = KNOWN_DEPARTURES.find((k) => k.format === format && k.headToHead === h2h)!;
+        expect(got, `${format} on a ${type}: if this now gives ${d.rules}, move it into APPENDIX_C`).toBe(d.app);
+      });
+    }
+  }
+
+  /** Round half up, in integers: floor((2 x num + den) / (2 x den)). */
+  const roundHalfUp = (num: number, den: number) => Math.floor((2 * num + den) / (2 * den));
+  /** Off 131 / 72.3 / par 72; indexes from plus 3.0, in tenths. */
+  const SLOPE = 131;
+  const CR10 = 723;
+  const PAR = 72;
+  const indexTenths = (i: number) => ((i * 137) % 420) - 30;
+  const INDIVIDUAL_NET = GOLF_FORMATS.filter((f) => f.sideSize === 1 && !f.manual).map((f) => f.name);
+
+  it("CONTROL: the field walks plus handicaps and decimals, and there are individual formats to price", () => {
+    const sample = FIELD_SIZES.flatMap((n) => Array.from({ length: n }, (_, i) => indexTenths(i)));
+    expect(sample.some((t) => t < 0)).toBe(true);
+    expect(sample.some((t) => t % 10 !== 0)).toBe(true);
+    expect(INDIVIDUAL_NET.length).toBeGreaterThanOrEqual(5);
+  });
+
+  for (const format of INDIVIDUAL_NET) {
+    for (const type of STAGE_TYPES) {
+      it(`${format} on a ${type}: every player at every field size plays off the Rule`, () => {
+        const pct = recommendedAllowance(format, type);
+        for (const n of FIELD_SIZES) {
+          for (let i = 0; i < n; i += 1) {
+            const t = indexTenths(i);
+            const rated = { slopeRating: SLOPE, courseRating: CR10 / 10, par: PAR };
+            const exact = courseHandicapExact(t / 10, rated);
+            const playing = playingHandicapInRound(
+              { format, type, scoringBasis: "net", handicapAllowance: 0 },
+              null,
+              { whole: courseHandicap(t / 10, rated), exact, parStrokes: 0 },
+            );
+            // Course Handicap x 1130 = t x Slope + (CR10 - 10 x Par) x 113; then x pct / 100.
+            const num = (t * SLOPE + (CR10 - 10 * PAR) * 113) * pct;
+            expect(playing, `${format}, ${type}, field of ${n}, index ${t / 10}`).toBe(roundHalfUp(num, 1130 * 100));
+          }
+        }
+      });
+    }
+  }
+
+  it("the strokes for a higher par (6.2b): stroke and match play in strokes, never points, never a shared ball", () => {
+    const GIVES: Record<string, boolean> = {
+      "Match Play": true,
+      "Stroke Play": true,
+      Stableford: false,
+      "Modified Stableford": false,
+      Skins: true,
+      Nassau: true,
+      "Four-Ball": true,
+      "Best Ball": true,
+      Shamble: true,
+      // A shared ball: not decided (`docs/deferred-register.md`), nought for now.
+      Foursomes: false,
+      "Alternate Shot": false,
+      "Chapman / Pinehurst": false,
+      Greensomes: false,
+      Scramble: false,
+      "Texas Scramble": false,
+      "Other (scored by hand)": false,
+    };
+    for (const format of FORMAT_NAMES) {
+      expect(format in GIVES, `${format} is not in the table`).toBe(true);
+      expect(parStrokesApply(format, "net"), `${format}, net`).toBe(GIVES[format]);
+      expect(parStrokesApply(format, "gross"), `${format}, gross`).toBe(GIVES[format]);
+      // Set to points, every round is counted against par and gives none (6.2b).
+      expect(parStrokesApply(format, "stableford"), `${format}, Stableford`).toBe(false);
+      expect(parStrokesApply(format, "modified-stableford"), `${format}, Modified Stableford`).toBe(false);
+    }
+  });
+});
+
+/**
+ * A NET TIE COUNTED BACK BY FRACTIONS OF THE HANDICAP, AT EVERY FIELD SIZE AND
+ * BOTH HOLE COUNTS (2026-11-09).
+ *
+ * Committee Procedures 5A(7): in a handicap stroke-play competition the last 9,
+ * 6, 3 and 1 holes are compared after taking off ½, ⅓, ⅙ and 1/18 of the
+ * handicap; a nine-hole round's last 6, 3 and 1 take ⅔, ⅓ and 1/9 — holes
+ * counted over holes played. The FRACTIONS table below is written as the
+ * guidance writes it, not derived from the code's `n / holes`.
+ *
+ * Every player in a field finishes on the SAME net total (gross = par +
+ * playing handicap, the extra strokes spread differently per player), so every
+ * pair is a tie the countback must break. Handicaps run from plus 2 up, and the
+ * playing handicap is recovered from the card itself (gross less net), as the
+ * board does. Invariants: the order is the table's, it is antisymmetric, and a
+ * player is level with themselves. Control: somewhere in the sweep the
+ * hole-by-hole method gives a different answer, or the cell could not tell the
+ * two apart.
+ */
+describe("a net tie counted back by fractions of the handicap, at every field size and hole count", () => {
+  const FRACTIONS: Record<9 | 18, Array<[number, number]>> = {
+    18: [[9, 1 / 2], [6, 1 / 3], [3, 1 / 6], [1, 1 / 18]],
+    9: [[6, 2 / 3], [3, 1 / 3], [1, 1 / 9]],
+  };
+  let disagreements = 0;
+
+  for (const H of [18, 9] as const) {
+    // Stroke index 1..H spread round the card, as a club prints it.
+    const si = Array.from({ length: H }, (_, j) => ((j * 7) % H) + 1);
+    for (const n of FIELD_SIZES) {
+      it(`${n} level on net over ${H} holes`, () => {
+        const field = Array.from({ length: n }, (_, i) => {
+          const playing = ((i * 5) % (H + 2)) - 2;
+          const extra = Math.abs(playing);
+          const gross = Array.from({ length: H }, (_, j) =>
+            4 + (((j * 5 + i * 3) % H) < extra ? Math.sign(playing) : 0),
+          );
+          const net = gross.map((g, j) => g - holeStrokesReceived(playing, si[j], H));
+          return { id: `p${i}`, playing, gross, net };
+        });
+        const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+        for (const p of field) {
+          expect(sum(p.net), `${p.id} is level on net`).toBe(4 * H);
+          expect(countbackCardOn(p.id, { gross: p.gross, net: p.net, points: [] }, "net", "fractions").fractionOf).toBe(p.playing);
+        }
+        /** The guidance's order, negative when a is ahead: the first step whose figures differ. */
+        const byTable = (a: (typeof field)[number], b: (typeof field)[number]) => {
+          for (const [k, f] of FRACTIONS[H]) {
+            const va = sum(a.gross.slice(H - k)) - a.playing * f;
+            const vb = sum(b.gross.slice(H - k)) - b.playing * f;
+            if (Math.abs(va - vb) > 1e-9) return Math.sign(va - vb);
+          }
+          return 0;
+        };
+        const card = (p: (typeof field)[number], how: "fractions" | "hole-by-hole") =>
+          countbackCardOn(p.id, { gross: p.gross, net: p.net, points: [] }, "net", how);
+        for (const a of field) {
+          expect(countbackBetween(card(a, "fractions"), card(a, "fractions"), H).order).toBe(0);
+          for (const b of field) {
+            const ab = Math.sign(countbackBetween(card(a, "fractions"), card(b, "fractions"), H).order);
+            const ba = Math.sign(countbackBetween(card(b, "fractions"), card(a, "fractions"), H).order);
+            expect(ab, `${a.id} (${a.playing}) v ${b.id} (${b.playing}) over ${H}`).toBe(byTable(a, b));
+            expect(ab + ba, "antisymmetric").toBe(0);
+            if (Math.sign(countbackBetween(card(a, "hole-by-hole"), card(b, "hole-by-hole"), H).order) !== ab) disagreements += 1;
+          }
+        }
+      });
+    }
+  }
+
+  it("CONTROL: the sweep reaches ties the hole-by-hole countback decides differently", () => {
+    expect(disagreements).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * AN UPSTREAM EDIT TO THE TEE SHEET, EVERY ROUND TYPE × STEP × PUBLISHED × FIELD
+ * SIZE (J12, state machine PR 7c; the proposal's test plan, "an upstream edit,
+ * every scope × every step", for the tee-sheet row).
+ *
+ * The expectation is worked HERE from section 3's row and the ruling of 12 Nov,
+ * never read off the function:
+ *
+ *   before the draw  open · after the draw  open · after scores  open (the groups that
+ *   have started are held by their own locks) · completed  REFUSE, every change;
+ *   a PUBLISHED sheet is changed and SAID: a save that publishes, a move, a place and a
+ *   replace tell players ("told"); taking the sheet back, or saving it unpublished, hides it.
+ *
+ * Launch is not a step: every cell before completion runs both unlaunched and launched. A
+ * round robin, a bracket or a cup session files its results as matches and has no stroke
+ * "saved sheet" fact (null); it still has a sheet to move. Field sizes start at ONE: a field
+ * of one is one group, so a re-draw that moves nobody tells nobody. Invariants in every cell:
+ * the step meant; a refusal in words with a screen to go to, completion to the dashboard,
+ * never a committee correction; the count the screen says is the notice's own diff.
+ */
+describe("an upstream edit to the tee sheet, every round type × step × published × field size (J12)", () => {
+  const STEPS_7C: TeeSheetStep[] = ["before-draw", "after-draw", "after-scores", "completed"];
+  const ASKS_7C: { ask: TeeSheetChangeAsk; told: boolean; hides: boolean; touchesGroups: boolean }[] = [
+    { ask: { kind: "save", publish: true }, told: true, hides: false, touchesGroups: true },
+    { ask: { kind: "save", publish: false }, told: false, hides: true, touchesGroups: true },
+    { ask: { kind: "publish" }, told: false, hides: false, touchesGroups: false },
+    { ask: { kind: "unpublish" }, told: false, hides: true, touchesGroups: false },
+    { ask: { kind: "place" }, told: true, hides: false, touchesGroups: true },
+    { ask: { kind: "move" }, told: true, hides: false, touchesGroups: true },
+    { ask: { kind: "replace" }, told: true, hides: false, touchesGroups: true },
+  ];
+  /** A sheet of `n` players in fours, ten minutes apart — the Rules do not say how a club sends its groups out. */
+  const sheetOf = (n: number): TeeSheet => ({
+    savedAt: "t",
+    startType: "tee-times",
+    groups: Array.from({ length: Math.ceil(n / 4) }, (_, g) => ({
+      name: `Group ${g + 1}`,
+      startHole: 1,
+      time: `${8 + Math.floor((g * 10) / 60)}:${String((g * 10) % 60).padStart(2, "0")} AM`,
+      playerIds: Array.from({ length: Math.min(4, n - g * 4) }, (_, i) => `p${g * 4 + i}`),
+    })),
+  });
+
+  it("CONTROL: the sweep has every round type, and a field that has more than one group", () => {
+    expect(STAGE_TYPES.length).toBeGreaterThan(3);
+    expect(sheetOf(28).groups).toHaveLength(7);
+    expect(sheetOf(1).groups).toHaveLength(1);
+  });
+
+  for (const type of STAGE_TYPES) {
+    for (const step of STEPS_7C) {
+      for (const published of [false, true]) {
+        for (const n of [1, 2, 3, 8, 28]) {
+          it(`${type} · ${step} · ${published ? "published" : "not published"} · ${n} in the field`, () => {
+            const h2h = ["Round Robin", "Single Match Stage", "Bracket Stage", "Team Session"].includes(type);
+            // A sheet that has been drawn, or played, has a saved sheet; a round that has not been drawn has none.
+            const drawn = step !== "before-draw";
+            const round = {
+              id: "r1",
+              label: "Round 1",
+              hasResult: step === "after-scores" || step === "completed",
+              teeSheetSaved: h2h ? null : drawn,
+              teeSheetPublished: published && drawn,
+            };
+            for (const status of step === "completed" ? ["completed"] : ["draft", "live"]) {
+              const facts = { status, round };
+              const at = `${status} · ${type}`;
+              expect(teeSheetStepOf(facts), `${at}: the step meant`).toBe(h2h && step === "after-draw" ? "before-draw" : step);
+              for (const { ask, told, hides, touchesGroups } of ASKS_7C) {
+                const k = `${at} · ${ask.kind}`;
+                const v = teeSheetChangeAllowed(facts, ask);
+                if (step === "completed") {
+                  expect(v.ok, `${k}: refused`).toBe(false);
+                  if (v.ok) continue;
+                  expect(v.says.trim().length, `${k}: in words`).toBeGreaterThan(10);
+                  expect(v.says, `${k}: never a correction`).not.toMatch(/committee correction/i);
+                  expect(v.wayOut.href, `${k}: completion goes to the dashboard`).toBe("/dashboard");
+                  continue;
+                }
+                expect(v.ok, `${k}: open`).toBe(true);
+                if (!v.ok) continue;
+                const out = published && drawn;
+                expect(v.warn, `${k}: said only over a sheet players were sent`).toBe(!out ? null : told ? "told" : hides ? "hidden" : null);
+                expect(v.groupsDecide, `${k}: the groups decide in a round with scores`).toBe(step === "after-scores" && touchesGroups);
+              }
+              // The count the screen says is the notice's own: moving the last player into the first group tells exactly that player
+              // (their group's time differs) — and nobody, where there is only the one group.
+              const before = sheetOf(n);
+              const moved = sheetOf(n);
+              if (before.groups.length > 1) {
+                const mover = moved.groups[moved.groups.length - 1].playerIds.pop()!;
+                moved.groups[0].playerIds.push(mover);
+                const lone = moved.groups[moved.groups.length - 1].playerIds.length === 0;
+                if (lone) moved.groups.pop();
+                expect(toldCount(before, moved), `${at}: one player moved, one player told`).toBe(1);
+              } else {
+                expect(toldCount(before, moved), `${at}: nobody moved, nobody told`).toBe(0);
+              }
+            }
+          });
+        }
+      }
+    }
+  }
+});
+
+/**
+ * TAKING A KNOCKOUT RESULT BACK, AT EVERY FIELD SIZE AND IN ANY ORDER (cut 3,
+ * 2026-11-14; Rules 3.2a(4) and 3.2b).
+ *
+ * A knockout's draw is rebuilt from its stored winners by POSITION
+ * (`buildBracket`), and a stored winner whose opponent is no longer known is
+ * dropped (`claimedWinner`). So taking back, or changing, a result its winner
+ * has already played on from takes the LATER result off the draw without a
+ * word. `laterTieRefusal` is the rule the server asks before either; this holds
+ * it to what actually happens to the other results, both ways:
+ *
+ *   allowed  ⇒ every other recorded result is still on the rebuilt draw;
+ *   refused  ⇒ at least one other recorded result would have left it
+ *              (the rule refuses nothing it need not).
+ *
+ * For one draw at every field size from ONE, and for a main draw with its
+ * plate (built as `loadEventState` builds it, from the first round's losers).
+ * Results are played in random orders, because an order-dependent rule is the
+ * one round-by-round play cannot reach (`a-tie-not-yet-played-is-not-a-bye`).
+ */
+describe("taking a knockout result back, at every field size and in any order", () => {
+  /** A small, repeatable random: the same orders every run. */
+  const rand = (seed: number) => () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+
+  const build = (players: Player[], winners: Record<string, string>, plate: boolean): Draws => {
+    const main = buildBracket("winners", players, winners);
+    if (!plate) return [{ label: "", view: main }];
+    const losers = firstRoundLosers(main, new Map(players.map((p) => [p.id, p])));
+    return [
+      { label: "Main draw", view: main },
+      { label: "Plate", view: buildBracket("consolation", losers, winners, false) },
+    ];
+  };
+
+  /** The recorded results that are on the draw, by key. */
+  const applied = (draws: Draws, winners: Record<string, string>) => {
+    const on = new Map<string, string>();
+    for (const { view } of draws) for (const rd of view.rounds) for (const m of rd.matches) {
+      if (m.winnerId && winners[m.key] === m.winnerId) on.set(m.key, m.winnerId);
+    }
+    return on;
+  };
+
+  /** Plays `steps` results, one ready tie at a time, in a random order. */
+  const play = (players: Player[], plate: boolean, next: () => number, steps: number) => {
+    const winners: Record<string, string> = {};
+    for (let s = 0; s < steps; s += 1) {
+      const ready = build(players, winners, plate)
+        .flatMap(({ view }) => view.rounds.flatMap((rd) => rd.matches))
+        .filter((m) => m.a.playerId && m.b.playerId && !m.winnerId);
+      if (ready.length === 0) break;
+      const m = ready[Math.floor(next() * ready.length)];
+      winners[m.key] = next() < 0.5 ? m.a.playerId! : m.b.playerId!;
+    }
+    return winners;
+  };
+
+  const cells: Array<{ n: number; plate: boolean }> = [
+    ...FIELD_SIZES.map((n) => ({ n, plate: false })),
+    ...[4, 5, 8, 12, 16].map((n) => ({ n, plate: true })),
+  ];
+  for (const { n, plate } of cells) {
+    it(`a ${n}-player ${plate ? "draw with a plate" : "draw"}: a result is held exactly when another was built on it`, () => {
+      const players = field(n);
+      let refusedSeen = 0;
+      let allowedSeen = 0;
+      for (let order = 0; order < 8; order += 1) {
+        const next = rand(order * 7919 + n * 31 + (plate ? 1 : 0));
+        const winners = play(players, plate, next, Math.floor(next() * 2 * n) + 1);
+        const draws = build(players, winners, plate);
+        const before = applied(draws, winners);
+        for (const [key, winnerId] of before) {
+          const tie = draws.flatMap(({ view }) => view.rounds.flatMap((rd) => rd.matches)).find((m) => m.key === key)!;
+          // A first-round bye goes through on its own and is no result to take back.
+          if (!tie.a.playerId || !tie.b.playerId) continue;
+          const refusal = laterTieRefusal(draws, key, { plate });
+          const other = tie.a.playerId === winnerId ? tie.b.playerId : tie.a.playerId;
+          for (const after of [
+            Object.fromEntries(Object.entries(winners).filter(([k]) => k !== key)), // taken back
+            { ...winners, [key]: other }, // changed
+          ]) {
+            const kept = applied(build(players, after, plate), after);
+            const othersKept = [...before].every(([k, w]) => k === key || kept.get(k) === w);
+            if (refusal === null) {
+              expect(othersKept, `${key} was allowed, and another result left the draw (n=${n}, order ${order})`).toBe(true);
+            }
+          }
+          // Refused only where taking it back WOULD move another result. (A plate is
+          // held as a whole once it has a result: the conservative answer, since
+          // its field is re-drawn from the losers; that side is not asserted.)
+          if (refusal !== null && !plate) {
+            const taken = Object.fromEntries(Object.entries(winners).filter(([k]) => k !== key));
+            const kept = applied(build(players, taken, plate), taken);
+            expect(
+              [...before].every(([k, w]) => k === key || kept.get(k) === w),
+              `${key} was refused, yet taking it back moves nothing (n=${n}, order ${order}): ${refusal}`,
+            ).toBe(false);
+          }
+          if (refusal !== null) refusedSeen += 1;
+          else allowedSeen += 1;
+        }
+      }
+      // Each cell reaches both answers where the field can (a draw of two has one tie).
+      if (n >= 4) expect(refusedSeen, "no result was ever held: the cell never reached the case").toBeGreaterThan(0);
+      if (n >= 2) expect(allowedSeen).toBeGreaterThan(0);
+    });
+  }
+});
+
+/**
+ * AND THE PLAY-OFF FOR THIRD, AT EVERY FIELD SIZE (cut 3 findings, 2026-11-14).
+ *
+ * The play-off is fed by the semi-finals' LOSERS and stored as a match outside
+ * the draw, so the rebuild cannot drop it: changing a semi-final after it was
+ * played leaves its result standing between the wrong players. With a play-off
+ * made from the semi-finals and played:
+ *
+ *   allowed  ⇒ after taking the result back or changing it, the semi-finals'
+ *              losers are still exactly the play-off's two players;
+ *   refused because of the play-off ⇒ they would not be.
+ *
+ * And with the same play-off NOT played, nothing is refused because of it.
+ */
+describe("taking a knockout result back, with a play-off for third, at every field size", () => {
+  const rand = (seed: number) => () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  const losersOf = (players: Player[], winners: Record<string, string>) => {
+    const p = resolveThirdPlace(buildBracket("winners", players, winners)).pairing;
+    return p ? [p.a.playerId, p.b.playerId].sort().join("|") : "";
+  };
+
+  for (const n of FIELD_SIZES.filter((s) => s >= 3)) {
+    it(`a ${n}-player draw: a semi-final is held exactly when the decided play-off was made from its loser`, () => {
+      const players = field(n);
+      let heldSeen = 0;
+      for (let order = 0; order < 8; order += 1) {
+        const next = rand(order * 104729 + n * 17);
+        // Play until both semi-finals are in (or the draw runs out), in a random order.
+        const winners: Record<string, string> = {};
+        for (let s = 0; s < 4 * n; s += 1) {
+          const view = buildBracket("winners", players, winners);
+          if (resolveThirdPlace(view).pairing && next() < 0.3) break;
+          const ready = view.rounds.flatMap((rd) => rd.matches).filter((m) => m.a.playerId && m.b.playerId && !m.winnerId);
+          if (ready.length === 0) break;
+          const m = ready[Math.floor(next() * ready.length)];
+          winners[m.key] = next() < 0.5 ? m.a.playerId! : m.b.playerId!;
+        }
+        const view = buildBracket("winners", players, winners);
+        const pairing = resolveThirdPlace(view).pairing;
+        if (!pairing) continue;
+        const playoff = [pairing.a.playerId!, pairing.b.playerId!];
+        const draws: Draws = [{ label: "", view }];
+        for (const m of view.rounds.flatMap((rd) => rd.matches)) {
+          if (!m.winnerId || !m.a.playerId || !m.b.playerId || winners[m.key] !== m.winnerId) continue;
+          // Undecided: the play-off holds nothing.
+          const free = laterTieRefusal(draws, m.key, { plate: false, thirdPlace: { playerIds: playoff, played: false } });
+          expect(free ?? "", `${m.key}: refused for a play-off with no result (n=${n})`).not.toMatch(/^Play-off for third/);
+
+          const refusal = laterTieRefusal(draws, m.key, { plate: false, thirdPlace: { playerIds: playoff, played: true } });
+          const other = m.winnerId === m.a.playerId ? m.b.playerId : m.a.playerId;
+          const taken = Object.fromEntries(Object.entries(winners).filter(([k]) => k !== m.key));
+          const changed = { ...winners, [m.key]: other };
+          const same = [taken, changed].map((w) => losersOf(players, w) === [...playoff].sort().join("|"));
+          if (refusal === null) {
+            expect(same, `${m.key} was allowed, and the play-off no longer holds the semi-finals' losers (n=${n}, order ${order})`).toEqual([true, true]);
+          } else if (refusal.startsWith("Play-off for third")) {
+            heldSeen += 1;
+            expect(same.includes(false), `${m.key} was held for the play-off, yet changing it moves neither loser (n=${n})`).toBe(true);
+          }
+        }
+      }
+      if (n >= 4) expect(heldSeen, "no semi-final was ever held for the play-off: the cell never reached the case").toBeGreaterThan(0);
     });
   }
 });

@@ -50,8 +50,18 @@ export function RoundVenue({
   informed = false,
   canSearchDirectory = true,
   casual = false,
+  teesDoor,
 }: {
   stageId: string;
+  /**
+   * WHY THIS ROUND'S COURSE AND TEES CANNOT CHANGE NOW, or null where they can
+   * — the rounds rule's own sentence for this round (`roundRefusals`, the map
+   * `setStageCourse` reads its refusal out of): its handicaps were frozen off
+   * its tees at its first card, or the tournament is completed. REQUIRED, so a
+   * caller cannot forget it and offer a choice the action then refuses (round
+   * G594-1, 10 Nov: Tees offered on a scored medal, every pick refused).
+   */
+  teesDoor: string | null;
   /** The venue set on the round itself. "" means it inherits. */
   courseId: string;
   /** Every venue this tournament may be played on. */
@@ -118,6 +128,8 @@ export function RoundVenue({
    */
   const [pendingVenue, setPendingVenue] = useState<{ id: string; cards: number } | null>(null);
   const [pending, startTransition] = useTransition();
+  /** The rounds rule's refusal, or null: an empty sentence is never a reason to shut anything. */
+  const shutBy = teesDoor || null;
 
   const missingCard = !!venue && !venue.hasCard;
   /**
@@ -282,7 +294,8 @@ export function RoundVenue({
              want. Deduped, because a venue is in both. */
           options={pickable}
           value={courseId}
-          disabled={pending}
+          // Shut by the rounds rule as the tees are: a venue moves the stroke index the frozen handicaps were worked against.
+          disabled={pending || shutBy !== null}
           // The "no card yet" block below says it louder, with the fix.
           showCardNote={!missingCard && !noVenue}
           // Empty means inherit, and the label names what that resolves to,
@@ -321,7 +334,8 @@ export function RoundVenue({
             // (as set u" under it at 393px. 44px tall for a thumb.
             style={{ width: "auto", minWidth: 0, maxWidth: "100%", fontSize: 13, padding: "6px 30px 6px 10px", minHeight: 44 }}
             value={teeId}
-            disabled={pending}
+            disabled={pending || shutBy !== null}
+            aria-describedby={shutBy !== null ? `tees-door-${stageId}` : undefined}
             onChange={(e) => setTee(e.target.value)}
           >
             {/* Named rather than blank, and named with what it resolves to —
@@ -338,6 +352,15 @@ export function RoundVenue({
             decides the shots, and is printed on every card
           </span>
         </label>
+      )}
+
+      {/* WHY BOTH ARE SHUT, said under them before anybody presses (J12, PR 7b): the rounds
+          rule's own sentence, the one `setStageCourse` would refuse with. Said wherever either
+          control is drawn — the venue picker alone on a course with one set. */}
+      {shutBy !== null && (teesHere.length > 1 || venues.length > 1 || library.length > 0 || noVenue) && (
+        <p id={`tees-door-${stageId}`} data-testid="tees-door" className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          <Icon name="lock-simple" /> {shutBy}
+        </p>
       )}
 
       {/* Beside the control, and holding the number the server counted. The

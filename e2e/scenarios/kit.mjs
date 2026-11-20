@@ -180,7 +180,8 @@ export async function createTournament(page, name, shape, ownerEmail = CLUB_EMAI
     if (await how.count()) await how.selectOption({ label: shape });
     await page.getByRole("button", { name: /Create tournament/ }).click();
   }
-  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+  await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+  await page.goto("/dashboard");
   await setPlanFor(ownerEmail, plan);
   if (ownerEmail === CLUB_EMAIL) await ensureClubRoster();
 }
@@ -291,6 +292,30 @@ export async function roundCards(stageId) {
   try {
     const rows = await prisma.scorecard.findMany({ where: { stageId }, select: { playerId: true, status: true, strokes: true } });
     return rows.map((r) => ({ ...r, scored: JSON.parse(r.strokes).filter((v) => typeof v === "number").length }));
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * THIS TOURNAMENT'S MEMBERS KEEP THEIR OWN CARDS (2026-11-04).
+ *
+ * A round made today starts with one scorer per group (`scoringDefaults`): the
+ * first phone to save a group's card keeps it, and every other member of the
+ * group is refused in words — and with no published sheet the group is the
+ * whole round. These tournaments were written walking members who each keep
+ * their own card, a partner's beside it, as the club chose before the setting
+ * existed, so they say that choice: every round "each". Safe to call before the
+ * tournament exists (it does nothing) and at every phase (it sets what is set).
+ * One scorer per group is walked by the round-code screens' own specs.
+ */
+export async function eachKeepsTheirOwn(eventName) {
+  const prisma = new PrismaClient();
+  try {
+    const e = await prisma.event.findFirst({ where: { name: eventName }, select: { id: true } });
+    if (!e) return 0;
+    const { count } = await prisma.stage.updateMany({ where: { eventId: e.id, NOT: { scoreKeeping: "each" } }, data: { scoreKeeping: "each" } });
+    return count;
   } finally {
     await prisma.$disconnect();
   }

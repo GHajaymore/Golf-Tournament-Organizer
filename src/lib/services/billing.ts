@@ -111,7 +111,8 @@ export interface CheckoutRequest {
   organizationId: string;
   plan: PlanKey;
   interval: BillingInterval;
-  currency: string;
+  /** The club's country (or "" ): its region sets the currency and the price. */
+  country: string;
   overrides: PricingOverrides;
   email: string | null;
   /** Absolute origin, e.g. https://tourneyhq.club — Stripe needs full URLs. */
@@ -146,7 +147,7 @@ export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string }
       customer,
       client_reference_id: req.organizationId,
       line_items: [
-        checkoutLineItem(req.plan, req.interval, req.currency, req.overrides, golfTermsFor(await golfRegisterForOrganization(req.organizationId))),
+        checkoutLineItem(req.plan, req.interval, req.country, req.overrides, golfTermsFor(await golfRegisterForOrganization(req.organizationId))),
       ],
       subscription_data: { metadata },
       metadata,

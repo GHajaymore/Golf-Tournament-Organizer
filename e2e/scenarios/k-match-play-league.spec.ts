@@ -3,6 +3,7 @@ import { appendFileSync, writeFileSync, mkdirSync, readFileSync, existsSync } fr
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { seed, memberSession, eventFacts, rng, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
+import { completeControl, expectLaunched } from "../end-early";
 
 /**
  * SCENARIO — tournament K: the Eagle club's Winter Match Play League. The
@@ -139,7 +140,7 @@ test("five K", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
     });
   }
 
@@ -272,7 +273,7 @@ test("five K", async ({ page, context, baseURL }, testInfo) => {
     await test.step("complete", async () => {
       if ((await eventFacts(K_NAME))!.status !== "completed") {
         await open(page, "/dashboard");
-        const done = page.getByRole("button", { name: "Complete tournament" }).first();
+        const done = await completeControl(page);
         note(`Complete enabled: ${await done.isEnabled()}`);
         if (await done.isEnabled()) {
           await done.click();

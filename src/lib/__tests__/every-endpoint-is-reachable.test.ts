@@ -78,6 +78,9 @@ const NO_CALLER_YET: Record<string, string> = {
    * capability is built and nobody can use it, which is the state that
    * produced every one of those four.
    */
+  // The five round-code actions of sprint 2 part B (keepGroup, handOverGroup,
+  // confirmPlayMatch, disputePlayMatch, disputePlayCard) came off on
+  // 2026-11-05: phase 2 draws their buttons on /play (`PlayGroupKeeping.tsx`).
 };
 
 describe("no server action is unreachable", () => {

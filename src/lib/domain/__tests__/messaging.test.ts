@@ -18,7 +18,9 @@ import {
 import { readSource } from "@/lib/__tests__/source";
 
 const base: MembershipContext = {
-  email: "rita@example.invalid",
+  whoKey: "rita@example.invalid",
+  guest: false,
+  muted: false,
   role: "player",
   organizationId: "org1",
   eventId: "ev1",
@@ -32,7 +34,7 @@ const base: MembershipContext = {
   directThreadIds: ["d1"],
   // Empty for a player, and required rather than optional so no construction
   // site can silently omit it and quietly narrow an organizer's reach.
-  staffScopes: { groupIds: [], stageIds: [], teamIds: [] },
+  staffScopes: { groupIds: [], stageIds: [], teamIds: [], playerIds: [] },
 };
 
 const ctx = (over: Partial<MembershipContext> = {}): MembershipContext => ({ ...base, ...over });
@@ -131,7 +133,7 @@ describe("what staff can see", () => {
       groupIds: [],
       stageIds: [],
       teamIds: [],
-      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"] },
+      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"], playerIds: [] },
     });
     expect(canReadScope(staff, scopeKey("flight", "g9"))).toBe(true);
     expect(canReadScope(staff, scopeKey("round", "s9"))).toBe(true);
@@ -150,7 +152,7 @@ describe("what staff can see", () => {
       matchIds: [],
       foursomeIds: [],
       directThreadIds: [],
-      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"] },
+      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"], playerIds: [] },
     });
     expect(canReadScope(staff, scopeKey("foursome", teeGroupId("s9", "Group 1")))).toBe(false);
     expect(canReadScope(staff, scopeKey("match", "m9"))).toBe(false);
@@ -164,7 +166,7 @@ describe("what staff can see", () => {
     const staff = ctx({
       role: "admin",
       groupIds: [],
-      staffScopes: { groupIds: ["g9"], stageIds: [], teamIds: [] },
+      staffScopes: { groupIds: ["g9"], stageIds: [], teamIds: [], playerIds: [] },
     });
     expect(canReadScope(staff, scopeKey("flight", "someone-elses-flight"))).toBe(false);
   });
@@ -177,7 +179,7 @@ describe("what staff can see", () => {
       groupIds: [],
       stageIds: [],
       teamIds: [],
-      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"] },
+      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"], playerIds: [] },
     });
     expect(canReadScope(player, scopeKey("flight", "g9"))).toBe(false);
     expect(canReadScope(player, scopeKey("round", "s9"))).toBe(false);
@@ -187,7 +189,7 @@ describe("what staff can see", () => {
   it("lists a playing organizer's own flight once", () => {
     // They reach it by both routes. A duplicated key would inflate the `IN`
     // list every read is built from, for nothing.
-    const staff = ctx({ role: "admin", groupIds: ["g1"], staffScopes: { groupIds: ["g1"], stageIds: [], teamIds: [] } });
+    const staff = ctx({ role: "admin", groupIds: ["g1"], staffScopes: { groupIds: ["g1"], stageIds: [], teamIds: [], playerIds: [] } });
     const keys = visibleScopes(staff).filter((k) => k === scopeKey("flight", "g1"));
     expect(keys).toHaveLength(1);
   });
@@ -249,9 +251,9 @@ describe("message bodies", () => {
 
 describe("unread", () => {
   const msgs = [
-    { createdAt: 100, authorEmail: "sam@example.invalid" },
-    { createdAt: 200, authorEmail: "RITA@example.invalid" },
-    { createdAt: 300, authorEmail: "sam@example.invalid" },
+    { createdAt: 100, authorKey: "sam@example.invalid" },
+    { createdAt: 200, authorKey: "RITA@example.invalid" },
+    { createdAt: 300, authorKey: "sam@example.invalid" },
   ];
 
   it("counts what arrived after the watermark", () => {

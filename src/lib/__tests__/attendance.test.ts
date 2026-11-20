@@ -293,3 +293,17 @@ describe("changing the weekly sign-up mode", () => {
     }
   });
 });
+
+describe("the default is never asked WHO somebody is (one rule: a stand-in is made out by rows, not by a second default)", () => {
+  it("defaultStatus and effectiveStatus take the mode and the answer only, so the calendar, the sheet and the board cannot read a guest differently", () => {
+    expect(defaultStatus.length).toBe(1);
+    expect(effectiveStatus.length).toBe(2);
+    // Whoever somebody is, silence in an opt-out league is IN; an explicit answer wins.
+    expect(effectiveStatus("opt-out", null)).toBe("in");
+    expect(effectiveStatus("opt-out", "out")).toBe("out");
+  });
+  it("resolveAttendance reads the same rows for everybody: a guest with no row is in an opt-out league, one with an OUT row is out", () => {
+    const s = resolveAttendance("opt-out", ["member", "csv-guest", "stand-in"], [{ playerId: "stand-in", status: "out", decidedBy: "Desk" }]);
+    expect(s.rows.map((r) => [r.playerId, r.status])).toEqual([["member", "in"], ["csv-guest", "in"], ["stand-in", "out"]]);
+  });
+});

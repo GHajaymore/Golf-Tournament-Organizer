@@ -62,9 +62,18 @@ export type HoldRule = "holds" | "signins-open" | "no-owners" | "not-production"
 
 export function holdRule(env: Env = process.env): HoldRule {
   if ((env.SIGNINS ?? "").trim().toLowerCase() === "open") return "signins-open";
-  if (parseOwnerEmails(env.SIGNIN_ALLOW_EMAILS).length > 0) return "holds";
+  if (signInAllowList(env).length > 0) return "holds";
   if (env.VERCEL_ENV !== "production") return "not-production";
   return parseOwnerEmails(env.OWNER_EMAILS).length > 0 ? "holds" : "no-owners";
+}
+
+/**
+ * The people let in BY NAME while held, besides the owners: `SIGNIN_ALLOW_EMAILS`, parsed here and
+ * nowhere else. Lower-cased and de-blanked. Read also by the deploy freeze, which before launch
+ * guards only the clubs these people run (`services/deploy-window.ts`, Ajay 2026-11-06).
+ */
+export function signInAllowList(env: Env = process.env): string[] {
+  return parseOwnerEmails(env.SIGNIN_ALLOW_EMAILS);
 }
 
 /** May this address be signed in (or keep a session) right now? */
@@ -72,5 +81,5 @@ export function maySignIn(email: string | null | undefined, env: Env = process.e
   if (!signInsClosed(env)) return true;
   const who = (email ?? "").trim().toLowerCase();
   if (!who) return false;
-  return [...parseOwnerEmails(env.SIGNIN_ALLOW_EMAILS), ...parseOwnerEmails(env.OWNER_EMAILS)].includes(who);
+  return [...signInAllowList(env), ...parseOwnerEmails(env.OWNER_EMAILS)].includes(who);
 }

@@ -75,7 +75,9 @@ test("last year's medal is copied without its field, cards or money, and Manage 
     await page.getByLabel("Create a new tournament", { exact: true }).fill(copyName);
     const from = page.getByLabel("Start from", { exact: true });
     await from.selectOption({ label: springName });
-    await expect(page.getByText(/Copies the settings, rounds and courses from .*Spring Medal — never its players, scores or access codes\./)).toBeVisible();
+    await expect(page.getByText(/Copies the settings, rounds, courses and side games from .*Spring Medal — never its players, scores, money or access codes\./)).toBeVisible();
+    // Every door to a copy asks the first day (setup audit item 8): the entry window and rounds move with it.
+    await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
     const create = page.getByRole("button", { name: "Create tournament" });
     await centre(create);
     await create.click();
@@ -92,10 +94,12 @@ test("last year's medal is copied without its field, cards or money, and Manage 
     // Not the field, the cards or the money — and a new tournament, not last year's running on.
     expect(await prisma.player.count({ where: { eventId: copy!.id } }), "the copy carried the field").toBe(0);
     expect(await prisma.scorecard.count({ where: { eventId: copy!.id } }), "the copy carried cards").toBe(0);
-    expect(await prisma.skinsPot.count({ where: { eventId: copy!.id } }), "the copy carried the skins money").toBe(0);
-    expect({ status: copy!.status, dates: copy!.dates, sameLink: copy!.shareToken === spring.event.shareToken }).toEqual({
+    // The skins GAME comes across (2026-10-24: "keep … side games"); the money in it never does.
+    expect(await prisma.skinsPot.count({ where: { eventId: copy!.id } }), "the copy lost the skins game").toBe(1);
+    expect(await prisma.skinsEntry.count({ where: { pot: { eventId: copy!.id } } }), "the copy carried the skins money").toBe(0);
+    expect({ status: copy!.status, startOn: copy!.startOn, sameLink: copy!.shareToken === spring.event.shareToken }).toEqual({
       status: "draft",
-      dates: "",
+      startOn: "2099-06-12",
       sameLink: false,
     });
     // The medal itself is untouched.
@@ -138,6 +142,7 @@ test("on the free plan a second tournament is refused beside Create, and nothing
     await openTournaments(page);
     await page.getByLabel("Create a new tournament", { exact: true }).fill(`${mark} Championship again`);
     await page.getByLabel("Start from", { exact: true }).selectOption({ label: event.name });
+    await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
     const create = page.getByRole("button", { name: "Create tournament" });
     await centre(create);
     await create.click();
@@ -160,7 +165,7 @@ test("a practice tournament is deleted only when asked twice, with every row of 
   const club = await makeClub(mark);
   try {
     const keep = await playedMedal(club, "Club Championship", "live");
-    const practice = await playedMedal(club, "Practice Day", "registration");
+    const practice = await playedMedal(club, "Practice Day", "draft");
     await signIn(context, baseURL!, club, keep.event.id);
     const rowsOf = async (eventId: string) => ({
       event: await prisma.event.count({ where: { id: eventId } }),
@@ -247,7 +252,7 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
     await expect(row("Summer Matchplay").locator(".tag")).toHaveText("Dates passed, not launched");
     await expect(row("Club Championship").locator(".tag").first()).toHaveText("Live");
     // Undated, so nothing has passed: it reads its ordinary status. The fixture stores
-    // "registration", which is one Setting up step before launch (G1).
+    // "draft", the one Setting up step before launch (G1; the only pre-launch word since A045).
     await expect(row("Away Fixture").locator(".tag")).toHaveText("Setting up");
 
     // ── two of one name are told apart, and a name used once is not dated ──

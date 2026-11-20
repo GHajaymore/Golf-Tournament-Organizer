@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose, as in qa-framework.test.ts: the pipeline runs on a bare runner.
 import { ABROAD, ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, CRAWL_PARTS, SCHEDULES, crawlNeeded, layersFor, partsFor, roundPlan, targetLine, tierOf } from "../../../scripts/qa/layers.mjs";
-import { countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
+import { ACCOUNT_JOBS, RESERVED, countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
 import { activeEntries, quarantineProblems, quarantinedBy, readQuarantine } from "../../../scripts/qa/quarantine.mjs";
 import { infraReason } from "../../../scripts/qa/infra.mjs";
-import { cleanNightlyShas, commitsWaiting, decideDeploy, mustSucceed, nightlyWait } from "../../../scripts/qa/deploy-rules.mjs";
+import { ROUNDS_AT_ONCE, cleanNightlyShas, commitsWaiting, decideDeploy, mustSucceed, nightlyNeeded, nightlyWait, nudgeNightly } from "../../../scripts/qa/deploy-rules.mjs";
 import { AREAS } from "../../../scripts/qa/specs-by-area.mjs";
 
 /**
@@ -125,15 +125,34 @@ describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
 });
 
 describe("the round's own cap on parts at a time (Ajay, 2026-10-31)", () => {
-  it("is 40 − running − 10, held between 4 and 16, and 12 when nothing could be counted", () => {
+
+  it("is 40 − running − 11, held between 6 and 16, and 12 when nothing could be counted", () => {
     expect(roundCap(2).cap).toBe(16);
-    expect(roundCap(14).cap).toBe(16);
-    expect(roundCap(18).cap).toBe(12);
-    expect(roundCap(18).reason).toContain("40 − 18 job(s) already running");
-    expect(roundCap(26).cap).toBe(4);
-    expect(roundCap(60).cap).toBe(4);
+    expect(roundCap(14).cap).toBe(15);
+    expect(roundCap(19).cap).toBe(10);
+    expect(roundCap(19).reason).toContain("40 − 19 job(s) already running");
+    expect(roundCap(26).cap).toBe(6);
+    expect(roundCap(60).cap).toBe(6);
     expect(roundCap(Number.NaN).cap).toBe(12);
     expect(roundCap(-1).cap).toBe(12);
+  });
+
+  it("leaves room: with two rounds and ~3 other running jobs, one PR CI (10 jobs) and the deploy (1) still fit in the account", () => {
+    // A PR's CI run is DERIVED from ci.yml (unit + build + one job per e2e matrix line), so adding a
+    // shard cannot leave the reserve behind. Comment lines are not jobs.
+    const yml = readVerbatim(".github/workflows/ci.yml")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("#"))
+      .join("\n");
+    const shards = (yml.match(/^\s*-\s*\{\s*project:/gm) ?? []).length;
+    expect(shards, "no e2e matrix found in ci.yml").toBeGreaterThan(0);
+    const ci = 2 + shards;
+    const deploy = 1;
+    const other = 3;
+    const first = roundCap(1).cap;
+    const second = roundCap(first + other).cap;
+    expect(first + second + other + ci + deploy).toBeLessThanOrEqual(ACCOUNT_JOBS);
+    expect(RESERVED, "the reserve no longer covers one CI run and the deploy").toBeGreaterThanOrEqual(ci + deploy);
   });
 
   it("counts the in-progress jobs of in-progress runs, and throws (so the fallback is taken) when GitHub does not answer", () => {
@@ -264,7 +283,7 @@ describe("what runs when (item B)", () => {
 
   it("the workflows ask for the round they are said to", () => {
     const nightly = readVerbatim(".github/workflows/nightly.yml");
-    expect(nightly).toContain('cron: "0 2 * * *"');
+    expect(nightly).toContain('cron: "17 2 * * *"');
     expect(nightly).toMatch(/schedule: nightly\s+countries: all\s+crawl: "on"/);
     expect(nightly).toContain("uses: ./.github/workflows/deploy.yml");
     const weekly = readVerbatim(".github/workflows/weekly.yml");
@@ -294,6 +313,23 @@ describe("the machine is not the app (item D)", () => {
     expect(waiter).toContain("run_attempt < 3");
     const merge = readVerbatim("scripts/qa/merge.mjs");
     expect(merge).toContain('const INCOMPLETE = "INCOMPLETE — re-run";');
+  });
+
+  it("the database suite runs beside the build, and a red one still fails the round", () => {
+    const round = readVerbatim(".github/workflows/round.yml").replace(/\r\n/g, "\n");
+    const audit = round.slice(round.indexOf("\n  audit:"), round.indexOf("\n  build:"));
+    const build = round.slice(round.indexOf("\n  build:"), round.indexOf("\n  browser-packages:"));
+    expect(audit).toContain("node scripts/qa/round.mjs audit --audit-only");
+    // BESIDE: neither job waits for the other (it ran before the build and held every part back).
+    expect(audit).not.toMatch(/^    needs:/m);
+    expect(build).not.toMatch(/^    needs:/m);
+    expect(build, "the build job runs the suite again, in front of the build").toContain("--build-only --no-audit");
+    // BINDING: the verdict waits for it and hands its result to the merge, which makes a red one NOT CLEAN.
+    const verdict = round.slice(round.indexOf("\n  verdict:"));
+    expect(verdict).toMatch(/needs: \[plan, audit, build, part\]/);
+    expect(verdict).toContain("--audit=${{ needs.audit.result }}");
+    // (What merge.mjs does with the result is run, not read: pipeline-speed-behaviour.test.ts.)
+    expect(readVerbatim("scripts/qa/round.mjs")).toContain('flag("audit-only") || (flag("build") && !flag("no-audit"))');
   });
 
   it("the packages job cannot fail a round", () => {
@@ -457,5 +493,52 @@ describe("the deploy gate (item C)", () => {
     }
     // The runner never holds production database credentials: no database URL anywhere in the deploy.
     expect(deploy).not.toMatch(/DATABASE_URL/);
+  });
+});
+
+/**
+ * THE HOURLY NUDGE OF THE NIGHTLY (2026-11-14). The scheduled nightly began at 08:56 UTC on 14 Nov and a
+ * merge waited about six and a half hours. A merge that waits for a nightly nobody has run now starts it
+ * (nightly-nudge.yml, scripts/qa/nightly-nudge.mjs), once, within capacity.
+ */
+describe("the nightly is started when a merge waits for it", () => {
+  const base = { verifyGreen: true, alreadyThere: false, deployed: "d".repeat(40), uncovered: [{ sha: "a".repeat(40) }], nightlyCoversSha: false };
+
+  it("is needed only for a green commit, not yet in production, with an uncovered core or function commit", () => {
+    expect(nightlyNeeded(base)).toBe(true);
+    expect(nightlyNeeded({ ...base, uncovered: [] })).toBe(false); // every core commit is in a clean nightly
+    expect(nightlyNeeded({ ...base, verifyGreen: false })).toBe(false); // a nightly on a red commit is wasted
+    expect(nightlyNeeded({ ...base, alreadyThere: true })).toBe(false);
+  });
+
+  it("when nobody can say what production holds, is needed until a clean nightly contains the commit", () => {
+    expect(nightlyNeeded({ ...base, deployed: null, uncovered: [] })).toBe(true);
+    expect(nightlyNeeded({ ...base, deployed: null, uncovered: [], nightlyCoversSha: true })).toBe(false);
+  });
+
+  it("never starts a second nightly, and never a fourth round", () => {
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: 0 }).dispatch).toBe(true);
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: ROUNDS_AT_ONCE - 1 }).dispatch).toBe(true);
+    expect(nudgeNightly({ needed: true, nightlyActive: 1, roundsActive: 0 }).dispatch, "a nightly is running or queued").toBe(false);
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: ROUNDS_AT_ONCE }).dispatch, "three rounds on the runners").toBe(false);
+    expect(nudgeNightly({ needed: false, nightlyActive: 0, roundsActive: 0 }).dispatch).toBe(false);
+    // A nightly that finished NOT CLEAN on this commit is not asked for again every hour.
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: 0, nightlyOnSha: 1 }).dispatch).toBe(false);
+    expect(nudgeNightly({ needed: true, nightlyActive: 0, roundsActive: 0, nightlyOnSha: 0 }).dispatch).toBe(true);
+  });
+
+  it("is wired: the gate says it, its own workflow holds the one write and dispatches only what the script decides", () => {
+    expect(readVerbatim("scripts/qa/deploy-gate.mjs")).toContain("nightly_needed=");
+    const wf = readVerbatim(".github/workflows/nightly-nudge.yml").replace(/\r\n/g, "\n");
+    expect(wf).toContain("node scripts/qa/deploy-gate.mjs");
+    expect(wf).toContain("node scripts/qa/nightly-nudge.mjs --needed=${{ steps.gate.outputs.nightly_needed }}");
+    expect(wf).toMatch(/permissions:\n {6}contents: read\n {6}actions: write\n/);
+    expect(wf, "this job must hold no secret").not.toMatch(/secrets\./);
+    // deploy.yml is called by workflows that grant no actions scope: it must not ask for one.
+    expect(readVerbatim(".github/workflows/deploy.yml")).not.toMatch(/actions:\s*write/);
+    // The script starts the nightly in one place, and only on the decision.
+    const script = readSource("scripts/qa/nightly-nudge.mjs");
+    expect(script.match(/"workflow", "run"/g)?.length).toBe(1);
+    expect(script).toContain("verdict.dispatch");
   });
 });

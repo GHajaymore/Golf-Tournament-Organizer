@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
+import { purgeEvents } from "./purge";
 import { golfBeganAt, closesAtFrom, holesEntered, PLANS_THAT_DELETE } from "../domain/close-terms";
 
 /**
@@ -103,8 +104,7 @@ export async function sweepClosedPar(now: Date = new Date()): Promise<ParSweepRe
   });
   let deleted = 0;
   for (const r of rows.slice(0, SWEEP_LIMIT)) {
-    const d = await prisma.event.deleteMany({ where: { id: r.id, ...due } });
-    deleted += d.count;
+    deleted += await purgeEvents({ id: r.id, ...due });
   }
   return { deleted, more: rows.length > SWEEP_LIMIT };
 }

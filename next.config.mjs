@@ -4,6 +4,9 @@ import { withBotId } from "botid/next/config";
 const require = createRequire(import.meta.url);
 const replayBackport = require("./scripts/react-hydration-replay-backport.cjs");
 
+// The Content-Security-Policy's enforced part — see the note above `headers()`.
+const ENFORCED_CSP = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -119,10 +122,22 @@ const nextConfig = {
    * (`EventSetupClient`) — and grants each of them to this origin only, while
    * switching OFF the high-risk ones nothing here touches. `browsing-topics=()`
    * opts the site out of the Topics API, which is a privacy choice as much as a
-   * security one. There is deliberately no Content-Security-Policy yet: adding
-   * one safely means giving the inline theme `<style>` blocks a nonce, which is
-   * its own change — until then `font-hosts.test.ts`, not a CSP, is what keeps
-   * an external font host out (see `layout.tsx`, which used to claim otherwise).
+   * security one.
+   *
+   * THE CONTENT-SECURITY-POLICY (2026-11-13) IS ITS ENFORCED PART ONLY, and
+   * `csp.test.ts` holds it:
+   *  - ENFORCED, because it needs no nonce and nothing in the app does what it
+   *    forbids: `frame-ancestors 'none'` (no page is framed, by anybody),
+   *    `object-src 'none'`, `base-uri 'self'` (an injected `<base>` cannot
+   *    re-point every relative link) and `form-action 'self'` (an injected form
+   *    cannot post to another origin).
+   *  - NOT YET: the origin lists (`script-src`, `style-src`, `img-src` ...). They would
+   *    have to say `'unsafe-inline'`, because Next writes inline hydration scripts,
+   *    the theme `<style>` blocks and two before-load scripts, which a nonce set
+   *    per request in middleware would cover. A Report-Only header with no
+   *    `report-to` only fills the console crawl, so there is none: the full CSP
+   *    with nonces is the follow-up. `font-hosts.test.ts` keeps an external font
+   *    host out meanwhile.
    */
   /**
    * THE ADDRESSES PEOPLE TYPE TO SIGN IN. Sign-in lives on the front page
@@ -153,6 +168,7 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: ENFORCED_CSP },
           {
             key: "Permissions-Policy",
             value: "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), browsing-topics=()",

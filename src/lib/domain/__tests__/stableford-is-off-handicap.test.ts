@@ -35,7 +35,7 @@ describe("a Stableford round stored 'gross' before this is told the truth", () =
     tournamentTerms({
       format, type: "Stroke Play Round", holes: 18, scoringBasis, handicapAllowance: 0, countBest: 0,
       tiebreakers: [], cutAfter: null,
-      carryForwardEnabled: false, carryForwardPct: 0,
+      carryForwardEnabled: false, carryForwardPct: 0, netCountback: "fractions",
     }).find((t) => t.label === "Scoring")?.value;
 
   it("reads 'Stableford (net)'", () => {

@@ -18,18 +18,24 @@
  * Pure: which phase, and which sections in which order.
  */
 
-import { isFinished, tournamentPhase } from "./lifecycle-state";
+import { isFinished } from "./lifecycle-state";
+import type { TournamentStep } from "./tournament-step";
 
 export type EventPhase = "before" | "during" | "after";
 
 /**
- * Where the tournament is, through the app's one reader of it
- * (`tournamentPhase`): finished when the committee has completed it, under way
- * once it is launched or a result is in, and before that, before.
+ * Where the tournament is, as the machine says it (`tournamentStatus`'s
+ * journey, through `tournamentStepsFor`; state machine PR 6): after once the
+ * committee has completed it, during once it is launched or any round has a
+ * result, and before that, before.
+ *
+ * It was `tournamentPhase` over a count of its own — stroke cards, side cards
+ * and knockout winners, but not a match's holes or a forfeit — so a round robin
+ * or a single match played before launch led with "before" sections while its
+ * results were going in (D2). A round's `hasResult` is the one definition.
  */
-export function eventPhase(status: string, scored: boolean): EventPhase {
-  const phase = tournamentPhase({ status, scored, setupComplete: false });
-  return phase === "results" ? "after" : phase === "play" ? "during" : "before";
+export function eventPhase(journey: TournamentStep["journey"]): EventPhase {
+  return journey === "results" ? "after" : journey === "play" ? "during" : "before";
 }
 
 export type EventSection = "report" | "entries" | "board" | "clubhouse";

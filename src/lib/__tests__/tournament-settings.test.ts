@@ -4,6 +4,7 @@ import {
   cleanSettings,
   canSeeLeaderboard,
   isLeaderboardPublic,
+  mayOpenBoard,
   canEnterScores,
   canPlayerSavePartial,
   mayReportPartialCard,
@@ -125,6 +126,27 @@ describe("leaderboard visibility", () => {
     expect(isLeaderboardPublic(withSettings({ leaderboardVisibility: "staff" }))).toBe(false);
     expect(isLeaderboardPublic(withSettings({ leaderboardVisibility: "participants" }))).toBe(false);
     expect(isLeaderboardPublic(withSettings({ leaderboardVisibility: "public" }))).toBe(true);
+  });
+});
+
+describe("who holding a round code may open the board (2026-11-05)", () => {
+  it("is every visibility but staff: participants and the public, not a board kept to staff", () => {
+    expect(mayOpenBoard(withSettings({ leaderboardVisibility: "staff" }), "code-holder")).toBe(false);
+    expect(mayOpenBoard(withSettings({ leaderboardVisibility: "participants" }), "code-holder")).toBe(true);
+    expect(mayOpenBoard(withSettings({ leaderboardVisibility: "public" }), "code-holder")).toBe(true);
+  });
+
+  it("agrees with what a signed-in player may see, so the two doors cannot disagree", () => {
+    for (const v of LEADERBOARD_VISIBILITY) {
+      const s = withSettings({ leaderboardVisibility: v });
+      expect(mayOpenBoard(s, "code-holder"), v).toBe(canSeeLeaderboard(s, "player"));
+    }
+  });
+
+  it("does not make the public link resolve: that stays public only (the /live 404 is the privacy line)", () => {
+    const s = withSettings({ leaderboardVisibility: "participants" });
+    expect(mayOpenBoard(s, "code-holder")).toBe(true);
+    expect(isLeaderboardPublic(s)).toBe(false);
   });
 });
 

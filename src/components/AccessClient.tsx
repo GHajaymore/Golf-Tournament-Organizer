@@ -147,7 +147,8 @@ export function AccessClient({
   };
 
   return (
-    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
+    // The tournament's own staff: locked in an archived tournament wherever it is drawn (`archive-read-only.ts`).
+    <div className="page-split" data-this-tournament="" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm">
         <span className="card-title" style={{ fontSize: 15 }}>Accounts</span>
         <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
@@ -226,8 +227,8 @@ export function AccessClient({
         <div className="field"><label htmlFor={`${fid}-name`}>Name</label><input id={`${fid}-name`} className="input" value={name} maxLength={PERSON_NAME_MAX} onChange={(e) => setName(e.target.value)} /></div>
         <div className="field"><label htmlFor={`${fid}-email`}>Email</label><input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div className="field">
-          <label>Role</label>
-          <div className="seg">
+          <span className="field-caption" id={`${fid}-role`}>Role</span>
+          <div className="seg" role="group" aria-labelledby={`${fid}-role`}>
             {ROLE_OPTS.map((o) => (
               <label className="seg-opt" key={o.v}>
                 <input type="radio" name="newrole" checked={role === o.v} onChange={() => setRole(o.v)} />
@@ -240,6 +241,7 @@ export function AccessClient({
           type="button"
           className="btn btn-primary btn-block"
           disabled={pending || !name.trim() || !email.trim()}
+          aria-describedby={!name.trim() || !email.trim() ? `${fid}-add-why` : undefined}
           onClick={() => {
             setError("");
             setAddError("");
@@ -258,6 +260,12 @@ export function AccessClient({
         >
           <Icon name="plus" /> Add account
         </button>
+        {/* Why the button is greyed, under it, until it is not (console sweep, J51). */}
+        {(!name.trim() || !email.trim()) && (
+          <p id={`${fid}-add-why`} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            Enter a name and an email to add an account.
+          </p>
+        )}
         {addError && (
           <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
             <Icon name="warning-circle" /> {addError}

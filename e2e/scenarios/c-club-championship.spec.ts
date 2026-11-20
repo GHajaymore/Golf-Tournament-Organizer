@@ -2,7 +2,9 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, setPlanFor, names, indexes, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
+import { seed, setPlanFor, names, indexes, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
+import { addDays, dayIn } from "../rounds-fixture";
 
 /**
  * SCENARIO — tournament C: a 36-hole Club Championship at an Eagle
@@ -52,6 +54,9 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
   test.setTimeout(Number(process.env.PHASE_TIMEOUT ?? 900_000));
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  // Faye keeps her own card and Delphine her fourball's beside it — each member
+  // their own, as the club chose (`eachKeepsTheirOwn`).
+  await eachKeepsTheirOwn(C_NAME);
 
   if (PHASE === "C1") {
     const s = await seed();
@@ -74,7 +79,8 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
         if (await shape.count()) await shape.selectOption({ label: "A series of rounds" });
         await page.getByRole("button", { name: /Create tournament/ }).click();
       }
-      await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+      await page.waitForURL(/\/registration/, { timeout: 60_000 }); // a new tournament opens on Entries
+      await page.goto("/dashboard");
       await read(page, "/dashboard", "dashboard-new");
     });
 
@@ -88,8 +94,10 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
 
     await test.step("date and course", async () => {
       await open(page, "/event");
-      const today = new Date().toISOString().slice(0, 10);
-      const next = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      // Round 1 two days ahead, Round 2 three, on the CLUB's clock (E2E_TZ): Round 2 is drawn at 08:00 and drawn again, and a
+      // group that has teed off is never redrawn (the tee-sheet rule, PR 7c), so neither day may be the club's today.
+      const today = addDays(dayIn(process.env.E2E_TZ ?? ""), 2);
+      const next = addDays(today, 1);
       await page.getByLabel("Tournament dates, first day").fill(today);
       await page.getByLabel("Tournament dates, last day").fill(next);
       const course = page.getByRole("combobox", { name: "Golf course" });
@@ -114,6 +122,11 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
         mimeType: "text/csv",
         buffer: Buffer.from(csv),
       });
+      // The list is checked before anything is entered (guest identity PR 1): every row
+      // here has an email, so every row is a member and the secretary presses once.
+      const preview = page.getByTestId("csv-preview");
+      await expect(preview.getByRole("status")).toHaveText(`${field.length} members, 0 guests.`, { timeout: 60_000 });
+      await preview.getByRole("button", { name: `Import ${field.length} players` }).click();
       await expect(page.getByText(/Imported \d+/)).toBeVisible({ timeout: 60_000 });
       await read(page, "/registration", "registration-imported", 4000);
     });
@@ -161,7 +174,7 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
       await read(page, "/dashboard", "dashboard-before-launch", 4000);
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
     });
 
     await test.step("members' families follow the board: anyone with the link", async () => {
@@ -887,7 +900,7 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
         await page.waitForTimeout(3000);
       }
       await read(page, "/dashboard", "dashboard-r2-closed", 2500);
-      await page.getByRole("button", { name: "Complete tournament" }).first().click();
+      await pressComplete(page);
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toBeVisible({ timeout: 15_000 });
       appendFileSync(LOG(), `\n## complete-dialog\n${(await dialog.innerText()).replace(/\s+/g, " ").slice(0, 1200)}\n`);

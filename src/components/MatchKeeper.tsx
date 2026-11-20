@@ -1,13 +1,15 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { usePendingCard } from "./usePendingCard";
+import { recoveredMatchCard, RECOVERED_MATCH_SUPERSEDED } from "@/lib/domain/pending-card";
 import type { HoleResult } from "@/lib/domain";
 import { countedHoles, marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
 import { holeNumber } from "@/lib/domain/hole-number";
 import { Icon } from "./Icon";
 import { HoleResultCard } from "./HoleResultCard";
-import { distinctLabels, firstName } from "@/lib/format";
+import { firstName } from "@/lib/format";
+import { matchSideLabels, sideMarks, wonBy } from "@/lib/domain/match-sides";
 import type { KeptMatch } from "@/lib/services/match-card";
 
 /** A save's answer: its refusal in words, and the holes the row holds after it (A-relative) — the read-back. */
@@ -24,10 +26,8 @@ export interface MatchKeeperProps {
   cardStrokeIndex?: number[];
   /** The course's number for the card's first hole — 10 on a back nine. */
   firstHole?: number;
-  /** The organizer's "Voice entry" setting — off, the card offers no microphone. */
-  voiceEntry?: boolean;
-  /** A net match's shots per hole, from the holder's side. */
-  matchShots?: { mine: number[]; theirs: number[] } | null;
+  /** A net match's shots per hole, side A's and side B's. */
+  matchShots?: { a: number[]; b: number[] } | null;
   /** The tournament takes the whole round at the end. */
   submitWhole?: boolean;
   /** The round, for keeping the holes on the phone while they are sent. */
@@ -56,25 +56,28 @@ export interface MatchKeeperProps {
  * to keep it that way". One card, so the two cannot drift; each page says how
  * it saves (`saveHoles`, `saveResult`) and what comes after (`next`).
  *
- * Side A is always the person holding the phone (`matchCardFor`), and every
- * answer names who won the hole — never "Us" or "Me", which mean whoever's
- * name was picked (the cup, where that turned a four-ball round).
+ * Side A is the match's A side in draw order, whoever holds the phone
+ * (`matchCardFor`), and every answer names who won the hole — "Oaks won",
+ * "Sam & Alex won" — never "Us" or "Me" (`matchSideLabels`). The card
+ * never turns round, so what is tapped is what is stored: no flip on the way
+ * in or out.
  */
 export function MatchKeeper(props: MatchKeeperProps) {
   const m = props.match;
+  const fid = useId();
   // The round's own answer first. The card's length is a fallback for a caller
   // that has not been taught to send one, and 18 the last resort — but neither
   // of those is what decides how many holes a round is.
   const holeCount = props.holes || props.pars?.length || m.holes.length || 18;
 
-  // Local copy of the hole results, from the holder's point of view.
+  // Local copy of the hole results, A-relative as stored.
   const [holes, setHoles] = useState<HoleResult[]>(m.holes ?? []);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   // Two ways a finished match arrives: tapped hole by hole as it was played,
   // or phoned in from the green as "3&2". Both write the same record.
   const [entryMode, setEntryMode] = useState<"holes" | "result">("holes");
-  const [resultWinner, setResultWinner] = useState<"me" | "them" | "halved">("me");
+  const [resultWinner, setResultWinner] = useState<"A" | "H" | "B">("A");
   // The Final result's own "saved", apart from the hole-by-hole one: sharing it
   // read "Saved" on a result nobody had sent.
   const [resultSaved, setResultSaved] = useState(false);
@@ -89,11 +92,13 @@ export function MatchKeeper(props: MatchKeeperProps) {
    */
   // The match as the server held it when this card was drawn: every hole on it is "Sent".
   const [drawn] = useState<HoleResult[]>(() => Array.from({ length: holeCount }, (_, i) => m.holes?.[i] ?? null));
-  // Stored results are always A-relative; the card is the holder's. One flip, both ways.
-  const fromHolder = (list: readonly HoleResult[]) => (m.flipped ? list.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)) : [...list]);
   const matchQueue = usePendingCard<HoleResult[]>({
     stageId: props.stageId ?? "play",
-    playerId: `match:${m.id}`,
+    // "match-a:", not the "match:" the card used while it turned round for a
+    // holder on side B: a copy left on a phone under the old key holds that
+    // holder's side first, and sending it now would give every hole on it to
+    // the other side. Under a new key it is simply never picked up.
+    playerId: `match-a:${m.id}`,
     drawnFrom: drawn,
     cells: (v) => Array.from({ length: holeCount }, (_, i) => v[i] ?? null),
     enabled: true,
@@ -102,27 +107,36 @@ export function MatchKeeper(props: MatchKeeperProps) {
     // round's length, since a short list would read as fewer holes left.
     holding: !!props.submitWhole && !matchIsOverAfter(holes, holeCount),
     send: async (value) => {
-      // Stored results are always A-relative; flip back if this player is B.
-      const outgoing = fromHolder(value);
-      const res = await props.saveHoles(m.id, outgoing as Array<"A" | "B" | "H" | null>);
+      // What was tapped is what is stored: the card and the row are both A-relative.
+      const res = await props.saveHoles(m.id, value as Array<"A" | "B" | "H" | null>);
       if (!res.ok) throw new Error(res.error ?? "Couldn't save.");
-      // READ BACK: the match as the row now holds it, turned to the holder's side.
-      return res.holes ? { serverHolds: fromHolder(res.holes) } : "sent";
+      // READ BACK: the match as the row now holds it.
+      return res.holes ? { serverHolds: [...res.holes] } : "sent";
     },
   });
   /**
-   * HOLES LEFT ON THE PHONE LAST TIME ARE TAKEN BACK UP AND SENT. The device
-   * copy only ever holds holes the server had not confirmed, so finding one
-   * means this phone has work nobody else has seen: it is picked up where it
-   * was left.
+   * HOLES LEFT ON THE PHONE LAST TIME ARE TAKEN BACK UP AND SENT — when they
+   * are holes the server does not have. A copy is also left when a save
+   * LANDED and its answer did not (the page was left, the signal went), and by
+   * the time this card is drawn again the committee may have corrected the
+   * match: sending that copy whole put their 5&4 back to the phone's one hole
+   * (2026-11-09, `stale-match-save.spec.ts`). So it is compared with the card
+   * as drawn first (`recoveredMatchCard`): sent only when it adds holes and
+   * changes none the server has; forgotten when the server already has all of
+   * it; forgotten and SAID when the two disagree.
    */
   const { recovered, clearRecovered, push } = matchQueue;
   useEffect(() => {
     if (!recovered) return;
-    setHoles(recovered);
+    const fate = recoveredMatchCard(recovered, drawn, holeCount);
     clearRecovered();
-    push(recovered);
-  }, [recovered, clearRecovered, push]);
+    if (fate === "send") {
+      setHoles(recovered);
+      push(recovered);
+    } else if (fate === "conflict") {
+      setError(RECOVERED_MATCH_SUPERSEDED);
+    }
+  }, [recovered, clearRecovered, push, drawn, holeCount]);
 
   const filled = holes.filter((h) => h !== null).length;
 
@@ -150,9 +164,8 @@ export function MatchKeeper(props: MatchKeeperProps) {
       return;
     }
     startTransition(async () => {
-      // A-relative like everything stored: "me" flips when this player is B.
-      const w = resultWinner === "halved" ? "H" : (resultWinner === "me") !== !!m.flipped ? "A" : "B";
-      const res = await props.saveResult(m.id, w, resultMargin);
+      // A-relative like everything stored, and the answers are A, Halved, B as drawn.
+      const res = await props.saveResult(m.id, resultWinner, resultMargin);
       if (!res.ok) {
         setError(res.error ?? "Couldn't save.");
         return;
@@ -163,13 +176,13 @@ export function MatchKeeper(props: MatchKeeperProps) {
 
   // Why this result cannot be sent as it stands — the rule the server asks too.
   // "I won" with this box empty used to be stored as a halved match.
-  const resultRefusal = marginRefusal(resultWinner === "halved" ? "H" : "A", resultMargin, holeCount);
+  const resultRefusal = marginRefusal(resultWinner, resultMargin, holeCount);
 
   // Counted up to the closeout only: a hole tapped after the match was decided
   // does not count, and the tally said it did (the cup's UI review).
   const counted = countedHoles(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));
-  const won = counted.filter((h) => h === "A").length;
-  const lost = counted.filter((h) => h === "B").length;
+  const aHoles = counted.filter((h) => h === "A").length;
+  const bHoles = counted.filter((h) => h === "B").length;
   const halved = counted.filter((h) => h === "H").length;
 
   /**
@@ -182,12 +195,14 @@ export function MatchKeeper(props: MatchKeeperProps) {
    * round, every hole, on a card that looked right to him. The board showed
    * all five four-balls reversed.
    *
-   * So the answers carry the players' own first names ("Sachin & Ajay",
-   * "Pinakin & Girish"; widened only where two clash), and so do the line
-   * saying how the match stands and the tally. A tap on the pair that won is
-   * then right whichever name was picked.
+   * So the answers carry names, and so do the line saying how the match stands
+   * and the tally. Names alone were not enough: the card still turned round to
+   * face whichever name was tapped, and a scorer pressed the PLACE their own
+   * side's button had been (2026-11-04). Now it never turns, and a cup's
+   * answers are its teams — "Oaks won · Halved · Pines won" (`matchSideLabels`).
    */
   const [sideA, sideB] = matchSideLabels(m);
+  const marks = sideMarks(sideA, sideB);
 
   return (
     <>
@@ -234,17 +249,18 @@ export function MatchKeeper(props: MatchKeeperProps) {
             The finished match, straight from the green. This replaces anything tapped hole by hole.
           </p>
           <div className="seg" style={{ width: "100%" }}>
-            {(["me", "halved", "them"] as const).map((w) => (
+            {(["A", "H", "B"] as const).map((w) => (
               <label key={w} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="playwinner" checked={resultWinner === w} onChange={() => setResultWinner(w)} />
-                {w === "me" ? `${sideA} won` : w === "halved" ? "Halved" : `${sideB} won`}
+                {w === "A" ? wonBy(sideA) : w === "H" ? "Halved" : wonBy(sideB)}
               </label>
             ))}
           </div>
-          {resultWinner !== "halved" && (
+          {resultWinner !== "H" && (
             <div className="field">
-              <label>By how much</label>
+              <label htmlFor={`${fid}-margin`}>By how much</label>
               <input
+                id={`${fid}-margin`}
                 className="input"
                 value={resultMargin}
                 onChange={(e) => setResultMargin(e.target.value)}
@@ -275,9 +291,9 @@ export function MatchKeeper(props: MatchKeeperProps) {
       {entryMode === "holes" && (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 14, fontSize: 13 }}>
-          <span>{sideA} <b>{won}</b></span>
+          <span>{sideA} <b>{aHoles}</b></span>
           <span>Halved <b>{halved}</b></span>
-          <span>{sideB} <b>{lost}</b></span>
+          <span>{sideB} <b>{bHoles}</b></span>
           <span className="text-muted" style={{ marginLeft: "auto" }}>{filled}/{holeCount} holes</span>
         </div>
         {/* WHERE THE MATCH STANDS, in golf's words, and that it is OVER when
@@ -320,24 +336,20 @@ export function MatchKeeper(props: MatchKeeperProps) {
 
         {/* ONE HOLE AT A TIME (2026-10-07). This was eighteen tiles of three
             13px buttons about 28px tall under the thumb of somebody walking
-            off a green. Slot A is always the phone's holder. */}
+            off a green. Side A first, as drawn, whoever holds the phone. */}
         <HoleResultCard
           holes={Array.from({ length: holeCount }, (_, i) => holes[i] ?? null)}
           aName={m.aName}
           bName={m.bName}
-          aLabel={sideA}
-          bLabel={sideB}
+          aLabel={wonBy(sideA)}
+          bLabel={wonBy(sideB)}
           pars={props.pars ?? []}
           yards={props.yards ?? []}
           strokeIndex={props.strokeIndex ?? []}
           shownStrokeIndex={props.cardStrokeIndex}
           firstHole={props.firstHole ?? 1}
-          // The mic listens for the first word of each answer — a player's
-          // first name, or a pair's first player's — which two can share.
-          canHearNames={sideA.split(" ")[0].toLowerCase() !== sideB.split(" ")[0].toLowerCase()}
-          showVoice={props.voiceEntry ?? true}
-          shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.mine[h] ?? 0, b: props.matchShots?.theirs[h] ?? 0 }) : undefined}
-          wonLost
+          shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.a[h] ?? 0, b: props.matchShots?.b[h] ?? 0 }) : undefined}
+          marks={marks}
           // Where each hole's result is — on this phone, sent, or not sent — from the queue itself.
           sync={matchQueue.holes}
           refusal={matchQueue.refusal}
@@ -357,12 +369,6 @@ export function MatchKeeper(props: MatchKeeperProps) {
               : undefined
           }
           onPick={(i, v) => setHole(i, v)}
-          onSay={(start, values) => {
-            const next = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
-            values.forEach((v, k) => { next[start + k] = v; });
-            setHoles(next);
-            matchQueue.push(next);
-          }}
         />
 
         {error && (
@@ -393,12 +399,4 @@ export function MatchKeeper(props: MatchKeeperProps) {
       {props.footer}
     </>
   );
-}
-
-/** The two sides as the card names them — first names, widened only where two clash. */
-export function matchSideLabels(m: { side?: boolean; aName: string; bName: string }): [string, string] {
-  const a = m.side ? m.aName.split(" & ") : [m.aName];
-  const b = m.side ? m.bName.split(" & ") : [m.bName];
-  const short = distinctLabels([...a, ...b]);
-  return [short.slice(0, a.length).join(" & "), short.slice(a.length).join(" & ")];
 }

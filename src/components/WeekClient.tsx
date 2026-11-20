@@ -263,6 +263,8 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               key={w.stageId}
               type="button"
               onClick={() => router.push(`${pathname}?round=${w.stageId}`)}
+              // Changes which week is SHOWN, never a record: live in an archived tournament.
+              data-reads=""
               className={active ? "btn btn-primary" : "btn btn-ghost"}
               style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 13 }}
               aria-current={active ? "true" : undefined}
@@ -389,7 +391,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                   {view.results.map((r) => (
                     <tr key={r.playerId}>
                       <td style={{ ...td, fontVariantNumeric: "tabular-nums", fontWeight: r.position === 1 ? 700 : 400 }}>
-                        {ordinal(r.position)}
+                        {r.position === null ? "—" : ordinal(r.position)}
                       </td>
                       <td style={{ ...td, fontWeight: r.position === 1 ? 600 : 400 }}>
                         {r.name}

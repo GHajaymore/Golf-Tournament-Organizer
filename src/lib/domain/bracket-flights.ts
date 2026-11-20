@@ -488,3 +488,15 @@ export function planWithPlayerAdded(plan: FlightPlan, playerId: string, toIndex:
   const brackets = plan.brackets.map((b, i) => (i === toIndex ? bracketOf(b.name, [...b.playerIds, playerId]) : b));
   return { ok: true, plan: { ...plan, brackets } };
 }
+
+/**
+ * THE FLIGHTS PANEL'S SENTENCE, PICKED BY THE DRAW LOCK'S REASON (J13 finding 2).
+ * The panel no longer works out "are the flights fixed" itself: the Bracket hands
+ * it `locks.draw` (the machine's one answer, the one its banner draws), and this
+ * words it. Null = open: the flights can still be moved until the first result.
+ */
+export function flightsNote(lockBy: "results" | "completed" | null): string {
+  if (lockBy === "results") return "Results are in, so the flights are fixed. Each is its own knockout.";
+  if (lockBy === "completed") return "This tournament is completed, so the flights are fixed. Each is its own knockout.";
+  return "Each is its own knockout. You can move players, reseed and rename until the first result is recorded.";
+}

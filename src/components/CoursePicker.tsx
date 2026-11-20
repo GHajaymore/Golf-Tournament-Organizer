@@ -1,7 +1,8 @@
 "use client";
-import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { rankCourses, tierOf, Tier } from "@/lib/domain/course-ranking";
 import { Icon } from "./Icon";
+import { DIRECTORY_ATTRIBUTION } from "@/lib/domain/course-directory";
 import { NO_CARD_YET, IMPORTED_UNCHECKED, type PickedCardNote } from "@/lib/domain/picked-card";
 import {
   searchCourseDirectory,
@@ -115,7 +116,7 @@ function rowLabel(
           {muted(
             [
               [row.hit.city, row.hit.state, row.hit.country].filter(Boolean).join(", "),
-              row.hit.par > 0 ? "" : " · no card yet",
+              row.hit.par > 0 || row.hit.id.startsWith("gca:") ? "" : " · no card yet",
               adding === row.hit.id ? " · adding…" : "",
             ].join(""),
           )}
@@ -215,6 +216,7 @@ export function CoursePicker({
   showCardNote = true,
   onBusyChange,
 }: CoursePickerProps) {
+  const fid = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -229,6 +231,10 @@ export function CoursePicker({
    * despairing one are shown in that order, and the despairing one first.
    */
   const [searching, setSearching] = useState(false);
+  /** Plain words when the extra lookup was asked and could not answer. */
+  const [notice, setNotice] = useState("");
+  /** The query a press of "Search more courses" has already been spent on. */
+  const [askedMore, setAskedMore] = useState("");
   const [adding, setAdding] = useState("");
   const [addingName, setAddingName] = useState("");
   const [, startAdd] = useTransition();
@@ -308,16 +314,20 @@ export function CoursePicker({
     const q = query.trim();
     if (!searchDirectory || q.length < 3 || shown.length > 0) {
       setFound([]);
+      setNotice("");
       setSearching(false);
       return;
     }
     const mine = (seq.current += 1);
     setSearching(true);
+    setNotice("");
     const t = setTimeout(async () => {
       // The live directory when the catalogue has nothing — the server decides
       // whether this caller may spend it (organizers freely, everyone else on a
       // personal hourly budget). This asked catalogue-only on every screen, so
       // an empty catalogue meant no course could be found anywhere it is used.
+      // The third argument is left off ON PURPOSE: GolfCourseAPI (50 free
+      // searches a day) is asked only by `searchMore`, on a press.
       const res = await searchCourseDirectory(q, false);
       // A query the reader has already typed past.
       if (mine !== seq.current) return;
@@ -326,6 +336,20 @@ export function CoursePicker({
     }, 300);
     return () => clearTimeout(t);
   }, [query, searchDirectory, shown.length]);
+
+  /** The one door to the extra lookup (GolfCourseAPI): an explicit press, once per question. */
+  const searchMore = async () => {
+    const q = query.trim();
+    if (q.length < 3 || searching) return;
+    const mine = (seq.current += 1);
+    setSearching(true);
+    setAskedMore(q);
+    const res = await searchCourseDirectory(q, false, true);
+    if (mine !== seq.current) return;
+    setFound(res.ok ? (res.hits ?? []).filter((h) => !h.inLibrary).slice(0, 8) : []);
+    setNotice(res.ok ? (res.notice ?? "") : "");
+    setSearching(false);
+  };
 
   /**
    * EVERY ROW IN THE LIST, IN THE ORDER IT IS SHOWN — one list, not five.
@@ -466,8 +490,9 @@ export function CoursePicker({
 
   return (
     <div className="field" style={{ position: "relative" }}>
-      <label>{label}</label>
+      <label htmlFor={`${fid}-course`}>{label}</label>
       <input
+        id={`${fid}-course`}
         ref={inputRef}
         className="input"
         disabled={disabled}
@@ -480,6 +505,12 @@ export function CoursePicker({
         readOnly={addingName !== ""}
         placeholder={chosenExtra?.label ?? chosen?.name ?? noneLabel ?? "Type to find a course"}
         onFocus={() => {
+          // The box left and taken again inside the blur's 120 ms — a choice,
+          // then a quick tap back — kept the old close coming: the list opened
+          // and shut under the finger, and the box sat focused with nothing to
+          // choose from until it was left and tapped again. Caught by the
+          // nightly of 2026-11-04 (club-course.spec, on a fast runner).
+          if (blurTimer.current) clearTimeout(blurTimer.current);
           setOpen(true);
           setQuery("");
         }}
@@ -606,6 +637,30 @@ export function CoursePicker({
               </Fragment>
             );
           })}
+
+          {/* ODbL 1.0 asks for attribution wherever the directory's courses are shown. */}
+          {found.some((h) => !h.id.startsWith("gca:")) && (
+            <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "4px 10px" }}>
+              {DIRECTORY_ATTRIBUTION}
+            </p>
+          )}
+
+          {notice && (
+            <p className="text-muted" role="status" style={{ fontSize: 13, margin: 0, padding: "4px 10px", lineHeight: 1.5 }}>
+              {notice}
+            </p>
+          )}
+
+          {searchDirectory && shown.length === 0 && found.length === 0 && !searching && query.trim().length >= 3 && askedMore !== query.trim() && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ margin: "4px 10px" }}
+              onClick={searchMore}
+            >
+              Search more courses
+            </button>
+          )}
 
           {shown.length === 0 && found.length === 0 && !onEnterNew && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "8px 10px", lineHeight: 1.5 }}>

@@ -26,7 +26,7 @@ import { seedCup, teardownCup } from "./cup-fixture.mjs";
  * are left as written.
  */
 
-const ROUTES = ["/me", "/me/card", "/me/board", "/me/money", "/me/messages", "/me/events", "/me/calendar", "/me/rules", "/me/help", "/play"];
+const ROUTES = ["/me", "/me/card", "/me/board", "/me/money", "/me/messages", "/me/events", "/me/calendar", "/me/season", "/me/rules", "/me/help", "/play"];
 const SENTENCE = 12;
 const BLOCK = 25;
 

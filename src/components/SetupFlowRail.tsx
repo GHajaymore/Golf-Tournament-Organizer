@@ -36,7 +36,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
    * the leaderboard. That is false, and the comment thirty lines below says so
    * from a measurement: on 2026-09-11, as a player on a `draft` tournament,
    * the board rendered, the card rendered, and it offered to certify.
-   * `launchTournament` writes status, launchedAt and configUnlocked and
+   * `launchTournament` writes status and launchedAt and
    * nothing else; visibility is `leaderboardVisibility`, which is a different
    * setting on a different screen.
    *
@@ -54,13 +54,41 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
   if (flow.readyToLaunch) {
     return (
       <div
-        className="card elev-sm"
+        // `setup-flow-rail`: the lifecycle stepper (B03) is this rail grown to the whole
+        // tournament; while it is shown, this stands aside (lifecycle-stepper.css).
+        className="card elev-sm setup-flow-rail"
         style={{ marginBottom: 16, gap: 8, borderLeft: "3px solid var(--color-accent-2)" }}
       >
         <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}>
-          <Icon name="check-circle" weight="fill" style={{ color: "var(--color-accent-2-200)" }} /> Setup is
-          done — all {flow.steps.length} parts
+          <Icon name="check-circle" weight="fill" style={{ color: "var(--color-accent-2-200)" }} />{" "}
+          {/* NOTHING HOLDS LAUNCH, which is not the same as every part ticked
+              (state machine PR 3). A medal with one field leaves Flights open,
+              and a club may leave the money answer: both are optional (the
+              panel's 8.2 table), so the guide stops waiting — and says so,
+              rather than claiming parts done that are not. */}
+          {flow.doneCount === flow.steps.length
+            ? `Setup is done — all ${flow.steps.length} parts`
+            : `Ready to launch — ${flow.doneCount} of ${flow.steps.length} done, the rest optional`}
         </span>
+        {/* Which parts are still open, each marked "Optional" — the strip
+            stays while one is, so the optional step is on the rail, not gone. */}
+        {flow.doneCount < flow.steps.length && <StepStrip flow={flow} href={href} />}
+        {/* WHAT AN OPEN OPTIONAL STEP IS WAITING FOR, in its own words (J27).
+            The checklist that carries a step's `missing` is hidden in this very
+            state, so the words would never be read. Tees that cannot give a
+            Course Handicap are the case; a step whose line only says "Optional"
+            has nothing more to add. */}
+        {flow.steps
+          .filter((s) => !s.done && s.optional && s.missing && !/^Optional/.test(s.missing))
+          .map((s) => (
+            <p key={s.key} className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
+              <Link href={s.key === "event" ? "/event#courses" : s.href} style={{ color: "var(--color-accent-200)" }}>
+                {s.label}
+              </Link>
+              {": "}
+              {s.missing}
+            </p>
+          ))}
         {/* NAMES THE SCREEN, NOT A BUTTON ON IT.
             "Launch it from the dashboard" was wrong for the commonest case:
             a tournament still in draft was offered "Start taking entries"
@@ -74,7 +102,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
 
             Measured on 2026-09-11 as a player on a `draft` tournament — the
             board rendered, the card rendered, and it offered to certify.
-            `launchTournament` writes status, launchedAt and configUnlocked and
+            `launchTournament` writes status and launchedAt and
             nothing else; `canSeeLeaderboard` reads `leaderboardVisibility`.
             See `LAUNCH_DOES` in domain/lifecycle-state.ts, which both this and
             the dashboard warning now read so they cannot drift apart again. */}
@@ -113,7 +141,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
   const { step } = positionOf(flow, href);
 
   return (
-    <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
+    <div className="card elev-sm setup-flow-rail" style={{ marginBottom: 16, gap: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span className="card-kicker">Setting up</span>
         <span className="text-muted" style={{ fontSize: 13 }}>
@@ -121,9 +149,44 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
         </span>
       </div>
 
-      {/* Scrolls rather than wraps at narrow widths: four steps in a broken
+      <StepStrip flow={flow} href={href} />
+
+      {/* The question this screen answers, and what is still missing — said
+          on the screen itself rather than only in a checklist somewhere else.
+          Shown only while this step is unfinished, so a screen revisited to
+          change a date is not told it is incomplete. */}
+      {/* What is still missing is said ONCE, beside the Next button at the foot of
+          the screen where the press is (`SetupFlowFooter`) — it was said here too,
+          and in "To sort out" (2026-10-16, "redundancies"). */}
+      {step?.done && flow.current && (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+          {/* "Still to do", not "Next": the outstanding step is often BEHIND
+              this one — anybody who reaches Rounds first has a finished
+              screen pointing back at Tournament details — and calling that
+              "next" sends a reader looking forwards for it. */}
+          <Icon name="check-circle" /> This part is done. Still to do:{" "}
+          <Link href={flow.current.href} style={{ color: "var(--color-accent-200)" }}>
+            {flow.current.label}
+          </Link>
+          .
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * THE STEPS, IN A ROW — each a link, ticked, "Now" on the one on screen, and
+ * "Optional" on one nothing waits for. Drawn while setting up, and on the
+ * ready-to-launch card while an optional step is still open (PR 3), so a
+ * medal's Flights stays on the rail marked optional (Golf Pro, 8.2) rather
+ * than vanishing with the guide.
+ */
+function StepStrip({ flow, href }: { flow: SetupFlow; href: string }) {
+  return (
+      /* Scrolls rather than wraps at narrow widths: four steps in a broken
           row lose the left-to-right reading that IS the progress. The page
-          body never scrolls sideways — this container does. */}
+          body never scrolls sideways — this container does. */
       <div style={{ overflowX: "auto", margin: "0 -2px", padding: "0 2px" }}>
         <ol
           style={{
@@ -184,7 +247,10 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
                           Tournament details — read as being on the wrong page.
                           The first gap keeps its colour, and the line below
                           names it: "Still to do: Tournament details". */}
-                      {s.done ? "Done" : here ? "Now" : ""}
+                      {/* "OPTIONAL" for a step nothing waits for (PR 3): a medal's
+                          flights read "Optional — one field" and never "No
+                          flights yet" (D1, the Golf Pro's ruling). */}
+                      {s.done ? "Done" : here ? "Now" : s.optional ? "Optional" : ""}
                     </span>
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{s.label}</span>
@@ -194,28 +260,6 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
           })}
         </ol>
       </div>
-
-      {/* The question this screen answers, and what is still missing — said
-          on the screen itself rather than only in a checklist somewhere else.
-          Shown only while this step is unfinished, so a screen revisited to
-          change a date is not told it is incomplete. */}
-      {/* What is still missing is said ONCE, beside the Next button at the foot of
-          the screen where the press is (`SetupFlowFooter`) — it was said here too,
-          and in "To sort out" (2026-10-16, "redundancies"). */}
-      {step?.done && flow.current && (
-        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-          {/* "Still to do", not "Next": the outstanding step is often BEHIND
-              this one — anybody who reaches Rounds first has a finished
-              screen pointing back at Tournament details — and calling that
-              "next" sends a reader looking forwards for it. */}
-          <Icon name="check-circle" /> This part is done. Still to do:{" "}
-          <Link href={flow.current.href} style={{ color: "var(--color-accent-200)" }}>
-            {flow.current.label}
-          </Link>
-          .
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -229,7 +273,20 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
  * appears where the reading stops costs one tap; the same control at the top
  * costs a scroll and a search.
  */
-export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: string }) {
+export function SetupFlowFooter({
+  flow,
+  href,
+  quiet = false,
+}: {
+  flow: SetupFlow | null;
+  href: string;
+  /**
+   * Next drawn as a quiet button, because the screen has a filled one of its own: Rounds & formats
+   * as a timeline (step 2, behind its switch) fills the button of the one thing that still needs
+   * doing, and a screen has one filled button (the design brief of 2 Nov, rule 2).
+   */
+  quiet?: boolean;
+}) {
   // Nothing at the foot of the page once setup is done — the hand-off in the
   // rail above says the one remaining thing, and saying it twice on one screen
   // would make it an instruction rather than an offer.
@@ -264,7 +321,7 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
               third time on Rounds & formats, after the strip and "To sort out", and
               read as if the dates blocked the next screen. Every step is a link in
               the strip already; what is left is said once, where it is fixed. */}
-          <Link href={next.href} className="btn btn-primary">
+          <Link href={next.href} className={quiet ? "btn btn-secondary" : "btn btn-primary"}>
             Next: {next.label} <Icon name="arrow-right" />
           </Link>
         </div>

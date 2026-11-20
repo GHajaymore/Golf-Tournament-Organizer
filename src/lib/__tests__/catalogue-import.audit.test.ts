@@ -21,7 +21,7 @@ const MARK = "zz-cat-";
 const KEY = "zz-catalogue-walk-test";
 
 const { importCatalogueSlice, refreshCatalogueSlice } = await import("@/lib/services/catalogue-import");
-const { importGcaSlice, gcaId } = await import("@/lib/services/catalogue-gca");
+const { fetchGolfCourseApiCourse, gcaId } = await import("@/lib/services/golfcourseapi-live");
 
 const PARS = [4, 5, 4, 4, 3, 5, 3, 4, 4, 4, 4, 3, 4, 5, 4, 4, 3, 5];
 const SI = [6, 10, 12, 16, 14, 2, 18, 4, 8, 3, 9, 17, 7, 1, 13, 11, 15, 5];
@@ -272,66 +272,47 @@ describe("re-fetching the oldest stored courses", () => {
 });
 
 /**
- * INTERNATIONAL — GolfCourseAPI brought into the app, with a fake directory
- * and its own state key. Complete cards only: a missing stroke index is stored
- * as a reason, never as a usable card.
+ * GOLFCOURSEAPI, ON DEMAND (7 Nov 2026): the one course somebody picked is
+ * fetched, judged and stored; nothing else is. A fake HTTP call, so no test
+ * spends the real allowance. A missing stroke index is stored as a reason,
+ * never as a usable card.
  */
-describe("the international slice", () => {
-  const GCA_KEY = "zz-gca-walk-test";
-  afterEach(() => prisma.platformSetting.deleteMany({ where: { key: GCA_KEY } }));
+describe("the picked GolfCourseAPI course", () => {
   const gholes = (pars: number[], si: (number | null)[]) => pars.map((par, i) => ({ par, handicap: si[i], yardage: 0 }));
-  const summary = (id: string, country: string, tees = 1) => ({
-    id, club_name: `ZZ Club ${id}`, course_name: "", location: { city: "Zz", country }, tees: { male: tees },
+  const answer = (si: (number | null)[]) => async () => ({
+    status: 200,
+    body: {
+      id: 1,
+      club_name: "ZZ Club",
+      course_name: "",
+      location: { city: "Zz", country: "England" },
+      tees: { male: [{ tee_name: "White", course_rating: 71.2, slope_rating: 128, par_total: 72, total_yards: 6500, holes: gholes(PARS, si) }] },
+    },
   });
-  const gcaDirectory = () => {
+
+  it("stores the one course with its card and its rated tees", async () => {
     const calls: string[] = [];
     const fetchJson = async (path: string) => {
       calls.push(path);
-      if (path.startsWith("/v1/search")) {
-        return {
-          status: 200,
-          body: {
-            courses: [
-              summary(`${MARK}us`, "United States"),
-              summary(`${MARK}gb`, "England"),
-              summary(`${MARK}nosi`, "Scotland"),
-              summary(`${MARK}notees`, "Ireland", 0),
-            ],
-          },
-        };
-      }
-      const id = decodeURIComponent(path.split("/").pop() ?? "");
-      const noSi = id.endsWith("nosi");
-      return { status: 200, body: { course: { tees: { male: [{ holes: gholes(PARS, noSi ? PARS.map(() => null) : SI) }] } } } };
+      return answer(SI)();
     };
-    return { calls, fetchJson };
-  };
-
-  it("stores complete cards, the reason for incomplete ones, and fetches outside the US first", async () => {
-    const dir = gcaDirectory();
-    const r = await importGcaSlice({ budget: 10, deadline: later(), fetchJson: dir.fetchJson, sleep: noSleep, stateKey: GCA_KEY });
-    expect(r).toMatchObject({ withCard: 2, queued: 0, stopped: "drained" });
-    const gb = await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}gb`) } });
-    expect(JSON.parse(gb.strokeIndex)).toEqual(SI);
-    const noSi = await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}nosi`) } });
-    expect(noSi.pars).toBe("");
-    expect(noSi.cardProblem).toContain("no stroke index");
-    // No tee boxes: judged off the search row, no detail request spent on it.
-    expect(dir.calls.some((c) => c.includes("notees"))).toBe(false);
-    expect((await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}notees`) } })).cardProblem).toContain("no tee boxes");
-    // Outside the US first: the US course is the last detail asked for.
-    const details = dir.calls.filter((c) => c.startsWith("/v1/courses/"));
-    expect(details[details.length - 1]).toContain(`${MARK}us`);
+    const c = await fetchGolfCourseApiCourse(`gca:${MARK}ok`, { fetchJson });
+    expect(c?.card).toMatchObject({ usable: true });
+    expect(calls).toEqual([`/v1/courses/${encodeURIComponent(`${MARK}ok`)}`]);
+    const row = await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}ok`) } });
+    expect(JSON.parse(row.strokeIndex)).toEqual(SI);
+    expect(JSON.parse(row.tees)).toMatchObject([{ name: "White", gender: "men", courseRating: 71.2, slopeRating: 128 }]);
   });
 
-  it("stops at its budget and keeps the rest banked for tomorrow", async () => {
-    const dir = gcaDirectory();
-    const r = await importGcaSlice({ budget: 2, deadline: later(), fetchJson: dir.fetchJson, sleep: noSleep, stateKey: GCA_KEY });
-    expect(r.stopped).toBe("budget");
-    expect(r.requests).toBe(2);
-    expect(r.queued).toBe(2);
-    const state = JSON.parse((await prisma.platformSetting.findUniqueOrThrow({ where: { key: GCA_KEY } })).value);
-    expect(state.queue).toHaveLength(2);
-    expect(state.termIndex).toBe(1);
+  it("stores the reason, not a card, when the stroke index is missing", async () => {
+    await fetchGolfCourseApiCourse(`gca:${MARK}nosi`, { fetchJson: answer(PARS.map(() => null)) });
+    const row = await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}nosi`) } });
+    expect(row.pars).toBe("");
+    expect(row.cardProblem).toContain("no stroke index");
+  });
+
+  it("stores nothing when the lookup does not answer", async () => {
+    expect(await fetchGolfCourseApiCourse(`gca:${MARK}down`, { fetchJson: async () => null })).toBeNull();
+    expect(await prisma.courseCatalog.findUnique({ where: { id: gcaId(`${MARK}down`) } })).toBeNull();
   });
 });

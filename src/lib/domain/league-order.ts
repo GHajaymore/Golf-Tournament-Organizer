@@ -1,11 +1,12 @@
 import type { TiebreakerKey } from "./types";
+import { placeByPointsThenSteps, type LevelStep } from "./level-places";
 
 /**
  * WHERE TWO CLUBS LEVEL ON POINTS FINISH, DECIDED BY THE COMMITTEE'S OWN
  * CHAIN RATHER THAN BY THE ALPHABET.
  *
  * The tournament already holds one — `Event.tiebreakers`, set on Scoring &
- * rules, and `tiebreakerCompare` applies it to PLAYERS. The league table was
+ * rules, and `rankPlayers` applies it to PLAYERS. The league table was
  * written without it and fell back to the club's name, so a four-way tie at
  * the top of a twelve-club league seeded the play-offs alphabetically. A club
  * that wins its meetings and a club that does not are not separated by being
@@ -59,25 +60,38 @@ export function meansSomethingForAClub(key: TiebreakerKey): boolean {
   );
 }
 
-function compareOn(key: TiebreakerKey, a: ClubRecord, b: ClubRecord, h2h: HeadToHead): number {
+/**
+ * One step of the chain as a figure per club, higher is better
+ * (`LevelStep`). Head-to-head is the clubs' MINI-LEAGUE among the group being
+ * separated — meetings won less meetings lost against only those clubs — and
+ * is re-asked of any part it leaves level.
+ *
+ * It was the pair's own meeting inside a sort comparator until 2026-11-07:
+ * three clubs level on points that beat each other in a circle made the
+ * comparator intransitive, and the table — and the play-off seeding read off
+ * it — came out in whatever order `Array.sort` reached.
+ */
+function stepOn(key: TiebreakerKey, h2h: HeadToHead): LevelStep<ClubRecord> {
+  const own = (figure: (c: ClubRecord) => number): LevelStep<ClubRecord> => ({ score: figure, regroup: false });
   switch (key) {
     case "head-to-head":
-      // Their meeting, from A's side: 1 beat, -1 lost, 0 halved or never met.
-      return -(h2h.get(a.clubId)?.get(b.clubId) ?? 0);
+      return {
+        // Their meetings with the others in the group: 1 beat, -1 lost, 0 halved or never met.
+        score: (c, group) =>
+          group.reduce((sum, o) => (o.clubId === c.clubId ? sum : sum + (h2h.get(c.clubId)?.get(o.clubId) ?? 0)), 0),
+        regroup: true,
+      };
     case "most-wins":
-      return b.won - a.won;
-    case "win-percentage": {
-      const wa = a.played > 0 ? a.won / a.played : 0;
-      const wb = b.played > 0 ? b.won / b.played : 0;
-      return wb - wa;
-    }
+      return own((c) => c.won);
+    case "win-percentage":
+      return own((c) => (c.played > 0 ? c.won / c.played : 0));
     case "holes-won-ratio":
-      return b.holesWon - b.holesLost - (a.holesWon - a.holesLost);
+      return own((c) => c.holesWon - c.holesLost);
     case "fewest-holes-lost":
-      return a.holesLost - b.holesLost;
+      return own((c) => -c.holesLost);
     default:
       // A countback or a handicap: nothing about a club to compare.
-      return 0;
+      return own(() => 0);
   }
 }
 
@@ -88,21 +102,19 @@ function compareOn(key: TiebreakerKey, a: ClubRecord, b: ClubRecord, h2h: HeadTo
  * separate still have to be listed in some order and a stable one is kinder
  * than an arbitrary one. What changed is that it is no longer the FIRST thing
  * asked after the points.
+ *
+ * The chain is applied to the whole group level on points, the way the
+ * players' table applies it (`placeByPointsThenSteps`, domain/level-places.ts):
+ * one rule for a cycle, whoever is being ranked.
  */
 export function orderClubs(
   rows: readonly ClubRecord[],
   chain: readonly TiebreakerKey[],
   h2h: HeadToHead,
 ): ClubRecord[] {
-  const useful = chain.filter(meansSomethingForAClub);
-  return [...rows].sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    for (const key of useful) {
-      const d = compareOn(key, a, b, h2h);
-      if (d !== 0) return d;
-    }
-    return a.name.localeCompare(b.name);
-  });
+  const steps = chain.filter(meansSomethingForAClub).map((key) => stepOn(key, h2h));
+  const byName = (a: ClubRecord, b: ClubRecord) => a.name.localeCompare(b.name);
+  return placeByPointsThenSteps([...rows].sort(byName), (c) => c.points, steps, byName).map(({ row }) => row);
 }
 
 /**

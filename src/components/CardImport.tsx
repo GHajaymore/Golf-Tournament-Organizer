@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import { importClubCourseCard } from "@/app/actions/courses";
 import { parseCard, type CardProblem } from "@/lib/domain/scorecard-parse";
 import { CourseCardCamera } from "@/components/CourseCardCamera";
@@ -31,13 +31,15 @@ function Row({
   pending: boolean;
   optional?: boolean;
 }) {
+  const fid = useId();
   return (
     <div className="field">
-      <label>
+      <label htmlFor={fid}>
         {label}
         {optional && <span className="text-muted"> — optional</span>}
       </label>
       <textarea
+        id={fid}
         className="input"
         rows={2}
         value={value}
@@ -89,6 +91,7 @@ export function CardImport({
   cardScanAvailable?: boolean;
   onDone?: () => void;
 }) {
+  const fid = useId();
   const [name, setName] = useState("");
   const [city, setCity] = useState(defaultCity);
   const [sourceUrl, setSourceUrl] = useState("");
@@ -145,16 +148,16 @@ export function CardImport({
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
         <div className="field">
-          <label>Course name</label>
-          <input className="input" value={name} disabled={pending} onChange={(e) => setName(e.target.value)} placeholder="Bushwood" />
+          <label htmlFor={`${fid}-name`}>Course name</label>
+          <input id={`${fid}-name`} className="input" value={name} disabled={pending} onChange={(e) => setName(e.target.value)} placeholder="Bushwood" />
         </div>
         <div className="field">
-          <label>City</label>
-          <input className="input" value={city} disabled={pending} onChange={(e) => setCity(e.target.value)} />
+          <label htmlFor={`${fid}-city`}>City</label>
+          <input id={`${fid}-city`} className="input" value={city} disabled={pending} onChange={(e) => setCity(e.target.value)} />
         </div>
         <div className="field">
-          <label>Holes</label>
-          <div className="seg" style={{ width: "100%" }}>
+          <span className="field-caption" id={`${fid}-holes`}>Holes</span>
+          <div className="seg" role="group" aria-labelledby={`${fid}-holes`} style={{ width: "100%" }}>
             <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
               <input type="radio" name="cardholes" checked={holes === 18} onChange={() => setHoles(18)} />18
             </label>
@@ -209,8 +212,9 @@ export function CardImport({
       />
 
       <div className="field">
-        <label>Where it came from <span className="text-muted">— optional</span></label>
+        <label htmlFor={`${fid}-source`}>Where it came from <span className="text-muted">— optional</span></label>
         <input
+          id={`${fid}-source`}
           className="input"
           value={sourceUrl}
           disabled={pending}

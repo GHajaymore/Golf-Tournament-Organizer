@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
+import { fingerprint } from "@/lib/auth";
 import {
   RATE_LIMITS,
   bucketKeyFor,
@@ -59,8 +60,27 @@ function keyFor(kind: RateLimitKind, identifier: string, now: number): string {
  * Call it *before* looking the secret up, so a refusal costs the attacker a
  * query they don't get and tells them nothing about whether the thing they
  * typed exists.
+ *
+ * AN ENTRY LINK MUST SAY WHAT IT CAN TAKE (2026-11-10). `register-token`'s
+ * budget grows with the field (`entryLinkBudget`), so its caller has to hand
+ * over `budget` — the compiler refuses the call without it. It is asked only
+ * once the count passes the kind's fixed floor, so a link inside the floor
+ * still costs no lookup before it is counted, exactly as before.
  */
-export async function checkRateLimit(kind: RateLimitKind, identifier: string): Promise<RateLimitDecision> {
+export async function checkRateLimit(
+  kind: "register-token",
+  identifier: string,
+  budget: () => Promise<number>,
+): Promise<RateLimitDecision>;
+export async function checkRateLimit(
+  kind: Exclude<RateLimitKind, "register-token">,
+  identifier: string,
+): Promise<RateLimitDecision>;
+export async function checkRateLimit(
+  kind: RateLimitKind,
+  identifier: string,
+  budget?: () => Promise<number>,
+): Promise<RateLimitDecision> {
   const now = Date.now();
   // Enforced HERE rather than trusted of each caller, because the failure is
   // invisible from the call site: an empty identifier does not error, it
@@ -119,7 +139,18 @@ export async function checkRateLimit(kind: RateLimitKind, identifier: string): P
   }
 
   await prune(now);
-  return decideRateLimit(kind, attempts, now);
+  const floor = RATE_LIMITS[kind].limit;
+  if (attempts <= floor || !budget) return decideRateLimit(kind, attempts, now);
+  let limit: number;
+  try {
+    limit = await budget();
+  } catch (err) {
+    // Fail closed, like the count itself: a budget nobody could read is no budget.
+    console.error(`[rate-limit] could not read the "${kind}" budget:`, err);
+    return unavailableDecision();
+  }
+  // Never below the floor, whatever a budget says.
+  return decideRateLimit(kind, attempts, now, Math.max(floor, limit));
 }
 
 /**
@@ -157,3 +188,78 @@ async function prune(now: number): Promise<void> {
 }
 
 export type { RateLimitDecision, RateLimitKind };
+
+/**
+ * THE PER-CLIENT GUESS LIMIT (2026-11-12): one client trying MANY secrets.
+ *
+ * The per-code limits above cap guesses against each code, so one client trying
+ * a million different codes is never slowed. This is the second, additional
+ * limit: keyed on the client (`clientKeyFor`: the app's HMAC of the address,
+ * never a bare address or an unkeyed hash), never cleared by a success.
+ *
+ * COUNTED UP FRONT, ATOMICALLY: one upsert adds the attempt and returns the
+ * total, so a burst of parallel guesses cannot all read "under the limit". A
+ * success then GIVES THE ATTEMPT BACK (`succeeded()`), so only failed lookups
+ * stay counted: forty players on one wifi entering the real code cost nothing.
+ * Call it before the lookup, `succeeded()` on a found code. The guest player
+ * link (J39/J40) uses the same function. No address (no header, no request) or
+ * an unreadable counter: no per-client limit HERE. The code door never passes a
+ * null: it counts an address-less caller in one shared bucket (`NO_ADDRESS`,
+ * `services/code-door.ts`), so a code guess is never uncounted.
+ */
+export function clientKeyFor(kind: RateLimitKind, clientAddress: string, now: number): string {
+  return bucketKeyFor(kind, fingerprint(`client:${clientAddress.trim().toLowerCase()}`), now);
+}
+
+/**
+ * Give one counted attempt back to this client, from a LATER request than the
+ * one that counted it (2026-11-13). A code SENT costs the connection one of
+ * `code-send-client`; the code coming back proved gives it back, because only
+ * the inbox's owner can type it. So a clubhouse wifi where sixty members enter
+ * on one morning, each proving their own address, is never told "several codes
+ * from this connection", while a client making codes go to addresses it cannot
+ * read keeps every send counted. Given back to the current window (a send just
+ * before a window's end may be returned to the next one: never below zero).
+ */
+export async function giveBackClientAttempt(kind: RateLimitKind, clientAddress: string | null): Promise<void> {
+  if (!clientAddress) return;
+  const key = clientKeyFor(kind, clientAddress, Date.now());
+  try {
+    await prisma.$executeRaw`UPDATE "RateLimitHit" SET "count" = GREATEST("count" - 1, 0) WHERE "key" = ${key}`;
+  } catch (err) {
+    console.error("[rate-limit] could not give back a client attempt:", err);
+  }
+}
+
+export async function clientGuessGate(
+  kind: RateLimitKind,
+  clientAddress: string | null,
+): Promise<{ decision: RateLimitDecision; succeeded: () => Promise<void> }> {
+  const none = { decision: { allowed: true, retryAfterSeconds: 0, message: "" }, succeeded: async () => {} };
+  if (!clientAddress) return none;
+  const now = Date.now();
+  const key = clientKeyFor(kind, clientAddress, now);
+  const expiresAt = new Date(windowFor(RATE_LIMITS[kind], now).endsAt).toISOString();
+  try {
+    const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+      INSERT INTO "RateLimitHit" ("key", "count", "expiresAt")
+      VALUES (${key}, 1, ${expiresAt}::timestamp)
+      ON CONFLICT ("key") DO UPDATE SET "count" = "RateLimitHit"."count" + 1
+      RETURNING "count"
+    `;
+    const decision = decideRateLimit(kind, rows[0]?.count ?? 1, now);
+    return {
+      decision,
+      succeeded: async () => {
+        try {
+          await prisma.$executeRaw`UPDATE "RateLimitHit" SET "count" = GREATEST("count" - 1, 0) WHERE "key" = ${key}`;
+        } catch (err) {
+          console.error("[rate-limit] could not give back a client attempt:", err);
+        }
+      },
+    };
+  } catch (err) {
+    console.error("[rate-limit] could not count a client attempt:", err);
+    return none;
+  }
+}

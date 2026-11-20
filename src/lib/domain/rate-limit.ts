@@ -41,17 +41,41 @@
  * attacker trying one guess against each of a million *different* codes is not
  * slowed down by this at all. That is a different attack from the one that
  * actually threatens a round code, and it wants a different control.
+ *
+ * THAT CONTROL (2026-11-12) is `round-code-client`: a SECOND limit, additional to
+ * the per-code one and never instead of it, on the client address, counting only
+ * FAILED lookups, so a shared wifi address is never blocked by players who got it
+ * right, and a spoofed header can only dodge the second limit, never the first.
+ *
+ * ONE CODE BOX (2026-11-17): a code typed in any box goes through one door
+ * (`openAnyCode`, services/code-door.ts), and the budget is CHOSEN BY THE SHAPE of
+ * the code, never by the box: an 8-character round code takes the `round-code` rows,
+ * a 12-character player link code the `player-link-*` rows (never a per-code key).
+ * Both shapes take the same gate steps (PR B): the client's budget, a platform alarm
+ * (`eight-char-alarm`, `player-link-alarm`) and a slow pace while it stands.
+ * Every one of them says the same sentence (`CODE_WORDS.tooMany`).
  */
 
 import { EMAIL_CODE_WORDS } from "./email-code";
+import { CODE_WORDS } from "./code-shape";
 
 /** The throttled entry points. One budget per kind, per identifier. */
 export type RateLimitKind =
   | "signin"
+  | "signin-client"
   | "claim-password"
   | "password-reset"
   | "email-code-send"
+  | "entry-code-send"
+  | "code-send-client"
   | "round-code"
+  | "round-code-client"
+  | "player-link-client"
+  | "player-link-alarm"
+  | "player-link-slow"
+  | "eight-char-alarm"
+  | "eight-char-slow"
+  | "link-slips"
   | "discount-check"
   | "register-token"
   | "register-email"
@@ -60,7 +84,9 @@ export type RateLimitKind =
   | "interest"
   | "course-search"
   | "course-search-staff"
-  | "ai-check";
+  | "ai-check"
+  | "guest-post"
+  | "push-device";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -74,6 +100,14 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
   /** Password guessing. Five is well above what a person who knows their own
    *  password ever needs, and far below what guessing one requires. */
   signin: { limit: 5, windowMs: 15 * MINUTE },
+  /** The SECOND sign-in limit (2026-11-13): one CLIENT trying passwords against
+   *  MANY addresses (password spraying), which the per-address limit cannot see.
+   *  Counts only FAILED sign-ins; a correct password gives its attempt back, so a
+   *  clubhouse's one wifi address full of members signing in costs nothing.
+   *  Twenty failures in fifteen minutes is four people each mistyping five times;
+   *  for a script it is eighty guesses an hour from one IPv6 /64 instead of
+   *  unlimited. See `clientGuessGate`. */
+  "signin-client": { limit: 20, windowMs: 15 * MINUTE },
   /** Setting a first password on a pre-provisioned email. Same shape of risk
    *  as signin — it is reachable without a session and it names an account. */
   "claim-password": { limit: 5, windowMs: 15 * MINUTE },
@@ -86,11 +120,66 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  fifteen minutes: a person who asked twice and then once more. Each code
    *  takes five tries, so this also caps guessing at fifteen in the window. */
   "email-code-send": { limit: 3, windowMs: 15 * MINUTE },
+  /** The code mailed to prove an address before an entry on a public link
+   *  (2026-11-13), keyed on the address. Roomier than `email-code-send` on
+   *  purpose: a society member entering a whole calendar of tournaments in one
+   *  evening (the case `register-email` was made per tournament for) takes a
+   *  code for each. Twenty an hour still caps how many mails one stranger's
+   *  address can be made to receive. */
+  "entry-code-send": { limit: 20, windowMs: 60 * MINUTE },
+  /** Codes SENT by one client, to anybody (2026-11-13): sign-up, claim and entry
+   *  codes can be caused by a stranger for any address, and an address's own
+   *  limits cap one address, not one client making many. Sixty in fifteen minutes
+   *  matches `round-code-client` (a clubhouse wifi on an entry morning); counted
+   *  on every send, never given back. See `clientGuessGate`. */
+  "code-send-client": { limit: 60, windowMs: 15 * MINUTE },
   /** Round codes are typed off a printed card by people standing on a tee in
    *  the rain, so the allowance is deliberately roomier than a password's —
    *  ten wrong entries is a group that needs to ask, not an attack. It still
    *  turns "a thousand guesses a second" into "forty an hour". */
   "round-code": { limit: 10, windowMs: 15 * MINUTE },
+  /** The SECOND round-code limit (2026-11-12): one CLIENT trying MANY codes, which
+   *  the per-code limit cannot see (it caps guesses per code, so an enumerator
+   *  spends one guess on each of a million codes and is never slowed). Counts
+   *  only FAILED lookups, never successes, so forty players on a club's one wifi
+   *  address all entering the one real code count nothing. Sixty failures in
+   *  fifteen minutes (Tournament Director, 12 Nov: a clubhouse's one wifi address
+   *  must survive an event morning of mistypes), still only 240 an hour for a
+   *  script against an 8-character code instead of a thousand a second. See `clientGuessGate`. */
+  "round-code-client": { limit: 60, windowMs: 15 * MINUTE },
+  /** A GUEST'S PLAYER LINK, opened or typed at /p (J39/J40, the review's S2). Keyed on the
+   *  CLIENT, never on the code: an enumerator spends one guess on each of a billion codes, so a
+   *  per-code budget would never slow it, and it would store an unkeyed hash of a 60-bit secret.
+   *  Counts only FAILED opens: a link that opens gives its attempt back and nothing is ever
+   *  cleared, so alternating one real link with guesses still counts every guess. Twenty in
+   *  fifteen minutes is a household mistyping a slip; for a script it is 80 an hour against
+   *  2^60. Where no client address can be read, one shared fallback bucket. See `clientGuessGate`. */
+  "player-link-client": { limit: 20, windowMs: 15 * MINUTE },
+  /** THE PLATFORM ALARM (S2c): failed opens across the whole app in an hour. Past it an error is
+   *  reported AND every open is slowed to `player-link-slow`'s pace per client: distributed
+   *  guessing from many addresses is the attack a per-client budget cannot see. */
+  "player-link-alarm": { limit: 200, windowMs: 60 * MINUTE },
+  /** While the alarm stands: three failed opens per client in fifteen minutes — twelve an hour
+   *  against the usual eighty (security review SF-2: one a minute was sixty, barely slower). A
+   *  guest with the right link still opens it (a success gives its attempt back). */
+  "player-link-slow": { limit: 3, windowMs: 15 * MINUTE },
+  /** THE 8-CHARACTER SHAPE'S PLATFORM ALARM (one code box PR B; Security Lead, 14 Nov): failed round
+   *  and entry code lookups across the whole app in an hour. A round code is TYPED by a whole field off
+   *  a card, so the link's 200 would be too tight; 300 is about fifty 60-player outings mistyping in
+   *  the same hour. Past it an error is reported once and every client is slowed to `eight-char-slow`.
+   *  The Security Lead re-sets the figure from measurement when an honest hour passes 150. */
+  "eight-char-alarm": { limit: 300, windowMs: 60 * MINUTE },
+  /** While the 8-character alarm stands: twelve failed lookups per client network in fifteen minutes
+   *  (not the link's three). One clubhouse is ONE network and a 60-player morning makes about six honest
+   *  failures in its busy quarter-hour, so twelve never locks it out, yet it cuts a guesser from 240 an
+   *  hour to 48. While the alarm stands, a right code typed when the network holds 12 or fewer
+   *  failures opens and gives its attempt back; from the 13th failure every code from that
+   *  network is refused until the window turns (15 minutes at most). */
+  "eight-char-slow": { limit: 12, windowMs: 15 * MINUTE },
+  /** PLAYER LINK SLIPS printed (J39/J40 PR 3): six presses an hour per staff member per event. A
+   *  sheet holds every guest's link at once, so a bulk print is budgeted and on the record by name;
+   *  a morning reprints new slips two or three times at most. Keyed on the staff user + the event. */
+  "link-slips": { limit: 6, windowMs: 60 * MINUTE },
   /** Discount codes, tried at sign-up or on a club's plan panel. A code is
    *  eight characters from 31, so this is not about guessing one — it is about
    *  a script trying to, and ten typos in fifteen minutes is a person who
@@ -106,6 +195,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * so the number is set well above a realistic burst and only bites a scripted
    * flood. The per-email budget below is what stops one person submitting over
    * and over; the two together are the "token and/or email" the design asks for.
+   *
+   * SIXTY IS THE FLOOR, NOT THE BUDGET (2026-11-10). A link's budget grows with
+   * what its field can take — `entryLinkBudget`, the one answer — because a
+   * club that opens entries at a set time fills a 64-player Birdie field in
+   * minutes, and a fixed sixty turned the sixty-first member away with places
+   * still left (round G583-1). Only an open link earns more than this.
    */
   "register-token": { limit: 60, windowMs: 15 * MINUTE },
   /**
@@ -172,6 +267,16 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * for a stuck button to run up a bill.
    */
   "ai-check": { limit: 1, windowMs: MINUTE },
+  /** A guest's posts through a player link (J39/J40 PR 2; S8), keyed on the PASS, never cleared:
+   *  a forwarded link must not flood the round's thread. Twenty in fifteen minutes is more than a
+   *  person writes between shots; the organizer can also Mute or Turn off the link. */
+  "guest-post": { limit: 20, windowMs: 15 * MINUTE },
+  /** Turning a phone's alerts on or off (2026-11-14, the #1133 security review F-1 and F-3), keyed on
+   *  WHO is asking: a guest's pass, or an account's address (`pushDeviceBudgetKey`). A save files a row
+   *  every later notice is sent to, so unlimited saves let one link holder make the server write to
+   *  hosts of their choosing on every organizer press. Ten in fifteen minutes is a person turning
+   *  alerts on and off five times over; counted on every press, never cleared. */
+  "push-device": { limit: 10, windowMs: 15 * MINUTE },
 };
 
 /**
@@ -244,9 +349,16 @@ const ALLOWED: RateLimitDecision = { allowed: true, retryAfterSeconds: 0, messag
  * asks afterwards, so two instances that both write get two different numbers
  * back and at most one of them is under the line.
  */
-export function decideRateLimit(kind: RateLimitKind, attempts: number, now: number): RateLimitDecision {
+export function decideRateLimit(
+  kind: RateLimitKind,
+  attempts: number,
+  now: number,
+  /** The budget, when it is not the kind's fixed one — only `register-token`'s
+   *  grows, and only by `entryLinkBudget`. The window is always the kind's. */
+  limit: number = RATE_LIMITS[kind].limit,
+): RateLimitDecision {
   const policy = RATE_LIMITS[kind];
-  if (attempts <= policy.limit) return ALLOWED;
+  if (attempts <= limit) return ALLOWED;
   const { endsAt } = windowFor(policy, now);
   // At least a second, so the message never reads "try again in 0 seconds".
   const retryAfterSeconds = Math.max(1, Math.ceil((endsAt - now) / 1000));
@@ -328,16 +440,32 @@ export function retryAfterText(seconds: number): string {
 export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number): string {
   const wait = retryAfterText(retryAfterSeconds);
   switch (kind) {
+    case "signin-client":
+      return `Too many failed sign-ins from this connection. Try again in ${wait}.`;
     case "signin":
       return `Too many sign-in attempts. Try again in ${wait}.`;
     case "claim-password":
       return `Too many attempts. Try again in ${wait}.`;
     case "password-reset":
       return `Too many reset requests. Try again in ${wait}.`;
+    case "entry-code-send":
+      return `We've sent several codes to that address. Try again in ${wait}.`;
+    case "code-send-client":
+      return `We've sent several codes from this connection. Try again in ${wait}.`;
     case "email-code-send":
       return EMAIL_CODE_WORDS.tooManySends(wait);
+    case "link-slips":
+      return `You have printed slips several times this hour. Wait ${wait}, or show one guest's link from their row on Entries.`;
+    // ONE sentence for every code budget, round code or player link, whichever box (one code box,
+    // 2026-11-17): running into a limit must not say which kind of code was being tried.
     case "round-code":
-      return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
+    case "round-code-client":
+    case "player-link-client":
+    case "player-link-alarm":
+    case "player-link-slow":
+    case "eight-char-alarm":
+    case "eight-char-slow":
+      return CODE_WORDS.tooMany(wait);
     case "discount-check":
       return `Too many discount code attempts. Wait ${wait}, and check the code against the email it came in.`;
     // Its own sentence (2026-10-03). It fell through to the card-photo message,
@@ -356,6 +484,10 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many requests to join. Wait ${wait} and try again.`;
     case "ai-check":
       return `One AI check a minute. Try again in ${wait}.`;
+    case "guest-post":
+      return `Too many messages just now. Wait ${wait} and try again.`;
+    case "push-device":
+      return `Too many alert changes just now. Wait ${wait} and try again.`;
     case "interest":
       return `We already have your note — thank you. To add anything, wait ${wait} or write to inquiries@tourneyhq.club.`;
   }
@@ -375,4 +507,83 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
  */
 export function entryLimitKey(email: string, tournament: string): string {
   return `${email.trim().toLowerCase()}|${tournament}`;
+}
+
+/**
+ * The biggest field one day of golf holds: a shotgun with two fourballs on
+ * each of eighteen holes (18 × 2 × 4). An open field — no number of its own and
+ * no plan cap over it — is budgeted as if it held this, so it is never infinite.
+ */
+export const LARGEST_DAY_FIELD = 144;
+
+/** A waiting list half as long as the field: past that, a reserve rarely gets a place. */
+const WAITING_SHARE = 0.5;
+
+/** Twice what the field and its list take, because a refused form (a mistyped
+ *  handicap, a double tap, a retry) spends a slot on the link just as an entry does. */
+const RETRY_FACTOR = 2;
+
+/**
+ * What the link leads to, as far as its budget cares. `live` is a real token on
+ * a tournament taking entries; anything else — an unknown token, entries off —
+ * is the floor, so a link that is not open earns nothing a bogus one does not.
+ */
+export type EntryLink =
+  | { live: false }
+  /** `fieldLimit`: what every door counts against (`fieldLimitFor`); 0 is open. */
+  | { live: true; fieldLimit: number };
+
+/**
+ * HOW MANY SIGN-UPS ONE ENTRY LINK MAY TAKE IN ONE `register-token` WINDOW.
+ * The one answer (docs/one-rule-one-place.md); the window and the words stay
+ * the kind's.
+ *
+ * Twice (the field, plus a waiting list half its size), never below the floor
+ * of sixty. So a 64-player field takes 2 × (64 + 32) = 192 in fifteen minutes:
+ * a whole field entering at the minute entries open, eight more on the list, and
+ * their typos, without anybody being told the form is busy while places remain.
+ * A script hammering one link still meets a finite number, and one person
+ * submitting over and over meets `register-email` long before.
+ */
+export function entryLinkBudget(link: EntryLink): number {
+  const floor = RATE_LIMITS["register-token"].limit;
+  if (!link.live) return floor;
+  const places = Number.isFinite(link.fieldLimit) && link.fieldLimit > 0 ? link.fieldLimit : LARGEST_DAY_FIELD;
+  const entrants = Math.ceil(places * (1 + WAITING_SHARE));
+  return Math.max(floor, RETRY_FACTOR * entrants);
+}
+
+/**
+ * The client address out of a request's headers, or null when there is none.
+ *
+ * On Vercel `x-vercel-forwarded-for` is set by the platform and cannot be
+ * written by the caller; `x-forwarded-for` is the fallback (first entry), then
+ * `x-real-ip`. Off Vercel the first two can be forged, which is why this is only
+ * ever the key of a SECOND limit. Null when none can be read: a caller decides
+ * what that means (the code door counts it in ONE shared bucket, `NO_ADDRESS`
+ * in `services/code-door.ts`, for either shape of code).
+ */
+export function clientAddressFrom(get: (name: string) => string | null | undefined): string | null {
+  for (const name of ["x-vercel-forwarded-for", "x-forwarded-for", "x-real-ip"]) {
+    const first = (get(name) ?? "").split(",")[0].trim();
+    if (first) return networkOf(first);
+  }
+  return null;
+}
+
+/**
+ * The unit a client is counted as: an IPv4 address whole, an IPv6 address as its
+ * /64 (one household or one phone is handed a whole /64, so the full address is
+ * a key an enumerator rotates at will). IPv4-mapped IPv6 counts as the IPv4.
+ */
+export function networkOf(address: string): string {
+  const a = address.toLowerCase();
+  const mapped = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return mapped[1];
+  if (!a.includes(":")) return a;
+  const [head, tail] = a.split("::");
+  const front = head ? head.split(":") : [];
+  const back = tail === undefined ? [] : tail ? tail.split(":") : [];
+  const groups = tail === undefined ? front : [...front, ...Array(Math.max(0, 8 - front.length - back.length)).fill("0"), ...back];
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }

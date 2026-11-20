@@ -174,7 +174,12 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     expect(recompute).toMatch(
       /roundHandicapExactOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\) \?\? p\.handicap, teamHcp\.exact\(p\.id\)/,
     );
-    expect(recompute).toMatch(/members\.map\(\(m\) => playsOffExact\(m\.player\)\)/);
+    // A shared ball: each member's EXACT figure, and whether they left the
+    // field, through the one function that prices a side (2026-11-04: this
+    // handed every member to `sidePlayingHandicap`, withdrawn or not).
+    expect(recompute).toMatch(
+      /sideHandicapFromPartners\(\s*members\.map\(\(m\) => \(\{ exact: playsOffExact\(m\.player\), withdrawn: hasLeftTheField\(m\.player\.status\) \}\)\)/,
+    );
     /**
      * THE GUARANTEE, NOT THE SHAPE. This pinned `courseHandicap:
      * playsOff(m.player)` — the field of a `TeamMemberCard`, because the match
@@ -279,9 +284,11 @@ describe("individual standings play off the Playing Handicap", () => {
     // off 100% and nobody could see why the numbers differed from the sheet.
     const src = read("src/lib/services/tournament.ts");
     // And the round's type with it: the allowance is the ROUND's (`round-allowance.ts`),
-    // taken there by `playingHandicapInRound`, which this resolver hands the stage.
+    // taken there by `playingHandicapInRound` — or its parts, which is the same
+    // call with the working kept (`playingHandicapPartsInRound`, 2026-10-24) —
+    // which this resolver hands the stage.
     expect(read("src/lib/round-allowance.ts")).toMatch(/effectiveAllowance\(round\.format, round\.handicapAllowance, round\.type\)/);
-    expect(src).toMatch(/playingHandicapInRound\(stage, ctx\.roundHandicapFor/);
+    expect(src).toMatch(/playingHandicap(Parts)?InRound\(stage, ctx\.roundHandicapFor/);
     // The per-round Course Handicap still reaches playingHandicapFrom with the
     // round's allowance. Asserted on the two facts rather than on one exact
     // expression: the round-handicap override put `resolveRoundHandicap`

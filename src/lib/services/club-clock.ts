@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { clubDay, clubDayInWords, clubToday } from "../domain/club-clock";
 import { formatDay } from "../domain/locale";
@@ -24,15 +25,21 @@ export const zoneOfOrganization = cache(async (organizationId: string | null | u
   return org?.timeZone ?? "";
 });
 
-/** The zone of the club this tournament belongs to. */
-export const zoneOfEvent = cache(async (eventId: string | null | undefined): Promise<string> => {
+/**
+ * The zone of the club this tournament belongs to, read on the client it is given: a press that holds a
+ * transaction reads it on that transaction's own connection (`zoneOfEvent` is this on the shared one).
+ */
+export async function zoneOfEventOn(db: Prisma.TransactionClient, eventId: string | null | undefined): Promise<string> {
   if (!eventId) return "";
-  const event = await prisma.event.findUnique({
+  const event = await db.event.findUnique({
     where: { id: eventId },
     select: { organization: { select: { timeZone: true } } },
   });
   return event?.organization?.timeZone ?? "";
-});
+}
+
+/** The zone of the club this tournament belongs to. */
+export const zoneOfEvent = cache(async (eventId: string | null | undefined): Promise<string> => zoneOfEventOn(prisma, eventId));
 
 /** Today at this tournament's club, yyyy-mm-dd. */
 export async function todayForEvent(eventId: string | null | undefined): Promise<string> {

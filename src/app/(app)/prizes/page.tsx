@@ -24,7 +24,7 @@ import { OrganizerLedger } from "@/components/OrganizerLedger";
 import { moneyFor, playedOnceRoundIsOver, sidePotResults } from "@/lib/services/expenses";
 import { flightStandings } from "@/lib/services/me";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor } from "@/lib/services/tournament-status";
 
 export const metadata = screenMetadata("/prizes");
 
@@ -261,7 +261,7 @@ export default async function PrizesPage({
    * screens a player cannot open. Null for everybody else, which is exactly
    * what `SetupFlowRail` renders nothing for — see its first line.
    */
-  const flow = isStaff ? await setupFlowFor(session.eventId) : null;
+  const flow = isStaff ? await setupRailFor(session.eventId) : null;
 
   return (
     <>

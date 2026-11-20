@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayerViewer, guestIsWaiting } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { cardStanding } from "@/lib/domain/card-approval";
@@ -9,10 +9,15 @@ import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
 import { PushToggle } from "@/components/PushToggle";
 import { meFor } from "@/lib/services/me";
+import { openedElsewhereSince } from "@/lib/services/player-link";
+import { deviceValueHere } from "@/lib/services/known-device";
+import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
+import { SLIP_WORDS } from "@/lib/domain/player-link-slips";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { Icon } from "@/components/Icon";
-import { teamStandings } from "@/lib/services/teams";
+import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
 import { placeLabel } from "@/lib/domain/flight-places";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
@@ -26,12 +31,11 @@ import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { notInItWords, signsCards } from "@/lib/tournament-shape";
-import { isStraightKnockout } from "@/lib/stage-types";
+import { boardKindForRound, isStraightKnockout } from "@/lib/stage-types";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { standingRows } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
-import { boardKind } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
 import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark, heroHeadline } from "@/lib/domain/scoreboard";
@@ -93,10 +97,13 @@ function initialsOf(name: string): string {
 }
 
 export default async function PlayTodayPage() {
-  const session = await requireSession();
+  const session = await requirePlayerViewer();
+  // A waiting guest: the layout draws the waiting card, and this page renders
+  // nothing of its own, so no request for it carries the event's board (SF-3).
+  if (guestIsWaiting(session)) return null;
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const me = await meFor(state, session.email);
+  const me = await meFor(state, session);
   const availability = await availabilityFor(state, session.email);
   const announcements = await announcementsFor(session.eventId);
   // The club's own golf words — organizer or organiser (`golf-terms.ts`).
@@ -106,8 +113,11 @@ export default async function PlayTodayPage() {
    * reads, memoised for the request — so "watching" and the way in agree with
    * the header and with the list.
    */
-  const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
+  const myRow = session.guest ? null : ((await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null);
   const isStaff = session.role === "admin" || session.role === "assistant";
+  // The other phone's notice, for a guest's link only (design §2.7): the day, the club's way.
+  const elsewhereAt = session.guest ? await openedElsewhereSince(session.guest.passId, await deviceValueHere(false)) : null;
+  const elsewhere = elsewhereAt ? (await dayAtClubForEvent(session.eventId))(elsewhereAt) : "";
   // Only a casual round has an expiry to keep; asked only then.
   const keepRefusal = hoursLeft(state.event) === null ? null : await casualKeepRefusalFor(state.event.id);
   /**
@@ -237,7 +247,7 @@ export default async function PlayTodayPage() {
   const boardRows =
     canSeeLeaderboard(settingsOf(state.event), session.viewRole) &&
     boardStage &&
-    boardKind(boardStage.format) === "standard" &&
+    boardKindForRound(boardStage.format, boardStage.type) === "standard" &&
     // A straight knockout ranks nobody — the draw is the standings, and Board
     // shows it. See `isStraightKnockout`.
     !isStraightKnockout(state.stages)
@@ -258,7 +268,7 @@ export default async function PlayTodayPage() {
    * else's. See `TeamStanding.memberIds`.
    */
   const sidesThisRound =
-    me.playerId && roundStage && boardKind(roundStage.format) === "team"
+    me.playerId && roundStage && boardKindForRound(roundStage.format, roundStage.type) === "team"
       ? await teamStandings(
           state.event.id,
           roundStage.id,
@@ -271,6 +281,25 @@ export default async function PlayTodayPage() {
           roundStage.countBest,
         )
       : [];
+  /**
+   * A ROUND OF TEAM MATCHES (a four-ball round robin) is decided on the matches,
+   * so its player is told how their SIDE's matches stand, not a stroke place
+   * ("finished seventh") the board does not rank on. Found by id; a match in
+   * dispute is held off (`teamMatchBoard`).
+   */
+  const myMatchSide =
+    me.playerId && roundStage && boardKindForRound(roundStage.format, roundStage.type) === "team-match"
+      ? ((
+          await teamMatchBoard(
+            state.event.id,
+            roundStage.id,
+            roundStage.format,
+            roundStage.handicapAllowance,
+            holes,
+            roundStage.allowanceWeights,
+          )
+        ).find((r) => r.memberIds.includes(me.playerId ?? "")) ?? null)
+      : null;
   const myIdx = sidesThisRound.findIndex((s) => s.memberIds.includes(me.playerId ?? ""));
   const mySide = myIdx >= 0 ? sidesThisRound[myIdx] : null;
   /** My side's players, with me as "You" — matched by id, never by name. */
@@ -425,6 +454,27 @@ export default async function PlayTodayPage() {
 
   return (
     <div>
+      {/* A GUEST'S PLAYER LINK (J39/J40): no switcher strip above, so the event is
+          named here; and when the link was opened on another phone or browser
+          after this one, this one is told (design §2.7). */}
+      {session.guest && (
+        <div className="page-kicker" data-testid="guest-event" style={{ marginBottom: 6 }}>
+          {state.event.name}
+        </div>
+      )}
+      {/* WHO THIS LINK IS FOR (J39/J40 PR 3, §3.1): a slip handed to the wrong person is caught
+          on the first screen after the tap; Forget me on this phone, in the header, undoes it
+          here. It adds no press to the way in. */}
+      {session.guest && (
+        <p data-testid="guest-not-you" style={{ fontSize: 14, lineHeight: 1.45, margin: "0 0 12px" }}>
+          {SLIP_WORDS.notYou(session.name, state.event.name)}
+        </p>
+      )}
+      {elsewhere && (
+        <p role="status" className="card" style={{ fontSize: 13, margin: "0 0 12px", padding: "10px 12px" }}>
+          <Icon name="info" /> {PLAYER_LINK_WORDS.otherPhone(elsewhere)}
+        </p>
+      )}
       {/* THE ROUND, NOT THE TOURNAMENT AGAIN (2026-09-19). The tournament's
           full name is in the switcher strip directly above, so repeating it as
           this heading put it on the screen twice before anything the player
@@ -681,6 +731,17 @@ export default async function PlayTodayPage() {
               Above the "not started" panel and in place of it: a player whose
               side has a card has started, whatever the individual table says,
               and this screen used to tell them otherwise. */}
+          {myMatchSide && (
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-kicker">Your side&rsquo;s match{myMatchSide.played === 1 ? "" : "es"}</span>
+              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>{myMatchSide.name}</div>
+              <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.5 }}>
+                {myMatchSide.played === 0
+                  ? "No match has finished yet."
+                  : `Won ${myMatchSide.wins}, halved ${myMatchSide.halved}, lost ${myMatchSide.losses}.`}
+              </p>
+            </section>
+          )}
           {mySide && (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">
@@ -739,7 +800,7 @@ export default async function PlayTodayPage() {
               (grid cell T48). */}
           {/* Nor for somebody the cut left out: no first hole is coming for
               them either, and "Missed the cut" below says why (2026-10-09). */}
-          {!standing && !mySide && !round?.matches.length && !round?.tie && !round?.closedWithout && !round?.cutOut && (
+          {!standing && !mySide && !myMatchSide && !round?.matches.length && !round?.tie && !round?.closedWithout && !round?.cutOut && (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }} className="text-muted">
@@ -1065,6 +1126,7 @@ export default async function PlayTodayPage() {
           names what is in it. Nothing in here needs them to act. */}
       {moreParts.length === 0 ? (
         <div style={{ marginTop: 12 }}>
+          {/* A guest too (J39/J40 PR 2): their notices are their pass's (savePushSubscription admits the viewer). */}
           <PushToggle />
         </div>
       ) : (
@@ -1090,7 +1152,7 @@ export default async function PlayTodayPage() {
               group on a published sheet yet, and nothing on the card. */}
           {playWith && <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />}
           {/* Tee-time alerts. Self-hiding where push isn't available, one line
-              once they are on. */}
+              once they are on. A guest's are their pass's (J39/J40 PR 2). */}
           <PushToggle />
         </div>
       </details>

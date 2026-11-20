@@ -64,7 +64,11 @@ function readable(html) {
   return body
     .replace(/<script[\s\S]*?<\/script>/g, " ")
     .replace(/<style[\s\S]*?<\/style>/g, " ")
-    .replace(/<\/(div|p|td|th|tr|li|h1|h2|span|section)>/g, "\n")
+    // A figure's "why" (FigureWhy) is a closed <details>: its sentence is not
+    // on the screen, and read as text it joined the figure's own line ("-6
+    // -6: 44 gross, …"), so the net board seemed to print no scores at all.
+    .replace(/<span class="why-says"[\s\S]*?<\/span>/g, " ")
+    .replace(/<\/(div|p|td|th|tr|li|h1|h2|span|section|summary)>/g, "\n")
     .replace(/<[^>]*>/g, " ")
     .replace(/&rsquo;|&#x27;|&#8217;|’/g, "'")
     .replace(/&amp;/g, "&")

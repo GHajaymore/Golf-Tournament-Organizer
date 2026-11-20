@@ -10,7 +10,8 @@ import { requestOrigin } from "@/lib/request-origin";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 
 export type RecordPrintedResult =
-  | { ok: true; stamps: Record<string, { words: string; version: number }> }
+  /** `recorded: false` — an archived tournament: printed, and nothing written (no stamps). */
+  | { ok: true; stamps: Record<string, { words: string; version: number }>; recorded?: false }
   | { ok: false; error: string };
 
 async function requireStaffSession() {
@@ -43,12 +44,18 @@ export async function recordPrinted(
   by?: { cards?: unknown; signs?: unknown },
 ): Promise<RecordPrintedResult> {
   const session = await requireStaffSession();
-  // A lapsed club's tournament is a read-only archive: nothing is written to it, not even what was printed.
-  const archived = await archiveRefusalFor(session.eventId, "organizer");
-  if (archived) return { ok: false, error: archived };
   if (typeof stageId !== "string" || !Array.isArray(sheets) || sheets.length === 0 || sheets.length > MAX_SHEETS) {
     return { ok: false, error: "Nothing to print." };
   }
+  /**
+   * A lapsed club's tournament is a read-only archive: nothing is written to it,
+   * not even what was printed — but its sheets still PRINT (2026-11-10, the
+   * panel). Printing changes no record; only this log does. So the archive is
+   * answered with a print and no record: no stamps, nothing saved, and the
+   * caller goes on to the printer.
+   */
+  const archived = await archiveRefusalFor(session.eventId, "organizer");
+  if (archived) return { ok: true, stamps: {}, recorded: false };
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId: session.eventId },
     select: { id: true, printLog: true },

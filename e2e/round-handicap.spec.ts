@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * WHAT ONE PLAYER PLAYS OFF IN ONE ROUND, AND THEIR INDEX — SET BY HAND.
@@ -190,7 +191,7 @@ test("the secretary changes a member's index from the round, and Members shows i
     const b = changes.nth(i);
     const who = ((await b.getAttribute("aria-label")) ?? "").replace(/^Change /, "").replace(/'s handicap$/, "");
     await b.click();
-    await page.getByRole("radio", { name: /^Their handicap index/ }).check();
+    await pressRadio(page.getByRole("radio", { name: /^Their handicap index/ }));
     const box = page.getByRole("textbox", { name: "Handicap index", exact: true });
     await expect(box, "the index box never filled in").not.toHaveValue("", { timeout: 20_000 });
     if (await tick.isVisible()) {

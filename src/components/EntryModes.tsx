@@ -1,8 +1,8 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ScoreImport } from "./ScoreImport";
-import { ClearScores } from "./ClearScores";
+import dynamic from "next/dynamic";
+import { PanelLoading, orNeedsSignal } from "./LazyPanel";
 import { DistanceUnitProvider } from "./DistanceUnitProvider";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
@@ -17,6 +17,19 @@ import type { VenueCourse } from "./VenuePrompt";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { screenName } from "@/lib/nav";
 import { Icon } from "./Icon";
+import { KnockoutTies } from "./KnockoutTies";
+import type { EntryTie, ThirdPlaceCard } from "@/lib/domain/knockout-ties";
+
+// Behind a press, and each writes to the server: not part of the first load of a
+// screen used on the course. See LazyPanel.tsx.
+const ScoreImport = dynamic(() => orNeedsSignal(() => import("./ScoreImport").then((m) => m.ScoreImport)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
+const ClearScores = dynamic(() => orNeedsSignal(() => import("./ClearScores").then((m) => m.ClearScores)), {
+  ssr: false,
+  loading: () => <PanelLoading />,
+});
 
 export interface EntryRound {
   stageId: string;
@@ -34,6 +47,11 @@ export interface EntryRound {
    * unchanged.
    */
   bracket?: boolean;
+  /**
+   * The knockout's ties as Score entry lists them, for staff (`scoreEntryTies`;
+   * cut 3, 2026-11-14). Absent for a player, who reads the bracket.
+   */
+  ties?: { ties: EntryTie[]; waiting: number; thirdPlace?: ThirdPlaceCard | null };
   /**
    * A team cup session. Its matches are the captains' lineup and nothing reads
    * a stroke card in it, so it is entered match by match and offers no "Whole
@@ -57,6 +75,12 @@ export interface EntryRound {
   teeId: string;
   /** The name of the set "the tournament's" resolves to here, or "". */
   inheritedTeeName?: string;
+  /**
+   * Why this round's course and tees cannot change now, or null — the rounds
+   * rule's sentence (`roundRefusalsFor(…, "round-tees")`, the map
+   * `setStageCourse` refuses from), so Tees is drawn shut, not offered and refused.
+   */
+  teesDoor: string | null;
   /**
    * The card this round will actually be scored against, and whether that
    * card exists.
@@ -458,6 +482,7 @@ export function EntryModes({
           venue={round.venue}
           teeId={round.teeId}
           inheritedTeeName={round.inheritedTeeName}
+          teesDoor={round.teesDoor}
           // Staff, as `setStageCourse` is (Ajay, 2026-09-27) — an assistant
           // sets the course and tees; only the directory search stays the
           // organizer's, since it spends the shared lookup allowance.
@@ -471,13 +496,20 @@ export function EntryModes({
       {bracket ? (
         <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>{round.label} is the knockout</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "62ch" }}>
-            {isStaff
-              ? "Its matches are recorded on the bracket: click the winner of each match, and add the result (3&2, 1 up) if you like. Winners go through to the next round on their own."
-              : "Its results go on the bracket as each match is decided."}
+          <p
+            className={isStaff && round.ties ? undefined : "text-muted"}
+            // The tie list is read outdoors: full text colour at 15 px (SUNLIGHT_RATIO), not muted 13 px.
+            style={isStaff && round.ties ? { fontSize: 15, margin: 0, lineHeight: 1.5, color: "var(--color-text)" } : { fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "62ch" }}
+          >
+            {isStaff && round.ties
+              ? "Record each tie below. Winners go through to the next round on their own."
+              : isStaff
+                ? "Its matches are recorded on the bracket: click the winner of each match, and add the result (3&2, 1 up) if you like. Winners go through to the next round on their own."
+                : "Its results go on the bracket as each match is decided."}
           </p>
-          <Link href="/bracket" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-            <Icon name="tree-structure" /> Open the {screenName("/bracket")}
+          {isStaff && round.ties && <KnockoutTies ties={round.ties.ties} waiting={round.ties.waiting} thirdPlace={round.ties.thirdPlace ?? null} />}
+          <Link href="/bracket" className={isStaff && round.ties ? "btn btn-ghost" : "btn btn-primary"} style={{ alignSelf: "flex-start", minHeight: 48 }}>
+            <Icon name="tree-structure" /> {isStaff && round.ties ? "See the whole draw" : `Open the ${screenName("/bracket")}`}
           </Link>
         </div>
       ) : mode === "match" ? (

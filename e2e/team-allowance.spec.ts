@@ -3,6 +3,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { makeCommitteeCorrection } from "./committee-correction";
 
 /**
  * A COMMITTEE CHANGES A FOUR-BALL'S ALLOWANCE, AND THE BOARD IS RE-SCORED BY
@@ -34,7 +35,7 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  *                                 (and at least one side's would be different
  *                                 rounded first — or this proves nothing)
  *   the board the club sends   → the same nets, signed out
- *   setup is locked            → the allowance cannot be changed; Unlock setup
+ *   launched, scores in        → Save IS offered (J12 PR 7b); a correction opens how many count
  *   Change → "9o", then 0      → refused beside the box, nothing stored
  *   Change → 100 → Save        → ASKED first, with the number of cards at stake;
  *                                 "Keep 85%" stores nothing
@@ -142,7 +143,6 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   expect(stage.format, "the seeded round is not a four-ball").toBe("Four-Ball");
   expect(stage.type, "the seeded four-ball is not a stroke-play round").toBe("Stroke Play Round");
   expect(stage.handicapAllowance, "the seeded round carries an allowance of the committee's own").toBe(0);
-  expect(event.configUnlocked, "the seeded four-ball's setup is already unlocked").toBe(false);
 
   // ── The round, read from the rows: tees, card, sides, and each ball's card ──
   const strokeIndex = JSON.parse(event.customStrokeIndex) as number[];
@@ -260,20 +260,22 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   await expect(allowance).toContainText("85%");
   await expect(allowance, "a four-ball at stroke play is not offered the Rules' 85%").toContainText("the recommended allowance for this format");
 
-  // Locked: pressing Change opens the box, and Save is not offered to be pressed.
+  // NOT locked by launch (J12, state machine PR 7b): the allowance asks the rounds rule — a round of
+  // cards with scores in is asked first, below — so Save is offered on the live round.
   /** The line that starts with these words, and the button beside it. */
   const changeBeside = (words: RegExp) =>
     card.locator("div", { has: page.locator("p", { hasText: words }) }).last().getByRole("button", { name: "Change", exact: true });
   await changeBeside(/^Handicap allowance/).click();
   await expect(card.getByLabel("Handicap allowance percent")).toBeVisible();
-  await expect(card.getByRole("button", { name: "Save", exact: true }), "Save is offered on a locked round").toBeDisabled();
+  await expect(card.getByRole("button", { name: "Save", exact: true }), "the live round's allowance is shut by launch").toBeEnabled();
 
-  await page.getByRole("button", { name: /^Unlock setup$/ }).first().click();
+  // How many balls count IS still locked by launch: the committee correction opens it for the walk's end.
+  await makeCommitteeCorrection(page);
   await expect
-    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, {
-      message: "Unlock setup stored nothing",
+    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).correctionScope, {
+      message: "the committee correction stored nothing",
     })
-    .toBe(true);
+    .toBe("rounds");
 
   // ── refused beside the box ─────────────────────────────────────────────────
   const change = async () => {
@@ -300,7 +302,10 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   const asked = card.locator("b", { hasText: /This round already has \d+ cards? entered\./ });
   await expect(asked, "the round was not asked about before being re-scored").toBeVisible();
   await expect(asked).toContainText(`This round already has ${cardsIn} cards entered.`);
-  await expect(card.getByText(/Changing the allowance re-scores every one of them/)).toBeVisible();
+  // The Golf Pro's words (J12, PR 7b): a term changed after play, what is worked out again, and money.
+  await expect(
+    card.getByText(`This changes a term of the competition after play. Every net score in Round 1 (${cardsIn} cards) is worked out again. Money is final-only, so nothing paid changes.`),
+  ).toBeVisible();
   expect(await stored(), "the allowance was stored before the question was answered").toBe(0);
   await card.getByRole("button", { name: "Keep 85%", exact: true }).click();
   await expect(asked).toBeHidden();

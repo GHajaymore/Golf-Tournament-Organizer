@@ -267,6 +267,15 @@ describe("how much testing a changed file asks for", () => {
     expect(tierOf("src\\lib\\domain\\stroke.ts")).toBe("core");
   });
 
+  it("a developer-only diagnostic is tooling, so it needs no round", () => {
+    expect(tierOf("scripts/prisma-client-check.mjs")).toBe("tests");
+    expect(tierOf("scripts/prisma-client-check.mjs")).not.toBe("function");
+    // Its neighbours in the same list stay where they are.
+    expect(tierOf("scripts/seed-club.mjs")).toBe("tests");
+    // A script the app runs is still function, not tooling.
+    expect(tierOf("scripts/build-checked.mjs")).not.toBe("tests");
+  });
+
   it("every file named as core, by its own name, is there — a rename cannot quietly demote it", () => {
     const gone: string[] = [];
     for (const [tier, patterns] of TIER_RULES as Array<[string, string[]]>) {

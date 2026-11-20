@@ -17,6 +17,10 @@ import {
   SEND_PATIENCE_MS,
   NO_CARD_REVISION,
   NAG_AFTER_MS,
+  overwritesUnseen,
+  overwritesUnseenFromAll,
+  recoveredMatchCard,
+  unanchoredMatchSave,
   pendingKey,
   RETRY_EVERY_MS,
   shouldPoll,
@@ -204,6 +208,100 @@ describe("noticing that a replay would overwrite somebody", () => {
     // would put a scary prompt in front of every scorer on a fresh card.
     expect(staleAgainst("", "rev-2")).toBe(false);
     expect(staleAgainst("rev-1", "")).toBe(false);
+  });
+});
+
+describe("the one conflict rule for a card written whole (overwritesUnseen)", () => {
+  // A match's tap card, hashed like a stroke card.
+  const blanks = cardRevision([null, null, null]);
+  const holeOne = cardRevision(["A", null, null]);
+  const fiveAndFour = cardRevision(["A", "A", null]);
+
+  it("refuses a write started from an older card than the one stored", () => {
+    // G571-4: the hole-1 save replayed after the committee's 5&4 was signed off.
+    expect(overwritesUnseen(blanks, fiveAndFour, holeOne)).toBe(true);
+  });
+
+  it("takes a write started from the card stored", () => {
+    expect(overwritesUnseen(holeOne, holeOne, fiveAndFour)).toBe(false);
+  });
+
+  it("takes the same card sent twice: it overwrites nothing", () => {
+    expect(overwritesUnseen(blanks, holeOne, holeOne)).toBe(false);
+  });
+
+  it("no starting card is the old unconditional write", () => {
+    expect(overwritesUnseen(undefined, fiveAndFour, holeOne)).toBe(false);
+    expect(overwritesUnseen("", fiveAndFour, holeOne)).toBe(false);
+  });
+
+  it("a hole result and a stroke never hash alike", () => {
+    expect(cardRevision(["A"])).not.toBe(cardRevision([1]));
+  });
+
+  it("asked of several starting cards: taken when ANY of them is the card stored", () => {
+    // A save with no signal (hole one never stored), then a tap: the list names both.
+    expect(overwritesUnseenFromAll([blanks, holeOne], blanks, fiveAndFour)).toBe(false);
+    expect(overwritesUnseenFromAll([blanks, holeOne], holeOne, fiveAndFour)).toBe(false);
+  });
+
+  it("asked of several starting cards: refused when NONE of them is (the G571-4 replay)", () => {
+    expect(overwritesUnseenFromAll([blanks, holeOne], fiveAndFour, cardRevision(["A", "B", null]))).toBe(true);
+    // ... and the same card twice is still not a conflict.
+    expect(overwritesUnseenFromAll([blanks], holeOne, holeOne)).toBe(false);
+    // An empty list names no starting point: the unconditional write, as no list at all.
+    expect(overwritesUnseenFromAll([], fiveAndFour, holeOne)).toBe(false);
+  });
+});
+
+describe("a match save that names no starting card (unanchoredMatchSave)", () => {
+  const holeOne = cardRevision(["A", null, null]);
+  const fiveAndFour = cardRevision(["A", "A", null]);
+
+  it("may not change a signed-off result — the tap card's hole-1 save sent again after the committee confirmed 5&4", () => {
+    expect(unanchoredMatchSave("confirmed", fiveAndFour, holeOne)).toBe("refuse");
+  });
+
+  it("the same card over a signed-off result is taken without a write, so the sign-off stands", () => {
+    expect(unanchoredMatchSave("confirmed", fiveAndFour, fiveAndFour)).toBe("same");
+  });
+
+  it("over a result not signed off it is the old write — a scorer tapping on, a pending or disputed match", () => {
+    for (const status of ["pending", "disputed", ""]) {
+      expect(unanchoredMatchSave(status, holeOne, fiveAndFour), status).toBe("write");
+      expect(unanchoredMatchSave(status, holeOne, holeOne), status).toBe("write");
+    }
+  });
+});
+
+describe("a tap card left on the phone, met again when the card is drawn (recoveredMatchCard)", () => {
+  const n = null;
+
+  it("is forgotten when the server already holds every hole of it — its save landed and the answer was lost", () => {
+    expect(recoveredMatchCard(["A", n, n], ["A", n, n], 3)).toBe("drop");
+  });
+
+  it("is forgotten when the server has moved on and holds all of it and more — the committee's 5&4 over the phone's hole 1", () => {
+    expect(recoveredMatchCard(["A", n, n, n, n], ["A", "A", "A", "A", "A"], 5)).toBe("drop");
+  });
+
+  it("is sent when it only adds holes the server has not got — holes kept with no signal", () => {
+    expect(recoveredMatchCard(["A", "B", "H"], [n, n, n], 3)).toBe("send");
+    expect(recoveredMatchCard(["A", "B", "H"], ["A", n, n], 3)).toBe("send");
+  });
+
+  it("is a conflict when it adds holes AND would change one the server has", () => {
+    expect(recoveredMatchCard(["A", "A", n], ["B", n, n], 3)).toBe("conflict");
+    expect(recoveredMatchCard(["A", "A", n], [n, n, "H"], 3)).toBe("conflict");
+  });
+
+  it("a hole cleared on the phone and never sent is the server's: the copy is forgotten", () => {
+    expect(recoveredMatchCard([n, n, n], ["A", n, n], 3)).toBe("drop");
+  });
+
+  it("reads the round's holes only, and a short copy as blanks", () => {
+    expect(recoveredMatchCard(["A"], ["A", n, n], 3)).toBe("drop");
+    expect(recoveredMatchCard(["A", n, n, "B"], ["A", n, n], 3)).toBe("drop");
   });
 });
 

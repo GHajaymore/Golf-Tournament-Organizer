@@ -48,7 +48,7 @@ describe("a gross competition is decided on gross", () => {
   it("treats two players level on gross as level, whatever their nets", () => {
     /**
      * THE MEASURED DEFECT. Read off the seeded Demo Cup on 2026-09-15, a
-     * gross competition: Elena 70/64 was given 3rd, Sang-woo 70/65 4th and AJ
+     * gross competition: Elena 70/64 was given 3rd, Sang-woo 70/65 4th and Ned
      * 70/68 5th. Three players level on the only score that competition uses,
      * placed by handicap — in the format whose whole point is to exclude it.
      */

@@ -37,6 +37,13 @@ const EMAIL = `${TAG}.sec@example.invalid`.toLowerCase();
 const session = { email: EMAIL, name: `${TAG} secretary`, eventId: "", role: "admin" };
 vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: async () => {} }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+// "A club that plays off GHIN" is the service-only rule, dormant while no
+// federation link is live (the team's ruling, 2026-10-24: a stored "ghin" then
+// reads as the club's own). That block forces the switch on, because it is the
+// rule the day a link is live; `service-only-reads-as-the-clubs-own.audit.test.ts`
+// holds today's behaviour.
+const link = vi.hoisted(() => ({ live: false }));
+vi.mock("@/lib/integrations/federation-link", () => ({ federationLinkLive: () => link.live }));
 
 const { addMember, updateMember } = await import("@/app/actions/roster");
 
@@ -142,6 +149,13 @@ describe("adding a member", () => {
 });
 
 describe("a club that plays off GHIN", () => {
+  beforeAll(() => {
+    link.live = true;
+  });
+  afterAll(() => {
+    link.live = false;
+  });
+
   it("can add a member with no figure — the form's empty box is not an index typed by hand", async () => {
     session.eventId = ghinEventId;
     const email = `${TAG}.g1@example.invalid`.toLowerCase();

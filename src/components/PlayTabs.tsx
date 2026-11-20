@@ -12,9 +12,11 @@ import { PLAYER_TABS, PLAYER_MONEY_TAB } from "@/lib/player-nav";
  * title at all and read the marketing sentence instead.
  */
 
-export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
+export function PlayTabs({ showMoney = false, guest = false }: { showMoney?: boolean; guest?: boolean }) {
   const path = usePathname();
-  const tabs = showMoney ? [...PLAYER_TABS, PLAYER_MONEY_TAB] : PLAYER_TABS;
+  const all = showMoney ? [...PLAYER_TABS, PLAYER_MONEY_TAB] : PLAYER_TABS;
+  // A guest's player link is one event (J39/J40): no Events tab, which lists the club's.
+  const tabs = guest ? all.filter((t) => t.href !== "/me/events") : all;
 
   return (
     <nav

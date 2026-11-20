@@ -2,7 +2,7 @@ import { cutAfterRound } from "@/lib/domain/cut-ready";
 import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/page-helpers";
+import { requirePlayingViewer } from "@/lib/page-helpers";
 import { loadEventState, scoringFrom } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
 import {
@@ -14,6 +14,7 @@ import {
   rulesInPlay,
   type RuleRef,
 } from "@/lib/rules";
+import { netCountbackMethodFor } from "@/lib/domain/stroke-countback";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
@@ -64,7 +65,7 @@ function RuleLink({ rule }: { rule: RuleRef }) {
  * as reference.
  */
 export default async function PlayRulesPage() {
-  const session = await requireSession();
+  const session = await requirePlayingViewer();
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 
@@ -99,11 +100,13 @@ export default async function PlayRulesPage() {
         holes: holesPlayed(stage.holes),
         scoringBasis: stage.scoringBasis,
         handicapAllowance: stage.handicapAllowance,
+        allowanceWeights: stage.allowanceWeights,
         countBest: stage.countBest,
         tiebreakers,
         cutAfter: cutAfterRound(state.playRounds, stage.id),
         carryForwardEnabled: stage.carryForwardEnabled,
         carryForwardPct: stage.carryForwardPct,
+        netCountback: netCountbackMethodFor(state.event.createdAt),
       })
     : [];
 

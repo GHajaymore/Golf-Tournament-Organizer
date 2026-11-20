@@ -2,6 +2,7 @@ import { hasLeftTheField } from "../domain/left-the-field";
 import "server-only";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
+import { sideNamesOf } from "./side-names";
 import type { EventState } from "./tournament";
 import { parseStrokeCards, playingStages } from "./tournament";
 import { tournamentResult, type OutingLine, type RoundOutcome } from "../domain/tournament-result";
@@ -10,12 +11,13 @@ import { isManualFormat, needsTeams, boardKind } from "../formats";
 import { skinsBoard, nassauBoard } from "./points-standings";
 import { roundUnit } from "../domain/round-unit";
 import { isHeadToHead } from "../stage-types";
-import { resolveMatch } from "../domain/match";
+import { resolveMatch, matchIsOver } from "../domain/match";
 import { aggregateStroke } from "../domain/stroke-agg";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
 import { holesPlayed } from "../domain/handicap";
 import { roundCard } from "./course-resolution";
 import { teamStandings } from "./teams";
+import { cardsOnBoard, onBoard } from "../domain/board-hold";
 
 /**
  * WHAT HAPPENED, ROUND BY ROUND — the day's result for any kind of play.
@@ -47,7 +49,7 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
   const stages = playingStages(state.stages);
   if (stages.length === 0) return [];
 
-  const [cardRows, courses] = await Promise.all([
+  const [cardRows, courses, teamNameOf] = await Promise.all([
     prisma.scorecard.findMany({
       where: { eventId: state.event.id },
       select: { playerId: true, stageId: true, strokes: true, status: true },
@@ -56,9 +58,24 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
       where: { ...playedOnBy(state.event.id) },
       select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
     }),
+    sideNamesOf(
+      state.event.id,
+      state.matches.flatMap((m) => [m.teamAId, m.teamBId]),
+    ),
   ]);
 
   const nameOf = new Map(state.players.map((p) => [p.id, p.name]));
+  /**
+   * A TEAM MATCH LEAVES ITS PLAYER COLUMNS EMPTY (four-ball, foursomes, a cup's
+   * matches), so its sides are named the way the match card names them
+   * (`matchCardFor`): by the team's own name, which for a pair is the pair's
+   * names ("Third & Fourth").
+   */
+  const sideOf = (m: { playerAId: string | null; playerBId: string | null; teamAId: string; teamBId: string }, side: "A" | "B") => {
+    const playerId = (side === "A" ? m.playerAId : m.playerBId) ?? "";
+    const teamId = side === "A" ? m.teamAId : m.teamBId;
+    return { id: playerId || teamId, name: nameOf.get(playerId) ?? teamNameOf.get(teamId) };
+  };
 
   /**
    * EACH ROUND'S OWN CARD, KEYED BY ROUND — and read by round id below rather
@@ -159,6 +176,8 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
     if (isHeadToHead(stage.type)) {
       const played = state.matches
         .filter((m) => m.stageId === stage.id)
+        // A match result in dispute is held, as it is on the board.
+        .map(onBoard)
         .map((m) => {
           let holes: ("A" | "B" | "H" | null)[] = [];
           try {
@@ -166,9 +185,12 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
           } catch {
             holes = [];
           }
-          return { match: m, result: resolveMatch(holes) };
+          return { match: m, result: resolveMatch(holes), over: matchIsOver(holes) };
         })
-        .filter((m) => m.result.complete);
+        // ARRANGED IS NOT HAPPENED: a match drawn and not begun has no holes and
+        // `resolveMatch([]).complete` is true, "halved". `matchIsOver` also asks
+        // whether a hole was played.
+        .filter((m) => m.over);
       if (played.length === 0) return { kind: "pending", label };
       /**
        * ONE MATCH IS A MATCH; SEVERAL ARE A ROUND OF THEM. A single match
@@ -178,8 +200,8 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
        */
       if (played.length === 1) {
         const { match, result } = played[0];
-        const a = nameOf.get(match.playerAId ?? "") ?? "Side A";
-        const b = nameOf.get(match.playerBId ?? "") ?? "Side B";
+        const a = sideOf(match, "A").name ?? "Side A";
+        const b = sideOf(match, "B").name ?? "Side B";
         if (result.winner === "H" || !result.winner) {
           return { kind: "match", label, winner: a, loser: b, margin: "halved" };
         }
@@ -189,15 +211,19 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
           : { kind: "match", label, winner: b, loser: a, margin };
       }
       const wins = new Map<string, number>();
+      const winnerNames = new Map<string, string>();
       for (const { match, result } of played) {
-        const id = result.winner === "A" ? match.playerAId : result.winner === "B" ? match.playerBId : null;
-        if (id) wins.set(id, (wins.get(id) ?? 0) + 1);
+        const side = result.winner === "A" ? sideOf(match, "A") : result.winner === "B" ? sideOf(match, "B") : null;
+        if (side?.id) {
+          wins.set(side.id, (wins.get(side.id) ?? 0) + 1);
+          if (side.name) winnerNames.set(side.id, side.name);
+        }
       }
       const most = Math.max(0, ...wins.values());
       if (most === 0) return { kind: "pending", label, note: "Every match halved" };
       const winners = [...wins.entries()]
         .filter(([, n]) => n === most)
-        .map(([id]) => ({ name: nameOf.get(id) ?? "—", score: String(most) }));
+        .map(([id]) => ({ name: winnerNames.get(id) ?? "—", score: String(most) }));
       return { kind: "stroke", label, winners, unit: most === 1 ? "win" : "wins" };
     }
 
@@ -296,9 +322,9 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
      * index for a year — see `courseForRound`, which exists for exactly that.
      */
     const holes = holesPlayed(stage.holes);
-    const cards = parseStrokeCards(
-      cardRows.filter((c) => c.stageId === stage.id && c.status !== "disputed"),
-    );
+    // A card held in dispute is not a result yet — the same rule as the live
+    // board (`cardsOnBoard`, domain/board-hold.ts).
+    const cards = parseStrokeCards(cardsOnBoard(cardRows.filter((c) => c.stageId === stage.id)));
     if (cards.length === 0) return { kind: "pending", label };
 
     const agg = aggregateStroke(cards, {

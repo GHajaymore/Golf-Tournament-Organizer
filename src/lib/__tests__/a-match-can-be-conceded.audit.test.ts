@@ -87,7 +87,7 @@ beforeAll(async () => {
       name: `${TAG} outing`,
       organizationId: org.id,
       format: "match",
-      status: "active",
+      status: "live",
       dates: "",
       course: "",
       city: "",

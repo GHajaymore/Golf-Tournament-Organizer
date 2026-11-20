@@ -3,6 +3,8 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { makeCommitteeCorrection } from "./committee-correction";
+import { heldFromBoard } from "../src/lib/domain/board-hold";
 
 /**
  * A COMMITTEE CHANGES A MEDAL'S ALLOWANCE, AND EVERY NET ON THE BOARD IS THE
@@ -21,12 +23,13 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  *
  *   the board                  → every complete card's NET is the Rule's at 95%
  *                                 (and at least one would be different at 100%,
- *                                 or nothing below could fail)
+ *                                 or nothing below could fail); the one complete
+ *                                 card in dispute ranks nothing at any figure
  *   the round's card           → "Handicap allowance 95% — the recommended
  *                                 allowance for this format", with Change
  *   the rules sheet            → says 95% of course handicap, to the organizer
  *                                 and to a player, which it used not to say
- *   setup is locked            → Save is not offered; Unlock setup
+ *   launched, scores in        → Save IS offered (J12 PR 7b: the rounds rule, not the lock)
  *   Change → "9o", then 0      → refused beside the box, nothing stored
  *   Change → 100 → Save        → ASKED first, with the number of cards at stake;
  *                                 "Keep 95%" stores nothing
@@ -142,7 +145,6 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
   expect(stage.type).toBe("Stroke Play Round");
   expect(stage.scoringBasis, "the seeded medal is not a net competition").toBe("net");
   expect(stage.handicapAllowance, "the seeded medal carries an allowance of the committee's own").toBe(0);
-  expect(event.configUnlocked, "the seeded medal's setup is already unlocked").toBe(false);
   expect(await prisma.roundHandicap.count({ where: { stageId: stage.id } }), "the seeded round holds frozen or overridden handicaps this spec does not model").toBe(0);
 
   // ── the round, read from the rows ──────────────────────────────────────────
@@ -172,11 +174,21 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
   // counted in strokes, over eighteen holes, so it applies.
   const lowestPar = Math.min(...(await Promise.all(players.filter((p) => p.status === "confirmed").map(teeOf))).map((t) => t.par));
   const complete: Card[] = [];
+  /**
+   * A complete card in dispute is held off the board until the Committee
+   * decides it (Rule 20.2c; `heldFromBoard`, 2026-11-04) — the seeded medal
+   * holds one. It has no net at any allowance, so it is held to printing none.
+   */
+  const disputed: string[] = [];
   for (const c of stored) {
     const strokes = JSON.parse(c.strokes) as (number | null)[];
     if (strokes.length !== 18 || strokes.some((s) => typeof s !== "number" || s <= 0)) continue;
     const p = players.find((x) => x.id === c.playerId);
     if (!p || p.status !== "confirmed") continue;
+    if (heldFromBoard(c.status)) {
+      disputed.push(p.name);
+      continue;
+    }
     expect(p.handicapType, `${p.name} holds a nine-hole index`).not.toBe("9");
     const tee = await teeOf(p);
     complete.push({
@@ -190,6 +202,8 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
   // CONTROL: somebody checked is on tees of a higher par, or a board that left out 6.2b would pass.
   expect(complete.filter((c) => c.parStrokes > 0).length, "no checked card is on tees of a higher par than the field's lowest").toBeGreaterThan(0);
   expect(complete.length, "almost no seeded card is complete").toBeGreaterThanOrEqual(6);
+  // CONTROL: a complete card in dispute is in the field, so a board that ranked one would be caught.
+  expect(disputed.length, "the seeded medal holds no complete card in dispute").toBeGreaterThan(0);
   const expected = (pct: number) => new Map(complete.map((c) => [c.name, totals(c, strokeIndex, pct)]));
 
   // CONTROL: the two figures give different nets on this field, so a board that ignored the change would be caught.
@@ -206,6 +220,10 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
     for (const [name, want] of expected(pct)) {
       expect(drawn.get(name), `${what}: ${name} has a complete card and is not on the board`).toBeTruthy();
       expect(drawn.get(name), `${what}: ${name}`).toEqual(want);
+    }
+    for (const name of disputed) {
+      const row = drawn.get(name);
+      expect(Number.isFinite(row?.gross ?? NaN) || Number.isFinite(row?.net ?? NaN), `${what}: ${name}'s card is in dispute and the board ranks it`).toBe(false);
     }
   };
   const holds = (pct: number, what: string) => holdsOn(page, "/leaderboard", pct, what);
@@ -269,14 +287,16 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
     const changeButton = () =>
       card.locator("div", { has: page.locator("p", { hasText: /^Handicap allowance/ }) }).last().getByRole("button", { name: "Change", exact: true });
 
-    // Locked: the box opens, and Save is not offered to be pressed.
+    // NOT locked by launch (J12, state machine PR 7b): the allowance asks the rounds rule, and a round
+    // with scores in is asked first (below) — so Save is offered on the live medal.
     await changeButton().click();
     await expect(card.getByLabel("Handicap allowance percent")).toBeVisible();
-    await expect(card.getByRole("button", { name: "Save", exact: true }), "Save is offered on a locked round").toBeDisabled();
-    await page.getByRole("button", { name: /^Unlock setup$/ }).first().click();
+    await expect(card.getByRole("button", { name: "Save", exact: true }), "the live medal's allowance is shut by launch").toBeEnabled();
+    // A committee correction to the rounds changes nothing for the allowance; kept, so the walk is the same with one open.
+    await makeCommitteeCorrection(page);
     await expect
-      .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, { message: "Unlock setup stored nothing" })
-      .toBe(true);
+      .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).correctionScope, { message: "the committee correction stored nothing" })
+      .toBe("rounds");
 
     // ── refused beside the box ───────────────────────────────────────────────
     const change = async () => {
@@ -303,7 +323,10 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
     const asked = card.locator("b", { hasText: /This round already has \d+ cards? entered\./ });
     await expect(asked, "the round was not asked about before being re-scored").toBeVisible();
     await expect(asked).toContainText(`This round already has ${cardsIn} cards entered.`);
-    await expect(card.getByText(/Each player receives a different number of strokes/)).toBeVisible();
+    // The Golf Pro's words (J12, PR 7b): a term changed after play, what is worked out again, and money.
+    await expect(
+      card.getByText(`This changes a term of the competition after play. Every net score in Round 1 (${cardsIn} cards) is worked out again. Money is final-only, so nothing paid changes.`),
+    ).toBeVisible();
     expect(await storedNow(), "the allowance was stored before the question was answered").toBe(0);
     await card.getByRole("button", { name: "Keep 95%", exact: true }).click();
     await expect(asked).toBeHidden();

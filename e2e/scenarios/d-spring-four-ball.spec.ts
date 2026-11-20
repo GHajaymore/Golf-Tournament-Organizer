@@ -1,7 +1,9 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
+import { makeCommitteeCorrection } from "../committee-correction";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
+import { seed, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament D: the Eagle club's Spring Four-Ball. The
@@ -48,6 +50,8 @@ test("five D", async ({ page, context, baseURL }, testInfo) => {
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
   const s = await seed();
   await as(context, baseURL!, s.club);
+  // Cards kept three ways, "each member their own" among them (`eachKeepsTheirOwn`).
+  await eachKeepsTheirOwn(D_NAME);
   // The active tournament is a cookie, and a fresh browser has none — so a
   // phase picks THIS run's tournament itself rather than trusting a fallback.
   if (await eventFacts(D_NAME)) {
@@ -143,7 +147,7 @@ test("five D", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
       await open(page, "/event");
       await page.locator("label", { hasText: "Anyone with the link" }).first().click();
       await page.getByRole("button", { name: /^Save/ }).last().click();
@@ -304,10 +308,8 @@ test("five D", async ({ page, context, baseURL }, testInfo) => {
       if (already > 0) {
         // Drawn with Round 1 — nothing to do here.
       } else if ((await draw.count()) && !(await draw.isEnabled())) {
-        note("setup is locked after launch — unlocking to draw Round 2's sides");
-        await page.getByRole("button", { name: /^Unlock setup/ }).click();
-        const confirm = page.getByRole("button", { name: /^(Unlock|Yes, unlock|Unlock setup)/ }).last();
-        if (await confirm.count()) await confirm.click().catch(() => {});
+        note("the sides are locked after launch — a committee correction to draw Round 2's sides");
+        await makeCommitteeCorrection(page);
         await expect(draw).toBeEnabled({ timeout: 20_000 });
       }
       if (already === 0 && (await draw.count())) {
@@ -354,7 +356,7 @@ test("five D", async ({ page, context, baseURL }, testInfo) => {
         await ready.getByRole("button", { name: /Close the round/ }).click();
         await page.waitForTimeout(3000);
       }
-      await page.getByRole("button", { name: "Complete tournament" }).first().click();
+      await pressComplete(page);
       await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
       await expect.poll(async () => (await eventFacts(D_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       await page.waitForTimeout(1500);

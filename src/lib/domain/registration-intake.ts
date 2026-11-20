@@ -16,7 +16,7 @@
  * than discovered in production against a real club's members.
  */
 
-import { registrationStatus, type RegistrationInput } from "../registration";
+import { entriesOpen, type RegistrationInput } from "../registration";
 import { readHandicapIndex } from "./handicap-label";
 import { EMAIL_RE } from "./typed-limits";
 
@@ -63,15 +63,14 @@ export interface IntakeInput {
  *     unlimited field (capacity 0) never waitlists.
  */
 export function decideIntake(input: IntakeInput): IntakeDecision {
-  if (!input.registrationOpen) return { accepted: false };
-
-  const status = registrationStatus(input.reg);
-  if (!status.acceptingEntries) return { accepted: false };
+  // The link and the dates are joined once, in `entriesOpen`.
+  const entries = entriesOpen({ ...input.reg, registrationOpen: input.registrationOpen });
+  if (!entries.open) return { accepted: false };
 
   if (input.approvalMode === "approve") {
     return { accepted: true, status: "pending", waitlisted: false };
   }
-  const waitlisted = status.waitlisting;
+  const waitlisted = entries.status.waitlisting;
   return { accepted: true, status: waitlisted ? "waitlisted" : "confirmed", waitlisted };
 }
 
@@ -219,9 +218,15 @@ export function looksLikePhone(raw: string): boolean {
   return digits.length >= 7 && digits.length <= 15;
 }
 
-/** Which contact details a tournament requires of every entrant. */
+/**
+ * Which contact details a tournament requires of every member it enters.
+ *
+ * NO EMAIL ANY MORE (Ajay, 2026-11-07: a member may enter without one). An
+ * email-only tournament given a member without an address turns Round Codes on
+ * (`codesOnForAnEntryWithoutEmail`) instead of refusing them, so an email is
+ * never a gap.
+ */
 export interface ContactNeeds {
-  email: boolean;
   phone: boolean;
 }
 
@@ -237,13 +242,12 @@ export interface ContactNeeds {
  * rule is right; finding out after the click is the fault. Both readers call
  * this, so the warning and the refusal cannot disagree.
  *
- * Email first, then mobile — the order the action has always reported them in.
+ * Only a mobile, since 2026-11-07: see `ContactNeeds`.
  */
 export function contactGap(
-  member: { email: string; phone: string },
+  member: { phone: string },
   needs: ContactNeeds,
-): "email" | "mobile" | null {
-  if (needs.email && !(member.email ?? "").trim()) return "email";
+): "mobile" | null {
   if (needs.phone && !looksLikePhone(member.phone ?? "")) return "mobile";
   return null;
 }

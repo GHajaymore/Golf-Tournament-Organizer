@@ -13,6 +13,14 @@
  * gross for a scratch one — because a net comp separated on gross would hand
  * the prize to the low handicapper the countback exists to stop.
  *
+ * ON A NET BASIS THE HANDICAP COMES OFF IN FRACTIONS (2026-11-09): the last
+ * nine less half the playing handicap, the last six less a third, the last
+ * three a sixth, the last hole an eighteenth (Committee Procedures 5A(7); see
+ * `CountbackCard.fractionOf`). It was hole-by-hole net, which the guidance
+ * keeps for competitions scored with the stroke table (four-ball stroke play,
+ * Stableford, par/bogey) and not for individual net stroke play. An event
+ * created before then keeps the hole-by-hole countback (`netCountbackMethodFor`).
+ *
  * Two deliberate departures from "just sort them":
  *
  *   - **A tie that survives every step stays a tie.** Players share the
@@ -33,11 +41,94 @@ export interface CountbackCard {
   /** The competition score — net for a net comp, gross for a scratch one. */
   total: number;
   /**
-   * Per-hole scores on the SAME basis as `total`, in hole order. A hole not
-   * returned is null, which the countback treats as unplayable rather than
-   * guessing.
+   * Per-hole scores on the SAME basis as `total`, in hole order — EXCEPT where
+   * `fractionOf` is set, when they are GROSS. A hole not returned is null,
+   * which the countback treats as unplayable rather than guessing.
    */
   holes: (number | null)[];
+  /**
+   * THE PLAYING HANDICAP, TAKEN OFF IN FRACTIONS (2026-11-09).
+   *
+   * Committee Procedures 5A(7) (R&A / USGA, Official Guide to the Rules of
+   * Golf): where "matching the cards" decides a tie in a handicap stroke-play
+   * competition, "one-half, one-third, one-sixth and one-eighteenth of the
+   * handicaps should be deducted from the score for the last 9, 6, 3 and last
+   * hole respectively". The same proportion — holes counted over holes played
+   * — on a nine-hole round: two-thirds, one-third and one-ninth for the last
+   * 6, 3 and 1. No fraction is rounded away: a 9 over the last nine takes off
+   * 4.5. Built ONLY by `countbackCardOn`; do not set it by hand.
+   *
+   * Absent, `holes` are already on the basis and nothing is taken off: gross,
+   * Stableford points (the guidance takes the strokes "as they were applied"
+   * where the stroke table is used, which a point already is), and a net card
+   * counted back hole by hole (`NetCountbackMethod`).
+   */
+  fractionOf?: number;
+}
+
+/**
+ * HOW A NET STROKE COMPETITION IS COUNTED BACK.
+ *
+ *   fractions     the guidance's default: gross over the step, less that
+ *                 step's fraction of the playing handicap (above)
+ *   hole-by-hole  each hole's net, the strokes where the stroke index put
+ *                 them — what this app did for every event until 2026-11-09
+ *
+ * The two give different winners. A 9 receives four of his strokes on a back
+ * nine with the even stroke indexes, so hole by hole he takes off 4 where the
+ * fraction takes off 4.5: 40 gross over the last nine is 36 one way and 35.5
+ * the other, against a scratch player's 36.
+ */
+export type NetCountbackMethod = "fractions" | "hole-by-hole";
+
+/**
+ * EVENTS CREATED FROM THIS MOMENT ARE COUNTED BACK BY FRACTIONS; an event
+ * created before it keeps the hole-by-hole countback it was played under.
+ *
+ * A board's places are worked out when it is read, not stored, so changing the
+ * method for everybody would silently re-order a finished event whose prizes
+ * were given on the old order. Asked of the event's CREATION rather than its
+ * completion, so no event ever changes method part-way: one created before
+ * this was counted back one way for its whole life, one created after it the
+ * other. (There is no per-event setting to choose between them yet — a
+ * committee option is noted in `docs/deferred-register.md`.)
+ */
+export const NET_COUNTBACK_FRACTIONS_FROM = new Date("2026-11-09T00:00:00Z");
+
+/** The method a net countback uses in an event created at `createdAt`. */
+export function netCountbackMethodFor(createdAt: Date | null | undefined): NetCountbackMethod {
+  // No date (a state built by hand in a test) is a new event.
+  if (!createdAt) return "fractions";
+  return createdAt.getTime() < NET_COUNTBACK_FRACTIONS_FROM.getTime() ? "hole-by-hole" : "fractions";
+}
+
+/**
+ * THE ONE PLACE A ROUND'S CARD BECOMES A COUNTBACK CARD, for every board that
+ * counts back an individual stroke round (the leaderboard and its cut, the
+ * report, a league night).
+ *
+ * `card` is the round's per-hole gross, net and points (`holesByStage`). On a
+ * net basis by fractions, the playing handicap is the strokes the round
+ * actually gave: gross less net, summed over the round — the figure the board
+ * priced the card with (allowance, par strokes and all), never re-derived.
+ */
+export function countbackCardOn(
+  playerId: string,
+  card: { gross: (number | null)[]; net: (number | null)[]; points: (number | null)[] } | undefined,
+  basis: RankingBasis,
+  method: NetCountbackMethod,
+): CountbackCard {
+  if (!card) return { playerId, total: 0, holes: [] };
+  if (basis === "stableford") return { playerId, total: 0, holes: card.points };
+  if (basis === "gross") return { playerId, total: 0, holes: card.gross };
+  if (method === "hole-by-hole") return { playerId, total: 0, holes: card.net };
+  let playing = 0;
+  for (let i = 0; i < card.gross.length; i += 1) {
+    const g = card.gross[i];
+    const n = card.net[i];
+    if (g != null && n != null && Number.isFinite(g) && Number.isFinite(n)) playing += g - n;
+  }
+  return { playerId, total: 0, holes: card.gross, fractionOf: playing };
 }
 
 /**
@@ -91,7 +182,68 @@ export function countbackCompare(
    */
   higherWins = false,
 ): number {
-  return countbackStep(a, b, holeCount, higherWins)?.compare ?? 0;
+  return countbackBetween(a, b, holeCount, higherWins).order;
+}
+
+/**
+ * WHAT A COUNTBACK FOUND, AND WHERE — the comparison above with its working
+ * kept (2026-10-24, "every figure explains itself").
+ *
+ * `countbackCompare` IS this function's `order`, so a board that ranks two
+ * players by countback and the sentence that says why cannot disagree: they are
+ * one call. `decidedBy` is the step that separated them — how many holes from
+ * the end, and each card's total over them — or null when nothing did, and then
+ * `incomplete` says whether that was because a card is not finished (a countback
+ * reads finished cards) or because the cards are level at every step.
+ */
+export interface CountbackDecision {
+  /** Negative when `a` ranks ahead, positive when `b` does, 0 when level. */
+  order: number;
+  decidedBy: { holes: number; a: number; b: number } | null;
+  /** The steps the two were level on before it was decided (or all of them). */
+  levelOn: number[];
+  /** A card was not complete over a step, so the countback could not be read. */
+  incomplete: boolean;
+}
+
+export function countbackBetween(
+  a: CountbackCard,
+  b: CountbackCard,
+  holeCount: number,
+  higherWins = false,
+): CountbackDecision {
+  const levelOn: number[] = [];
+  // Compared in whole numbers, scaled by the holes played, so a half-stroke
+  // fraction is exact: (sum x holes - handicap x n) is the step's figure times
+  // `holes` (see `CountbackCard.fractionOf`).
+  const holes = Math.max(1, holeCount);
+  const scaled = (sum: number, card: CountbackCard, n: number) => sum * holes - (card.fractionOf ?? 0) * n;
+  for (const n of countbackSegments(holeCount)) {
+    const ta = tailTotal(a.holes, n);
+    const tb = tailTotal(b.holes, n);
+    if (ta === null || tb === null) return { order: 0, decidedBy: null, levelOn, incomplete: true };
+    const sa = scaled(ta, a, n);
+    const sb = scaled(tb, b, n);
+    if (sa !== sb) {
+      return {
+        order: (higherWins ? sb - sa : sa - sb) / holes,
+        decidedBy: { holes: n, a: sa / holes, b: sb / holes },
+        levelOn,
+        incomplete: false,
+      };
+    }
+    levelOn.push(n);
+  }
+  return { order: 0, decidedBy: null, levelOn, incomplete: false };
+}
+
+/** The same decision read from the other card's side: `b` becomes `a`. */
+export function fromTheOtherSide(d: CountbackDecision): CountbackDecision {
+  return {
+    ...d,
+    order: d.order === 0 ? 0 : -d.order,
+    decidedBy: d.decidedBy ? { holes: d.decidedBy.holes, a: d.decidedBy.b, b: d.decidedBy.a } : null,
+  };
 }
 
 /**
@@ -99,9 +251,10 @@ export function countbackCompare(
  * six", "the last three", "the last hole" — as holes from the end, with the
  * comparison it gave. Null where the countback cannot separate them.
  *
- * The one ladder: `countbackCompare` is this, so the report's "won on
- * countback, last 9" can never name a different step from the one the board
- * placed them by (2026-10-23, the report's prize list).
+ * The one ladder: this is `countbackBetween` read for the report, and
+ * `countbackCompare` is the same call, so the report's "won on countback,
+ * last 9" can never name a different step from the one the board placed them
+ * by (2026-10-23, the report's prize list).
  */
 export function countbackStep(
   a: CountbackCard,
@@ -109,13 +262,8 @@ export function countbackStep(
   holeCount: number,
   higherWins = false,
 ): { holes: number; compare: number } | null {
-  for (const n of countbackSegments(holeCount)) {
-    const ta = tailTotal(a.holes, n);
-    const tb = tailTotal(b.holes, n);
-    if (ta === null || tb === null) return null;
-    if (ta !== tb) return { holes: n, compare: higherWins ? tb - ta : ta - tb };
-  }
-  return null;
+  const d = countbackBetween(a, b, holeCount, higherWins);
+  return d.decidedBy ? { holes: d.decidedBy.holes, compare: d.order } : null;
 }
 
 /**
@@ -192,7 +340,7 @@ export interface BasisScore {
  *
  *     rank 3  gross 70  net 64  Elena Petrova
  *     rank 4  gross 70  net 65  Sang-woo Kim
- *     rank 5  gross 70  net 68  AJ
+ *     rank 5  gross 70  net 68  Ned
  *
  * Three players level on gross, given three different places off their net
  * scores — in a scratch competition, where handicap is the thing the format

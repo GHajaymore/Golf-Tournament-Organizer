@@ -31,7 +31,10 @@ describe("organizer-only controls are gated on the organizer", () => {
     expect(page).toMatch(/canSetTees=\{session\.viewRole === "admin"\}/);
     // And the select reads THAT flag, not the staff one.
     const board = readSource("src", "components", "FlightBoard.tsx");
-    expect(board).toMatch(/disabled=\{locked \|\| !canSetTees \|\| pending\}/);
+    // (Also shut by the rounds rule's door since 10 Nov — `teesShutBy`, the round G594-1 finding;
+    // the guarantee here is only that it is the organizer's flag, not the staff one.)
+    expect(board).toMatch(/disabled=\{locked \|\| !canSetTees \|\| pending( \|\| teesShutBy !== null)?\}/);
+    expect(board).not.toMatch(/disabled=\{locked \|\| !canEdit \|\| pending[^}]*\}\s*aria-describedby=\{teesShutBy/);
   });
 
   it("clearing a round's scores (clearRoundScores)", () => {

@@ -288,7 +288,7 @@ describe("the owner card says what one press will do, from the inventory", () =>
 describe("the free plan is offered nowhere while held, and everywhere once live", () => {
   const prices = landingPrices(editionFor("US"), parsePricingOverrides(undefined));
   const offers = (launch: LaunchState) => {
-    const data = siteStructuredData({ origin: "https://zz.example.invalid", launch }) as { "@graph": Array<{ offers?: Array<{ name: string; price: string }> }> };
+    const data = siteStructuredData({ origin: "https://zz.example.invalid", country: "US", launch }) as { "@graph": Array<{ offers?: Array<{ name: string; price: string }> }> };
     return data["@graph"].flatMap((n) => n.offers ?? []);
   };
 
@@ -376,5 +376,25 @@ describe("held and live words are written in one place", () => {
     expect(offences("src/components/Zz.tsx", `const s = ${JSON.stringify(INTEREST_PAGE.live.sub)};`).length).toBeGreaterThan(0);
     expect(own.size, "the module's words were not collected").toBeGreaterThan(30);
     expect(files.length, "the walk found no source").toBeGreaterThan(300);
+  });
+});
+
+/**
+ * A GUEST'S PLAYER LINK IS NEVER HELD (J39/J40; Ajay, 7 Nov, D9): guest links
+ * work in production before launch, like round codes. The exception is listed
+ * as not moving with the switch, and the guest session never asks the hold —
+ * nor makes a User session, which would.
+ */
+describe("the guest player link does not move with the switch", () => {
+  it("is listed as not switched, beside the round codes", () => {
+    const ids = NOT_SWITCHED.map((n) => n.id);
+    expect(ids).toContain("player-links");
+    expect(ids.indexOf("player-links")).toBe(ids.indexOf("round-codes") + 1);
+  });
+  it("the guest session, the viewer and the link's actions never ask the hold or make a sign-in", () => {
+    for (const file of ["src/lib/guest-auth.ts", "src/lib/player-viewer.ts", "src/lib/services/player-link.ts", "src/app/actions/player-link.ts"]) {
+      const src = readSource(file);
+      for (const call of ["maySignInNow(", "signInsHeld(", "launchState(", "createSession("]) expect(src, `${file} calls ${call}`).not.toContain(call);
+    }
   });
 });

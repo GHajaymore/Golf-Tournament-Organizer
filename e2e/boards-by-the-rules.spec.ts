@@ -3,6 +3,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { heldFromBoard } from "../src/lib/domain/board-hold";
 
 /**
  * EVERY INDIVIDUAL BOARD THE SEEDED CLUB HAS, WORKED OUT AGAIN FROM ITS CARDS.
@@ -48,6 +49,12 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  * complete (the board shows it "thru" a hole and ranks nobody on it), a player
  * no longer in the field, a round scored by hand, and every team format — those
  * are `team-allowance.spec.ts` and the scenarios. It reads; it changes nothing.
+ *
+ * A CARD IN DISPUTE IS HELD OFF THE BOARD (2026-11-04, `heldFromBoard`): under
+ * Rule 20.2c the Committee decides it, so until it has, the board ranks no
+ * figure for it. The seeded medal holds one such card; it is checked the other
+ * way — the board must print no gross for it — and counted, so a seed that lost
+ * its disputed card cannot pass this quietly.
  */
 
 const prisma = new PrismaClient();
@@ -151,6 +158,8 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
   let tellApart = 0;
   /** Checked players given strokes for tees of a higher par: without one, 6.2b could be missing and nothing here would show it. */
   let onHigherPar = 0;
+  /** Complete cards in dispute that the board was seen to hold off (`heldFromBoard`). */
+  let heldOff = 0;
   const rounds: string[] = [];
 
   const tees = await prisma.tee.findMany();
@@ -171,7 +180,7 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
      * card they have is complete — a card "thru" twelve is on the board with
      * twelve holes' strokes, and what a part-played card nets is not a Rule.
      */
-    type Sum = { gross: number; net: number; pts: number; cards: number; broken: boolean; tells: boolean; pars: boolean; off: number[] };
+    type Sum = { gross: number; net: number; pts: number; cards: number; held: number; broken: boolean; tells: boolean; pars: boolean; off: number[] };
     const sums = new Map<string, Sum>();
     let anyCard = false;
     let allNet = true;
@@ -226,11 +235,17 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
       for (const c of cards) {
         const p = players.find((x) => x.id === c.playerId);
         if (!p) continue;
-        const sum = sums.get(p.id) ?? { gross: 0, net: 0, pts: 0, cards: 0, broken: false, tells: false, pars: false, off: [] };
+        const sum = sums.get(p.id) ?? { gross: 0, net: 0, pts: 0, cards: 0, held: 0, broken: false, tells: false, pars: false, off: [] };
         sums.set(p.id, sum);
         const strokes = JSON.parse(c.strokes) as (number | null)[];
         const played = strokes.slice(0, holes).filter((s) => typeof s === "number" && s > 0).length;
         if (played === 0) continue; // a card nobody has written on is not a round
+        if (heldFromBoard(c.status)) {
+          // In dispute: no figure on the board until the Committee decides (Rule 20.2c).
+          if (played === holes && p.status === "confirmed") sum.held += 1;
+          else sum.broken = true;
+          continue;
+        }
         if (played < holes || p.status !== "confirmed") {
           sum.broken = true;
           continue;
@@ -293,7 +308,19 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
 
     let here = 0;
     for (const [id, sum] of sums) {
-      if (sum.broken || sum.cards === 0) continue;
+      if (sum.broken) continue;
+      if (sum.held > 0) {
+        // Only a player whose every card is in dispute is asked about: their row
+        // must rank nothing. One with another card too is left out, not guessed at.
+        if (sum.cards > 0) continue;
+        const p = players.find((x) => x.id === id)!;
+        const drawn = board.out.get(p.name);
+        if (drawn && /\d/.test(drawn.gross)) {
+          wrong.push(`${ev.slug} · ${p.name}: a card in dispute is on the board at gross ${drawn.gross} — it is held until the Committee decides (Rule 20.2c)`);
+        } else heldOff += 1;
+        continue;
+      }
+      if (sum.cards === 0) continue;
       const p = players.find((x) => x.id === id)!;
       const where = `${ev.slug} (${stages.map((s) => s.format).filter((f, i, a) => a.indexOf(f) === i).join(", ")}, ${sum.cards} card${sum.cards === 1 ? "" : "s"}, plays off ${sum.off.join(" and ")}) · ${p.name}`;
       const drawn = board.out.get(p.name);
@@ -318,9 +345,11 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
 
   testInfo.annotations.push({ type: "boards", description: rounds.join("; ") });
   testInfo.annotations.push({ type: "left out", description: said.join("; ") || "nothing" });
-  console.log(`[boards-by-the-rules] ${checked} players on ${rounds.length} individual boards (${rounds.join("; ")}); ${tellApart} of them play off a different handicap rounded first; ${onHigherPar} on tees of a higher par; ${wrong.length} wrong${said.length ? `; ${said.join("; ")}` : ""}`);
+  console.log(`[boards-by-the-rules] ${checked} players on ${rounds.length} individual boards (${rounds.join("; ")}); ${tellApart} of them play off a different handicap rounded first; ${onHigherPar} on tees of a higher par; ${heldOff} card${heldOff === 1 ? "" : "s"} in dispute held off; ${wrong.length} wrong${said.length ? `; ${said.join("; ")}` : ""}`);
 
   expect(said, "a round could not be checked").toEqual([]);
+  // CONTROL: the seeded medal holds a complete card in dispute, so a board that ranked one would show here.
+  expect(heldOff + wrong.filter((w) => w.includes("in dispute")).length, "no seeded card is in dispute, so a board that ranked one could not be caught").toBeGreaterThan(0);
   // CONTROLS: the field is big enough to mean something, and can tell the Rule from rounding first.
   expect(rounds.length, "almost no seeded round was checked").toBeGreaterThanOrEqual(4);
   expect(checked, "almost no card was checked").toBeGreaterThanOrEqual(40);

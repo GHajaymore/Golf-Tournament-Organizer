@@ -1,12 +1,13 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { indexLabel } from "@/lib/domain/handicap-label";
-import { useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { regenGroups } from "@/app/actions/tournament";
 import { formGroups, flightCountFor, type FormationRule, type Player } from "@/lib/domain";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 import { plural } from "@/lib/format";
 import { flightLabel } from "@/lib/domain/flight-label";
 
@@ -93,10 +94,12 @@ export function GroupingControls({
    */
   drawsPairings?: boolean;
 }) {
+  const fid = useId();
   const [rule, setRule] = useState<FormationRule>(currentRule);
   const [mode, setMode] = useState<"auto" | "count" | "perFlight">(currentMode);
   const [value, setValue] = useState<number>(currentValue || (currentMode === "perFlight" ? 4 : 8));
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   /** Number of scored matches a regenerate would destroy, once refused. */
   const [confirmScored, setConfirmScored] = useState<number | null>(null);
   /** A refusal from the action. Shown rather than swallowed — the action used
@@ -145,8 +148,8 @@ export function GroupingControls({
 
       <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div className="field" style={{ minWidth: 220 }}>
-          <label>Flight size</label>
-          <div className="seg">
+          <span className="field-caption" id={`${fid}-mode`}>Flight size</span>
+          <div className="seg" role="group" aria-labelledby={`${fid}-mode`}>
             <label className="seg-opt"><input type="radio" name="fmode" checked={mode === "auto"} onChange={() => setMode("auto")} />Auto</label>
             <label className="seg-opt"><input type="radio" name="fmode" checked={mode === "count"} onChange={() => setMode("count")} />Set flights</label>
             <label className="seg-opt"><input type="radio" name="fmode" checked={mode === "perFlight"} onChange={() => setMode("perFlight")} />Players / flight</label>
@@ -154,8 +157,9 @@ export function GroupingControls({
         </div>
         {mode !== "auto" && (
           <div className="field" style={{ width: 140 }}>
-            <label>{mode === "count" ? "Number of flights" : "Players per flight"}</label>
+            <label htmlFor={`${fid}-value`}>{mode === "count" ? "Number of flights" : "Players per flight"}</label>
             <input
+              id={`${fid}-value`}
               className="input"
               type="number"
               min={mode === "count" ? 1 : 2}
@@ -180,7 +184,7 @@ export function GroupingControls({
             onClick={() =>
               startTransition(async () => {
                 setError("");
-                const res = await regenGroups(rule, mode, value);
+                const res = caughtUp(await regenGroups(rule, mode, value));
                 // Refused because rebuilding would throw away real results —
                 // surface what's at stake instead of failing silently.
                 if (res.needsConfirm) setConfirmScored(res.scoredMatches ?? 0);
@@ -257,7 +261,7 @@ export function GroupingControls({
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
-                  const res = await regenGroups(rule, mode, value, true);
+                  const res = caughtUp(await regenGroups(rule, mode, value, true));
                   setConfirmScored(null);
                   if (!res.ok) setError(res.error ?? "Couldn't generate flights.");
                 })

@@ -34,6 +34,7 @@ export function RoundPicker({
   className = "input",
   style,
   label = "Round",
+  id,
 }: {
   rounds: PickableRound[];
   activeStageId: string;
@@ -41,6 +42,8 @@ export function RoundPicker({
   style?: React.CSSProperties;
   /** The accessible name. Visible labels are the caller's business. */
   label?: string;
+  /** Lets a visible caption name the box with `htmlFor`. */
+  id?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,9 +55,15 @@ export function RoundPicker({
 
   return (
     <select
+      id={id}
       className={className}
       style={style}
       aria-label={label}
+      // Changes which round is SHOWN, never a record: live in an archived tournament (`archive-read-only.ts`).
+      data-reads=""
+      /* Says "choosing here navigates": the console crawl waits for the new address before it
+         judges the choice, instead of guessing how long the screen takes to load (G577-3). */
+      data-view-picker="url"
       value={activeStageId}
       onChange={(e) => router.push(`${pathname}?round=${e.target.value}`)}
     >

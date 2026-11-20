@@ -83,7 +83,7 @@ a tournament gates player access.
 
 ## Key product decisions (already made — do not re-litigate)
 
-- **Pricing:** Free $0 (10 players) / Season $49 (50) / Club $175 (unlimited),
+- **Pricing:** Free $0 (10 players) / Season $49 (50, 64 from 10 Nov 2026) / Club $175 (unlimited),
   owner-adjustable from `/owner`; field size is the value metric, a player never
   pays. Plus an Ultimate "Let's talk" tier (associations/corporates) — a contact
   tier, no engine. Real competitor facts (verified 2026-09): Golf Genius

@@ -117,7 +117,7 @@ describe("somebody who has genuinely done nothing", () => {
     // The guard must not become "never delete anything" — a duplicate entry or
     // a no-show should leave no trace, which is why removeSignups exists.
     const p = await newPlayer("ghost");
-    expect(await removeSignup(p.id)).toBe("deleted");
+    expect(await removeSignup(p.id)).toMatchObject({ ok: true, outcome: "deleted" });
     expect(await prisma.player.count({ where: { id: p.id } })).toBe(0);
   });
 });
@@ -140,7 +140,7 @@ describe("a partner in a pairs event who has already played", () => {
       },
     });
 
-    expect(await removeSignup(p.id)).toBe("withdrawn");
+    expect(await removeSignup(p.id)).toMatchObject({ ok: true, outcome: "withdrawn" });
   });
 
   it("keeps their side intact, so a finished round is not re-scored", async () => {
@@ -177,7 +177,7 @@ describe("a partner in a pairs event who has already played", () => {
     });
     await prisma.teamMember.create({ data: { teamId: team.id, playerId: p.id, position: 0 } });
 
-    expect(await removeSignup(p.id)).toBe("withdrawn");
+    expect(await removeSignup(p.id)).toMatchObject({ ok: true, outcome: "withdrawn" });
   });
 });
 
@@ -194,7 +194,7 @@ describe("somebody whose money is already in the pot", () => {
     });
     await prisma.skinsEntry.create({ data: { potId: pot.id, playerId: p.id, confirmed: true } });
 
-    expect(await removeSignup(p.id)).toBe("withdrawn");
+    expect(await removeSignup(p.id)).toMatchObject({ ok: true, outcome: "withdrawn" });
     expect(
       await prisma.skinsEntry.count({ where: { potId: pot.id, playerId: p.id } }),
       "the stake must still be on the books",

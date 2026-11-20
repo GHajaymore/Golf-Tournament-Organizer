@@ -38,6 +38,9 @@ import { readSource } from "./source";
 const STAFF_GATES = [
   // `requireAdminEvent` with an archived tournament's refusal returned in words (tournament.ts).
   "adminEventOrRefusal(",
+  // The staff gates likewise (tournament.ts, play-status.ts; attendance.ts for its session form).
+  "staffEventOrRefusal(",
+  "staffSessionOrRefusal(",
   "requireStaffEvent(",
   "requireStaff(",
   "requireAdminEvent(",
@@ -63,25 +66,44 @@ const WRITES = [".create(", ".createMany(", ".update(", ".updateMany(", ".upsert
  *   club role     a Commissioner or Admin of the club (`canEdit`), or its owner
  *   organizer     admin of that tournament, checked inline rather than by a gate
  *   the business  the platform's owner (`isOwner`)
+ *   guest link    the browser holding a guest's player link (`getGuestSession`, J39/J40) —
+ *                 held to GUEST_ACTIONS by a-guest-acts-only-through-its-list.test.ts
+ *   player screen whoever a player screen is for: an account, a guest's link, or a round
+ *                 code's play session (`playStatusForScreen`, which asks `getPlayerViewer`
+ *                 for the player app), chosen by the kind of screen; also held to GUEST_ACTIONS
  */
 const WHO: Record<string, string> = {
   // anyone
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
-  signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", getVapidPublicKey: "anyone",
-  redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
+  signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", confirmEntryCode: "anyone", getVapidPublicKey: "anyone",
+  claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
+  // One code box (2026-11-17): a round code or a guest's player link code, typed in any box or tapped
+  // on /p. The code is its own authorization, behind the one door's budgets (services/code-door.ts).
+  openCode: "anyone",
+  // guest link: this browser's own link, forgotten here or chosen over its sign-in (S4).
+  forgetThisPhone: "guest link", choosePlayerView: "guest link",
+  // The same two as plain forms, for a press made before the page's script arrived: they call them.
+  openCodeForm: "anyone", claimPlayerSlotForm: "anyone",
   // Sets a cookie and nothing else, and the cookie can only ever show an
   // organizer LESS (the player's view of their own tournament): `getSession`
   // ignores it for anybody who is not an admin.
   setPreviewAction: "anyone",
   // round code
-  savePlayMatchHoles: "round code", savePlayMatchResult: "round code", savePlayCard: "round code", certifyPlayCard: "round code", savePlayMatchCard: "round code",  // themselves
+  savePlayMatchHoles: "round code", savePlayMatchResult: "round code", savePlayCard: "round code", certifyPlayCard: "round code", savePlayMatchCard: "round code",
+  // One scorer per group and the end-of-round check (2026-11-04): the phone's own
+  // group, its own match, its own card — the session decides, never an argument.
+  keepGroup: "round code", handOverGroup: "round code", confirmPlayMatch: "round code", disputePlayMatch: "round code", disputePlayCard: "round code",
+  // themselves
   deleteMyAccount: "themselves", signOutEverywhereAction: "themselves", leaveOrganization: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",
-  savePushSubscription: "themselves", removePushSubscription: "themselves", currentPlayStatus: "themselves",
-  setMyMessagesOptOut: "themselves", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
-  readThread: "themselves", sendMessage: "themselves", markThreadRead: "themselves", startDirectThread: "themselves",
-  createMatch: "themselves", createEvent: "themselves", keepRound: "themselves",
+  // player viewer since J39/J40 PR 2: an account, or a guest's link, through the screen's viewer.
+  savePushSubscription: "player viewer", removePushSubscription: "player viewer",
+  // player screen: whoever the screen is for, an account, a guest's link or a round code's phone (safety sweep G-1, G1, Rule 5.7).
+  currentPlayStatus: "player screen",
+  setMyMessagesOptOut: "player viewer", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
+  readThread: "player viewer", sendMessage: "player viewer", markThreadRead: "player viewer", startDirectThread: "themselves",
+  createMatch: "themselves", createEvent: "themselves", createEventFromAnswers: "themselves",keepRound: "themselves",
   searchCourseDirectory: "themselves", importCourseFromDirectory: "themselves", readCourseCardPhoto: "themselves",
   setMatchCourse: "themselves", nameMatchVenue: "themselves", setPlayerTee: "themselves", draftMessage: "themselves",
   // their match, their card
@@ -99,7 +121,7 @@ const WHO: Record<string, string> = {
   removeSkinsPot: "the pot", confirmSkinsEntry: "the pot",
   // club role
   startCheckout: "club role", openBillingPortal: "club role", checkDiscountCode: "club role", deleteClub: "club role", approveJoinRequest: "club role",
-  declineJoinRequest: "club role", setOrgMoneyMode: "club role", addOrganizationMember: "club role",
+  declineJoinRequest: "club role", dismissNamesakeNotice: "club role", setOrgMoneyMode: "club role", addOrganizationMember: "club role",
   setOrganizationMemberRole: "club role", removeOrganizationMember: "club role", saveOrganizationBranding: "club role",
   saveOrganizationTheme: "club role", saveOrganizationCurrency: "club role", saveOrganizationSeason: "club role",
   saveOrganizationLocale: "club role", saveOrganizationTimeZone: "club role", adoptClubTimeZone: "club role",
@@ -109,8 +131,9 @@ const WHO: Record<string, string> = {
   setLeagueSettings: "organizer", cloneEvent: "organizer", deleteEvent: "organizer",
   broadcastToScope: "organizer", previewSmsBroadcast: "organizer", broadcastWithText: "organizer",
   // the business
-  setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business",
+  setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business", saveOffers: "the business",
   createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business", sendEarlyListCodes: "the business", refreshDemoClub: "the business", checkAiAccount: "the business", setAiBudget: "the business",
+  loadCourseCatalogue: "the business",
 };
 
 /** What must appear in the body of an action of each kind. Not proof the check is right — proof it is there. */
@@ -123,6 +146,9 @@ const NEEDS: Record<string, string[]> = {
   "club role": [".canEdit", "isOwner", "clubDeletionRefusal(", ".role"],
   organizer: ['role !== "admin"', 'role === "admin"', "isStaff", "requireMembership("],
   "the business": ["isOwner("],
+  "guest link": ["getGuestSession("],
+  "player viewer": ["getPlayerViewer(", "requireActor(", "pushOwnerNow("],
+  "player screen": ["playStatusForScreen("],
 };
 
 interface Action {

@@ -25,7 +25,10 @@ export async function deleteMyAccount(typedEmailInput: unknown): Promise<{ ok: f
   });
   if (refusal) return { ok: false, error: refusal };
 
-  await deleteAccountAndAccess(session.userId, session.email);
+  const stillSole = await deleteAccountAndAccess(session.userId, session.email);
+  if (stillSole.length) {
+    return { ok: false, error: accountDeletionRefusal({ email: session.email, typedEmail, soleOwnerOf: stillSole }) ?? "Try again." };
+  }
   await destroySession();
   redirect("/");
 }

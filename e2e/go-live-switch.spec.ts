@@ -144,7 +144,7 @@ test("one press takes every held page live, and one press holds them all again",
 
   await test.step("the owner card says what Go live will do, from the inventory, and asks in a dialog", async () => {
     await page.context().addCookies([{ name: "ng_session", value: ownerCookie, url: baseURL! }]);
-    await page.goto(`/owner?bust=${Date.now()}`);
+    await page.goto(`/owner?tab=accounts&bust=${Date.now()}`);
     const card = page.locator("#accounts");
     await expect(card).toContainText(OWNER_CARD.held);
     await expect(card).toContainText(OWNER_CARD.willGoLive);
@@ -170,7 +170,7 @@ test("one press takes every held page live, and one press holds them all again",
   });
 
   await test.step("live: the card says since when, and what Hold again would do", async () => {
-    await page.goto(`/owner?bust=${Date.now()}`);
+    await page.goto(`/owner?tab=accounts&bust=${Date.now()}`);
     const card = page.locator("#accounts");
     await expect(card).toContainText("Live since ");
     await expect(card).toContainText(OWNER_CARD.willHold);
@@ -206,7 +206,7 @@ test("one press takes every held page live, and one press holds them all again",
   });
 
   await test.step("Hold again: one press, asked once more, and the front door is held again", async () => {
-    await page.goto(`/owner?bust=${Date.now()}`);
+    await page.goto(`/owner?tab=accounts&bust=${Date.now()}`);
     const card = page.locator("#accounts");
     await card.getByRole("button", { name: OWNER_CARD.holdAgain }).click();
     const dialog = page.getByRole("dialog", { name: OWNER_CARD.holdTitle });

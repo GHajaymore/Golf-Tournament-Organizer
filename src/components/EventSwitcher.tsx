@@ -6,14 +6,21 @@ import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { Icon } from "./Icon";
+import { CopyDayFields } from "./CopyDayFields";
 import { useOrgProfile } from "./OrgProfileProvider";
-import { STATUS_META } from "@/lib/format";
 import { bringIntoView } from "@/lib/bring-into-view";
+import { landingAfterCreate } from "@/lib/domain/after-create";
 
 export interface EventRow {
   id: string;
   name: string;
-  status: string;
+  /**
+   * The status word and its tone — the state machine's chip (`listWordOf`, PR 6),
+   * or "Dates passed, not launched" by the machine's own warning. Worked out on
+   * the server and only drawn here: this list held a copy of the chip's words
+   * (`STATUS_META`) and a test of the dates of its own.
+   */
+  word: { label: string; tag: string };
   dates: string;
   course: string;
   players: number;
@@ -38,8 +45,6 @@ export interface EventRow {
    * used to be.
    */
   isCasual?: boolean;
-  /** Not launched, and its last day has gone by at the club (`datesPassedUnlaunched`). */
-  datesPassed?: boolean;
   /**
    * How it is told apart from another tournament of the same name — its dates the club's way,
    * and "#2" where they are shared too (`tellApart`). Empty when its name is its own.
@@ -49,11 +54,6 @@ export interface EventRow {
 
 /** Said where the bin is pressed by somebody who may not delete (`deleteEvent`'s one refusal). */
 const ONLY_THE_ORGANIZER = "Only an organizer of this tournament can delete it.";
-
-// The status words are the chip's own (`STATUS_META`) — this list had a second
-// copy that said "Registration" and "Ready" where the chip said something else.
-const STATUS = STATUS_META;
-const DATES_PASSED = { label: "Dates passed, not launched", tag: "tag-outline" };
 
 export function EventSwitcher({
   events,
@@ -160,6 +160,8 @@ export function EventSwitcher({
   const tournaments = events.filter((e) => !e.isCasual);
   const casual = events.filter((e) => e.isCasual);
   const copyFrom = copyable.find((e) => e.id === copiedEventId(source));
+  const [startOn, setStartOn] = useState("");
+  const [endOn, setEndOn] = useState("");
   /**
    * WHOSE GOLF THE LIST SHOULD LEAD WITH — see `startFromGroups`.
    *
@@ -171,7 +173,7 @@ export function EventSwitcher({
    */
   const listFor = organizations.find((o) => o.id === organizationId)?.kind ?? consoleOutfit.kind;
   const blurb = copyFrom
-    ? `Copies the settings, rounds and courses from ${copyFrom.name || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
+    ? `Copies the settings, rounds, courses and side games from ${copyFrom.name || "that tournament"} — never its players, scores, money or access codes. Its entry window and rounds move with the day you pick, and everything stays editable.`
     : templateFor(source).blurb + " Every setting stays editable afterwards.";
 
   return (
@@ -197,8 +199,7 @@ export function EventSwitcher({
           </thead>
           <tbody>
             {tournaments.map((e) => {
-              // "Draft" a month after the last day is what the column holds, not what is true.
-              const s = e.datesPassed ? DATES_PASSED : (STATUS[e.status] ?? STATUS.draft);
+              const s = e.word;
               return (
                 <tr key={e.id} style={e.isActive ? { background: "var(--color-accent-900)" } : undefined}>
                   <td style={{ fontWeight: 500 }}>
@@ -228,7 +229,7 @@ export function EventSwitcher({
                           {/* Says what goes with it: the bin deletes the field
                               and every card too (`deleteEvent` cascades). */}
                           <span className="text-muted" style={{ fontSize: 13, textAlign: "right", maxWidth: 220 }}>
-                            {e.players > 0 ? `Delete with its ${e.players} ${e.players === 1 ? "player" : "players"} and every score?` : "Delete?"}
+                            {e.players > 0 ? `Delete with its ${e.players} ${e.players === 1 ? "player" : "players"} and every score? This is permanent and cannot be undone.` : "Delete? This is permanent and cannot be undone."}
                           </span>
                           {/* NAMED. Every control in this table acted on a
                               row and said only what it did — twelve identical
@@ -343,7 +344,7 @@ export function EventSwitcher({
                     round somebody is mid-way through is just as permanent. */}
                 {confirmingId === e.id && (
                   <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%" }}>
-                    <span className="text-muted" style={{ fontSize: 13 }}>Delete this round?</span>
+                    <span className="text-muted" style={{ fontSize: 13 }}>Delete this round? This is permanent and cannot be undone.</span>
                     <button
                       type="button"
                       className="btn btn-icon"
@@ -389,6 +390,9 @@ export function EventSwitcher({
             })}
           </select>
         </div>
+        {/* A COPY IS GIVEN ITS FIRST DAY, as "Copy last event" gives one — one rule
+            for every door to a copy (`CopyDayFields`, setup audit item 8). */}
+        {copyFrom && <CopyDayFields startOn={startOn} endOn={endOn} onStartOn={setStartOn} onEndOn={setEndOn} />}
         {/* WHOSE, when this person runs more than one outfit.
 
             A copy keeps its source's organization, so the question only
@@ -430,13 +434,13 @@ export function EventSwitcher({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={pending || !name.trim() || (!copyFrom && !shape)}
+          disabled={pending || !name.trim() || (!copyFrom && !shape) || (!!copyFrom && !startOn)}
           onClick={() => {
             const copyId = copiedEventId(source);
             setError("");
             startTransition(async () => {
               const res = copyId
-                ? await cloneEvent(copyId, name)
+                ? await cloneEvent(copyId, name, { startOn, endOn })
                 : await createEvent(name, source, shape, undefined, organizationId || undefined);
               // A refused name stays in the box (2026-11-01): the refusal offers a free one, and
               // the organizer edits what they typed rather than typing it all again.
@@ -444,7 +448,7 @@ export function EventSwitcher({
               // Into the tournament just made — see the note on `openIn`.
               else {
                 setName("");
-                router.push("/dashboard");
+                router.push(landingAfterCreate(copyId ? "copied" : "created"));
               }
             });
           }}
@@ -455,11 +459,13 @@ export function EventSwitcher({
       {/* Why the button is dead, naming the step that is actually outstanding.
           Create used to be enabled with an empty name and silently made
           "New Tournament"; now it says what it wants. */}
-      {!pending && (!name.trim() || (!copyFrom && !shape)) && (
+      {!pending && (!name.trim() || (!copyFrom && !shape) || (!!copyFrom && !startOn)) && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {!name.trim()
             ? "Name it first."
-            : "Say how it's played — that decides what the rest of setup asks."}
+            : copyFrom
+              ? "Pick the day it is played — the entry window and rounds move with it."
+              : "Say how it's played — that decides what the rest of setup asks."}
         </p>
       )}
       <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{blurb}</p>

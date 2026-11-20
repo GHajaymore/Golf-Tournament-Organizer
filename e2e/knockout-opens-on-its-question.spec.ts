@@ -6,6 +6,7 @@ import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSessio
 import { buildBracket } from "../src/lib/domain/bracket";
 import { tieToPlay } from "../src/lib/domain/knockout-play-by";
 import type { Player as DomainPlayer } from "../src/lib/domain/types";
+import { pressRadio } from "./press-radio";
 
 /**
  * EACH SURFACE OF A KNOCKOUT OPENS ON ITS OWN QUESTION (the panel, 2026-10-23,
@@ -160,7 +161,7 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
       await expect(page.locator("[data-tie-row] [role=alert]")).toHaveCount(1);
       // The lower seed wins, 3&2.
       const winner = first.b;
-      await row.getByRole("radio", { name: `${winner.name} won` }).check();
+      await pressRadio(row.getByRole("radio", { name: `${winner.name} won` }));
       await row.getByLabel(`Margin, ${first.a.name} v ${first.b.name}`).fill("3&2");
       await row.getByRole("button", { name: "Record result" }).click();
       const said = page.getByRole("list", { name: "Just recorded" });
@@ -171,7 +172,7 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
       await expect(page.locator(`[data-tie-row="${first.key}"]`), "a decided tie is still to play").toHaveCount(0);
       // A walkover, in golf's words.
       const row2 = page.locator(`[data-tie-row="${second.key}"]`);
-      await row2.getByRole("radio", { name: `${second.a.name} won` }).check();
+      await pressRadio(row2.getByRole("radio", { name: `${second.a.name} won` }));
       await row2.getByLabel(`How it was settled, ${second.a.name} v ${second.b.name}`).selectOption("walkover");
       await row2.getByRole("button", { name: "Record result" }).click();
       await expect(said).toContainText(`Recorded — Round 1: ${second.a.name} beat ${second.b.name} by walkover.`);

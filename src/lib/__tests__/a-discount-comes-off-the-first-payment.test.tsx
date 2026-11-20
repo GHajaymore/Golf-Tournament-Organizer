@@ -115,7 +115,7 @@ describe("what Stripe is asked for", () => {
     stripeCalls.coupons.length = 0;
     stripeCalls.sessions.length = 0;
     existingCoupons.clear();
-    const base = { organizationId: "zz-org", plan: "society" as const, interval: "month" as const, currency: "USD", overrides: parsePricingOverrides(undefined), email: null, origin: "https://zz.example.invalid" };
+    const base = { organizationId: "zz-org", plan: "society" as const, interval: "month" as const, country: "US", overrides: parsePricingOverrides(undefined), email: null, origin: "https://zz.example.invalid" };
     expect(await checkoutUrl({ ...base, discount: row() })).toEqual({ url: "https://checkout.example.invalid/zz" });
     const s = stripeCalls.sessions[0];
     expect(s.discounts).toEqual([{ coupon: "thq-ZZ7KQ2MX" }]);

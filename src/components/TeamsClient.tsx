@@ -2,11 +2,12 @@
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState } from "react";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
+import { ScopeLockMark } from "./ScopeLockBanner";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { useAction } from "./useAction";
+import { useAction, useCaughtUp } from "./useAction";
 import { RescoreWarning } from "./RescoreWarning";
 import {
   createTeam,
@@ -20,6 +21,7 @@ import {
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { SIDE_NAME_MAX } from "@/lib/domain/typed-limits";
+import { playsOffWords } from "@/lib/round-allowance";
 
 export interface TeamMemberRow {
   playerId: string;
@@ -29,6 +31,10 @@ export interface TeamMemberRow {
   handicapSource?: string | null;
   handicapType?: string | null;
   position: number;
+  /** What this player's own ball plays off; null where the side shares one ball. */
+  playing?: number | null;
+  /** Withdrawn or disqualified after the sides were drawn: plays off nothing. */
+  withdrawn?: boolean;
 }
 
 export interface TeamRow {
@@ -96,11 +102,13 @@ export function TeamsClient({
    */
   drawsMatches: boolean;
   /**
-   * Setup is locked. Every action here that changes a side refuses a locked
-   * tournament by THROWING (`assertUnlocked(…, "change teams")`), so each of
-   * these buttons took the page down to "Application error" on a live event
-   * (swept 2026-09-27). `busy` below gates them on it; renaming a side is not
-   * behind the lock and stays open.
+   * The sides are locked (the machine's `locks.sides`, drawn above this by
+   * `ScopeLockBanner`). Every action here that changes a side refuses it —
+   * they THREW until the scoped locks (PR 5a), which took the page down to
+   * "Application error" on a live event (swept 2026-09-27); they RETURN the
+   * refusal in words now. `busy` below still gates them on it, with a padlock
+   * that points at the banner; renaming a side is not behind the lock and
+   * stays open.
    */
   locked?: boolean;
   rounds: RoundRow[];
@@ -120,6 +128,15 @@ export function TeamsClient({
   league?: boolean;
 }) {
   const { pending, error, setError, run, startTransition } = useAction();
+  /**
+   * A PRESS REFUSED BY THE LOCK (PR 5a). This screen was drawn before it — the
+   * tournament launched in another tab, or setup was locked again — so its
+   * controls were live. The refusal is said like any other (the sentence names
+   * the reason and the way out), and the screen is drawn again, so the banner
+   * arrives and the controls shut rather than inviting a second refused press.
+   * The one catch-up (`useCaughtUp`), which also moves focus to the banner (PR 9b).
+   */
+  const caughtUp = useCaughtUp();
   /** A side's rename refused, said under that side's name. */
   const [nameSaid, setNameSaid] = useState<{ id: string; text: string } | null>(null);
   const saveStatus = useSaveStatus(pending);
@@ -139,7 +156,7 @@ export function TeamsClient({
   const makeMatches = (replace: boolean) => {
     setError("");
     startTransition(async () => {
-      const res = await generateTeamMatches(activeRoundId, replace);
+      const res = caughtUp(await generateTeamMatches(activeRoundId, replace));
       if (res.needsConfirm) {
         setConfirmMatches(true);
         return;
@@ -170,7 +187,7 @@ export function TeamsClient({
   const removeMember = (teamId: string, playerId: string, name: string, force: boolean) => {
     setError("");
     startTransition(async () => {
-      const res = await removeTeamMember(teamId, playerId, force);
+      const res = caughtUp(await removeTeamMember(teamId, playerId, force));
       if (res.needsConfirm) {
         setConfirmRemove({ teamId, playerId, name, cards: res.cards ?? 1 });
         return;
@@ -183,7 +200,7 @@ export function TeamsClient({
   const draw = (replace: boolean) => {
     setError("");
     startTransition(async () => {
-      const res = await autoDrawTeams(activeRoundId, replace);
+      const res = caughtUp(await autoDrawTeams(activeRoundId, replace));
       if (res.needsConfirm) {
         setConfirmDraw(true);
         return;
@@ -247,6 +264,13 @@ export function TeamsClient({
           {" — set on "}
           <a href="/stages">Rounds &amp; formats</a>.
         </p>
+        {/* A match, where everyone plays their own ball: the strokes are the
+            difference from the lowest of the four (Rules of Handicapping 6.2). */}
+        {drawsMatches && !format.sharesOneCard && (
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            In a match, strokes come off the lowest of the four.
+          </p>
+        )}
       </div>
 
       {problems.length > 0 && (
@@ -265,8 +289,13 @@ export function TeamsClient({
         </div>
       )}
 
+      {/* Brought into view when it appears: a press low on the page (a side's
+          Remove, its Add player) is answered up here, so the answer comes to
+          where the person is looking. */}
       {error && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>{error}</p>
+        <p role="alert" ref={bringIntoView} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+          {error}
+        </p>
       )}
       {drawNote && !error && (
         <p className="text-muted" role="status" style={{ fontSize: 13, margin: 0 }}>
@@ -300,6 +329,7 @@ export function TeamsClient({
 
       {!league && (<>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+        {locked && <ScopeLockMark />}
         <div className="field" style={{ flex: 1, minWidth: 200 }}>
           <label htmlFor="teams-new-name">Add a team</label>
           <input
@@ -311,8 +341,8 @@ export function TeamsClient({
             placeholder="e.g. The Slicers"
             onKeyDown={(e) => {
               if (e.key === "Enter" && newName.trim() && !busy) {
-                run(() => createTeam(newName, activeRoundId));
-                setNewName("");
+                // The typed name is cleared only once the side exists: a refusal keeps it (panel on 5a).
+                run(async () => caughtUp(await createTeam(newName, activeRoundId)), () => setNewName(""));
               }
             }}
           />
@@ -321,10 +351,7 @@ export function TeamsClient({
           type="button"
           className="btn btn-secondary"
           disabled={busy || !newName.trim()}
-          onClick={() => {
-            run(() => createTeam(newName, activeRoundId));
-            setNewName("");
-          }}
+          onClick={() => run(async () => caughtUp(await createTeam(newName, activeRoundId)), () => setNewName(""))}
         >
           <Icon name="plus" /> Add team
         </button>
@@ -454,15 +481,30 @@ export function TeamsClient({
                     the side's name with its meaning in a `title` — a number
                     with no label, on a screen whose whole subject is handicaps,
                     explained only to a mouse. */}
-                <span className="tag tag-neutral">Plays off {t.playingHandicap}</span>
+                {/* WHAT A PLAYER TAKES STROKES FROM (J23). A side that shares one
+                    ball plays off the side's figure; where everyone plays their
+                    own ball there is no side figure to play off, so each
+                    partner's own is said, in the order the names are listed. */}
+                {format.sharesOneCard ? (
+                  <span className="tag tag-neutral">Plays off {t.playingHandicap}</span>
+                ) : (
+                  playsOffWords(t.members.map((m) => (m.withdrawn ? null : m.playing))) && (
+                    <span className="tag tag-neutral">
+                      Plays off {playsOffWords(t.members.map((m) => (m.withdrawn ? null : m.playing)))}
+                    </span>
+                  )
+                )}
                 {/* The side and its whole membership. Removing one PLAYER from
                     a side, below, is left on one tap — that is re-added in a
                     tap too, and a confirmation on it would be noise. */}
+                {/* One padlock per side, not one per control on it: the side's
+                    Remove, its members' remove and Add player shut together. */}
+                {locked && <ScopeLockMark />}
                 <ConfirmButton
                   title="Remove team"
                   confirmLabel="Remove the team"
                   disabled={busy}
-                  onConfirm={() => run(() => deleteTeam(t.id))}
+                  onConfirm={() => run(async () => caughtUp(await deleteTeam(t.id)))}
                 />
               </div>
               {nameSaid?.id === t.id && (
@@ -527,7 +569,8 @@ export function TeamsClient({
                   aria-label={`Add a player to ${t.name}`}
                   value=""
                   onChange={(e) => {
-                    if (e.target.value) run(() => addTeamMember(t.id, e.target.value));
+                    const playerId = e.target.value;
+                    if (playerId) run(async () => caughtUp(await addTeamMember(t.id, playerId)));
                     setAddingTo("");
                   }}
                   onBlur={() => setAddingTo("")}

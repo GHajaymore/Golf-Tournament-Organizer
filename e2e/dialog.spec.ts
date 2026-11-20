@@ -256,9 +256,11 @@ test.describe("the round's side panel", () => {
     await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await first.click();
 
-    const dialog = page.getByRole("dialog", { name: /Round 1/ });
+    // A modal dialog below 1280; docked beside the list from 1280, a named region, not modal.
+    const docked = page.viewportSize()!.width >= 1280;
+    const dialog = page.getByRole(docked ? "region" : "dialog", { name: /Round 1/ });
     await expect(dialog).toBeVisible();
-    await expect(dialog).toHaveAttribute("aria-modal", "true");
+    if (!docked) await expect(dialog).toHaveAttribute("aria-modal", "true");
     await fitsTheViewport(page, dialog, "the round's side panel");
 
     await page.keyboard.press("Escape");

@@ -2,12 +2,11 @@ import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { formattingFor } from "@/lib/domain/locale";
 import { TournamentFormatting } from "@/components/TournamentFormatting";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
 import { roundCodeName } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { strandedEntrantCount } from "@/lib/services/round-codes";
 import { hasKnockoutStage, isPlayingRound } from "@/lib/stage-types";
-import { enteredCardCount } from "@/lib/services/round-cards";
 import { PlaySettings } from "@/components/PlaySettings";
 import { teesForEvent } from "@/lib/services/handicaps";
 import { CourseLibrary } from "@/components/CourseLibrary";
@@ -15,19 +14,19 @@ import { clubCourses } from "@/lib/services/courses";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
-import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor, tournamentStatusFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { railSpeaks } from "@/lib/domain/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
-import { isLaunched } from "@/lib/domain/lifecycle-state";
 import { MoreInfo } from "@/components/MoreInfo";
 import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
-import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
+import { statusChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { soleVenueCourse } from "@/lib/services/course-resolution";
 import { fieldCapFor } from "@/lib/services/limits";
+import { acrossRoundsRefusal } from "@/lib/services/round-change";
 
 
 export const metadata = screenMetadata("/event");
@@ -71,12 +70,12 @@ export default async function EventPage({
    * for it buys the other eleven their parallelism on every request that is
    * actually served.
    */
-  const [state, flow, eventTees, params, cardsIn, scanPlan, strandedCount] = await Promise.all([
+  const [state, flow, eventTees, params, scanPlan, strandedCount, teesDoor] = await Promise.all([
     loadEventState(session.eventId),
-    setupFlowFor(session.eventId),
+    // The rail, as the state machine draws it (PR 3).
+    setupRailFor(session.eventId),
     teesForEvent(session.eventId),
     searchParams,
-    enteredCardCount(session.eventId),
     entitlementForEvent(session.eventId, "cardScan"),
     /**
      * Entrants with no email address, so the sign-in control can say what
@@ -90,10 +89,21 @@ export default async function EventPage({
      * In this wave because it needs only the session, like the six above it.
      */
     strandedEntrantCount(session.eventId),
+    /**
+     * Whether the tournament's tees may change now, and if not why — the very
+     * call `setEventDefaultTee` refuses with (the rounds rule, `field-tees`), so
+     * Played from is drawn shut with the sentence rather than offered and then
+     * refused at Save (round G594-1, 10 Nov).
+     */
+    acrossRoundsRefusal(session.eventId, { kind: "field-tees" }),
   ]);
   if (!state) redirect("/");
   const e = state.event;
-  const locked = isSetupLocked(state.event);
+  // The machine's lock on the details (PR 5b) — the one `saveEvent` asks (`refuseIfLocked(…, "details")`).
+  const details = await screenLocksFor(session.eventId, ["details"]);
+  const locked = details.locks.length > 0;
+  // The state machine's answer (PR 3): the checklist's rows and the journey card's phase.
+  const told = await tournamentStatusFor(session.eventId, state.today);
   /**
    * THE COURSE A TOURNAMENT HOLDS ONLY AS A VENUE, shown in the form.
    *
@@ -199,14 +209,13 @@ export default async function EventPage({
     { id: "courses", label: "Courses" },
     { id: "scoring", label: "Players & scoring" },
   ];
-  const checklist = setupChecklist({
+  // Every step's verdict from the STATE MACHINE, which the rail above draws
+  // too, so the list under the rail cannot disagree with the rail above it.
+  const checklist = statusChecklist(told?.status.setup.steps ?? [], {
     isMatch: matchEvent,
     ...state,
     branding: clubBrandingState(org),
     orgKind: org?.kind,
-    // Every step's verdict from the FLOW this page already loaded for its
-    // rail, so the list under the rail cannot disagree with the rail above it.
-    flow: flow?.steps,
   });
 
   return (
@@ -233,7 +242,7 @@ export default async function EventPage({
       </div>
 
 
-      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner locks={details.locks} correction={details.correction} isAdmin={session.viewRole === "admin"} />
 
       {/* The checklist stays, but only once the guided rail above has stopped
           rendering — which it does the moment setup is complete.
@@ -249,7 +258,7 @@ export default async function EventPage({
           {/* Folded to one line once the tournament is launched (2026-10-05):
               setup is finished, and the list sat above the settings an
               organizer comes back to change. */}
-          <SetupChecklist items={checklist} currentPath="/event" folded={isLaunched(state.event.status)} />
+          <SetupChecklist items={checklist} currentPath="/event" folded={!!told && told.status.step !== "setting-up"} />
         </div>
       )}
 
@@ -284,13 +293,10 @@ export default async function EventPage({
               }
             : null
         }
-        // The status, not two conclusions drawn from it. This passed
-        // `launched` and `finished`, each computed here and each forwarded
-        // untouched through EventSetupClient — a page stating a lifecycle rule
-        // and posting it through two components. `tournamentPhase` derives
-        // both from `PRE_LAUNCH_STATUSES` now.
-        status={e.status}
-        scored={cardsIn > 0}
+        // Where the tournament is — the state machine's own answer (PR 3), not
+        // a phase this page or the card works out from the status and a count
+        // of cards.
+        journey={told?.status.journey ?? "setup"}
         locale={fmt.locale}
         locked={locked}
         fieldCap={await fieldCapFor(e.organizationId)}
@@ -381,6 +387,7 @@ export default async function EventPage({
             rated: t.rated,
           }))}
           defaultTeeId={e.defaultTeeId}
+          teesDoor={teesDoor}
         />
       </SettingsSectionAnchor>
 

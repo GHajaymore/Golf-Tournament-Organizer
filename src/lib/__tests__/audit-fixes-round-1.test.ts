@@ -60,9 +60,14 @@ describe("the money and free-text bounds are in place at their sinks", () => {
     expect(readSource("src/app/actions/skins.ts")).toContain("MAX_EXPENSE_CENTS");
   });
   it("computes a side's playing handicap off the players who are not withdrawn", () => {
+    // The guarantee, not the spelling: `forHandicap` was a local of
+    // `teamsForStage` and went when the rule moved into ONE function every
+    // pricer of a side calls (2026-11-04). What must stay is that the side is
+    // priced off `partnersWhoPlay`, which leaves the withdrawn out.
     const src = readSource("src/lib/services/teams.ts");
-    expect(src).toContain("const playing = members.filter");
-    expect(src).toContain("forHandicap");
+    expect(src).toContain("const playing = members.filter((m) => !m.withdrawn);");
+    expect(src).toMatch(/sidePlayingHandicap\(\s*partnersWhoPlay\(partners\)\.map\(\(p\) => p\.exact\)/);
+    expect(src).toMatch(/playingHandicap: sideHandicapFromPartners\(/);
   });
   it("length-bounds the quick-match player name and match title", () => {
     const src = readSource("src/lib/domain/quick-match.ts");

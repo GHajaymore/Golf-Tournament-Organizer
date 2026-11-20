@@ -46,6 +46,18 @@ export const ALWAYS_ON = [
   "e2e/legible.spec.ts",
   "e2e/nothing-is-covered.spec.ts",
   "e2e/touch.spec.ts",
+  // The console sweep (J51): every screen on the organizer's menu, setting up and live, at 320: no sideways
+  // scroll, a reason beside every greyed control, one primary to a row or card. A ratchet
+  // (e2e/console-sweep-known.json); Chromium's small phone only, and it skips itself everywhere else.
+  "e2e/console-sweep.spec.ts",
+  // The same sweep as an ASSISTANT (the club role that runs the day and may not reshape the tournament):
+  // the screens the assistant's menu offers, the same three rules; its known lines are "assistant-…" in the same file.
+  "e2e/console-sweep-assistant.spec.ts",
+  // The control on "form controls changed by a test" (scripts/e2e-coverage.mjs): the hook is on every
+  // context of every spec (e2e/coverage.ts), so its proof runs with whatever specs a round keeps.
+  "e2e/form-controls.spec.ts",
+  // The inventory's wider world: the same figure measured at desktop width, for a medal and for a knockout (a measure, judges nothing).
+  "e2e/form-controls-reach.spec.ts",
   // The text-box crawl. It runs as its own layer (`text-boxes`, below), and skips itself in the suite's
   // run exactly as it does in a full round's, so listing it here changes nothing but the bookkeeping.
   "e2e/every-text-box.spec.ts",
@@ -105,11 +117,17 @@ export const AREAS = {
       "src/components/OwnerClubPlan.tsx",
       "src/components/OwnerDiscounts.tsx",
       "src/components/OwnerLimits.tsx",
+      "src/components/OwnerOffers.tsx",
+      "src/components/OwnerTabs.tsx",
       "src/components/OwnerPricing.tsx",
       "src/components/OwnerDemoClub.tsx",
+      "src/components/OwnerCatalogue.tsx",
+      "scripts/export-catalogue.ts",
+      "src/lib/domain/catalogue-load.ts",
+      "src/lib/services/catalogue-load.ts",
       "src/app/actions/owner.ts",
     ],
-    specs: ["e2e/owner-console.spec.ts", "e2e/owner-console-refusals.spec.ts", "e2e/go-live-switch.spec.ts", "e2e/interest.spec.ts", "e2e/demo-club.spec.ts"],
+    specs: ["e2e/owner-console.spec.ts", "e2e/owner-catalogue-load.spec.ts", "e2e/owner-console-refusals.spec.ts", "e2e/go-live-switch.spec.ts", "e2e/interest.spec.ts", "e2e/demo-club.spec.ts"],
     scenarios: [],
     // The demo club replays its days.
     dateSensitive: true,
@@ -125,17 +143,30 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts", "src/lib/domain/timeline-step.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
+      "e2e/stages-scoring-setup.spec.ts",
       // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
       "e2e/rounds-panel.spec.ts",
+      // The two presses that do not wait for their answer (J51).
+      "e2e/presses-that-are-not-awaited.spec.ts",
+      // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
+      "e2e/rounds-timeline.spec.ts",
+      // State machine PR 5c (J16): the timeline's chip and "Needs you" lead say what the dashboard says, at every step.
+      "e2e/status-timeline.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
       "e2e/round-date-and-viewing-as.spec.ts",
       "e2e/round-day.spec.ts",
       "e2e/round-allowance.spec.ts",
       "e2e/team-allowance.spec.ts",
       "e2e/round-handicap.spec.ts",
+      // Lane N, PR A: a player with no handicap index in a net round — the note on Entries, the band, Give by keyboard.
+      "e2e/no-handicap-net-round.spec.ts",
+      // State machine PR 7b (J12): a round's format, allowance and delete judged by what they would invalidate.
+      "e2e/round-changes-after-scores.spec.ts",
+      // …and a scored round's tees drawn shut with the reason on Score entry and Tournament details (round G594-1).
+      "e2e/tees-shut-once-frozen.spec.ts",
     ],
     // Every scenario builds its rounds through this screen.
     scenarios: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"],
@@ -148,19 +179,29 @@ export const AREAS = {
       "src/app/(app)/registration/",
       "src/app/register/",
       "src/components/RegistrationClient.tsx",
+      "src/components/EntryTermsCard.tsx",
       "src/components/RegisterClient.tsx",
       "src/components/DisqualifyPanel.tsx",
+      "src/components/WithdrawnList.tsx",
       "src/app/actions/register.ts",
       "src/app/actions/disqualify.ts",
     ],
     specs: [
+      // Day-of field changes (PR A): withdraw, put back, a late entry and its flight, after launch.
+      "e2e/day-of-field-changes.spec.ts",
+      // State machine PR 7a (J12): a late entrant after the draw — a round robin's needs a flight, a knockout's is a reserve.
+      "e2e/field-changes-after-the-draw.spec.ts",
       "e2e/entry-needs-approval.spec.ts",
+      "e2e/entry-terms.spec.ts",
       "e2e/disqualified-and-reinstated.spec.ts",
       "e2e/organizer-requires-a-phone.spec.ts",
       "e2e/enter-from-the-club-list.spec.ts",
       "e2e/organizer-entry.spec.ts",
       "e2e/public-links-and-removals.spec.ts",
       "e2e/members.spec.ts",
+      // The no-email player identity, PR 1: Member or Guest (not a club member) on Add and in the CSV.
+      "e2e/add-a-member-or-guest.spec.ts",
+      "e2e/import-marks-member-or-guest.spec.ts",
     ],
     // Members enter from their own phones in the society's Stableford.
     scenarios: ["a"],
@@ -170,8 +211,19 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/app/actions/tee-sheet.ts"],
-    specs: ["e2e/organizer-teesheet.spec.ts", "e2e/play-with.spec.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts"],
+    specs: [
+      "e2e/organizer-teesheet.spec.ts",
+      "e2e/play-with.spec.ts",
+      // Day-of field changes (PR B): put one late entry in a group with room, DNS, the late-entry cutoff.
+      "e2e/day-of-tee-sheet.spec.ts",
+      // Move one player or a whole group on a saved sheet, and the league week's: a draft, one Save.
+      "e2e/tee-sheet-moves.spec.ts",
+      // Replace a player in a slot with a member or a guest: a no-show, a cancellation (B43).
+      "e2e/tee-sheet-replace.spec.ts",
+      // Cut A (event-first, 15 Nov): the members list asked for at the draw, and offered on Entries.
+      "e2e/members-asked-at-the-draw.spec.ts",
+    ],
     scenarios: [],
     // Tee times are read on the club's clock.
     dateSensitive: true,
@@ -202,6 +254,7 @@ export const AREAS = {
       "e2e/player-one-screen.spec.ts",
       "e2e/player-words.spec.ts",
       "e2e/player-calendar.spec.ts",
+      "e2e/my-season.spec.ts",
       "e2e/slow-page.spec.ts",
       "e2e/shared-phone.spec.ts",
     ],
@@ -216,6 +269,17 @@ export const AREAS = {
     specs: ["e2e/messages.spec.ts", "e2e/messages-to-a-flight.spec.ts", "e2e/announcements.spec.ts", "e2e/organizer-announcements.spec.ts"],
     scenarios: [],
     dateSensitive: false,
+    actions: [],
+  },
+  "setup-questions": {
+    name: "The setup questionnaire (/new — a few questions to a reviewed draft)",
+    // Its pure rules (`domain/setup-questions.ts`) and its writer (`createTournament` in actions/tournament.ts)
+    // are shared ground, read by the create action, so a change there is a full round.
+    paths: ["src/app/new/", "src/components/SetupQuestions.tsx"],
+    specs: ["e2e/setup-questions.spec.ts"],
+    scenarios: [],
+    // The first day is the club's next Saturday, counted on the club's clock.
+    dateSensitive: true,
     actions: [],
   },
   guide: {
@@ -234,6 +298,15 @@ export const AREAS = {
  * where a change is never targeted anyway — or a check of the test harness itself.
  */
 export const FULL_ONLY = [
+  // J39/J40 PR 1: a guest takes full part by a personal player link, no email and no app (access and sign-in: shared ground).
+  "e2e/a-guest-takes-full-part.spec.ts",
+  // J39/J40 PR 2: a guest in messages and notices, by who-key (messaging and push: shared ground).
+  "e2e/a-guest-in-messages.spec.ts",
+  // J39/J40 PR 3: player link slips printed at the desk, reprinted new, replaced after a lost sheet (access: shared ground).
+  "e2e/player-link-slips.spec.ts",
+  // One code box (plan row 4c, cut 1): either code in either box, one sentence for every wrong one (access: shared ground).
+  "e2e/one-code-box.spec.ts",
+  "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",
   "e2e/a-refusal-stays-put.spec.ts",
@@ -241,6 +314,10 @@ export const FULL_ONLY = [
   "e2e/access.spec.ts",
   "e2e/account.spec.ts",
   "e2e/an-address-is-proved.spec.ts",
+  // An archived tournament's console, read-only in one place: the layout's wrapper, on every screen.
+  "e2e/an-archived-tournament-is-read-only-in-one-place.spec.ts",
+  // J26: an away week's halved match on the away card — leaderboard, week sheet, match record. Leagues: shared ground.
+  "e2e/an-away-halve-on-the-away-card.spec.ts",
   "e2e/boards-by-the-rules.spec.ts",
   "e2e/casual-round-kept.spec.ts",
   "e2e/casual-round.spec.ts",
@@ -262,6 +339,10 @@ export const FULL_ONLY = [
   "e2e/dialog.spec.ts",
   "e2e/discount-code.spec.ts",
   "e2e/event-setup-calm.spec.ts",
+  // The worlds the shared fixture lacks: a second theme, a cut set not made, an assistant, a finished cup, three flights (J52).
+  "e2e/fixture-states.spec.ts",
+  // The card, the public board and the handicap working: shared ground, as honest-card and boards-by-the-rules.
+  "e2e/every-figure-explains-itself.spec.ts",
   "e2e/faq-blocks.spec.ts",
   "e2e/flight-board.spec.ts",
   "e2e/formats-agree.spec.ts",
@@ -269,9 +350,12 @@ export const FULL_ONLY = [
   "e2e/handicap-body.spec.ts",
   "e2e/honest-card.spec.ts",
   "e2e/hydration-recorder.spec.ts",
+  // The form controls no test changed, the most important first: handicap type, two stakes, the scoring picker, a selection — each changed, its effect read.
+  "e2e/important-controls-are-changed.spec.ts",
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",
+  "e2e/namesake-notice.spec.ts",
   "e2e/kind-change-asks-about-money.spec.ts",
   "e2e/kitty.spec.ts",
   "e2e/landing-demo-doors.spec.ts",
@@ -279,13 +363,29 @@ export const FULL_ONLY = [
   "e2e/landing-screens.spec.ts",
   "e2e/launch-reads-setup.spec.ts",
   "e2e/league.spec.ts",
+  // B03: the lifecycle stepper (behind ?stepper=1), the dashboard's button and the folded line agree at every step of a two-day medal.
+  "e2e/lifecycle-stepper.spec.ts",
+  // Console structure, step 2: the menu follows the stepper's four stops (behind ?stepper=1); every address the old menu offered is still offered and opens.
+  "e2e/lifecycle-menu.spec.ts",
+  // State machine PR 5a: each Teams & pairs control and each team round's pricing Save, pressed once on a stale screen after setup locked — refused in words, never thrown.
+  "e2e/locked-sides-refuse-in-words.spec.ts",
+  // State machine PR 5b: the rest of the app's locked controls (details, entry terms, flights, rounds, clear scores), pressed once each on a
+  // stale screen — refused in the scope's words — and the committee correction opened, used and closed, on the record.
+  "e2e/locked-setup-refuses-in-words.spec.ts",
   "e2e/match-kept-by.spec.ts",
   "e2e/match-play-rules.spec.ts",
   "e2e/match-results.spec.ts",
+  // A member scores from the cart sign signed out, with or without an email on the list (J39/J40: the guest link must not change it).
+  "e2e/members-still-score-from-the-qr.spec.ts",
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
+  "e2e/net-without-tees-says-so.spec.ts",
+  // Lane N PR A with state machine PR 9a: no handicap index in a net round - the launch dialog names the player first (plain event, league).
+  "e2e/no-index-warning-in-the-launch-dialog.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  // State machine PR 8 (J14): a row A045 moved keeps what members saw, launches like any other, and is copied without its old word.
+  "e2e/old-setting-up-rows-keep-their-word.spec.ts",
   "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",
@@ -296,20 +396,38 @@ export const FULL_ONLY = [
   "e2e/organizer-stableford.spec.ts",
   "e2e/organizer-tees.spec.ts",
   "e2e/organizer.spec.ts",
+  // The round-code holder's board (2026-11-05): all three visibility settings; /live stays the privacy line.
+  "e2e/play-board.spec.ts",
   "e2e/play-suspended.spec.ts",
+  // Work plan row 0b (14 Nov): a member's and a guest's first hole, MEASURED — screens, presses, characters, seconds
+  // (one JOURNEY line each). Shared ground: sign-in, the player link, the card and the board at once.
+  "e2e/player-journey.spec.ts",
   "e2e/pot-on-the-scores.spec.ts",
   "e2e/prizes.spec.ts",
   "e2e/roster-handicap-and-field.spec.ts",
   "e2e/roster.spec.ts",
+  "e2e/round-code-before-the-script.spec.ts",
   "e2e/round-code-box-starts-empty.spec.ts",
   "e2e/round-code-certify-and-result.spec.ts",
   "e2e/round-code-decided-match.spec.ts",
+  // The doors into a group (2026-11-05): a group link, and the group a phone remembers across a tournament.
+  "e2e/round-code-doors.spec.ts",
   "e2e/round-code-four-ball-side.spec.ts",
+  // The cup's wrong card (18 Oct), pressed the new way: code, group, one confirmation, side B credited.
+  "e2e/round-code-keeps-a-group.spec.ts",
   "e2e/round-code-on-3g.spec.ts",
   "e2e/round-code-reissued.spec.ts",
   "e2e/round-code-sign.spec.ts",
+  // Share beside Copy on the Round Codes section: the sheet, and the clipboard fallback.
+  "e2e/round-code-share.spec.ts",
+  // One scorer per group and the other side's check, pressed through the actions' own endpoints until phase 2's /play buttons (2026-11-04).
+  "e2e/scoring-by-group-server.spec.ts",
+  // The same, PRESSED on two phones (2026-11-05, phase 2): keep, follow, take over, a stale phone refused in words, hand back, the other side confirms, a dispute held off the board.
+  "e2e/scoring-by-group-phones.spec.ts",
   "e2e/seasons.spec.ts",
   "e2e/secretary-back-after-a-week.spec.ts",
+  "e2e/secretary-copy-last-event.spec.ts",
+  "e2e/secretary-first-event.spec.ts",
   "e2e/security.spec.ts",
   "e2e/seo.spec.ts",
   "e2e/setup-checklist-outlives-the-field.spec.ts",
@@ -319,7 +437,28 @@ export const FULL_ONLY = [
   "e2e/sides-and-splits.spec.ts",
   "e2e/skins-pot.spec.ts",
   "e2e/slow-signal-scoring.spec.ts",
+  // G571-4: a hole save replayed after the committee's sign-off is refused; a save lost to no signal does not strand the next tap.
+  "e2e/stale-match-save.spec.ts",
+  "e2e/staff-kept-cards.spec.ts",
+  // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
+  // PR 4: each action that now asks the machine, pressed once in the state it refuses (launch, complete, close a round, every door into scoring).
+  "e2e/status-actions-refuse.spec.ts",
+  "e2e/status-casual.spec.ts",
+  "e2e/status-four-ball-match-board.spec.ts",
+  "e2e/status-knockout-flights.spec.ts",
+  "e2e/status-knockout.spec.ts",
+  "e2e/status-league.spec.ts",
+  "e2e/status-match.spec.ts",
+  "e2e/status-round-robin-flights.spec.ts",
+  "e2e/status-stableford.spec.ts",
+  "e2e/status-stroke.spec.ts",
+  "e2e/status-team-cup.spec.ts",
+  "e2e/status-team-match-result-line.spec.ts",
+  // The reach gap (2026-11-13): the buttons that ask an outside service (Stripe, a model, a course directory), pressed where a person
+  // would, and a member's tee-time alerts turned on and off. Shared ground: plan, announcements, scoring, courses and Today at once.
+  "e2e/switched-off-services-answer-in-words.spec.ts",
   "e2e/team-cup.spec.ts",
+  "e2e/tee-time-alerts.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",
   "e2e/the-bot-check-cannot-shut-the-door.spec.ts",

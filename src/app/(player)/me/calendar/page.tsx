@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
-import { requireSession } from "@/lib/page-helpers";
+import { requireAccountViewer } from "@/lib/page-helpers";
 import { clubCommitmentsFor } from "@/lib/services/club-calendar";
 import { todayForEvent } from "@/lib/services/club-clock";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -30,7 +30,7 @@ export const metadata = screenMetadata("/me/calendar");
  * round.
  */
 export default async function ClubCalendarPage() {
-  const session = await requireSession();
+  const session = await requireAccountViewer();
   const commitments = await clubCommitmentsFor(session.email);
 
   return (

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { landingSettled } from "./landing-settled";
+import { CODE_WORDS } from "../src/lib/domain/code-shape";
 
 /**
  * WHAT SOMEBODY TYPES BEFORE THE PAGE HAS FINISHED LOADING IS TAKEN (2026-10-11).
@@ -46,19 +47,25 @@ test.describe("typed while the page was still loading", () => {
     try {
       await onASlowConnection(page);
       await page.goto("/play", { waitUntil: "commit" });
-      const box = page.getByLabel("Round code");
+      const box = page.getByLabel("Your code");
       await box.waitFor({ timeout: 15_000 });
       await box.pressSequentially("ZZQX7M3P", { delay: 40 });
-      // CONTROL: it really was typed before the page was live — the button is
-      // still asleep, as it is on any page whose script has not arrived.
-      await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+      // CONTROL: it really was typed before the page was live — React has not
+      // taken the box over. (This used to be "Continue is still asleep"; since
+      // 2026-10-25 Continue can be pressed before the script, as a plain form
+      // post — `round-code-before-the-script.spec.ts` — so the box itself is
+      // asked.)
+      expect(
+        await box.evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactFiber$"))),
+        "the page was live before the code was typed",
+      ).toBe(false);
 
       await live(page);
       await expect(box).toHaveValue(/ZZQX.?7M3P/);
       await expect(page.getByRole("button", { name: "Continue" }), "the code is in the box and the page does not know it").toBeEnabled();
       // And it is the code that was typed that goes: a made-up one is refused in words.
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page.getByText(/That code isn.t valid/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(CODE_WORDS.opensNothing)).toBeVisible({ timeout: 15_000 });
     } finally {
       await ctx.close();
     }
@@ -102,12 +109,12 @@ test.describe("typed while the page was still loading", () => {
       await onASlowConnection(page, 1500);
       await page.goto("/play", { waitUntil: "commit" });
       await live(page);
-      await expect(page.getByLabel("Round code")).toHaveValue("");
+      await expect(page.getByLabel("Your code")).toHaveValue("");
       await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
       // And typing AFTER the page is live works as it always did, once.
-      await page.getByLabel("Round code").pressSequentially("ZZQX7M3P", { delay: 20 });
+      await page.getByLabel("Your code").pressSequentially("ZZQX7M3P", { delay: 20 });
       await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
-      await expect(page.getByLabel("Round code")).toHaveValue(/^ZZQX.?7M3P$/);
+      await expect(page.getByLabel("Your code")).toHaveValue(/^ZZQX.?7M3P$/);
     } finally {
       await ctx.close();
     }

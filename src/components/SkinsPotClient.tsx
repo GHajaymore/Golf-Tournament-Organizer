@@ -221,8 +221,9 @@ export function SkinsPotClient({
       {renaming && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div className="field" style={{ flex: 1, minWidth: 180 }}>
-            <label>What to call it</label>
+            <label htmlFor={`${fid}-rename`}>What to call it</label>
             <input
+              id={`${fid}-rename`}
               className="input"
               value={newName}
               maxLength={40}

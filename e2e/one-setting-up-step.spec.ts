@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * ONE "SETTING UP" STEP BEFORE LAUNCH (Ajay, 2026-10-31, gap G1), as the organizer meets it.
@@ -48,7 +49,7 @@ test("a draft with players says Setting up and offers Launch, refused in place w
     const event = await prisma.event.create({
       data: {
         organizationId: org.id, name: `zz-settingup medal ${size}`, dates: "", course: "Home", city: "", address: "", regDeadline: "",
-        status: "draft", shareToken: `zz-settingup-${size}-${Date.now()}`, configUnlocked: true,
+        status: "draft", shareToken: `zz-settingup-${size}-${Date.now()}`,
         customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
         customYards: JSON.stringify(new Array(18).fill(400)),
       },
@@ -76,10 +77,14 @@ test("a draft with players says Setting up and offers Launch, refused in place w
     await expect(page.getByRole("button", { name: "Mark ready" })).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText("Start taking entries");
 
-    // Refused in place while setup cannot launch, with the gate's reason.
+    // Refused in place while setup cannot launch, with the gate's reason under the
+    // button and the way out (`RefusedAction`, state machine PR 3): aria-disabled, so
+    // it stays focusable and names its reason; the reason ends in a link to the fix.
     await expect(launch).toBeDisabled();
-    await expect(launch).toHaveAttribute("title", new RegExp(`^${NO_DATES.replace(/[.]/g, "[.]")}`));
-    await expect(page.getByText(NO_DATES).first()).toBeVisible();
+    await expect(launch).toHaveAttribute("aria-disabled", "true");
+    const reason = page.locator(`#${await launch.getAttribute("aria-describedby")}`);
+    await expect(reason).toContainText(NO_DATES);
+    await expect(reason.getByRole("link", { name: "Open Tournament details" })).toHaveAttribute("href", "/event");
     expect(await status(), "refusing changed the tournament").toBe("draft");
 
     // The dates set, the same button launches it — straight from draft.
@@ -89,7 +94,7 @@ test("a draft with players says Setting up and offers Launch, refused in place w
     await launch.click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect.poll(status, { timeout: 20_000, message: "Launch did not launch the draft" }).toBe("live");
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
     expect(errors).toEqual([]);
   } finally {
     await ctx.close().catch(() => {});

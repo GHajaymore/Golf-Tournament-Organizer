@@ -144,7 +144,7 @@ describe("motion stays on data, not on chrome", () => {
     // And the two pages that render them both mount the poller. Without this
     // the pair above is satisfied by animation on a board nothing refreshes,
     // which is the failure the original version of this test was guarding.
-    for (const page of ["src/app/(app)/leaderboard/page.tsx", "src/app/live/[token]/page.tsx"]) {
+    for (const page of ["src/app/(app)/leaderboard/page.tsx", "src/components/PublicBoard.tsx"]) {
       expect(
         readSource(page),
         `${page} renders an animated board but nothing updates it in place`,

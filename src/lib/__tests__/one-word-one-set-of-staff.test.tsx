@@ -51,7 +51,7 @@ const person = (over: Record<string, unknown> = {}) => ({
 const render = (people: ReturnType<typeof person>[], seats: number) =>
   renderToStaticMarkup(
     <OrgProfileProvider kind="club">
-      <OrganizationAccess
+      <OrganizationAccess actorRole="owner"
         report={
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           { events: [{ id: "e1", name: "Spring Medal", dates: "May 14" }], people } as any

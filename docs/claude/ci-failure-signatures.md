@@ -263,3 +263,98 @@ So an error in `next/font` after that date is NOT this fault; read it as a real 
 
 Same family as the `Client Manifest` fault two sections up and read the same way: the file it
 names is noise, and what settles it is whether another build of the same SHA succeeded.
+
+## "Install Playwright browsers timed out after 10 minutes" (2026-11-06)
+
+```
+##[error]The action 'Install Playwright browsers' has timed out after 10 minutes.
+```
+
+A MACHINE fault, not the app: **re-run the failed job** (`gh run rerun <id> --failed`) and do not edit
+application code. Three times in two days (runs 42077298791 small-phone 2/2, 42131594077 desktop 3/3,
+42189739131 desktop 3/3), each leaving the shard with nothing handed in and `verify` red.
+
+Where the time went (run 42131594077): not the browser download (cached) and not the apt lock, but
+the Azure Ubuntu mirror behind `--with-deps`. The 21.9 MB of fonts is nine `Get:` lines, and each
+stalled for about two minutes (`fonts-ipafont-gothic` 23:46:13, `Ign:` 23:48:25; `fonts-wqy-zenhei`
+23:51:51, next `Get:` 23:54:48) until the ten-minute limit cut it off at 23:56:19. The other two
+runs' logs were no longer available to read.
+
+Since 2026-11-06 the step is `bash scripts/ci/install-browsers.sh chromium`: apt gives up on a stalled
+connection after 30 s and retries, and the install is two attempts of four minutes under the step's
+unchanged ten-minute limit, so a real hang still fails, loudly, in the same step. A red here now means
+BOTH attempts failed (the log says "could not be installed in 2 attempts"): the mirror is down, so
+re-run later. `browser-install-is-bounded.test.ts` refuses a bare `playwright install --with-deps`.
+
+**Since 2026-11-06 (later the same day) there is no install to time out.** The browser jobs run in
+Playwright's own container image, `mcr.microsoft.com/playwright:v<X>-noble`, `<X>` exactly the
+`@playwright/test` in `package-lock.json` (`browser-image-matches-the-lockfile.test.ts` fails when
+they differ: bump the lockfile and the four workflows' tags and `@sha256:` digests together). The
+container runs `--user 1001`, the runner's uid: as root with `$HOME` owned by 1001 Firefox refuses
+to start. `scripts/ci/install-browsers.sh` is gone (no caller was left). A round part says it runs in
+the image with one field, `image`, set in `layers.mjs` `partsFor`. Moved: `ci.yml` End-to-end (all
+shards), `browsers.yml`, `breaks.yml` (baseline and every break), and `round.yml`'s parts whose
+`browsers` is exactly `chromium`, `firefox` or `webkit`. Not moved, and still installing through the
+bounded loop: the parts that drive the INSTALLED Chrome or Edge (`chromium chrome`, `chromium msedge`;
+the image holds neither) and the parts with no browser. What it changes in a log:
+
+- **no apt anywhere in a containerised job**; the step "Check the image holds ... browser" runs
+  `scripts/ci/check-browsers-present.mjs`. If it is red the image is not this branch's Playwright (a
+  config fault: fix the tag), and in a round it reads as "installing the browser failed", so the verdict
+  is `INCOMPLETE - re-run` as before.
+- **the database is `postgres`, forwarded to localhost.** A container job reaches its service by name;
+  every seed refuses a host that is not localhost, so the setup action (input `database-host`) starts
+  `scripts/ci/forward-postgres.mjs`. Red in "Reach the database on localhost" = the service never came
+  up (re-run). Every `DATABASE_URL` is still `@localhost:5432`.
+- **no `lsof`, no `sudo`** in the image: `round.mjs` stops its server through `scripts/qa/free-port.mjs`
+  (reads `/proc`) when `lsof` is missing.
+- Node: the image carries Node 24; `setup-node` still puts the app's 20 (22 for mutation) first on PATH.
+
+## UNEXPLAINED: the click that never returns on Rounds & formats (2026-11-14)
+
+```
+✘ [desktop] › e2e/organizer-rounds-screen.spec.ts:177:5 › a match-play championship in groups, then a knockout (4.2m)
+    Test timeout of 240000ms exceeded.
+    Error: expect(locator).toHaveValue(expected) failed
+    Locator:  getByLabel('Format for every round added')   Expected: "Match Play"   Received: ""
+    > 205 | await expect(...).toHaveValue("Match Play", { timeout: 10_000 });   (the line after the Bracket click)
+```
+
+Desktop Chromium only, twice: runs 41950657167 and 43589900390 (an unrelated branch). The Bracket press
+logs "performing click action" and nothing follows for the rest of the 240 s: no frames, no requests, no
+console lines, and no `SEGV_MAPERR`, "Target crashed" or "Page crashed" in either log. The app's Bracket
+press only calls two setStates, so the source does not explain it. **Cause unknown; do not add a cap that
+fails sooner, and do not edit application code on the strength of it.** (The `Invalid Server Actions
+request` lines in run 43589900390 start at 11:51, four minutes AFTER the test died: the next tests'
+teardown, not this.)
+
+Since 2026-11-14 the spec's Bracket click, and the 10 s `toHaveValue` after it, run under
+`e2e/stalled-click.ts` (always on; nothing is capped, the click and the expect keep their own bounds). If
+either is still pending after 20 s / 15 s the job log gets, once, lines starting `[stalled-click]`, and the
+test gets a text and a PNG attachment (the config also keeps a trace on failure). Read them so:
+
+| The log says | It was |
+| --- | --- |
+| `main thread unresponsive: page.evaluate did not answer in 5 s`, `no screenshot in 6 s` | the renderer hung or spun (a busy loop in the page) |
+| `PAGE CRASHED` | the renderer process died quietly |
+| `native confirm/alert/beforeunload dialog ...` | a dialog stalled the press; it was dismissed |
+| `atCentre=<x> ... (covering it)` or `attached=false` | the target was covered or replaced under the click |
+| `moved=true` | it was animating or re-laying out |
+| `took N ms, started <ISO time>` and nothing else | the click or the expect was slow, not stuck: the ISO times line up with the job log |
+| `pageerror` / `request failed` just before | the app threw, or a request dropped, at the press |
+
+**Quarantine: not yet.** Two occurrences on different branches, and the instrumentation has not yet run in
+CI. If it fails again BEFORE this lands, add the entry to `e2e/quarantine.json` (spec
+`e2e/organizer-rounds-screen.spec.ts`, test "a match-play championship in groups, then a knockout", owner
+Test Engineer, reason "click never returns, cause unexplained; see ci-failure-signatures", expiry at most 7
+days out). Once it lands, a recurrence explains itself and the next engineer fixes what the table says.
+
+## `SILENT` on a control that navigates (console crawl)
+
+`SILENT · <screen> · <control> → <choice>` ("nothing was sent and nothing changed") on a radio, link-like choice
+or button that goes to another address (`router.push`). Open the trace: if a `GET …&_rsc=…` was sent a few
+tens of ms after the press and answered after the crawl looked, it is this and not the app (nightly G60-1,
+18 Nov 2026: the cup's `/print` signs choice, answered in 848 ms against a 700 ms guess; first seen G654-1, B83).
+Fixed at the root in `e2e/navigation-settle.ts`: `exercise()` waits, bounded to 10 s, for every non-prefetch RSC
+request the press started, and an unanswered one is `STUCK` with the address. A SILENT that remains has no
+such request in its trace, so it is a real silent control. After the answer it also waits (5 s) for the address the request went to, so an answer that landed just before the judge looked is not missed. Background polls (`router.refresh` in LiveRefresh and the like) are RSC requests too: a hung one reads STUCK on the control pressed, with its address in the note. Do not raise the 700 ms.

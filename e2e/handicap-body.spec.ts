@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { openSettingsTab } from "./settings-tabs";
+import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
+import { isLaunched } from "../src/lib/domain/lifecycle-state";
 
 /**
  * A CLUB'S HANDICAP BODY FOLLOWS WHERE THE CLUB IS — ON EVERY SCREEN THAT NAMES IT.
@@ -16,11 +18,13 @@ import { openSettingsTab } from "./settings-tabs";
  *
  * For three places — England, nowhere said yet, the United States — the club's
  * country is set (in the database: the Branding form is not what is under
- * test), the secretary presses "<body> where a member has one" on Club
- * settings, and three screens are read:
+ * test), and three screens are read:
  *
- *   Club settings   "Handicap body: <body>", the choice named for it, no picker
- *   the server      the body stored is the country's, whatever the page sent
+ *   Club settings   "Handicap body: <body>", no picker, and — while no
+ *                   federation link is live (the team's rulings, 2026-10-24) —
+ *                   no body choice at all, but "a live link … from <body> is
+ *                   coming". Which body a choice STORES is held by
+ *                   `a-club-names-its-own-handicap-body.test.tsx` until then.
  *   Members         the number box is the body's ("England Golf membership number (CDH)")
  *   Entries         the handicap-source choice is the body's, the number box too
  *
@@ -58,9 +62,9 @@ const VISITOR = "zz-hbody Visiting Golfer";
 const VISITOR_EMAIL = "zz-hbody-visitor@example.invalid";
 
 const PLACES = [
-  { country: "England", id: "england-golf", name: "England Golf", short: "England Golf", number: "England Golf membership number (CDH)" },
-  { country: "", id: "national", name: "Your national association", short: "Association", number: "National association number" },
-  { country: "United States", id: "ghin", name: "GHIN (USGA)", short: "GHIN", number: "GHIN number" },
+  { country: "England", id: "england-golf", name: "England Golf", short: "England Golf", prose: "England Golf", number: "England Golf membership number (CDH)" },
+  { country: "", id: "national", name: "Your national association", short: "Association", prose: "your national association", number: "National association number" },
+  { country: "United States", id: "ghin", name: "GHIN (USGA)", short: "GHIN", prose: "GHIN", number: "GHIN number" },
 ] as const;
 
 test("a club's handicap body follows its country on Club settings, Members and Entries — never assumed American", async ({ browser, baseURL }, testInfo) => {
@@ -70,7 +74,7 @@ test("a club's handicap body follows its country on Club settings, Members and E
   const page = await ctx.newPage();
   watchPageErrors(page, errors);
   /** The tournament's setup lock as it was, when the visitor step had to open it. */
-  let unlockedWas: boolean | null = null;
+  let fieldOpened = false;
   try {
     for (const place of PLACES) {
       await test.step(`${place.country || "no country yet"} → ${place.name}`, async () => {
@@ -84,14 +88,15 @@ test("a club's handicap body follows its country on Club settings, Members and E
         // Geographical, not picked.
         await expect(panel.locator("select")).toHaveCount(0);
         if (!place.country) await expect(panel).toContainText("add your club's country under Branding");
-
-        await panel.getByRole("button", { name: `${place.short} where a member has one` }).click();
-        await expect
-          .poll(async () => prisma.organization.findUniqueOrThrow({ where: { id: clubId }, select: FIELDS }), {
-            timeout: 20_000,
-            message: "the choice was not stored, or stored another country's body",
-          })
-          .toMatchObject({ handicapPolicy: "hybrid", handicapAuthorityId: place.id });
+        // Neither body choice — "<body> only" nor "<body> where a member has
+        // one" — is offered until a federation link fetches indexes (the team's
+        // rulings, 2026-10-24 — `federationLinkLive`). With the club's own
+        // record the only choice there is no button at all, and the panel
+        // says the link is coming, naming the body.
+        await expect(panel.getByRole("button", { name: `${place.short} only` }), "the service-only choice is offered").toHaveCount(0);
+        await expect(panel.getByRole("button", { name: `${place.short} where a member has one` }), "the where-a-member-has-one choice is offered").toHaveCount(0);
+        await expect(panel.locator("button[aria-pressed]"), "a lone choice button is drawn").toHaveCount(0);
+        await expect(panel).toContainText(`A live link that fetches indexes from ${place.prose} is coming.`);
         if (place.id !== "ghin") await expect(panel).not.toContainText("GHIN");
 
         await open(page, "/roster");
@@ -110,16 +115,29 @@ test("a club's handicap body follows its country on Club settings, Members and E
      * country visit to play an outing"). A US club on GHIN ONLY enters an
      * England Golf member: under WHS their index is valid here, so it is kept
      * — on their entry and on the club's list, with their own body.
+     *
+     * While no federation link is live a STORED "ghin" reads as the club's own
+     * record (`handicapPolicyOf`), so this step now walks a club whose typing
+     * is open anyway; the visitor rule under a live service-only policy is held
+     * by `a-club-names-its-own-handicap-body.test.tsx`.
      */
     await test.step("a US club on GHIN only keeps an England Golf visitor's own index", async () => {
       await prisma.organization.update({ where: { id: clubId }, data: { country: "United States", handicapPolicy: "ghin", handicapAuthorityId: "ghin" } });
       // The fixture's tournament is live with setup locked, and a locked field
-      // takes nobody new ("Setup is locked, so nobody can be added") — so it is
-      // unlocked for this step, as an organizer would, and put back below.
-      const was = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { configUnlocked: true } });
-      unlockedWas = was.configUnlocked;
-      await prisma.event.update({ where: { id: data.eventId }, data: { configUnlocked: true } });
+      // takes nobody new — so the FIELD is opened for this step with a committee
+      // correction, as an organizer would (state machine PR 9b: the blanket
+      // unlock is not read), and closed in `finally`.
+      await openCorrectionFor(prisma, data.eventId, "field");
+      fieldOpened = true;
+      // Read from the fixture, not assumed: the premise above is that it is launched.
+      const { status } = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { status: true } });
+      expect(isLaunched(status), `the fixture's tournament is "${status}", not launched: this step's premise is gone`).toBe(true);
       await open(page, "/registration");
+      // A correction OPENS the field; it does not un-launch the tournament. So the screen
+      // says what the field rule says (`fieldBanner`): the field is open for a correction,
+      // and an entry made now is a LATE entry — the press is "Add late entry", never the
+      // before-launch "Add to field" the retired blanket flag used to bring back.
+      await expect(page.getByText("The field is open for a correction", { exact: false }).first()).toBeVisible();
       const add = page.locator(".card", { has: page.locator(".card-title", { hasText: /^Add someone new$/ }) }).first();
       await add.getByRole("button", { name: "Visitor from another country?" }).click();
       // The label is typeset ("Visitor’s", a curly apostrophe), so either is accepted.
@@ -132,7 +150,8 @@ test("a club's handicap body follows its country on Club settings, Members and E
       const mobile = add.getByRole("textbox", { name: /^Mobile/ });
       if (await mobile.isVisible()) await mobile.fill("5550199");
       await add.getByLabel(/^Handicap( index)?$/).fill("12.4");
-      await add.getByRole("button", { name: /Add to field/ }).click();
+      await expect(add.getByRole("button", { name: /Add to field/ }), "a launched tournament's add is a late entry").toHaveCount(0);
+      await add.getByRole("button", { name: /Add late entry/ }).click();
       await expect
         .poll(async () => prisma.member.findFirst({ where: { organizationId: clubId, name: VISITOR }, select: { handicap: true, handicapBodyId: true, handicapSource: true } }), {
           timeout: 20_000,
@@ -151,7 +170,7 @@ test("a club's handicap body follows its country on Club settings, Members and E
   } finally {
     await prisma.player.deleteMany({ where: { eventId: data.eventId, name: VISITOR } });
     await prisma.member.deleteMany({ where: { organizationId: clubId, name: VISITOR } });
-    if (unlockedWas !== null) await prisma.event.update({ where: { id: data.eventId }, data: { configUnlocked: unlockedWas } });
+    if (fieldOpened) await endCorrectionFor(prisma, data.eventId);
     await ctx.close();
   }
   expect(errors, "a screen threw").toEqual([]);

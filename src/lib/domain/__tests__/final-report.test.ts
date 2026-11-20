@@ -75,7 +75,7 @@ describe("the final report's arithmetic", () => {
     expect(names).not.toContain("B3");
   });
 
-  it("the points track: 16 points, CVC 5½, CDG 9½ in the matches and the 16th point to CDG", () => {
+  it("the points track: 16 points, Oaks 5½, Pines 9½ in the matches and the 16th point to Pines", () => {
     expect(pointsTrack({ a: 5.5, b: 10.5, outside: [{ side: "B", points: 1 }], inPlay: 16 })).toEqual({
       a: 11,
       b: 19,

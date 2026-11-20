@@ -1,16 +1,40 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
-import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } from "@/lib/registration";
+import { useGolfTerms } from "@/components/GolfTermsProvider";
+import { toCsv } from "@/lib/domain/csv-export";
+import { entriesOpen, overCapacity, suggestedInvite } from "@/lib/registration";
 import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
-import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
+import { setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
-import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
+import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, previewCsvSignups, setInviteMessage, placeInFlight, type CsvImportResult, type CsvPreviewRow } from "@/app/actions/tournament";
+import {
+  CHECK_WORDS,
+  CODES_TURNED_ON,
+  CSV_STANDING_GUIDE,
+  CSV_TEMPLATE_HEADER,
+  ENTRY_STANDINGS,
+  GUEST_EMAIL_DROPPED,
+  NO_EMAIL_YET,
+  STANDING_CHOICE,
+  STANDING_TAG,
+  entryStanding,
+  importButtonWords,
+  guestCodesNote,
+  isGuest,
+  memberWithoutEmail,
+  previewSummary,
+  standingHint,
+  type EntryStanding,
+} from "@/lib/domain/entry-standing";
+import { withdrawConfirmation, type FieldChange } from "@/lib/domain/field-change";
 import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { SetupLockBanner } from "./SetupLockBanner";
+import { ScopeLockBanner, SCOPE_LOCK_REASON_ID, scopeLockBannerDrawn } from "./ScopeLockBanner";
+import { useCaughtUp } from "./useAction";
+import type { CorrectionFacts, ScopeLock } from "@/lib/domain/tournament-status";
 import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { csvSizeRefusal } from "@/lib/csv";
@@ -21,11 +45,17 @@ import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { SignUpPoster } from "./SignUpPoster";
+import { EntryTermsCard } from "./EntryTermsCard";
 import { MoreInfo } from "./MoreInfo";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
+import { PlayerLinkPanel } from "./PlayerLinkPanel";
+import { PLAYER_LINK_WORDS } from "@/lib/domain/player-link";
 import { EMAIL_MAX, PERSON_NAME_MAX, PHONE_MAX, PLACE_MAX } from "@/lib/domain/typed-limits";
 import { HANDICAP_BODIES, bodyInProse, bodyShortLabel, handicapBody as bodyById } from "@/lib/domain/handicap-body";
+
+/** Each field change's refusal, or null where it is open (`fieldDoors`). */
+export type FieldDoors = Record<FieldChange, string | null>;
 
 /** The page's origin never changes while it is open, so nothing to subscribe to. */
 const noSubscription = () => () => {};
@@ -55,10 +85,17 @@ interface Signup {
   promotedAt?: string | null;
   /** "Don't show my name on public pages": signed out, they are "Player (name withheld)". */
   publicNameWithheld?: boolean;
+  /** As stored (`Player.standing`); read only through `entryStanding`. */
+  standing?: string;
 }
 interface EventInfo {
   name: string;
+  /** The places this tournament really holds: the stored number under the plan's field cap. */
   capacity: number;
+  /** The number the organizer set (0 = open), for the terms form — not capped by the plan. */
+  storedCapacity?: number;
+  /** The plan's field limit where one is enforced, else null. */
+  planLimit?: number | null;
   /** draft | registration | ready | live | completed — a finished tournament
    *  takes no more entries, whatever the switch and the deadline say. */
   status: string;
@@ -94,17 +131,29 @@ interface EventInfo {
   today: string;
 }
 
+/** The id of a table's "why the Tees are shut" line, so each Tees box can point at the one above it. */
+const teesDoorId = (title: string) => `player-tees-door-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
 export function RegistrationClient({
   event,
   confirmed,
   waitlist,
   pendingEntries,
   locked,
+  fieldLocks = [],
+  correction = null,
+  doors,
+  underWay = null,
+  flights = [],
+  unplacedFlag = "",
+  addFlight = null,
+  offerReserve = false,
   isAdmin,
   roster,
   tees = [],
   teePolicy = "own",
   defaultTeeName = "",
+  teesDoor,
   needsEmail = true,
   noFormatYet = false,
   handicapBody = { id: "ghin", label: "GHIN", prose: "GHIN", number: "GHIN number" },
@@ -140,10 +189,41 @@ export function RegistrationClient({
   tees?: Array<{ id: string; name: string }>;
   teePolicy?: string;
   defaultTeeName?: string;
+  /**
+   * WHY ONE PLAYER'S TEES CANNOT CHANGE NOW, or null — the rounds rule's
+   * sentence (`acrossRoundsRefusal(…, "field-tees")`, the very call
+   * `setPlayerTee` refuses with): a scored round of cards would be reached, its
+   * handicaps frozen off its tees at its first card, or the tournament is
+   * completed. REQUIRED, so the Tees column is drawn shut with it rather than
+   * offered and then refused.
+   */
+  teesDoor: string | null;
   waitlist: Signup[];
   /** Self-service entries awaiting the organizer's approval (approve mode). */
   pendingEntries: Signup[];
+  /** The FIELD's lock (the machine's `locks.field`, PR 5b) — the per-player tees, the entry terms. The field has its own doors below. */
   locked: boolean;
+  /** The same lock as the banner draws it, with its reason and way out, and the committee correction open on it, if any. */
+  fieldLocks?: readonly ScopeLock[];
+  correction?: CorrectionFacts | null;
+  /**
+   * THE FIELD'S DOORS (day-of field changes, PR A): each field change's refusal
+   * in a sentence, or null where it is open — `fieldDoors` of the one rule the
+   * actions ask (`domain/field-change.ts`). After launch Withdraw, Put back and
+   * (in stroke play, Stableford and a league, before play) Add stay open while
+   * setup is locked; the CSV import, bulk delete and details stay shut.
+   */
+  doors: FieldDoors;
+  /** The under-way banner (`fieldBanner`), shown in place of "Setup locked"; null when not under way. */
+  underWay?: string[] | null;
+  /** The flights a late entrant may be placed in, labelled as the field table labels them. */
+  flights?: Array<{ id: string; label: string }>;
+  /** Who is in the field but in no flight, in the panel's words (`unplacedWords`); "" for nobody (J04). */
+  unplacedFlag?: string;
+  /** The add form's flight (`addFlightPick`): offered, required (a launched round robin), or not drawn. */
+  addFlight?: "offered" | "required" | null;
+  /** A knockout whose draw is made takes a reserve on the waiting list instead (`reserveOffered`). */
+  offerReserve?: boolean;
   isAdmin: boolean;
   /** The club's members, for filling the field without retyping anyone. */
   roster: RosterCandidate[];
@@ -160,7 +240,20 @@ export function RegistrationClient({
    * who has never published a link never scrolls past them.
    */
   const [selfServeOpen, setSelfServeOpen] = useState(event.registrationOpen);
+  // Opening entries publishes the link: show it where it appears, without a second press to find it.
+  useEffect(() => {
+    if (event.registrationOpen) setSelfServeOpen(true);
+  }, [event.registrationOpen]);
   const [name, setName] = useState("");
+  // Member or Guest (not a club member), the organizer's choice (Ajay, 2026-11-07).
+  const [standing, setStanding] = useState<EntryStanding>("member");
+  const addingGuest = standing === "guest";
+  // The hint's {club}: the club's own name where the page has it.
+  const golfWords = useGolfTerms();
+  const hint = standingHint(event.organizationName ?? "", golfWords);
+  // The CSV preview ("Check the list"): the file's text, what each row will be, and the organizer's switches.
+  const [preview, setPreview] = useState<{ csv: string; rows: CsvPreviewRow[] } | null>(null);
+  const [choices, setChoices] = useState<Record<number, EntryStanding>>({});
   // The "Add someone new" captions are real <label>s for their controls.
   const fid = useId();
   const [handicap, setHandicap] = useState("");
@@ -191,6 +284,7 @@ export function RegistrationClient({
   const rowError = rowSaid.text;
   const setRowError = (text: string, at = "") => setRowSaid({ text, at: text ? at : "" });
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   const tableSaveStatus = useSaveStatus(pending);
   // The invite message saves when it is left, on its own transition so its
   // "Saved" does not light up for a change made somewhere else on the screen.
@@ -223,6 +317,8 @@ export function RegistrationClient({
    * in one tap (the tournament director on the review panel: a typo is wrong
    * everywhere, so the offer is made, not left to be found).
    */
+  // Whose Player link panel is open (J39/J40): one guest's at a time, under their row.
+  const [linkFor, setLinkFor] = useState<string | null>(null);
   const [memberOffer, setMemberOffer] = useState<{ playerId: string; name: string; to: number; memberFrom: number; done?: string } | null>(null);
   const commitIndex = (p: { id: string; name: string; handicap: number }, value: number) =>
     startTransition(async () => {
@@ -279,17 +375,26 @@ export function RegistrationClient({
    * own answer.
    */
   const showTees = tees.length > 0 && playerTeeCounts(teePolicy);
+  /** The rounds rule's refusal of a player's tees, or null: an empty sentence is never a reason to shut anything. */
+  const teesShutBy = teesDoor || null;
+  /**
+   * WHERE A CONTROL SHUT BY THE FIELD'S LOCK POINTS FOR ITS REASON (console sweep,
+   * J51): the banner's own words, by `aria-describedby`. The reason is said once,
+   * at the top, and a sentence in every row of a table this dense would be noise;
+   * so the link is markup. Undefined when no banner is drawn, so nothing points at nothing.
+   */
+  const lockSaid = scopeLockBannerDrawn(fieldLocks, correction, underWay) ? SCOPE_LOCK_REASON_ID : undefined;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   const unlimited = event.capacity <= 0;
-  const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);
   // And the other side of that clamp — see `overCapacity`.
   const over = overCapacity(event.capacity, confirmed.length);
   // Was computed from capacity alone, so a tournament whose deadline passed a
   // week ago still read "Open · unlimited" — the screen stating something
   // false about the organizer's own event.
-  const reg = registrationStatus({
+  const entries = entriesOpen({
+    registrationOpen: event.registrationOpen,
     eventStatus: event.status,
     deadline: event.regDeadline,
     opens: event.regOpens,
@@ -299,7 +404,7 @@ export function RegistrationClient({
     now: dayAsDate(event.today),
     locale: event.locale,
   });
-  const status = reg.label;
+  const reg = entries.status;
   // Both halves of the same rule, reported together — see contactGaps for why
   // the phone line is conditional, and why it says outright that the existing
   // entries are not a mistake.
@@ -308,7 +413,8 @@ export function RegistrationClient({
   // tournament signing players in by Round Code, where it is false. The field
   // input one screen down already says the opposite: "optional — they sign in
   // with the Round Code".
-  const gaps = contactGaps([...confirmed, ...waitlist], phoneRequired, needsEmail);
+  // A guest has no email and no mobile by the ruling, so neither is a gap (2026-11-07).
+  const gaps = contactGaps([...confirmed, ...waitlist].filter((p) => !isGuest(p)), phoneRequired, needsEmail);
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -346,6 +452,10 @@ export function RegistrationClient({
     }
     startTransition(async () => {
       const res = await removeSignups(ids);
+      if (res.error) {
+        setRowError(res.error);
+        return;
+      }
       setRowError(
         res.withdrawn
           ? `${res.withdrawn} ${res.withdrawn === 1 ? "player has" : "players have"} played, so ${res.withdrawn === 1 ? "that entry was" : "those entries were"} withdrawn rather than deleted — their results are kept.`
@@ -359,7 +469,39 @@ export function RegistrationClient({
     });
   };
 
-  const submitAdd = () => {
+  /**
+   * WHAT A FIELD CHANGE LEFT TO DO, said where the field is (day-of field
+   * changes, PR A): "Pat moved in from the waiting list. Pat has no tee time
+   * yet", "Sam is in no flight". A refusal is said the same way, in the rule's words.
+   */
+  const [fieldSaid, setFieldSaid] = useState("");
+  const withdraw = (p: Signup) =>
+    startTransition(async () => {
+      const res = await removeSignup(p.id);
+      if (!res.ok) {
+        // Under the row in the field or the waiting list; at the head for an entry awaiting approval.
+        const inATable = confirmed.some((r) => r.id === p.id) || waitlist.some((r) => r.id === p.id);
+        setRowError(`${p.name}: ${res.error}`, inATable ? p.id : "");
+        return;
+      }
+      setRowError("");
+      setFieldSaid(res.said);
+    });
+  const place = (p: Signup, groupId: string) =>
+    startTransition(async () => {
+      const res = await placeInFlight(p.id, groupId);
+      setRowError(res.ok ? "" : `${p.name}: ${res.error ?? "That did not save."}`, p.id);
+      if (res.ok) setFieldSaid("");
+    });
+
+  /**
+   * THE ADD FORM'S FLIGHT (panel Q3, PR 7a): offered in stroke play and
+   * Stableford, required in a launched round robin. With one chosen the press
+   * is a late entry WITH a flight, and the door it asks is that one.
+   */
+  const [addFlightId, setAddFlightId] = useState("");
+  const addRefusal = addFlight && addFlightId ? doors["add-to-flight"] : doors.add;
+  const submitAdd = (reserve = false) => {
     /**
      * THE THIRD PLACE THIS RULE WAS WRITTEN, and the one that made relaxing
      * the other two look like it had not worked.
@@ -373,9 +515,13 @@ export function RegistrationClient({
      * A client-side copy of a server rule is the shape that guarantees this:
      * it cannot be caught by a test of the action, and it fails in the one
      * direction nobody checks, by refusing rather than admitting.
+     *
+     * And since 2026-11-07 there is no email rule to copy: a member may be
+     * added without one and a guest needs none (the action turns Round Codes
+     * on where they are needed).
      */
-    if (!name.trim() || (needsEmail && !email.trim())) {
-      setAddError(!name.trim() ? "Enter a player name." : "Email is required — it's how this player signs in.");
+    if (!name.trim()) {
+      setAddError("Enter a player name.");
       return;
     }
     // The same reading as the public form and both importers: "+2.4" is a plus
@@ -394,18 +540,25 @@ export function RegistrationClient({
         // handicap" and hands back 0 for the arithmetic; sending that 0 on
         // made every blank a scratch golfer entered by hand.
         handicap: h.source === "none" ? Number.NaN : h.value,
-        email,
-        phone,
+        standing,
+        // A guest is asked for neither (ruled 2026-11-07); the boxes are hidden, and nothing typed before the switch goes.
+        email: addingGuest ? "" : email,
+        phone: addingGuest ? "" : phone,
         ghin,
         handicapBodyId: visitorBody,
         homeClub,
         handicapSource: hSource,
         handicapType: newHandicapType,
+        // A reserve waits on the waiting list; a late entry with a flight goes straight into it.
+        flightId: !reserve && addFlight && addFlightId ? addFlightId : undefined,
+        reserve: reserve || undefined,
       });
       if (!result.ok) {
         setAddError(result.error ?? "Couldn't add that signup.");
         return;
       }
+      setFieldSaid(result.said ?? "");
+      setAddFlightId("");
       setName("");
       setHandicap("");
       setEmail("");
@@ -432,9 +585,44 @@ export function RegistrationClient({
       return;
     }
     const text = await file.text();
+    /**
+     * CHECK THE LIST FIRST (no-email player identity, PR 1). The file is read
+     * by the server and shown row by row — member or guest, and why a row is
+     * worth a look — before anything is entered. Import is a second press, and
+     * the server reads the file again rather than trusting this.
+     */
     startTransition(async () => {
       try {
-        setImportResult(await importCsvSignups(text));
+        const res = await previewCsvSignups(text);
+        if (!res.ok) {
+          setImportResult({ imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: res.error });
+          return;
+        }
+        setChoices({});
+        setPreview({ csv: text, rows: res.rows });
+      } catch {
+        setImportResult({
+          imported: 0,
+          skippedDuplicates: 0,
+          skippedInvalid: 0,
+          error: "That file didn't go through. Check your connection and try again — nothing was added.",
+        });
+      }
+    });
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  /** The preview's rows with the organizer's switches applied — what Import will do. */
+  const previewRows = (preview?.rows ?? []).map((r) => (choices[r.row] ? { ...r, standing: choices[r.row], check: null } : r));
+  const importing = previewRows.filter((r) => !r.skip);
+  const confirmImport = () => {
+    if (!preview) return;
+    const text = preview.csv;
+    startTransition(async () => {
+      try {
+        setImportResult(await importCsvSignups(text, choices));
+        setPreview(null);
+        setChoices({});
       } catch {
         // A rejected body, a dropped connection, a timeout. Whatever it was,
         // the organizer needs to know it did not happen rather than be left
@@ -447,7 +635,16 @@ export function RegistrationClient({
         });
       }
     });
-    if (fileRef.current) fileRef.current.value = "";
+  };
+  /** The template: the header a club fills in (`CSV_TEMPLATE_HEADER`), made in the browser. */
+  const downloadTemplate = () => {
+    const blob = new Blob([`${toCsv([CSV_TEMPLATE_HEADER.split(",")])}\r\n`], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "entry-list-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   /**
@@ -537,9 +734,21 @@ export function RegistrationClient({
               self-saving controls do. Failures already say so (`rowError`). */}
           <SaveState status={tableSaveStatus} />
           {anySelected && (
-            <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>
+            <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: "4px 10px" }} disabled={pending || !!doors.bulk} onClick={() => deleteSelected(rows)}>
               <Icon name="trash" /> Delete {rows.filter((r) => selected.has(r.id)).length} selected
             </button>
+          )}
+          {/* Why it is dead, beside it: after launch players leave one at a time. */}
+          {anySelected && doors.bulk && (
+            <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%" }}>{doors.bulk}</span>
+          )}
+          {/* Why the Tees column is shut, above it, before anybody presses (J12, PR 7b): the rounds
+              rule's sentence, the one `setPlayerTee` would refuse with. Not under the field's lock,
+              which its banner already says. */}
+          {showTees && teesShutBy !== null && !locked && rows.length > 0 && (
+            <span id={teesDoorId(title)} data-testid="player-tees-door" className="text-muted" style={{ fontSize: 13, flexBasis: "100%" }}>
+              <Icon name="lock-simple" /> {teesShutBy}
+            </span>
           )}
         </div>
         <div className="table-scroll">
@@ -547,7 +756,10 @@ export function RegistrationClient({
             <thead>
               <tr>
                 <th style={{ width: 26 }}>
-                  <input type="checkbox" aria-label={`Select everyone in ${title}`} checked={allSelected} disabled={rows.length === 0} onChange={() => toggleSelectAll(rows)} />
+                  {/* Not drawn over an empty list: a greyed box with nobody to select said nothing (console sweep, J51). */}
+                  {rows.length > 0 && (
+                    <input type="checkbox" aria-label={`Select everyone in ${title}`} checked={allSelected} onChange={() => toggleSelectAll(rows)} />
+                  )}
                 </th>
                 <th style={{ width: 32 }}>#</th>
                 <th>Player</th>
@@ -567,6 +779,7 @@ export function RegistrationClient({
                   <td className="text-muted">{i + 1}</td>
                   <td style={{ fontWeight: 500 }}>
                     {p.name}
+                    <StandingTags p={p} />
                     <PromotedBadge promotedAt={p.promotedAt} />
                     {/* SHOWN WHERE IT WAS TYPED. "Home club" on the Add form was stored and then
                         drawn nowhere on this screen, so the organizer who typed it could not see
@@ -606,7 +819,8 @@ export function RegistrationClient({
                         className="input"
                         aria-label={`Tees for ${p.name}`}
                         value={p.teeId ?? ""}
-                        disabled={pending || locked}
+                        disabled={pending || locked || teesShutBy !== null}
+                        aria-describedby={locked ? lockSaid : teesShutBy !== null ? teesDoorId(title) : undefined}
                         // A FIXED width, not 100%. This table scrolls
                         // sideways, and a percentage let the column collapse
                         // to about thirty pixels: the control rendered as
@@ -668,7 +882,8 @@ export function RegistrationClient({
                       <select
                         className="input"
                         value={p.handicapType === "9" ? "9" : "18"}
-                        disabled={pending || locked}
+                        disabled={pending || !!doors.edit}
+                        aria-describedby={doors.edit ? lockSaid : undefined}
                         style={{ width: 46, padding: "3px 2px", fontSize: 13 }}
                         onChange={(e) => commitUpdate(p.id, { handicapType: e.target.value })}
                         // The one static tooltip on this screen that was
@@ -688,51 +903,96 @@ export function RegistrationClient({
                     </div>
                   </td>
                   <td style={{ fontSize: 13 }}>
+                    {/* A GUEST HAS NO EMAIL HERE (2026-11-07): one would make a sign-in
+                        account and hand the entry to whoever holds the address. */}
+                    {isGuest(p) ? (
+                      /* A GUEST'S WAY IN IS THEIR PLAYER LINK (J39/J40): no email, no app.
+                         The panel opens under the row; the code is fetched only by a press. */
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ fontSize: 13, padding: "3px 8px", whiteSpace: "nowrap" }}
+                        aria-expanded={linkFor === p.id}
+                        aria-label={`${PLAYER_LINK_WORDS.panelButton} for ${p.name}`}
+                        onClick={() => setLinkFor((v) => (v === p.id ? null : p.id))}
+                      >
+                        <Icon name="link" /> {PLAYER_LINK_WORDS.panelButton}
+                      </button>
+                    ) : (
                     <input
                       className="input"
                       type="email"
                       maxLength={EMAIL_MAX}
                       defaultValue={p.email ?? ""}
-                      disabled={pending || locked}
-                      placeholder="Required for sign-in"
+                      disabled={pending || !!doors.edit}
+                      aria-describedby={doors.edit ? lockSaid : undefined}
+                      placeholder="Add email"
                       style={{
                         padding: "3px 6px",
                         fontSize: 13,
                         width: 150,
-                        borderColor: p.email ? undefined : "var(--color-accent)",
                       }}
                       // The consequence in the accessible NAME rather than a
                       // `title`, which never appears on a touch device. A
-                      // sighted organizer already has the accent border and
-                      // the "Required for sign-in" placeholder; somebody using
-                      // a reader had a tooltip they may never hear. A sentence
-                      // per row would be noise in a table this dense.
-                      aria-label={
-                        p.email
-                          ? `Email for ${p.name}`
-                          : `Email for ${p.name} — none on file, so they cannot sign in until one is added`
-                      }
+                      // member may play without an email (2026-11-07), so it
+                      // is a fact ("No email yet"), not an alarm.
+                      aria-label={p.email ? `Email for ${p.name}` : `Email for ${p.name} — ${NO_EMAIL_YET}`}
                       onKeyDown={leaveOnEnter}
                       onBlur={(e) => {
                         const v = e.target.value.trim();
                         if (v !== (p.email ?? "")) commitUpdate(p.id, { email: v });
                       }}
                     />
+                    )}
                   </td>
                   <td className="text-muted" style={{ fontSize: 13 }}>{p.phone || "—"}</td>
-                  {showFlight && <td>{p.flight || "—"}</td>}
+                  {showFlight && (
+                    <td>
+                      {/* A LATE ENTRANT IN NO FLIGHT is offered one here (day-of field
+                          changes, PR A) — offered, not forced. Only an unplaced
+                          player: moving a placed one is the Flights board's act. */}
+                      {!p.flight && flights.length > 0 && !doors["place-in-flight"] ? (
+                        <select
+                          className="input"
+                          aria-label={`Flight for ${p.name}`}
+                          value=""
+                          disabled={pending}
+                          style={{ width: 130, padding: "3px 4px", fontSize: 13 }}
+                          onChange={(e) => e.target.value && place(p, e.target.value)}
+                        >
+                          <option value="">Choose a flight</option>
+                          {flights.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        p.flight || "—"
+                      )}
+                    </td>
+                  )}
                   <td style={{ textAlign: "right" }}>
                     {/* An unlabelled × at the end of a row of EDITABLE fields:
                         a thumb aiming at the phone cell lands on it. The bulk
                         Remove above already asks in a dialog, because it has a
                         sentence to say about withdrawals; this per-row one had
-                        nothing at all. */}
+                        nothing at all.
+
+                        UNDER WAY IT IS "WITHDRAW" (day-of field changes, PR A):
+                        open to an Assistant too, never a delete, and undone by
+                        Put back under Withdrawn. The note says so before the tap. */}
                     <ConfirmButton
                       icon="x"
-                      title={`Remove ${p.name} from the field`}
-                      confirmLabel="Remove"
-                      disabled={pending || locked}
-                      onConfirm={() => startTransition(() => void removeSignup(p.id))}
+                      title={underWay ? `Withdraw ${p.name}` : `Remove ${p.name} from the field`}
+                      confirmLabel={underWay ? "Withdraw" : "Remove"}
+                      note={
+                        underWay
+                          ? withdrawConfirmation(p.name)
+                          : undefined
+                      }
+                      disabled={pending || !!doors.withdraw}
+                      onConfirm={() => withdraw(p)}
                     />
                   </td>
                 </tr>
@@ -742,6 +1002,13 @@ export function RegistrationClient({
                       <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
                         <Icon name="warning-circle" /> {rowSaid.text}
                       </p>
+                    </td>
+                  </tr>
+                )}
+                {linkFor === p.id && isGuest(p) && (
+                  <tr>
+                    <td colSpan={20} style={{ paddingTop: 0 }}>
+                      <PlayerLinkPanel playerId={p.id} name={p.name} eventName={event.name} />
                     </td>
                   </tr>
                 )}
@@ -795,7 +1062,23 @@ export function RegistrationClient({
         )}
       </div>
 
-      <SetupLockBanner locked={locked} isAdmin={isAdmin} />
+      {/* UNDER WAY, THIS SCREEN SAYS WHAT IS STILL OPEN (day-of field changes,
+          PR A) in place of "Setup locked" — the banner's words come from the one
+          field rule, so it never promises an add the server refuses. */}
+      <ScopeLockBanner locks={fieldLocks} correction={correction} isAdmin={isAdmin} open={underWay} />
+      {fieldSaid && (
+        <p role="status" className="card elev-sm" style={{ margin: "0 0 16px", fontSize: 14 }}>
+          <Icon name="info" /> {fieldSaid}
+        </p>
+      )}
+      {/* THE UNPLACED FLAG (J04, PR 7a): who is in the field but in no flight,
+          by name, for as long as it is true — "Choose a flight" beside each
+          name below is the way to put them in one. */}
+      {unplacedFlag && (
+        <p className="card elev-sm" style={{ margin: "0 0 16px", fontSize: 14 }} data-testid="unplaced-flag">
+          <Icon name="warning" /> {unplacedFlag}
+        </p>
+      )}
 
       {gaps.lines.length > 0 && (
         <div
@@ -849,8 +1132,6 @@ export function RegistrationClient({
                 <span style={{ color: "var(--color-danger)" }}>{over} over</span>
               </>
             )}
-            {" · "}
-            <a href="/event">change on Tournament details</a>
           </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
@@ -858,133 +1139,24 @@ export function RegistrationClient({
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{waitlist.length}</div>
           <div className="text-muted" style={{ fontSize: 13 }}>bumped in if a spot opens</div>
         </div>
-        <div className="card elev-sm" style={{ gap: 2 }}>
-          <span className="card-kicker">Registration closes</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline, event.locale) || "—"}</div>
-          {/* Both this and the capacity above are SET on Tournament details and
-              only shown here — on the screen called Entries, which
-              is where an organizer goes to change them. Read-only with no way
-              onward, an unset deadline renders as "—" and the screen offers
-              nothing to do about it. Says where instead. */}
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            groups lock after this date · <a href="/event">set it on Tournament details</a>
-          </div>
-        </div>
-        <div className="card elev-sm" style={{ gap: 2 }}>
-          <span className="card-kicker">Status</span>
-          <div
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: 18,
-              color: reg.acceptingEntries ? "var(--color-accent-200)" : "var(--color-danger)",
-            }}
-          >
-            {status}
-          </div>
-          {/* The reason, not the remedy. This card sits an inch above a banner
-              that carries the full sentence, and printing it in both was the
-              same words twice on one screen — see `RegistrationStatus.short`. */}
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            {reg.acceptingEntries ? `spots remaining: ${unlimited ? "∞" : spotsLeft}` : reg.short}
-          </div>
-        </div>
       </div>
 
-      {/* The organizer's own decision about the deadline, in both directions.
-          Adding a player by hand is never blocked by this — that is how a
-          closed event still takes a late entry, and it is the organizer's job.
-          What this governs is what the screen tells everyone else. */}
-      <div
-        className="card elev-sm"
-        style={{
-          marginBottom: 16,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-          background: reg.acceptingEntries
-            ? "color-mix(in srgb, var(--color-text) 3%, transparent)"
-            : "var(--color-danger-bg)",
-          boxShadow: reg.acceptingEntries
-            ? "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)"
-            : "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 30%, transparent)",
-        }}
-      >
-        <Icon name={reg.acceptingEntries ? "ph ph-door-open" : "ph ph-lock-simple"}
-          style={{
-            fontSize: 16,
-            color: reg.acceptingEntries ? "var(--color-accent-200)" : "var(--color-danger)",
-          }}
-        />
-        <span style={{ fontSize: 13, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
-          {reg.detail || `Entries are open${event.regDeadline ? ` until ${formatDeadline(event.regDeadline, event.locale)}` : ""}.`}
-          {!reg.acceptingEntries && (
-            <>
-              {" "}
-              {/* Was "closing only changes what this says", which is not true
-                  and understates the control by a long way. `decideIntake`
-                  refuses an entry the moment `registrationStatus` stops
-                  accepting — so a closed tournament turns every visitor to the
-                  sign-up link away, whether it was closed by the deadline or by
-                  hand. Adding somebody yourself is the part that is unaffected,
-                  and that is worth saying; telling an organizer the switch is
-                  cosmetic is how they close it and wonder why nobody signed up. */}
-              {/* Not while setup is locked: then adding by hand is refused too,
-                  and the banner at the top says how to unlock it. */}
-              {locked ? (
-                <>While it is closed the sign-up link turns everyone away.</>
-              ) : (
-                <>
-                  <strong>You can still add players below</strong> — while it is closed the sign-up
-                  link turns everyone else away.
-                </>
-              )}
-            </>
-          )}
-        </span>
-
-        {reg.state === "closed-deadline" && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOverride(false))}
-          >
-            <Icon name="calendar-plus" /> Keep taking entries
-          </button>
-        )}
-        {reg.state === "open-extended" && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOverride(null))}
-          >
-            <Icon name="arrow-counter-clockwise" /> Follow the deadline again
-          </button>
-        )}
-        {reg.state === "closed-manual" ? (
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOverride(null))}
-          >
-            <Icon name="door-open" /> Reopen registration
-          </button>
-        ) : (
-          reg.acceptingEntries && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={pending || locked}
-              onClick={() => startTransition(() => void setRegistrationOverride(true))}
-            >
-              <Icon name="lock-simple" /> Close registration
-            </button>
-          )
-        )}
-      </div>
+      {/* ARE ENTRIES OPEN, UNTIL WHEN, HOW MANY, WITH APPROVAL OR NOT — one card,
+          one state line, one button (the entries cleanup, 2026-11-05). */}
+      <EntryTermsCard
+        key={`${event.regOpens}|${event.regDeadline}|${event.storedCapacity ?? event.capacity}`}
+        entries={entries}
+        regOpens={event.regOpens}
+        regDeadline={event.regDeadline}
+        capacity={event.storedCapacity ?? event.capacity}
+        planLimit={event.planLimit ?? null}
+        approveMode={approveMode}
+        showApproval={showApproval}
+        locked={locked}
+        canAdd={!doors.add}
+        isAdmin={isAdmin}
+        locale={event.locale}
+      />
 
       {/* THE TWO SELF-SERVICE PANELS, BEHIND ONE DISCLOSURE.
           ─────────────────────────────────────────────────
@@ -1037,7 +1209,7 @@ export function RegistrationClient({
               one that used to cost a scroll through both panels to find. */}
           <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 2, lineHeight: 1.45 }}>
             {/* Short — it sits in the panel's own heading (2026-10-05). */}
-            {event.registrationOpen ? "The public sign-up link is live." : "No public link yet."}
+            {event.registrationOpen ? "The public sign-up link is live." : "No public link yet — open entries above."}
           </span>
         </span>
         <Icon
@@ -1068,15 +1240,6 @@ export function RegistrationClient({
               Share a link and people sign themselves up — no account needed. Entries appear in the field below.
             </p>
           </div>
-          <button
-            type="button"
-            className={event.registrationOpen ? "btn btn-secondary" : "btn btn-primary"}
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOpen(!event.registrationOpen))}
-          >
-            <Icon name={event.registrationOpen ? "ph ph-lock-simple" : "ph ph-door-open"} />
-            {event.registrationOpen ? "Take the link down" : "Publish the link"}
-          </button>
         </div>
 
         {/* Both switches on, and off. A published link on a tournament that is
@@ -1084,7 +1247,7 @@ export function RegistrationClient({
             who follows it — `decideIntake` checks `registrationOpen` AND
             `registrationStatus`. The organizer could see a working link and a
             "Closed" chip four inches apart and had nothing joining the two. */}
-        {event.registrationOpen && !reg.acceptingEntries && (
+        {entries.linkPublished && !entries.open && (
           <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
             {/* The reason in a few words. The full sentence lives on the
                 banner above; a third copy of it down here was the one that
@@ -1146,46 +1309,6 @@ export function RegistrationClient({
               />
             )}
 
-            {/* Auto-confirm vs approve-each-entry. */}
-            <div className="field" style={{ marginTop: 2 }}>
-              <label>When someone registers</label>
-              <div className="seg" style={{ width: "100%" }}>
-                {[
-                  ["auto", "Auto-confirm to capacity"],
-                  ["approve", "Approve each entry"],
-                ].map(([v, l]) => (
-                  <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
-                    <input
-                      type="radio"
-                      name="regapproval"
-                      checked={approveMode ? v === "approve" : v === "auto"}
-                      disabled={pending || locked}
-                      onChange={() =>
-                        startTransition(async () => {
-                          setSwitchRefused("");
-                          showApproval(v);
-                          // Caught: these actions THROW on a refusal, and inside an async
-                          // transition that goes to the error screen (the QA manager on
-                          // the review panel). The box falls back by itself.
-                          try {
-                            await setRegistrationApproval(v);
-                          } catch {
-                            setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
-                          }
-                        })
-                      }
-                    />
-                    {l}
-                  </label>
-                ))}
-              </div>
-              <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-                {approveMode
-                  ? "Every entry lands in “Pending approval” below for you to accept — nobody joins the field until you do."
-                  : "Entries fill the field up to capacity and confirm automatically; once full, further entries go to the waitlist."}
-              </p>
-            </div>
-
             {/* Per tournament, on every plan (decisions review A7, 2026-10-21).
                 The free plan used to force this on and lock the switch. A phone
                 number is not needed to run a competition: every extra required
@@ -1210,9 +1333,10 @@ export function RegistrationClient({
                       setSwitchRefused("");
                       showRequirePhone(on);
                       try {
-                        await setRequirePhone(on);
+                        const res = caughtUp(await setRequirePhone(on));
+                        if (!res.ok) setSwitchRefused(res.error ?? "That change was not saved.");
                       } catch {
-                        setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
+                        setSwitchRefused("That change was not saved. Check the connection.");
                       }
                     });
                   }}
@@ -1277,7 +1401,7 @@ export function RegistrationClient({
             {/* Names the control by the words now on it. A refusal that tells
                 somebody to press a button that no longer exists is worse than
                 no refusal at all. */}
-            <Icon name="warning-circle" /> Publish the sign-up link first — it doesn&rsquo;t exist
+            <Icon name="warning-circle" /> Open entries first — the sign-up link doesn&rsquo;t exist
             until you do, so there is nothing to invite anyone to yet.
           </p>
         )}
@@ -1295,17 +1419,48 @@ export function RegistrationClient({
 
       <div className="page-split" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <RosterPicker candidates={roster} eventName={event.name} locked={locked} />
+        <RosterPicker candidates={roster} eventName={event.name} locked={!!doors.add} />
         <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Add someone new</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }}>
             Anyone added here joins the {org.noun} roster too, so you only enter their details once.
           </p>
           <div className="field"><label htmlFor={`${fid}-name`}>Player name</label><input id={`${fid}-name`} className="input" value={name} maxLength={PERSON_NAME_MAX} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
+          {/* MEMBER OR GUEST (Ajay, 2026-11-07), above Email, with the hint. */}
+          <div className="field">
+            <label id={`${fid}-standing`}>Member or guest</label>
+            <div className="seg" style={{ width: "100%" }} role="radiogroup" aria-labelledby={`${fid}-standing`}>
+              {ENTRY_STANDINGS.map((s) => (
+                <label className="seg-opt" key={s} style={{ flex: 1, justifyContent: "center" }}>
+                  <input type="radio" name="standing" value={s} checked={standing === s} onChange={() => setStanding(s)} />
+                  {STANDING_CHOICE[s]}
+                </label>
+              ))}
+            </div>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }} data-testid="standing-hint">
+              {hint}
+            </p>
+            {/* Before the press: a guest has no email, so on a tournament without round
+                codes this add turns them on, as the member's empty-Email line says. */}
+            {addingGuest && guestCodesNote(needsEmail) && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }} data-testid="guest-codes-note">
+                {guestCodesNote(needsEmail)}
+              </p>
+            )}
+          </div>
+          {!addingGuest && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field">
-              <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-200)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
-              <input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} required={needsEmail} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={needsEmail && !email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
+              {/* Optional for a member, whatever the tournament (2026-11-07): an entry without
+                  one turns Round Codes on, and the screen says so before the press and after it. */}
+              <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-200)" }}>· optional, lets them sign in</span></label>
+              <input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" />
+              {!email.trim() && (
+                <span className="text-muted" style={{ fontSize: 13 }}>
+                  {/* Before the press: on a tournament without round codes, this add turns them on. */}
+                  {memberWithoutEmail(needsEmail)}
+                </span>
+              )}
             </div>
             {/* SAID LIKE EMAIL IS, WHEN IT IS REQUIRED (2026-09-26). Where the
                 tournament asks for a mobile the server refuses an add without
@@ -1318,6 +1473,7 @@ export function RegistrationClient({
               <input id={`${fid}-phone`} className="input" type="tel" maxLength={PHONE_MAX} required={phoneRequired} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" style={phoneRequired && !phone.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
           </div>
+          )}
           {/* A visitor from another country plays off their own body's index —
               valid everywhere under WHS. Folded away (Ajay: "I dont want to
               complicate"): almost every entrant is local, and the form reads
@@ -1342,8 +1498,8 @@ export function RegistrationClient({
             </button>
           )}
           <div className="field">
-            <label>Handicap source</label>
-            <div className="seg" style={{ width: "100%" }}>
+            <span className="field-caption" id={`${fid}-hsrc`}>Handicap source</span>
+            <div className="seg" style={{ width: "100%" }} role="radiogroup" aria-labelledby={`${fid}-hsrc`}>
               {[["ghin", bodyWords.label], ["manual", "Manual"], ["none", "None"]].map(([v, l]) => (
                 <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
                   <input type="radio" name="hsrc" checked={hSource === v} onChange={() => setHSource(v)} />{l}
@@ -1352,31 +1508,64 @@ export function RegistrationClient({
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="text" inputMode="decimal" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.4" disabled={hSource === "none"} /></div>
-            <div className="field"><label htmlFor={`${fid}-ghin`}>{bodyWords.number.charAt(0).toUpperCase() + bodyWords.number.slice(1)}</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
+            <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="text" inputMode="decimal" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.4" disabled={hSource === "none"} aria-describedby={hSource === "none" ? `${fid}-hsrc-why` : undefined} /></div>
+            <div className="field"><label htmlFor={`${fid}-ghin`}>{bodyWords.number.charAt(0).toUpperCase() + bodyWords.number.slice(1)}</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} aria-describedby={hSource !== "ghin" ? `${fid}-hsrc-why` : undefined} /></div>
           </div>
+          {/* WHY A BOX HERE IS GREYED (console sweep, J51): the source chosen above
+              decides which of them apply, and the way to open one is to choose another. */}
+          {hSource !== "ghin" && (
+            <p id={`${fid}-hsrc-why`} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+              {hSource === "none"
+                ? `Choose ${bodyWords.label} or Manual above to enter a handicap.`
+                : `Choose ${bodyWords.label} above to enter a ${bodyWords.number}.`}
+            </p>
+          )}
           <div className="field">
-            <label>Handicap is a…</label>
-            <div className="seg" style={{ width: "100%" }}>
+            <span className="field-caption" id={`${fid}-hctype`}>Handicap is a…</span>
+            <div className="seg" style={{ width: "100%" }} role="radiogroup" aria-labelledby={`${fid}-hctype`}>
               {[["18", "18-hole index"], ["9", "9-hole index"]].map(([v, l]) => (
                 <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
-                  <input type="radio" name="hctype" checked={newHandicapType === v} onChange={() => setNewHandicapType(v)} disabled={hSource === "none"} />{l}
+                  <input type="radio" name="hctype" checked={newHandicapType === v} onChange={() => setNewHandicapType(v)} disabled={hSource === "none"} aria-describedby={hSource === "none" ? `${fid}-hsrc-why` : undefined} />{l}
                 </label>
               ))}
             </div>
           </div>
           <div className="field"><label htmlFor={`${fid}-club`}>Home club</label><input id={`${fid}-club`} className="input" value={homeClub} maxLength={PLACE_MAX} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
-          {/* Gated on the lock like every other control here and like the
-              roster picker above — `addSignup` refuses a locked tournament, and
-              this was the one button on the screen that still offered it. */}
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || locked || !name.trim() || (needsEmail && !email.trim()) || (phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
-          {/* Said HERE, where the dead button is — the lock banner is a
-              screen and a half above a form somebody has just filled in. */}
-          {locked && (
+          {/* Gated on the field's add door like the roster picker above —
+              `addSignup` asks the same rule — and this was once the one button
+              on the screen that still offered a refused add. */}
+          {/* THE FLIGHT, WITH THE ENTRY (panel Q3, PR 7a): offered where one
+              division is a complete setup, required in a launched round robin,
+              where a player in no flight has no matches. */}
+          {addFlight && flights.length > 0 && (
+            <div className="field">
+              <label htmlFor={`${fid}-flight`}>
+                Flight{" "}
+                <span style={{ color: "var(--color-accent-200)" }}>{addFlight === "required" ? "· required in a round robin" : "· optional"}</span>
+              </label>
+              <select id={`${fid}-flight`} className="input" value={addFlightId} onChange={(e) => setAddFlightId(e.target.value)}>
+                <option value="">{addFlight === "required" ? "Choose a flight" : "No flight yet"}</option>
+                {flights.map((f) => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !!addRefusal || !name.trim() || (!addingGuest && phoneRequired && !phone.trim())} onClick={() => submitAdd()}><Icon name="plus" /> {underWay ? "Add late entry" : "Add to field"}</button>
+          {/* Said HERE, where the dead button is — the banner is a screen and a
+              half above a form somebody has just filled in. The rule's own words. */}
+          {addRefusal && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              Setup is locked, so nobody can be added.{" "}
-              {isAdmin ? "Unlock setup at the top of this page first." : "Ask the Organizer to unlock setup."}
+              {/* The rule's words already say who can unlock (an Organizer), true for either reader. */}
+              {addRefusal}
             </p>
+          )}
+          {/* A KNOCKOUT WHOSE DRAW IS MADE takes a reserve instead (panel Q3):
+              the way out its refusal names, one press away. */}
+          {offerReserve && !doors.reserve && (
+            <button type="button" className="btn btn-secondary btn-block" disabled={pending || !name.trim()} onClick={() => submitAdd(true)}>
+              <Icon name="plus" /> Add as a reserve
+            </button>
           )}
           {addError && (
             <p className="form-error" role="alert" ref={bringIntoView}>
@@ -1389,45 +1578,47 @@ export function RegistrationClient({
               : "Auto-confirms while under capacity; overflow goes to the waitlist."}
           </p>
           <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
-            {/* Gated on the lock as the Add button above is: `importCsvSignups`
-                refuses a locked tournament too. */}
+            {/* Gated on the field's bulk door: `importCsvSignups` asks the same
+                rule, and a list is not a day-of act, so it stays shut after launch. */}
             <label
               className="btn btn-secondary btn-block"
-              aria-disabled={locked || undefined}
-              style={{ cursor: locked ? "not-allowed" : "pointer", justifyContent: "center", opacity: locked ? 0.5 : undefined }}
+              aria-disabled={!!doors.bulk || undefined}
+              style={{ cursor: doors.bulk ? "not-allowed" : "pointer", justifyContent: "center", opacity: doors.bulk ? 0.5 : undefined }}
             >
               <Icon name="upload-simple" /> Import CSV
-              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} disabled={pending || locked} style={{ display: "none" }} />
+              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} disabled={pending || !!doors.bulk} style={{ display: "none" }} />
             </label>
+            {doors.bulk && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
+                {doors.bulk}
+              </p>
+            )}
+            {/* The hint beside the button: a list is where members and guests are told apart (2026-11-07). */}
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }} data-testid="standing-hint">
+              {hint}
+            </p>
+            <button
+              type="button"
+              // A download writes nothing: live in an archived tournament (`archive-read-only.ts`).
+              data-reads=""
+              onClick={downloadTemplate}
+              style={{ background: "none", border: "none", padding: 0, minHeight: "var(--tap-min, 32px)", cursor: "pointer", fontSize: 13, color: "var(--color-accent-200)" }}
+            >
+              <Icon name="download-simple" /> Download template
+            </button>
             {/* Says what this tournament actually requires, rather than what
-                every tournament used to. Built as a list rather than a third
-                nested ternary: two independent switches (email, phone) make
-                four sentences, and the nested form had already produced one
-                that read "name and email (both required — email is how each
-                player signs in), handicap, phone". */}
+                every tournament used to. No email is required any more
+                (2026-11-07): a member may enter without one, a guest needs none. */}
             {/* One line, the full rules an ⓘ away (2026-10-05). */}
             <MoreInfo
-              short={`A header row, then: ${["name", ...(needsEmail ? ["email"] : []), ...(phoneRequired ? ["phone"] : [])].join(", ")}.`}
+              short={`A header row, then: ${["name", ...(phoneRequired ? ["phone"] : [])].join(", ")}.`}
               style={{ marginTop: 6 }}
             >
-              First row must be a header. Required columns:{" "}
-              {[
-                "name",
-                ...(needsEmail ? ["email"] : []),
-                ...(phoneRequired ? ["phone"] : []),
-              ].join(", ")}
-              {needsEmail ? " — email is how each player signs in" : ""}
-              {phoneRequired ? ", and this tournament collects a mobile for every entrant" : ""}. Also read:{" "}
-              {[
-                ...(needsEmail ? [] : ["email"]),
-                ...(phoneRequired ? [] : ["phone"]),
-                "handicap",
-                "handicap type (9/18)",
-              ].join(", ")}
-              .{" "}
-              {needsEmail
-                ? "Rows missing a required column, or duplicating an email already in the field, are skipped automatically."
-                : "Rows missing a required column are skipped automatically. Without an email to go on, a row is treated as already entered when its name matches somebody in the field."}
+              First row must be a header. Required columns: {["name", ...(phoneRequired ? ["phone"] : [])].join(", ")}
+              {phoneRequired ? ", and this tournament collects a mobile for every member" : ""}. Also read: email,{" "}
+              {phoneRequired ? "" : "phone, "}handicap, handicap type (9/18). {CSV_STANDING_GUIDE} You check the list before
+              anything is added. Rows with no name or a broken email are skipped, and so is a row whose email (or, with
+              no email, whose name) is already in the field.
             </MoreInfo>
             {importResult && (
               importResult.error ? (
@@ -1435,16 +1626,14 @@ export function RegistrationClient({
                   <Icon name="warning-circle" /> {importResult.error}
                 </p>
               ) : (
-                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }} role="status">
                   <Icon name="check-circle" style={{ color: "var(--color-accent-2-200)" }} /> Imported {importResult.imported}
+                  {importResult.members !== undefined && importResult.guests !== undefined
+                    ? ` (${importResult.members} ${importResult.members === 1 ? "member" : "members"}, ${importResult.guests} ${importResult.guests === 1 ? "guest" : "guests"})`
+                    : ""}
                   {importResult.skippedDuplicates > 0 ? `, skipped ${importResult.skippedDuplicates} duplicate${importResult.skippedDuplicates === 1 ? "" : "s"}` : ""}
                   {importResult.skippedInvalid > 0 ? `, skipped ${importResult.skippedInvalid} invalid row${importResult.skippedInvalid === 1 ? "" : "s"}` : ""}.
-                  {importResult.codesTurnedOn && (
-                    <>
-                      {" "}The list had no email addresses, so Round Codes are now on as well: players sign in with
-                      the round&rsquo;s code. Change it on Tournament details.
-                    </>
-                  )}
+                  {importResult.codesTurnedOn ? ` ${CODES_TURNED_ON}` : ""}
                 </p>
               )
             )}
@@ -1457,6 +1646,98 @@ export function RegistrationClient({
               <Icon name="warning-circle" /> {rowError}
             </p>
           )}
+          {/* CHECK THE LIST (no-email player identity, PR 1): every row of the file,
+              member or guest, why a default is worth a look, and a switch on each.
+              Nothing is entered until Import is pressed. */}
+          {preview && (
+            <div className="card elev-sm" style={{ borderColor: "var(--color-accent)", gap: 8 }} data-testid="csv-preview" ref={bringIntoView}>
+              <span className="card-title" style={{ fontSize: 15 }}>Check the list</span>
+              <p style={{ fontSize: 13, margin: 0 }} role="status">
+                {previewSummary({
+                  members: importing.filter((r) => r.standing === "member").length,
+                  toCheck: importing.filter((r) => r.standing === "member" && r.check).length,
+                  guests: importing.filter((r) => r.standing === "guest").length,
+                  skipped: previewRows.length - importing.length,
+                })}
+              </p>
+              <div className="table-scroll">
+                <table className="table" style={{ fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th style={{ textAlign: "right" }}>Hcp</th>
+                      <th>Email</th>
+                      <th>Handicap ID</th>
+                      <th>Member or guest</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((r) => (
+                      <tr key={r.row} data-row={r.row} style={r.skip ? { opacity: 0.6 } : undefined}>
+                        <td style={{ fontWeight: 500 }}>{r.name || "—"}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.handicapLabel}</td>
+                        <td className="text-muted">
+                          {r.standing === "guest" ? (r.email ? GUEST_EMAIL_DROPPED : "—") : r.email || NO_EMAIL_YET}
+                        </td>
+                        <td className="text-muted">{r.handicapId || "—"}</td>
+                        <td>
+                          {r.skip ? (
+                            <span className="text-muted">
+                              {r.skip === "duplicate" ? "Already in the field: skipped" : "Skipped: no name, a broken email or no mobile"}
+                            </span>
+                          ) : (
+                            <>
+                              <span data-standing={r.standing}>{STANDING_CHOICE[r.standing]}</span>
+                              {r.check && (
+                                <span style={{ display: "block", color: "var(--color-accent-200)" }}>
+                                  <Icon name="warning-circle" /> Check: {CHECK_WORDS[r.check]}
+                                  {r.rosterName ? ` (${r.rosterName})` : ""}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </td>
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          {!r.skip && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ fontSize: 13, padding: "4px 10px", minHeight: 44 }}
+                              disabled={pending}
+                              aria-label={`${r.standing === "member" ? "Make guest" : "Make member"}: ${r.name}`}
+                              onClick={() =>
+                                setChoices((prev) => ({ ...prev, [r.row]: r.standing === "member" ? "guest" : "member" }))
+                              }
+                            >
+                              {r.standing === "member" ? "Make guest" : "Make member"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-primary" disabled={pending || importing.length === 0 || !!doors.bulk} onClick={confirmImport}>
+                  <Icon name="check" /> {importButtonWords(importing.length)}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={pending}
+                  onClick={() => {
+                    setPreview(null);
+                    setChoices({});
+                    fileRef.current?.click();
+                  }}
+                >
+                  Choose another file
+                </button>
+              </div>
+            </div>
+          )}
           {pendingEntries.length > 0 && (
             <div className="card elev-sm" style={{ borderColor: "var(--color-accent)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1466,6 +1747,15 @@ export function RegistrationClient({
               <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 2px" }}>
                 Self-service entries waiting for you. Accepting one puts it in the field (or the waitlist if full).
               </p>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }} data-testid="standing-hint">
+                {hint}
+              </p>
+              {/* Why Accept is dead, on the page (never a tooltip): the field rule's own words. */}
+              {doors.approve && (
+                <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                  <Icon name="lock-simple" /> {doors.approve}
+                </p>
+              )}
               <div className="table-scroll">
                 <table className="table" style={{ fontSize: 13 }}>
                   <thead>
@@ -1479,7 +1769,10 @@ export function RegistrationClient({
                   <tbody>
                     {pendingEntries.map((p) => (
                       <tr key={p.id}>
-                        <td style={{ fontWeight: 500 }}>{p.name}</td>
+                        <td style={{ fontWeight: 500 }}>
+                          {p.name}
+                          <StandingTags p={p} />
+                        </td>
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {/* One reader for the two fields. A pending entry
                               from a club playing off association indexes has
@@ -1493,8 +1786,13 @@ export function RegistrationClient({
                             type="button"
                             className="btn btn-primary"
                             style={{ fontSize: 13, padding: "4px 10px", marginRight: 6 }}
-                            disabled={pending || locked}
-                            onClick={() => startTransition(() => void approveSignup(p.id))}
+                            disabled={pending || !!doors.approve}
+                            onClick={() =>
+                              startTransition(async () => {
+                                const res = await approveSignup(p.id);
+                                setRowError(res.ok ? "" : `${p.name}: ${res.error ?? "That did not save."}`);
+                              })
+                            }
                           >
                             <Icon name="check" /> Accept
                           </button>
@@ -1502,8 +1800,8 @@ export function RegistrationClient({
                             type="button"
                             className="btn btn-secondary"
                             style={{ fontSize: 13, padding: "4px 10px" }}
-                            disabled={pending || locked}
-                            onClick={() => startTransition(() => void removeSignup(p.id))}
+                            disabled={pending || !!doors.withdraw}
+                            onClick={() => withdraw(p)}
                           >
                             Decline
                           </button>
@@ -1524,10 +1822,39 @@ export function RegistrationClient({
 }
 
 /**
+ * MEMBER OR GUEST, beside the name (no-email player identity, PR 1): "Member"
+ * or "Guest", and "No email yet" for a member without one. Read through
+ * `entryStanding`, so an entry made before A039 reads as a member.
+ */
+function StandingTags({ p }: { p: { standing?: string; email?: string } }) {
+  const s = entryStanding(p);
+  // Muted by its style, not the `text-muted` class: that class under a name is the home club's line.
+  const tag = {
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: 400,
+    padding: "1px 7px",
+    borderRadius: 999,
+    whiteSpace: "nowrap" as const,
+    border: "1px solid var(--color-divider)",
+    color: "var(--color-text-muted)",
+  };
+  return (
+    <>
+      <span style={tag} data-standing={s}>
+        {STANDING_TAG[s]}
+      </span>
+      {s === "member" && !(p.email ?? "").trim() && <span style={tag}>{NO_EMAIL_YET}</span>}
+    </>
+  );
+}
+
+/**
  * "Promoted 2 days ago", beside a player who came off the waitlist.
  *
  * The organizer's half of the promise the registration email makes. The player
- * is asked to say within 48 hours if they can no longer play; this is how
+ * is asked to say if they can no longer play (within 48 hours, or sooner
+ * when the round is near); this is how
  * somebody notices that they have not, and picks up the phone.
  *
  * It is a prompt to chase, never a status. The player is in the field either
@@ -1569,7 +1896,7 @@ function PromotedBadge({ promotedAt }: { promotedAt?: string | null }) {
       title={
         overdue
           ? "Promoted off the waitlist and not heard from since — worth a call to confirm they are playing."
-          : "Promoted off the waitlist. They were asked to say within 48 hours if they cannot play."
+          : "Promoted off the waitlist. They were asked to tell you if they cannot play."
       }
       style={{
         marginLeft: 8,

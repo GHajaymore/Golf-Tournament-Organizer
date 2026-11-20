@@ -143,17 +143,27 @@ describe("the same medal with a cut into a second round — the control", () => 
 });
 
 describe("the highlight once the tournament is completed (grid cell T59)", () => {
+  /**
+   * Ann and Bea above hold IDENTICAL cards, so the board shares 1st between
+   * them — and this cell used to pass "Ann leads" / "Ann won" over that tie
+   * (the top row of a tie is only first in the list; 2026-11-07). Bea drops a
+   * shot on the 18th here so the board has ONE leader; the shared case is
+   * `a-shared-first-names-nobody.audit.test.ts`.
+   */
   it("names a winner, not a leader — and while live, a leader (the control)", async () => {
-    const live = computeHighlights((await loadEventState(eventId))!).find((h) => h.icon === "🏆")!;
-    expect(live.title).toBe("Leader");
-    expect(live.text).toMatch(/ leads at /);
-    await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
+    const worse = [...PARS.slice(0, 17), 5];
+    await prisma.scorecard.updateMany({ where: { stageId, playerId: ids.Bea }, data: { strokes: JSON.stringify(worse) } });
     try {
+      const live = computeHighlights((await loadEventState(eventId))!).find((h) => h.icon === "🏆")!;
+      expect(live.title).toBe("Leader");
+      expect(live.text).toMatch(/ leads at /);
+      await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
       const done = computeHighlights((await loadEventState(eventId))!).find((h) => h.icon === "🏆")!;
       expect(done.title).toBe("Winner");
       expect(done.text, "'leads' over a board headed Final").toMatch(/ won at /);
     } finally {
       await prisma.event.update({ where: { id: eventId }, data: { status: "live" } });
+      await prisma.scorecard.updateMany({ where: { stageId, playerId: ids.Bea }, data: { strokes: JSON.stringify(PARS) } });
     }
   });
 });

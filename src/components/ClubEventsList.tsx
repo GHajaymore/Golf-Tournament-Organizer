@@ -13,7 +13,8 @@ import {
   type SeasonGroup,
   type SeasonWindow,
 } from "@/lib/domain/club-season";
-import { playLabel } from "@/lib/domain/play-kind";
+import { eventWords } from "@/lib/domain/event-words";
+import { useGolfRegister } from "@/components/GolfTermsProvider";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB RUNS — found, understood and entered from
@@ -89,6 +90,7 @@ export function ClubEventsList({
    */
   season?: SeasonWindow;
 }) {
+  const register = useGolfRegister();
   /** Tournaments withdrawn from on this visit, and the sentence each was answered with. */
   const [withdrew, setWithdrew] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
@@ -242,7 +244,7 @@ export function ClubEventsList({
                         className="text-muted"
                         style={{ fontSize: 13, fontWeight: 600, marginLeft: 8, whiteSpace: "nowrap" }}
                       >
-                        {playLabel(e.playKind)}
+                        {eventWords(e.playKind, register).kind}
                       </span>
                     )}
                   </span>

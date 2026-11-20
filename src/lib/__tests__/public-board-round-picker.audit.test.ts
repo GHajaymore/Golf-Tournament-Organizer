@@ -114,9 +114,14 @@ describe("the public board's round picker", () => {
   });
 
   it("the page only asks the cache for a round of this tournament", () => {
-    const page = readSource("src", "app", "live", "[token]", "page.tsx");
-    expect(page).toMatch(/prisma\.stage\.findFirst\(\{ where: \{ id: round, eventId: event\.id \}/);
-    expect(page).toMatch(/liveBoard\(event\.id, picked\)/);
+    // The board is `PublicBoard`, shared by /live and /play/board since 2026-11-05:
+    // both doors hand it the round, and IT checks the round against the event.
+    for (const door of [["live", "[token]", "page.tsx"], ["play", "board", "page.tsx"]]) {
+      expect(readSource("src", "app", ...door), `${door.join("/")} draws the shared board`).toMatch(/<PublicBoard\b[^>]*round=\{round\}/);
+    }
+    const board = readSource("src", "components", "PublicBoard.tsx");
+    expect(board).toMatch(/prisma\.stage\.findFirst\(\{ where: \{ id: round, eventId: event\.id \}/);
+    expect(board).toMatch(/liveBoard\(event\.id, picked\)/);
   });
 
   it("and the player's Board reads the same picked round", () => {

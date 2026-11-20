@@ -45,6 +45,7 @@ import { layersFor, partsFor, SCHEDULES, targetLine } from "./layers.mjs";
 import { AREAS } from "./specs-by-area.mjs";
 import { activeEntries, quarantinedBy, readQuarantine } from "./quarantine.mjs";
 import { infraReason } from "./infra.mjs";
+import { formControlsFigure } from "./form-controls.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -165,7 +166,7 @@ if (builds.length > 1) missing.push(`the parts ran on different builds (${builds
 const reach = value("reach") && existsSync(value("reach")) ? shape(JSON.parse(readFileSync(value("reach"), "utf8"))) : parts.length === 1 ? first.reach : null;
 function shape(report) {
   if (report.neverCalled) return report;
-  return { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened, refusalsOutOfSight: report.refusalsOutOfSight ?? [] };
+  return { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened, refusalsOutOfSight: report.refusalsOutOfSight ?? [], formControls: report.formControls };
 }
 const newlyUnreached = [];
 /** Actions the list still calls unreached that this round performed: the list can come down. */
@@ -247,6 +248,17 @@ const textOf = textShares[0] ? Number(textShares[0][2]) : 0;
 const textTried = textShares.reduce((n, m) => n + Number(m[3]), 0);
 if (textOf > 1 && new Set(textShares.map((m) => m[1])).size === textOf && textTried <= TEXT_BOXES_AT_LEAST) {
   findings.push(`text-boxes: the text-box crawl's ${textOf} shares tried ${textTried} boxes between them — the crawl tries more than ${TEXT_BOXES_AT_LEAST}`);
+}
+// The database suite runs in a job of its own, beside the build (round.yml `audit`). `--audit=<the job's result>`
+// is REQUIRED of a real round (`--expect-parts`): an absent one is not a pass. A FAILED suite is the app's finding
+// (NOT CLEAN, as when it ran first and stopped the round); a CANCELLED one is the runner's (a lost machine), so the
+// round is INCOMPLETE and the waiter re-runs it; skipped or anything else is a finding. A local round (no
+// `--expect-parts`), whose `--build` ran the suite first, may leave it out.
+const auditResult = value("audit");
+if (flag("expect-parts") || flag("audit")) {
+  if (!auditResult) findings.push("database suite: no result was given for it (--audit=), so the round cannot be clean");
+  else if (auditResult === "cancelled") infrastructure.push("database suite: its job was cancelled (the machine's), re-run");
+  else if (auditResult !== "success") findings.push(`database suite: its job ended "${auditResult}", so the round cannot be clean`);
 }
 for (const n of newlyUnreached) findings.push(`reach: no screen test calls ${n} (not in reach-baseline.json: new, or its test was lost)`);
 if (baselineMissing) findings.push("reach: scripts/qa/reach-baseline.json is missing, so nothing checked for an action no screen test performs");
@@ -332,6 +344,9 @@ const summary = [
   reach
     ? `**Reach:** ${reach.actions.reached} of ${reach.actions.total} server actions called through a real screen; ${reach.screens.reached} of ${reach.screens.total} screens opened.${reachHeld ? (heldFiles ? ` Held to \`reach-baseline.json\` for the area's own actions only (${heldFiles.length ? heldFiles.join(", ") : "none: the area has no action file of its own"}); the rest is printed, not held, in a targeted round.` : "") : " Not held to `reach-baseline.json`: the list was measured with the console crawl, and this round did not run it."}`
     : "**Reach:** not measured for this run.",
+  "",
+  // Every round states the figure, with its scope on the line; a reach without one says so and never a zero.
+  reach?.formControls ? `**Form controls:** ${formControlsFigure(reach.formControls)}. The controls no test changed are listed by screen in \`reach.json\` (\`formControls.screens\`).` : "**Form controls:** not measured for this run (the reach handed in carries no form-control figure).",
   "",
   ...(mutationLine ? [mutationLine, ""] : []),
   findings.length ? `## Findings\n\n${findings.map((f) => `- ${f}`).join("\n")}` : "No findings.",

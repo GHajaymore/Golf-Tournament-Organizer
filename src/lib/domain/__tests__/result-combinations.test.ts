@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tournamentResult, resultSummary, type RoundOutcome } from "../tournament-result";
-import { PLAY_KINDS, resultHeading, playLabel, playNoun, isPlayKind } from "../play-kind";
+import { PLAY_KIND_KEYS, isPlayKind } from "../play-kind";
+import { eventWords } from "../event-words";
 
 /**
  * EVERY KIND OF PLAY, AGAINST EVERY KIND OF ROUND.
@@ -36,13 +37,13 @@ const OUTSTANDING: RoundOutcome[] = [
 
 describe("a result card for every kind of play", () => {
   it("has a heading, a label and a mid-sentence word for each", () => {
-    for (const kind of PLAY_KINDS) {
-      expect(isPlayKind(kind.key), kind.key).toBe(true);
-      expect(resultHeading(kind.key), kind.key).toBe(kind.result);
-      expect(playLabel(kind.key), kind.key).toBe(kind.label);
+    for (const key of PLAY_KIND_KEYS) {
+      expect(isPlayKind(key), key).toBe(true);
+      expect(eventWords(key, "us").resultHeading, key).toBe(`${eventWords(key, "us").kind} result`);
+      expect(eventWords(key, "uk").kind.length, key).toBeGreaterThan(0);
       // "this outing", "this charity day" — lower case, because it lands in
       // the middle of a sentence.
-      expect(playNoun(kind.key), kind.key).toBe(kind.label.toLowerCase());
+      expect(eventWords(key, "au").kindLower, key).toBe(eventWords(key, "au").kind.toLowerCase());
     }
   });
 
@@ -53,24 +54,24 @@ describe("a result card for every kind of play", () => {
      * existed, or by a caller that invented a word, reads as a tournament.
      */
     for (const bad of ["", "   ", "Outing", "casual", "zz-nonsense"]) {
-      expect(resultHeading(bad), bad).toBe("Tournament result");
-      expect(playLabel(bad), bad).toBe("Tournament");
+      expect(eventWords(bad, "us").resultHeading, bad).toBe("Tournament result");
+      expect(eventWords(bad, "us").kind, bad).toBe("Tournament");
       expect(isPlayKind(bad), bad).toBe(false);
     }
   });
 
   it("reads correctly for every kind of play against every kind of round", () => {
-    for (const kind of PLAY_KINDS) {
+    for (const key of PLAY_KIND_KEYS) {
       for (const round of [...SETTLED, ...OUTSTANDING]) {
         const [line] = tournamentResult([round]);
-        const where = `${kind.key} / ${round.kind}`;
+        const where = `${key} / ${round.kind}`;
         expect(line.label, where).toBe(round.label);
         expect(line.result.trim().length, where).toBeGreaterThan(0);
         expect(line.result, where).not.toContain("undefined");
         expect(line.result, where).not.toContain("null");
         expect(line.result, where).not.toMatch(/·\s*$/);
         // The heading is the tournament's own word, whatever the rounds were.
-        expect(resultHeading(kind.key), where).toContain("result");
+        expect(eventWords(key, "us").resultHeading, where).toContain("result");
       }
     }
   });

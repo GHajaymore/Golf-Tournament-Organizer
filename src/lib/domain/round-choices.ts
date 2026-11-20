@@ -1,4 +1,4 @@
-import { GOLF_FORMATS, isPlayable, lookupFormat } from "@/lib/formats";
+import { GOLF_FORMATS, SAME_GAME_AS, isPlayable, lookupFormat } from "@/lib/formats";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { basisFor } from "@/lib/domain/week-basis";
 
@@ -54,7 +54,6 @@ const HINTS: Record<string, string> = {
  * another name"), and listing both made a newcomer choose between two names
  * for one format. Kept in the catalogue, so a round set to it reads as before.
  */
-const SAME_GAME_AS: Record<string, string> = { "Alternate Shot": "Foursomes" };
 
 /** The format a round of this type is played in at most clubs, chosen for the organizer. */
 export function naturalFormatFor(type: string): string {
@@ -67,6 +66,19 @@ export function naturalFormatFor(type: string): string {
       // A round robin, a knockout and a single match are match play at a club.
       return "Match Play";
   }
+}
+
+/**
+ * The format the round builder offers and sends for the kind of round chosen:
+ * the one it already holds where that kind can be scored in it, otherwise the
+ * kind's natural one. Asked each render rather than kept beside the kind, so a
+ * chosen kind can never be without a format that fits it (CI run 41950657167:
+ * the select read "" for 247 s after Round robin, Add, Bracket pressed fast).
+ * Empty only while no kind is chosen.
+ */
+export function addFormatFor(type: string, held: string): string {
+  if (!type) return "";
+  return held && formatChoicesFor(type).some((c) => c.name === held) ? held : naturalFormatFor(type);
 }
 
 /** Played as a side when the catalogue's own family says so — not the screen's styling helper. */

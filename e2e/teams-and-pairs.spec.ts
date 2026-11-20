@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { makeCommitteeCorrection } from "./committee-correction";
 
 /**
  * TEAMS & PAIRS, AS ITS SECRETARY USES IT ON A LIVE FOUR-BALL (2026-10-20).
@@ -54,7 +55,6 @@ test("a secretary renames a side, takes a player out and puts them back, and is 
   const ev = club.events.find((e) => e.slug === "fourball")!;
   const stage = await prisma.stage.findFirstOrThrow({ where: { eventId: ev.id, position: 0 } });
   expect(stage.type, "the seeded four-ball is not a stroke-play round").toBe("Stroke Play Round");
-  expect((await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, "setup is already unlocked").toBe(false);
   const side = await prisma.team.findFirstOrThrow({
     where: { stageId: stage.id },
     orderBy: { seed: "asc" },
@@ -92,10 +92,10 @@ test("a secretary renames a side, takes a player out and puts them back, and is 
 
   // Locked: the name box is there and nothing on the side can be pressed.
   await expect(page.getByRole("button", { name: `Remove ${out.name}` })).toBeDisabled();
-  await page.getByRole("button", { name: /^Unlock setup$/ }).first().click();
+  await makeCommitteeCorrection(page);
   await expect
-    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, { message: "Unlock setup stored nothing" })
-    .toBe(true);
+    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).correctionScope, { message: "the committee correction stored nothing" })
+    .toBe("sides");
   await open(teamsPath);
 
   // ── rename, kept, and the board says it ─────────────────────────────────────

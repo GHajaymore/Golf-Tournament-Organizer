@@ -59,9 +59,14 @@ describe("the tournament's dates", () => {
   it("is what the launch gate reads, so the two cannot drift", () => {
     // `dated` comes off the same column the action writes — read once, by the
     // setup flow's facts, which the launch action asks (gap G3, 2026-10-31).
-    expect(actions).toMatch(/await launchCheckFor\(eventId\)/);
-    const facts = readSource("src", "lib", "services", "setup-flow.ts");
-    expect(facts).toMatch(/dated: !!event\.dates\.trim\(\)/);
+    // Since PR 2 of the state machine those facts are the setup side of the
+    // one facts read (services/tournament-facts.ts), handed over unchanged by
+    // `setupFactsOf`. Since PR 4 the action asks the machine, whose launch
+    // refusal is that flow's verdict first (`refusals.launch`).
+    expect(actions).toMatch(/const refusal = told\.status\.refusals\.launch;/);
+    expect(readSource("src", "lib", "services", "tournament-status.ts")).toMatch(/tournamentFactsFor\(eventId, today\)/);
+    expect(readSource("src", "lib", "services", "tournament-facts.ts")).toMatch(/dated: !!event\.dates\.trim\(\)/);
+    expect(readSource("src", "lib", "domain", "tournament-status.ts")).toMatch(/dated: f\.dated/);
     expect(readSource("src", "lib", "domain", "launch-check.ts")).toMatch(/dated: f\.dated/);
   });
 });

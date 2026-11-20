@@ -74,10 +74,18 @@ describe("the other exports take the board's places", () => {
  * A COMPLETED TOURNAMENT HAS A WINNER on both highlight branches (grid cells
  * T59, T60). The stroke branch is asserted against real rows in
  * a-no-show-did-not-play.audit.test.ts; this pins the match branch's twin.
+ *
+ * Since 2026-11-07 both branches word the card through `sharedLead`, which
+ * also says a SHARED first names nobody; the match branch's Winner, shared
+ * lead and shared first are asserted on real rows in
+ * a-shared-first-names-nobody.audit.test.ts. Pinned here: the one wording
+ * still says Winner / won once completed, and the match branch hands it the
+ * completed flag.
  */
 describe("the match-play highlight once completed", () => {
   it("says Winner / won when the tournament is completed", () => {
     const src = readSource("src/lib/services/tournament.ts");
-    expect(src).toMatch(/title: done \? "Winner" : "Leader",\s*text: `\$\{leader\.player\.name\} \$\{done \? "won" : "leads"\} on/);
+    expect(src).toMatch(/title: done \? "Winner" : "Leader", text: `\$\{names\[0\] \?\? "—"\} \$\{done \? "won" : "leads"\} \$\{figure\}\.`/);
+    expect(src).toMatch(/out\.push\(sharedLead\(level, done, `on \$\{fmt\(leader\.stats\.totalPoints\)\} pts`\)\)/);
   });
 });

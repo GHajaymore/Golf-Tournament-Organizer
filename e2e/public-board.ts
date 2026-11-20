@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { pressRadio } from "./press-radio";
 
 /**
  * THE LINK A CLUB SENDS ITS MEMBERS — `/live/<token>` — read as one of them.
@@ -18,7 +19,7 @@ async function open(page: Page, path: string) {
 /** On Tournament details: "Who can see the leaderboard" → Anyone with the link. */
 export async function makeBoardPublic(page: Page) {
   await open(page, "/event");
-  await page.getByRole("radio", { name: /Anyone with the link/ }).check();
+  await pressRadio(page.getByRole("radio", { name: /Anyone with the link/ }));
   const save = page.getByRole("button", { name: "Save settings" });
   await save.click();
   await expect(save).toHaveCount(0, { timeout: 20_000 });

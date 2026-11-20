@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi, onTestFinished } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /** One browser's cookie jar, so a console session round-trips for real. */
@@ -16,10 +16,18 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
+// The "hybrid" case below holds the rule for a club whose members' indexes
+// come from a body where they have a number. That choice waits for a live
+// federation link (the team's rulings, 2026-10-24) and reads as the club's own
+// record until then; it is the rule the day a link is live, so that case
+// forces the switch on.
+const link = vi.hoisted(() => ({ live: false }));
+vi.mock("@/lib/integrations/federation-link", () => ({ federationLinkLive: () => link.live }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
 import { updateSignup } from "@/app/actions/tournament";
+import { openCorrectionOn } from "./correction-fixture";
 
 /**
  * A PLAYER'S INDEX, CHANGED FROM A TOURNAMENT (2026-10-16).
@@ -199,7 +207,7 @@ describe("Members", () => {
     const lee = await entrant("Lee", 18.4);
     const other = await prisma.event.create({
       data: {
-        organizationId: orgId, name: `${TAG} Spring Meeting`, status: "registration", shape: "single", format: "stroke",
+        organizationId: orgId, name: `${TAG} Spring Meeting`, status: "draft", shape: "single", format: "stroke",
         formationRule: "balanced", dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
         shareToken: `idx-o-${Math.random()}`, registrationToken: `r-idx-o-${Math.random()}`,
       },
@@ -226,6 +234,10 @@ describe("Members", () => {
   });
 
   it("refuses an assistant, a guest, an association's index, a nine-hole figure, and another club's member", async () => {
+    link.live = true;
+    onTestFinished(() => {
+      link.live = false;
+    });
     await tournament("hybrid");
     const withGhin = await entrant("Gail", 12, { ghin: "1234567" });
     const nine = await entrant("Nina", 20, { handicapType: "9" });
@@ -255,8 +267,9 @@ describe("Members", () => {
   it("the field screen's old door no longer writes Members behind anybody's back", async () => {
     await tournament();
     const ray = await entrant("Ray", 9);
-    // The details door is behind the setup lock; this tournament is live, so unlock it for the edit.
-    await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: true } });
+    // The details door is behind the field's lock; this tournament is live, so the field is opened
+    // for the edit with a committee correction (state machine PR 9b: the blanket unlock is not read).
+    await openCorrectionOn(prisma, eventId, "field");
     await signIn(ownerId);
     const res = await updateSignup(ray.playerId, { handicap: 6 });
     expect(res.ok, res.error).toBe(true);

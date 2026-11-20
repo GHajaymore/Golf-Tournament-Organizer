@@ -35,10 +35,22 @@ import {
   SCOPE_LABEL,
   scopeLabel,
   MAX_TITLE_LENGTH,
+  guestWhoKey,
+  isGuestKey,
+  playerOfGuestKey,
+  whoKeysForEntry,
+  mutedWordsFor,
+  MUTED_WORDS,
   type MembershipContext,
   type ScopeKey,
   type ScopeKind,
 } from "@/lib/domain/messaging";
+import { isGuest } from "@/lib/domain/entry-standing";
+import type { GuestIdentity } from "@/lib/domain/player-link";
+import { myPlayerIdsFor } from "@/lib/services/me";
+
+/** The words a muted guest is given where they tried to post (S8); the rule is `mutedWordsFor`. */
+export { MUTED_WORDS };
 
 /**
  * Reading and writing conversations.
@@ -56,17 +68,32 @@ import {
  */
 
 /**
+ * WHO IS ASKING, as messaging needs it: an account (its proved email and its
+ * role), or a guest's player link (`guest`, from the pass, never an argument).
+ * A `PlayerViewer` and a `Session` are both one.
+ */
+export interface MessagingViewer {
+  email: string;
+  role: "admin" | "assistant" | "player";
+  guest?: GuestIdentity | null;
+}
+
+/**
  * Where one person sits in one tournament.
  *
  * Every field is read from the database under a scope key — event id, or the
- * caller's own email — so nothing here can be influenced by an argument.
+ * caller's own who-key — so nothing here can be influenced by an argument.
+ *
+ * TAKES THE VIEWER (J39/J40 PR 2), so the compiler listed every caller the day
+ * a guest's link joined messaging. An account is found by its email, exactly
+ * as before; a guest by the pass's own entry, only in the pass's own event and
+ * only while that entry is confirmed (`myPlayerIdsFor`, S5) — a waiting guest
+ * gets no context at all.
  */
-export async function membershipFor(
-  eventId: string,
-  email: string,
-  role: "admin" | "assistant" | "player",
-): Promise<MembershipContext | null> {
-  const key = email.trim().toLowerCase();
+export async function membershipFor(viewer: MessagingViewer, eventId: string): Promise<MembershipContext | null> {
+  if (viewer.guest) return guestMembershipFor(viewer.guest, eventId);
+  const role = viewer.role;
+  const key = viewer.email.trim().toLowerCase();
   if (!key) return null;
 
   const event = await prisma.event.findUnique({
@@ -99,11 +126,61 @@ export async function membershipFor(
     // nothing is stored under, and every direct conversation would be
     // invisible to everyone including the people in it.
     prisma.threadParticipant.findMany({
-      where: { email: key },
+      where: { whoKey: key },
       select: { thread: { select: { scopeKey: true } } },
     }),
   ]);
 
+  return contextFrom({
+    event,
+    eventId,
+    role,
+    whoKey: key,
+    guest: false,
+    muted: false,
+    player,
+    onRoster: !!member || !!player || role !== "player",
+    directs,
+  });
+}
+
+/**
+ * A GUEST'S PLACE IN THE EVENT (J39/J40 PR 2). The entry is the pass's own,
+ * re-read here and admitted only while confirmed (`myPlayerIdsFor`, S5); the
+ * who-key is `guest:<playerId>`; the club's threads are never theirs (`guest`,
+ * read by `visibleScopes`); and `muted` is the organizer's Mute (S8).
+ */
+async function guestMembershipFor(guest: GuestIdentity, eventId: string): Promise<MembershipContext | null> {
+  if (guest.eventId !== eventId) return null;
+  const mine = await myPlayerIdsFor({ email: "", guest }, eventId);
+  if (!mine.has(guest.playerId)) return null;
+  const whoKey = guestWhoKey(guest.playerId);
+  const [event, player, pass, directs] = await Promise.all([
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, organizationId: true, organization: { select: { kind: true, country: true, communityNoun: true } } },
+    }),
+    prisma.player.findFirst({ where: { id: guest.playerId, eventId }, select: { id: true, groupId: true } }),
+    prisma.playerPass.findUnique({ where: { id: guest.passId }, select: { mutedAt: true } }),
+    prisma.threadParticipant.findMany({ where: { whoKey }, select: { thread: { select: { scopeKey: true } } } }),
+  ]);
+  if (!event || !player) return null;
+  return contextFrom({ event, eventId, role: "player", whoKey, guest: true, muted: !!pass?.mutedAt, player, onRoster: false, directs });
+}
+
+/** The rest of a context, the same for an account and a guest: everything keyed from the entry found above. */
+async function contextFrom(f: {
+  event: { id: string; organizationId: string; organization: { kind: string; country: string; communityNoun: string } };
+  eventId: string;
+  role: "admin" | "assistant" | "player";
+  whoKey: string;
+  guest: boolean;
+  muted: boolean;
+  player: { id: string; groupId: string | null } | null;
+  onRoster: boolean;
+  directs: { thread: { scopeKey: string } }[];
+}): Promise<MembershipContext> {
+  const { event, eventId, role, player, directs } = f;
   const playerId = player?.id ?? null;
 
   // Rounds this person is actually in, teams they are on, matches they play,
@@ -175,7 +252,7 @@ export async function membershipFor(
    * `where` below, which is the bound on the widening.
    */
   const isStaff = role === "admin" || role === "assistant";
-  const [allGroups, allStages, allTeams] = isStaff
+  const [allGroups, allStages, allTeams, allPlayers] = isStaff
     ? await Promise.all([
         /**
          * Ordered, because `composableScopes` builds its picker by walking
@@ -199,17 +276,21 @@ export async function membershipFor(
         }),
         prisma.stage.findMany({ where: { eventId }, select: { id: true }, orderBy: { position: "asc" } }),
         prisma.team.findMany({ where: { eventId }, select: { id: true }, orderBy: { name: "asc" } }),
+        // Every entry's desk ("Message the organizer"): staff read each one.
+        prisma.player.findMany({ where: { eventId }, select: { id: true } }),
       ])
-    : [[], [], []];
+    : [[], [], [], []];
 
   return {
-    email: key,
+    whoKey: f.whoKey,
+    guest: f.guest,
+    muted: f.muted,
     role,
     organizationId: event.organizationId,
     orgNoun: orgProfile(event.organization.kind, event.organization.country, event.organization.communityNoun).noun,
     eventId,
     playerId,
-    onRoster: !!member || !!playerId || role !== "player",
+    onRoster: f.onRoster,
     groupIds: player?.groupId ? [player.groupId] : [],
     stageIds,
     teamIds,
@@ -219,6 +300,7 @@ export async function membershipFor(
       groupIds: allGroups.map((g) => g.id),
       stageIds: allStages.map((s) => s.id),
       teamIds: allTeams.map((t) => t.id),
+      playerIds: allPlayers.map((p) => p.id),
     },
     directThreadIds: directs
       .map((d) => parseScopeKey(d.thread.scopeKey))
@@ -244,6 +326,23 @@ function threadIdFor(organizationId: string, eventId: string | null, key: ScopeK
 /** Club threads outlive any one tournament, so they hang off the org alone. */
 function eventIdForScope(kind: ScopeKind, eventId: string): string | null {
   return kind === "club" ? null : eventId;
+}
+
+/**
+ * WHAT A DESK THREAD IS CALLED, per reader (J39/J40 PR 2): the player sees the
+ * people they are writing to ("The organizers"), and staff see whose desk it
+ * is (the player's name). Never an address on either side.
+ */
+async function deskNames(ctx: MembershipContext, scopeKeys: string[]): Promise<Map<string, string>> {
+  const ids = scopeKeys.map((k) => parseScopeKey(k)).filter((p) => p?.kind === "desk").map((p) => p!.id);
+  if (ids.length === 0 || (ctx.role !== "admin" && ctx.role !== "assistant")) return new Map();
+  const rows = await prisma.player.findMany({ where: { id: { in: ids }, eventId: ctx.eventId }, select: { id: true, name: true } });
+  return new Map(rows.map((r) => [scopeKey("desk", r.id), r.name]));
+}
+
+function titleFor(ctx: MembershipContext, kind: ScopeKind, stored: string, own: string, desks: Map<string, string>): string {
+  if (kind === "desk") return desks.get(stored) || SCOPE_LABEL.desk;
+  return own || scopeLabel(kind, ctx.orgNoun);
 }
 
 export interface ThreadListItem {
@@ -281,13 +380,14 @@ export async function threadsFor(ctx: MembershipContext): Promise<ThreadListItem
   if (threads.length === 0) return [];
 
   const ids = threads.map((t) => t.id);
-  const [messages, reads] = await Promise.all([
+  const [messages, reads, desks] = await Promise.all([
     prisma.message.findMany({
       where: { threadId: { in: ids }, deletedAt: null },
-      select: { threadId: true, createdAt: true, authorEmail: true, body: true },
+      select: { threadId: true, createdAt: true, authorKey: true, body: true },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.threadRead.findMany({ where: { threadId: { in: ids }, email: ctx.email } }),
+    prisma.threadRead.findMany({ where: { threadId: { in: ids }, whoKey: ctx.whoKey } }),
+    deskNames(ctx, threads.map((t) => t.scopeKey)),
   ]);
 
   const byThread = new Map<string, typeof messages>();
@@ -309,12 +409,12 @@ export async function threadsFor(ctx: MembershipContext): Promise<ThreadListItem
       // which is its participants' addresses. See `outwardScopeKey`.
       scopeKey: outwardScopeKey(t.scopeKey, t.id),
       kind,
-      title: t.title || scopeLabel(kind, ctx.orgNoun),
+      title: titleFor(ctx, kind, t.scopeKey, t.title, desks),
       label: scopeLabel(kind, ctx.orgNoun),
       lastMessageAt: t.lastMessageAt.getTime(),
       unread: unreadCount(
-        msgs.map((m) => ({ createdAt: m.createdAt.getTime(), authorEmail: m.authorEmail })),
-        ctx.email,
+        msgs.map((m) => ({ createdAt: m.createdAt.getTime(), authorKey: m.authorKey })),
+        ctx.whoKey,
         readAt.get(t.id) ?? null,
       ),
       canPost: canPostToScope(ctx, t.scopeKey),
@@ -341,6 +441,11 @@ export interface ThreadMessage {
   createdAt: number;
   editedAt: number | null;
   mine: boolean;
+  /**
+   * Written through a guest's player link (S8): drawn as "Guest" beside the
+   * name, so a forwarded link posting to the field is seen for what it is.
+   */
+  guest: boolean;
 }
 
 export interface ThreadView {
@@ -350,6 +455,8 @@ export interface ThreadView {
   title: string;
   label: string;
   canPost: boolean;
+  /** Said in place of the reply box when the organizer muted this guest (S8); "" otherwise. */
+  mutedWords: string;
   messages: ThreadMessage[];
 }
 
@@ -384,20 +491,23 @@ export async function threadView(ctx: MembershipContext, threadId: string): Prom
 
   const parsed = parseScopeKey(thread.scopeKey);
   const kind = (parsed?.kind ?? "event") as ScopeKind;
+  const desks = await deskNames(ctx, [thread.scopeKey]);
   return {
     id: thread.id,
     scopeKey: outwardScopeKey(thread.scopeKey, thread.id),
     kind,
-    title: thread.title || scopeLabel(kind, ctx.orgNoun),
+    title: titleFor(ctx, kind, thread.scopeKey, thread.title, desks),
     label: scopeLabel(kind, ctx.orgNoun),
     canPost: canPostToScope(ctx, thread.scopeKey),
+    mutedWords: mutedWordsFor(ctx, thread.scopeKey),
     messages: messages.map((m) => ({
       id: m.id,
       authorName: m.authorName,
       body: m.body,
       createdAt: m.createdAt.getTime(),
       editedAt: m.editedAt?.getTime() ?? null,
-      mine: m.authorEmail.trim().toLowerCase() === ctx.email,
+      mine: m.authorKey.trim().toLowerCase() === ctx.whoKey,
+      guest: isGuestKey(m.authorKey),
     })),
   };
 }
@@ -435,6 +545,9 @@ export async function postToScope(
   }
   const parsed = parseScopeKey(key);
   if (!parsed) return { ok: false, error: "Unknown conversation." };
+  // Said, not only refused (S8): a muted guest can still write to the organizers.
+  const muted = mutedWordsFor(ctx, key);
+  if (muted) return { ok: false, error: muted };
   if (!canPostToScope(ctx, key)) return { ok: false, error: "You can't post there." };
 
   const clean = cleanMessageBody(body);
@@ -454,7 +567,7 @@ export async function postToScope(
       eventId,
       scopeKey: key,
       title: title.trim().slice(0, MAX_TITLE_LENGTH),
-      createdByEmail: ctx.email,
+      createdByKey: ctx.whoKey,
       createdByName: authorName,
       lastMessageAt: now,
     },
@@ -462,7 +575,7 @@ export async function postToScope(
   });
 
   await prisma.message.create({
-    data: { threadId: id, authorEmail: ctx.email, authorName, body: clean.text, createdAt: now },
+    data: { threadId: id, authorKey: ctx.whoKey, authorName, body: clean.text, createdAt: now },
   });
 
   // Posting is seeing: their own message must not come back as unread.
@@ -475,25 +588,22 @@ export async function postToScope(
 export async function markRead(ctx: MembershipContext, threadId: string): Promise<void> {
   if (!(await threadView(ctx, threadId))) return;
   await prisma.threadRead.upsert({
-    where: { threadId_email: { threadId, email: ctx.email } },
-    create: { threadId, email: ctx.email, lastReadAt: new Date() },
+    where: { threadId_whoKey: { threadId, whoKey: ctx.whoKey } },
+    create: { threadId, whoKey: ctx.whoKey, lastReadAt: new Date() },
     update: { lastReadAt: new Date() },
   });
 }
 
 /**
- * Start or find a direct conversation with named people.
- *
- * The other participants must be in the same tournament — checked here rather
- * than trusted, because these emails DO come from the caller. Without it this
- * would be an open message-anybody endpoint, and the address book is the whole
- * club.
- */
-/**
  * Start or find a direct conversation with people picked from the address
  * book — each named by their entry in THIS tournament, which is all the
  * browser was given. Anything that is not one is refused before a thread
- * exists; the addresses are looked up here and never leave.
+ * exists; the who-keys are worked out here (`whoKeysForEntry`) and never leave.
+ *
+ * A guest is reachable (J39/J40 PR 2): by their `guest:<playerId>` key, and by
+ * their email too where an organizer gave the entry one. A member with no
+ * email has no key and is refused in words. A GUEST NEVER STARTS ONE (D7): the
+ * action is account-only, and this refuses a guest's context as well.
  */
 export async function openDirectThreadWithPlayers(
   ctx: MembershipContext,
@@ -501,50 +611,61 @@ export async function openDirectThreadWithPlayers(
   authorName: string,
   firstMessage = "",
 ): Promise<PostResult> {
-  const wanted = [...new Set((Array.isArray(playerIds) ? playerIds : []).filter((id) => typeof id === "string" && id))];
+  if (ctx.guest) return { ok: false, error: "You can't start a conversation from a player link." };
+  const wanted = [...new Set((Array.isArray(playerIds) ? playerIds : []).filter((id) => typeof id === "string" && id && id.length <= 64))];
   if (wanted.length === 0) return { ok: false, error: "Pick somebody to message." };
   if (wanted.length > 20) return { ok: false, error: "That's too many people for one conversation." };
   const players = await prisma.player.findMany({
-    where: { id: { in: wanted }, eventId: ctx.eventId, email: { not: "" } },
-    select: { email: true },
+    where: { id: { in: wanted }, eventId: ctx.eventId },
+    select: { id: true, name: true, email: true, standing: true },
   });
   if (players.length !== wanted.length) {
     return { ok: false, error: "One of those people isn't in this tournament — reload and pick again." };
   }
-  return openDirectThread(ctx, players.map((p) => p.email), authorName, firstMessage);
+  const keyless = players.filter((p) => whoKeysForEntry(p).length === 0);
+  if (keyless.length > 0) {
+    return { ok: false, error: `${keyless.map((p) => p.name).join(", ")} can't get messages here yet.` };
+  }
+  return openDirectThread(ctx, players.flatMap((p) => whoKeysForEntry(p)), authorName, firstMessage);
 }
 
-export async function openDirectThread(
+/**
+ * NOT EXPORTED (J39/J40 PR 2): every who-key reaching it was made here, from
+ * entries of the caller's own event, so none can arrive from the wire.
+ * `a-who-key-never-comes-from-the-caller.test.ts` holds it there.
+ */
+async function openDirectThread(
   ctx: MembershipContext,
-  withEmails: string[],
+  withKeys: string[],
   authorName: string,
   firstMessage = "",
 ): Promise<PostResult> {
-  const wanted = [...new Set(withEmails.map((e) => e.trim().toLowerCase()).filter(Boolean))].filter(
-    (e) => e !== ctx.email,
-  );
+  const wanted = [...new Set(withKeys.map((e) => e.trim().toLowerCase()).filter(Boolean))].filter((e) => e !== ctx.whoKey);
   if (wanted.length === 0) return { ok: false, error: "Pick somebody to message." };
-  if (wanted.length > 20) return { ok: false, error: "That's too many people for one conversation." };
+  if (wanted.length > 40) return { ok: false, error: "That's too many people for one conversation." };
 
-  // Everyone addressed has to be in this tournament or on this club's roster.
-  const [players, members] = await Promise.all([
-    prisma.player.findMany({
-      where: { eventId: ctx.eventId, email: { in: wanted, mode: "insensitive" } },
-      select: { email: true },
-    }),
-    prisma.member.findMany({
-      where: { organizationId: ctx.organizationId, email: { in: wanted, mode: "insensitive" } },
-      select: { email: true },
-    }),
+  // Everyone addressed has to be in this tournament or on this club's roster: an email by address,
+  // a guest key only as a GUEST entry of this very event.
+  const emails = wanted.filter((k) => !isGuestKey(k));
+  const guestIds = wanted.map(playerOfGuestKey).filter((id): id is string => !!id);
+  const [players, members, guests] = await Promise.all([
+    emails.length
+      ? prisma.player.findMany({ where: { eventId: ctx.eventId, email: { in: emails, mode: "insensitive" } }, select: { email: true } })
+      : [],
+    emails.length
+      ? prisma.member.findMany({ where: { organizationId: ctx.organizationId, email: { in: emails, mode: "insensitive" } }, select: { email: true } })
+      : [],
+    guestIds.length
+      ? prisma.player.findMany({ where: { id: { in: guestIds }, eventId: ctx.eventId }, select: { id: true, standing: true } })
+      : [],
   ]);
-  const reachable = new Set(
-    [...players, ...members].map((r) => r.email.trim().toLowerCase()).filter(Boolean),
-  );
-  const unreachable = wanted.filter((e) => !reachable.has(e));
-  if (unreachable.length > 0) {
-    // Named rather than counted: the organizer needs to know which address was
-    // wrong, and every name here is already someone they can see.
-    return { ok: false, error: `Not in this tournament: ${unreachable.join(", ")}` };
+  const reachable = new Set([
+    ...[...players, ...members].map((r) => r.email.trim().toLowerCase()).filter(Boolean),
+    ...guests.filter((g) => isGuest(g)).map((g) => guestWhoKey(g.id)),
+  ]);
+  if (wanted.some((k) => !reachable.has(k))) {
+    // Never the key itself in the words: a guest's key is an id, and the picker sends ids.
+    return { ok: false, error: "One of those people isn't in this tournament — reload and pick again." };
   }
 
   // Anyone who has opted out of being messaged. Checked here and not only in
@@ -552,18 +673,15 @@ export async function openDirectThread(
   // endpoint. Staff are not exempt: an organizer who needs to reach this
   // person has the tournament and flight threads, which the opt-out
   // deliberately does not touch.
-  const optedOut = await prisma.member.findMany({
-    where: { organizationId: ctx.organizationId, email: { in: wanted, mode: "insensitive" }, messagesOptOut: true },
-    select: { name: true },
-  });
+  const optedOut = [...(await directMessagesOff(ctx, wanted)).values()];
   if (optedOut.length > 0) {
     return {
       ok: false,
-      error: `${optedOut.map((m) => m.name).join(", ")} ${optedOut.length === 1 ? "has" : "have"} turned off direct messages.`,
+      error: `${optedOut.join(", ")} ${optedOut.length === 1 ? "has" : "have"} turned off direct messages.`,
     };
   }
 
-  const participants = [...wanted, ctx.email];
+  const participants = [...wanted, ctx.whoKey];
   const key = scopeKey("direct", directKeyFor(participants));
   const id = threadIdFor(ctx.organizationId, ctx.eventId, key);
 
@@ -574,7 +692,7 @@ export async function openDirectThread(
       organizationId: ctx.organizationId,
       eventId: ctx.eventId,
       scopeKey: key,
-      createdByEmail: ctx.email,
+      createdByKey: ctx.whoKey,
       createdByName: authorName,
     },
     update: { archived: false },
@@ -583,10 +701,10 @@ export async function openDirectThread(
   // Participant rows are what make a direct thread visible — this is the one
   // scope whose membership is stored, because there is no structure to derive
   // it from.
-  for (const email of participants) {
+  for (const whoKey of participants) {
     await prisma.threadParticipant.upsert({
-      where: { threadId_email: { threadId: id, email } },
-      create: { threadId: id, email },
+      where: { threadId_whoKey: { threadId: id, whoKey } },
+      create: { threadId: id, whoKey },
       update: {},
     });
   }
@@ -603,12 +721,12 @@ export async function openDirectThread(
     if (!clean.ok) return { ok: false, error: clean.error };
     const now = new Date();
     await prisma.message.create({
-      data: { threadId: id, authorEmail: ctx.email, authorName, body: clean.text, createdAt: now },
+      data: { threadId: id, authorKey: ctx.whoKey, authorName, body: clean.text, createdAt: now },
     });
     await prisma.thread.update({ where: { id }, data: { lastMessageAt: now } });
     await prisma.threadRead.upsert({
-      where: { threadId_email: { threadId: id, email: ctx.email } },
-      create: { threadId: id, email: ctx.email, lastReadAt: now },
+      where: { threadId_whoKey: { threadId: id, whoKey: ctx.whoKey } },
+      create: { threadId: id, whoKey: ctx.whoKey, lastReadAt: now },
       update: { lastReadAt: now },
     });
   }
@@ -617,28 +735,71 @@ export async function openDirectThread(
 }
 
 /**
+ * WHOSE DIRECT MESSAGES ARE OFF, among these who-keys — the ONE reader over the
+ * two records an identity owns (J39/J40 PR 2): an account's switch lives on its
+ * club roster row (`Member.messagesOptOut`, by email), a guest's on their pass
+ * (`PlayerPass.messagesOptOut`), because a guest's roster row, where there is
+ * one, has no email to be found by. Each key that is off, with its owner's name
+ * for the refusal. The endpoint (`openDirectThread`) and the picker
+ * (`messageableField`) both ask THIS, so the picker can never list somebody the
+ * endpoint refuses, or hide somebody it allows (the 2026-10-11 class).
+ */
+async function directMessagesOff(ctx: MembershipContext, keys: string[]): Promise<Map<string, string>> {
+  const emails = [...new Set(keys.filter((k) => !isGuestKey(k)).map((k) => k.trim().toLowerCase()).filter(Boolean))];
+  const guestIds = [...new Set(keys.map(playerOfGuestKey).filter((id): id is string => !!id))];
+  const [members, passes] = await Promise.all([
+    emails.length
+      ? prisma.member.findMany({
+          where: { organizationId: ctx.organizationId, email: { in: emails, mode: "insensitive" }, messagesOptOut: true },
+          select: { email: true, name: true },
+        })
+      : [],
+    guestIds.length
+      ? prisma.playerPass.findMany({
+          where: { playerId: { in: guestIds }, eventId: ctx.eventId, messagesOptOut: true },
+          select: { playerId: true, player: { select: { name: true } } },
+        })
+      : [],
+  ]);
+  const off = new Map<string, string>();
+  for (const m of members) off.set(m.email.trim().toLowerCase(), m.name);
+  for (const p of passes) off.set(guestWhoKey(p.playerId), p.player.name);
+  return off;
+}
+
+
+/**
  * Whether this person has turned off direct messages, and setting it.
  *
- * Read from the club roster by email, because that is where the preference
- * lives — see Member.messagesOptOut. Somebody entered in a tournament who is
- * not on the roster has no row to carry a preference, and defaults to
- * reachable; adding them to the roster is what the registration path already
- * does.
+ * An account's preference lives on the club roster, by email — see
+ * Member.messagesOptOut; somebody entered who is not on the roster has no row
+ * to carry it, and defaults to reachable. A guest's lives on their pass
+ * (J39/J40 PR 2), which every guest who can see the switch has.
  */
 export async function messagesOptOutFor(ctx: MembershipContext): Promise<boolean> {
+  if (ctx.guest) {
+    const pass = await prisma.playerPass.findFirst({ where: { playerId: ctx.playerId ?? "", eventId: ctx.eventId }, select: { messagesOptOut: true } });
+    return pass?.messagesOptOut ?? false;
+  }
   const member = await prisma.member.findFirst({
-    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+    where: { organizationId: ctx.organizationId, email: { equals: ctx.whoKey, mode: "insensitive" } },
     select: { messagesOptOut: true },
   });
   return member?.messagesOptOut ?? false;
 }
 
 export async function setMessagesOptOut(ctx: MembershipContext, optOut: boolean): Promise<boolean> {
-  // Scoped to the caller's OWN email and their own club. There is no id
-  // parameter here at all, so this cannot be pointed at anybody else.
+  // Scoped to the caller's OWN record: the pass of their own entry for a guest,
+  // their own email and club for an account. There is no id parameter here at
+  // all, so this cannot be pointed at anybody else.
+  if (ctx.guest) {
+    if (!ctx.playerId) return false;
+    const res = await prisma.playerPass.updateMany({ where: { playerId: ctx.playerId, eventId: ctx.eventId }, data: { messagesOptOut: optOut === true } });
+    return res.count > 0;
+  }
   const res = await prisma.member.updateMany({
-    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
-    data: { messagesOptOut: optOut },
+    where: { organizationId: ctx.organizationId, email: { equals: ctx.whoKey, mode: "insensitive" } },
+    data: { messagesOptOut: optOut === true },
   });
   return res.count > 0;
 }
@@ -649,32 +810,28 @@ export async function setMessagesOptOut(ctx: MembershipContext, optOut: boolean)
  * Callers used to build this from the Player table directly, which meant the
  * opt-out was enforced at the endpoint but the person still appeared in the
  * dropdown — an opt-out you can see being refused is not much of one.
+ *
+ * GUESTS ARE IN IT (J39/J40 PR 2), by id like everyone; a member with no email
+ * is not (no key reaches them). A GUEST VIEWER GETS NONE (D7): no picker is
+ * drawn for a link, which starts no direct thread.
  */
 export async function messageableField(
   ctx: MembershipContext,
 ): Promise<{ name: string; id: string }[]> {
-  const [field, optedOut] = await Promise.all([
-    prisma.player.findMany({
-      where: { eventId: ctx.eventId, email: { not: "" } },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.member.findMany({
-      where: { organizationId: ctx.organizationId, messagesOptOut: true },
-      select: { email: true },
-    }),
-  ]);
-  const off = new Set(optedOut.map((m) => m.email.trim().toLowerCase()).filter(Boolean));
-  // The address decides who is listed and then STAYS HERE: what goes to the
+  if (ctx.guest) return [];
+  const field = await prisma.player.findMany({
+    where: { eventId: ctx.eventId },
+    select: { id: true, name: true, email: true, standing: true },
+    orderBy: { name: "asc" },
+  });
+  const keyed = field.map((p) => ({ p, keys: whoKeysForEntry(p) })).filter((r) => r.keys.length > 0 && !r.keys.includes(ctx.whoKey));
+  // The same reader the endpoint refuses by (PE-2): one rule for "direct messages off".
+  const off = await directMessagesOff(ctx, keyed.flatMap((r) => r.keys));
+  // The keys decide who is listed and then STAY HERE: what goes to the
   // browser is a name and the person's entry in this tournament. This list
   // carried `email`, and the picker used it as its value — so every player
   // was sent every other entrant's address (2026-10-11).
-  return field
-    .filter((p) => {
-      const e = p.email.trim().toLowerCase();
-      return e !== ctx.email && !off.has(e);
-    })
-    .map((p) => ({ name: p.name, id: p.id }));
+  return keyed.filter((r) => !r.keys.some((k) => off.has(k))).map((r) => ({ name: r.p.name, id: r.p.id }));
 }
 
 /**
@@ -745,6 +902,12 @@ export async function composableScopes(
     if (kind === "team") label = teamName.get(id) ?? "Your team";
     if (kind === "foursome") label = `Your group — ${id.split("#")[1] ?? ""}`.trim();
     if (kind === "direct") continue; // has its own picker
+    // Message the organizer: a player's own desk. Staff answer a desk inside its thread, so
+    // their picker is not given one line per entry.
+    if (kind === "desk") {
+      if (ctx.role === "admin" || ctx.role === "assistant") continue;
+      label = SCOPE_LABEL.desk;
+    }
     out.push({ key, label, kind });
   }
 
@@ -848,14 +1011,14 @@ export async function staffBroadcast(
       organizationId: ctx.organizationId,
       eventId,
       scopeKey: key,
-      createdByEmail: ctx.email,
+      createdByKey: ctx.whoKey,
       createdByName: authorName,
       lastMessageAt: now,
     },
     update: { lastMessageAt: now, archived: false },
   });
   await prisma.message.create({
-    data: { threadId: id, authorEmail: ctx.email, authorName, body: clean.text, createdAt: now },
+    data: { threadId: id, authorKey: ctx.whoKey, authorName, body: clean.text, createdAt: now },
   });
   return { ok: true, threadId: id };
 }
@@ -1063,7 +1226,7 @@ export async function broadcastWithSms(
         segments: 0,
         status: "skipped",
         error: s.reason,
-        sentByEmail: ctx.email,
+        sentByEmail: ctx.whoKey,
       },
     });
   }
@@ -1083,7 +1246,7 @@ export async function broadcastWithSms(
         body: composed.text,
         segments: plan.segmentsEach,
         status: "queued",
-        sentByEmail: ctx.email,
+        sentByEmail: ctx.whoKey,
       },
     });
 

@@ -13,6 +13,12 @@ import { PrismaClient } from "@prisma/client";
  * same call on the same tournament unlocked succeeds — the control, so the
  * refusal is the lock and not something else about the fixture.
  *
+ * A KNOCKOUT since day-of field changes (PR A): a launched stroke field now
+ * TAKES a late entry until play begins (`a-late-changes-after-launch.audit.test.ts`),
+ * so the refusal this file holds is the one that remains — a drawn field — in
+ * the one field rule's words; and the CSV import, which stays locked in every
+ * family after launch.
+ *
  *   npx vitest run --config vitest.audit.config.ts
  */
 
@@ -31,6 +37,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addSignup, importCsvSignups } from "@/app/actions/tournament";
+import { openCorrectionOn } from "./correction-fixture";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-LOCKED-ADD";
@@ -70,12 +77,11 @@ beforeAll(async () => {
         shareToken: `${TAG}-${Date.now()}`,
         capacity: 0,
         status: "live",
-        configUnlocked: false,
       },
     })
   ).id;
   await prisma.stage.create({
-    data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 },
+    data: { eventId, position: 0, type: "Bracket Stage", format: "Match Play", holes: 18 },
   });
   const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x", emailVerifiedAt: new Date() } });
   await prisma.account.create({ data: { eventId, email: at("organizer"), name: `${TAG} Organizer`, role: "admin" } });
@@ -97,20 +103,26 @@ describe("adding a player while setup is locked", () => {
   it("is refused with a reason, and writes nobody", async () => {
     const res = await addSignup(entrant("Late"));
     expect(res.ok).toBe(false);
-    expect(res.error).toBe("Configuration is locked. Unlock the tournament to change the field.");
+    // A launched knockout (J12, panel Q3): refused, with the reserve as the way out.
+    expect(res.error).toBe(
+      "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. An Organizer can open the field with a committee correction.",
+    );
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);
   });
 
   it("a CSV import is refused the same way, and imports nobody", async () => {
     const csv = `name,email,phone,handicap\n${TAG} Csv,${at("csv")},07700 900657,10\n`;
     const res = await importCsvSignups(csv);
-    expect(res.error).toBe("Configuration is locked. Unlock the tournament to change the field.");
+    expect(res.error).toBe(
+      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction to the field on the dashboard.",
+    );
     expect(res.imported).toBe(0);
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);
   });
 
-  it("goes through once setup is unlocked (the control)", async () => {
-    await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: true } });
+  it("goes through once the field is opened by a committee correction (the control)", async () => {
+    // PR 9b: the blanket unlock this used is not read; one part, the field, is opened.
+    await openCorrectionOn(prisma, eventId, "field");
     const res = await addSignup(entrant("Unlocked"));
     expect(res.ok, res.error).toBe(true);
     expect(await prisma.player.count({ where: { eventId } })).toBe(1);

@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { clearFlights, divideIntoFlights, moveFlightPlayer, renameFlight, reseedFlight } from "@/app/actions/tournament";
-import type { FlightCriterion } from "@/lib/domain/bracket-flights";
+import { flightsNote, type FlightCriterion } from "@/lib/domain/bracket-flights";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
@@ -59,7 +59,7 @@ export function BracketFlights({
   flights,
   unplaced,
   departed,
-  fixed,
+  lockBy,
   readOnly,
   finished,
 }: {
@@ -73,8 +73,8 @@ export function BracketFlights({
   unplaced: { id: string; name: string }[];
   /** In a flight, no longer in the field. They stay in the draw. */
   departed: string[];
-  /** A result is recorded, so the division can no longer change. */
-  fixed: boolean;
+  /** What the draw lock says (`locks.draw`, as the Bracket's banner draws it): null while the division can change. */
+  lockBy: "results" | "completed" | null;
   readOnly: boolean;
   /**
    * The tournament is completed. NOT the setup lock: dividing the field is the draw, made when the
@@ -99,6 +99,7 @@ export function BracketFlights({
      phone, so one line up there was a press that seemed to do nothing (2026-10-21, 320px). */
   const [errorAt, setErrorAt] = useState<number | null>(null);
 
+  const fixed = lockBy !== null;
   const canChange = !readOnly && !finished && !fixed;
   const run = (action: () => Promise<{ ok: boolean; error?: string }>, then?: () => void, at: number | null = null) => {
     setError("");
@@ -236,9 +237,7 @@ export function BracketFlights({
             {flights.length} flights{how ? ` · ${how.toLowerCase()}` : ""}
           </h2>
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-            {fixed
-              ? "Results are in, so the flights are fixed. Each is its own knockout."
-              : "Each is its own knockout. You can move players, reseed and rename until the first result is recorded."}
+            {flightsNote(lockBy)}
           </p>
         </div>
         {canChange && (

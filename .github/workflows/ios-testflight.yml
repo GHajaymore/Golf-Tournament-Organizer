@@ -26,6 +26,11 @@ name: iOS — build & upload to TestFlight
 on:
   workflow_dispatch: {}
 
+# The token only checks the code out. App Store Connect is reached with its
+# own API key secret.
+permissions:
+  contents: read
+
 jobs:
   build-and-upload:
     runs-on: macos-14

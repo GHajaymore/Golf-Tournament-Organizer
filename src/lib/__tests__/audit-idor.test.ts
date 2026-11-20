@@ -215,6 +215,8 @@ function unscopedParams(a: Action): string[] {
  * `file:action` where the whole action is pre-authorization.
  */
 const EXEMPT: Record<string, string> = {
+  "play.ts:handOverGroup:toPlayerId":
+    "handed to `handOverGroup` in services/group-keeping.ts, which refuses any id not in the caller's own group — `groupMembers` of the session's round, and the confirmed field read with { eventId, status: 'confirmed' } — before its one write, an updateMany scoped { eventId, stageId, groupKey, playerId: fromId }; the scope check is one frame down (a-group-has-one-scorer.audit.test.ts hands to a player outside the group and is refused)",
   "messaging.ts:readThread:threadId":
     "threadView(ctx, threadId) selects with { id, organizationId, scopeKey: { in: visibleScopes(ctx) } } in ONE where clause — the id narrows within the caller's derived scope set rather than authorising anything, and a thread outside it returns null; the scope check is one frame down",
   "messaging.ts:markThreadRead:threadId":
@@ -223,7 +225,6 @@ const EXEMPT: Record<string, string> = {
   "auth.ts:claimPassword": "pre-auth; the token is the authorization",
   "auth.ts:resetPassword": "pre-auth; the token is the authorization",
   "auth.ts:signUp": "pre-auth; creates the scope rather than entering one",
-  "play.ts:redeemRoundCode": "the code IS the credential; rate limited separately",
   "play.ts:claimPlayerSlot": "same code-based auth, same shared rate limit",
   "teams.ts:removeTeamMember:playerId":
     "the delete is bounded by teamId, which is scoped; a foreign playerId can only fail to match a row inside this event's team",
@@ -370,7 +371,7 @@ describe("the club theme cannot inject CSS", () => {
    * satisfy the assertion on its own.
    */
   const playerShell = readSource("src", "app", "(player)", "layout.tsx");
-  const publicBoard = readSource("src", "app", "live", "[token]", "page.tsx");
+  const publicBoard = readSource("src", "components", "PublicBoard.tsx");
   const boardService = readSource("src", "lib", "services", "live-board.ts");
 
   it("holds for the player shell too", () => {

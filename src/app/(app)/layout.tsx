@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { NOINDEX } from "@/lib/site";
 import { DeniedNotice } from "@/components/DeniedNotice";
 import { ArchiveBanner } from "@/components/ArchiveBanner";
+import { ArchiveReadOnly } from "@/components/ArchiveReadOnly";
 import { archiveRefusalFor, paymentDueNoticeFor } from "@/lib/services/club-archive";
 import Link from "next/link";
 import { golfRegisterForEvent, golfRegisterForOrganization } from "@/lib/services/organization";
@@ -12,8 +13,18 @@ import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { EventContextBar } from "@/components/EventContextBar";
 import { BackToTheRound } from "@/components/BackToTheRound";
+import { ConsolePlayStatus } from "@/components/ConsolePlayStatus";
+import { LifecycleStepper } from "@/components/LifecycleStepper";
+import { LIFECYCLE_STEPPER_ON, lifecycleTrack, stepperShown } from "@/lib/domain/lifecycle-track";
+import { mergesShown } from "@/lib/domain/console-merges";
+import { isOwner } from "@/lib/owner";
+import { headers } from "next/headers";
+import { openTournamentJob } from "@/lib/services/whats-next";
 import { navForRole } from "@/lib/nav";
+import { lifecycleNav } from "@/lib/nav-lifecycle";
 import { loadEventState } from "@/lib/services/tournament";
+import { tournamentStatusFor } from "@/lib/services/tournament-status";
+import { STEP_TAG } from "@/lib/domain/tournament-status";
 import { roundNameFor } from "@/lib/domain/round-label";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
@@ -151,6 +162,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * which trades a small honest imprecision for a large useless one.
    */
   const roundState = event ? await loadEventState(event.id) : null;
+  /**
+   * THE CHIP ON EVERY CONSOLE SCREEN — the state machine's step (PR 3), on the
+   * club's day (`state.today`). Request-cached: the dashboard, Tournament
+   * details and Rounds & formats ask the same question under it for nothing.
+   */
+  const told = event && roundState ? await tournamentStatusFor(event.id, roundState.today) : null;
+  /**
+   * THE LIFECYCLE STEPPER (B03), from the same status as the chip — behind its switch: off until
+   * Ajay's OK, drawn meanwhile by `?stepper=1` (the middleware hands the query over, as a layout
+   * cannot read it). Which screen it sits on is the stepper's own question (`usePathname`): this
+   * layout is not drawn again as an organizer moves between its screens.
+   */
+  const asked = await headers();
+  const track =
+    event && roundState && told && stepperShown(asked.get("x-search") ?? "", { owner: isOwner(session.email) })
+      ? lifecycleTrack(told.status, await openTournamentJob(event.id, roundState.today))
+      : null;
   const boardRound = roundState?.boardStage ?? null;
   const roundName = boardRound
     ? roundNameFor(roundState!.playRounds, boardRound)
@@ -171,7 +199,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // the organizer's own would name one outfit after another.
   const orgNounNow = event ? event.organization.communityNoun : (ownedOrgs[0]?.communityNoun ?? "");
 
-  const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
+  const flatSections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
     hasKnockout: knockoutRounds > 0,
     hasCup: cupRounds > 0,
@@ -191,6 +219,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     orgAdminWithoutEvent: !event && ownedOrgs.length > 0,
     roundName,
   });
+  /**
+   * THE MENU FOLLOWS THE LIFECYCLE wherever the stepper is drawn (the console structure review,
+   * 9 Nov) — the same switch, so nothing changes until Ajay has previewed it. Its sections are the
+   * track's own stops; which screens it lists is still `navForRole`'s answer above, rearranged
+   * (`lifecycleNav`). No track (the switch off, a casual round, no tournament open): the menu as it was.
+   * The redesign's screens reach it only where one is shown (`mergesShown`: none, without `&build=1`;
+   * a preview in production to an owner only).
+   */
+  const merges = mergesShown(asked.get("x-search") ?? "", { owner: isOwner(session.email) });
+  const sections = track ? lifecycleNav(flatSections, track, { roundName, merges, role: session.viewRole }) : flatSections;
+  const menuPreview = track !== null && !LIFECYCLE_STEPPER_ON;
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
@@ -255,6 +294,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       // and a black calendar popup on a white page is the tell that a light
       // theme was bolted on.
       data-appearance={theme.appearance}
+      // The rail and the journey card stand aside while the stepper is drawn (lifecycle-stepper.css).
+      data-stepper={track ? "" : undefined}
       style={{
         display: "flex",
         minHeight: "100vh",
@@ -275,6 +316,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           initials={initials}
           brand={brand}
           organizer={organizer}
+          preview={menuPreview}
         />
       )}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -286,9 +328,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             dates={event.dates}
             course={event.course}
             city={event.city}
-            status={event.status}
+            status={
+              told
+                ? { step: told.status.step, chip: told.status.chip, tag: STEP_TAG[told.status.step], detail: told.status.chipDetail }
+                : { step: "setting-up", chip: "Setting up", tag: STEP_TAG["setting-up"], detail: "" }
+            }
             canSwitch={session.viewRole === "admin"}
             compact={casualShell}
+            // The stepper's head says the chip; the bar does not say it twice (the panel, 9 Nov).
+            chip={!track}
           />
         )}
         <main
@@ -310,11 +358,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               {paymentDue} <Link href="/organization#plan">Go to Your plan</Link>
             </p>
           )}
+          <ConsolePlayStatus eventId={session.eventId} viewRole={session.viewRole} step={told?.status.step ?? null} event={event} />
           {casualShell && <BackToTheRound />}
+          <LifecycleStepper track={track} preview={!LIFECYCLE_STEPPER_ON} />
           {/* A club with no time zone takes this organizer's, once. Only for
               somebody who may change it; the action re-checks that. */}
           {event && event.organization.timeZone === "" && session.role === "admin" && <ClubClockAdopter />}
-          {children}
+          {/* AND THE SCREEN ITSELF IS READ-ONLY, in one place (2026-11-09): every
+              control that writes is disabled under the banner, on every screen
+              of the archived tournament, so no press reaches an action that
+              would refuse it. Links, prints, exports and Club settings — where
+              the way out is — stay open (`domain/archive-read-only.ts`). */}
+          <ArchiveReadOnly archived={archived !== null}>{children}</ArchiveReadOnly>
         </main>
       </div>
       {!casualShell && (
@@ -326,6 +381,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           initials={initials}
           brand={brand}
           organizer={organizer}
+          preview={menuPreview}
         />
       )}
     </div>

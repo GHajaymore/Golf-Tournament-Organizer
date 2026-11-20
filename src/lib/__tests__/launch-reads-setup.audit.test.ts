@@ -29,7 +29,19 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
  */
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { launchTournament } from "@/app/actions/tournament";
-import { launchCheckFor } from "@/lib/services/setup-flow";
+import { setupRailFor } from "@/lib/services/tournament-status";
+
+/**
+ * WHAT THE DASHBOARD'S LAUNCH DIALOG SAYS — the machine's refusal and warnings, read
+ * through the rail every set-up screen draws (`setupRailFor(id).launch`, built by
+ * `launchDialogOf` from `refusals.launch`). It was `launchCheckFor`, the setup flow's own
+ * verdict, deleted with the other old readers in state machine PR 9a.
+ */
+async function launchDialog(eventId: string) {
+  const rail = await setupRailFor(eventId);
+  if (!rail) throw new Error(`no rail for ${eventId}`);
+  return rail.launch;
+}
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-LAUNCH-SETUP";
@@ -40,6 +52,7 @@ const NO_SIDES =
 
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
+  await prisma.course.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } });
 }
@@ -111,8 +124,8 @@ describe("launch reads setup", () => {
     await setActiveEvent(eventId);
     expect(await launchTournament()).toEqual({ ok: false, error: NO_SIDES });
     expect(await statusOf(eventId)).toBe("draft");
-    // The dashboard's button asks the same function, so it says the same thing.
-    expect((await launchCheckFor(eventId)).refusal).toBe(NO_SIDES);
+    // The dashboard's dialog reads the same refusal, so it says the same thing.
+    expect((await launchDialog(eventId)).refusal).toBe(NO_SIDES);
   });
 
   it("launches the same scramble once its sides are made", async () => {
@@ -130,11 +143,64 @@ describe("launch reads setup", () => {
   it("launches an ordinary medal, and what it only warns about never stops it", async () => {
     const { eventId } = await tournament("medal", "Stroke Play");
     await setActiveEvent(eventId);
-    const check = await launchCheckFor(eventId);
+    const check = await launchDialog(eventId);
     expect(check.refusal).toBeNull();
     // No tee sheet saved and no flights: said, not refused.
     expect(check.warnings.map((w) => w.href)).toEqual(expect.arrayContaining(["/grouping", "/foursomes"]));
     expect(await launchTournament()).toEqual({ ok: true });
     expect(await statusOf(eventId)).toBe("live");
+  });
+
+  it("warns only about tees the field is actually on, and says nothing about missing tees when players choose their course", async () => {
+    const { eventId, players } = await tournament("inplay", "Stroke Play");
+    await prisma.stage.updateMany({ where: { eventId }, data: { scoringBasis: "net" } });
+    const course = await prisma.course.create({
+      data: { organizationId: orgId, name: `${TAG} two-tee course`, city: "", pars: PARS, yards: JSON.stringify(new Array(18).fill(400)), strokeIndex: SI },
+    });
+    await prisma.eventCourse.create({ data: { eventId, courseId: course.id } });
+    const blue = await prisma.tee.create({ data: { courseId: course.id, name: "Zz Blue", courseRating: 71.2, slopeRating: 128, par: 72, position: 0 } });
+    await prisma.tee.create({ data: { courseId: course.id, name: "Zz Unused", courseRating: 0, slopeRating: 0, par: 72, position: 1 } });
+    await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: blue.id } });
+    await setActiveEvent(eventId);
+    const quiet = await launchDialog(eventId);
+    expect(quiet.warnings.some((x) => /Slope/.test(x.says)), "an unrated tee nobody plays off was warned about").toBe(false);
+
+    // Put one player on the unrated set (policy "own") and it is now in play.
+    await prisma.player.update({ where: { id: players[0] }, data: { teeId: (await prisma.tee.findFirstOrThrow({ where: { courseId: course.id, name: "Zz Unused" } })).id } });
+    const loud = await launchDialog(eventId);
+    expect(loud.warnings.find((x) => /Slope/.test(x.says))?.says).toContain("Zz Unused");
+
+    // Players choose their course: nothing about missing tees (there are none to set up).
+    await prisma.eventCourse.deleteMany({ where: { eventId } });
+    await prisma.course.delete({ where: { id: course.id } });
+    await prisma.event.update({ where: { id: eventId }, data: { courseMode: "open", course: "" } });
+    const open = await launchDialog(eventId);
+    expect(open.warnings.some((x) => /no tees/i.test(x.says)), "told a choose-your-own-course event that no tees are set up").toBe(false);
+  });
+
+  it("warns, and still launches, a net medal on a tee with no rating (setup audit item 5)", async () => {
+    const { eventId } = await tournament("unrated", "Stroke Play");
+    await prisma.stage.updateMany({ where: { eventId }, data: { scoringBasis: "net" } });
+    const course = await prisma.course.create({
+      data: { organizationId: orgId, name: `${TAG} unrated course`, city: "", pars: PARS, yards: JSON.stringify(new Array(18).fill(400)), strokeIndex: SI },
+    });
+    await prisma.eventCourse.create({ data: { eventId, courseId: course.id } });
+    await prisma.tee.create({ data: { courseId: course.id, name: "Zz White", courseRating: 0, slopeRating: 0, par: 72, position: 0 } });
+    await setActiveEvent(eventId);
+    const check = await launchDialog(eventId);
+    expect(check.refusal, "an unrated tee must never refuse a launch").toBeNull();
+    const w = check.warnings.find((x) => /Slope/.test(x.says));
+    expect(w?.says, "launch said nothing about the unrated tee").toContain("Zz White");
+    expect(w?.says).toContain("Round 1");
+
+    // CONTROL: rate the tee and the warning goes.
+    await prisma.tee.updateMany({ where: { courseId: course.id }, data: { courseRating: 71.2, slopeRating: 128 } });
+    const rated = await launchDialog(eventId);
+    expect(rated.warnings.some((x) => /Slope/.test(x.says))).toBe(false);
+
+    await prisma.tee.updateMany({ where: { courseId: course.id }, data: { courseRating: 0, slopeRating: 0 } });
+    expect(await launchTournament()).toEqual({ ok: true });
+    await prisma.eventCourse.deleteMany({ where: { eventId } });
+    await prisma.course.delete({ where: { id: course.id } });
   });
 });

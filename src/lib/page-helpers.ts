@@ -1,5 +1,4 @@
 import "server-only";
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { redirect } from "next/navigation";
 import { primaryOrganizationFor } from "@/lib/services/organization";
 import { headers } from "next/headers";
@@ -9,6 +8,9 @@ import { signInUrlFor } from "./domain/safe-next";
 import { loadEventState, type EventState } from "./services/tournament";
 import { prisma } from "./db";
 import { screenAppliesToMatch } from "./nav";
+import { getPlayerViewer, type PlayerViewer } from "./player-viewer";
+import { holdsGuestCookie } from "./guest-auth";
+import { mayPlayThroughLink } from "./domain/player-link";
 import { isMatch } from "./tournament-shape";
 
 /**
@@ -42,6 +44,48 @@ export async function requireSession(): Promise<Session> {
    */
   if (!session) redirect(await signInUrl());
   return session;
+}
+
+/**
+ * THE PLAYER APP'S DOOR (J39/J40): an account, or a guest's player link
+ * (`player-viewer.ts`). A browser holding a link that no longer opens is sent
+ * to /p, which says so ("This link no longer works"), not to a sign-in page
+ * the guest has no account for.
+ */
+export async function requirePlayerViewer(): Promise<PlayerViewer> {
+  const viewer = await getPlayerViewer();
+  if (viewer) return viewer;
+  if (await holdsGuestCookie()) redirect("/p?ended=1");
+  redirect(await signInUrl());
+}
+
+/**
+ * A PLAYER SCREEN OF THE EVENT ITSELF (board, card, match, rules): a guest
+ * whose entry is pending or waitlisted is sent to Today's waiting card
+ * (security review SF-3). The layout draws the waiting card in place of the
+ * page, but a layout does not stop its page segment being rendered — a soft
+ * navigation or a hand-made RSC request would still carry the page's payload —
+ * so the page itself refuses. The same rule as the writes (`mayPlayThroughLink`).
+ */
+export async function requirePlayingViewer(): Promise<PlayerViewer> {
+  const viewer = await requirePlayerViewer();
+  if (guestIsWaiting(viewer)) redirect("/me");
+  return viewer;
+}
+
+/** A guest viewer whose entry is not (yet) in the field: Today's waiting card, nothing else (S5, SF-3). */
+export function guestIsWaiting(viewer: PlayerViewer): boolean {
+  return !!viewer.guest && !mayPlayThroughLink(viewer.guest.status);
+}
+
+/**
+ * The club-wide player screens (events, calendar, season) are an ACCOUNT's:
+ * a guest's link is one event, so a guest is sent to its Today.
+ */
+export async function requireAccountViewer(): Promise<Session> {
+  const viewer = await requirePlayerViewer();
+  if (viewer.guest) redirect("/me");
+  return viewer;
 }
 
 /**
@@ -169,9 +213,13 @@ export async function requireState(): Promise<{ session: Session; state: EventSt
  * wrote the same sentence out by hand instead. That is the whole mechanism by
  * which one rule became five copies.
  */
-export function isSetupLocked(event: { status: string; configUnlocked: boolean }): boolean {
-  return configurationLocked(event);
-}
+/*
+ * `isSetupLocked` LIVED HERE until the state machine's PR 5b. Every set-up
+ * screen now asks its scope's lock (`screenLocksFor` / `scopeLockFor` in
+ * services/tournament-status.ts), the same answer the actions refuse with.
+ * Deleted rather than left beside it: a dead twin is a second copy waiting to
+ * be used.
+ */
 
 export function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);

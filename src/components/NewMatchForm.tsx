@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useGolfTerms } from "./GolfTermsProvider";
 import { createMatch } from "@/app/actions/match-setup";
@@ -18,6 +18,7 @@ import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { stakeMinorUnits } from "@/lib/domain/local-currency";
 import { entryModesFor } from "@/lib/domain/match-entry";
 import { sharedBallRound } from "@/lib/domain/shared-ball";
+import { CASUAL_KEEPING } from "@/lib/domain/keeping-words";
 import { Icon } from "./Icon";
 
 /**
@@ -144,6 +145,7 @@ export function NewMatchForm({
   me?: RosterMember | null;
 }) {
   const router = useRouter();
+  const fid = useId();
   // "Two foursomes" or "two fourballs" — the page provides the golfer's words.
   const golfWords = useGolfTerms();
   /**
@@ -209,6 +211,8 @@ export function NewMatchForm({
   const [holes, setHoles] = useState(18);
   const [nine, setNine] = useState("front");
   const [useHandicaps, setUseHandicaps] = useState(false);
+  /** Who enters scores: one phone for the group (the default), or each player their own. */
+  const [keeping, setKeeping] = useState<"group" | "each">("group");
   /** Says who has an empty handicap box — on a net round they play off scratch. */
   const scratchByDefault = scratchNote(playersOnScratchByDefault(players));
   const [courseId, setCourseId] = useState("");
@@ -437,6 +441,7 @@ export function NewMatchForm({
         courseId,
         money: moneyChoice,
         currency,
+        scoreKeeping: keeping,
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't set that round up.");
@@ -533,8 +538,8 @@ export function NewMatchForm({
       ))}
 
       <div className="field">
-        <label>How many holes?</label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+        <span className="field-caption" id={`${fid}-holes`}>How many holes?</span>
+        <div role="group" aria-labelledby={`${fid}-holes`} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
           <button type="button" {...pill(holes === 18)} onClick={() => setHoles(18)}>18 holes</button>
           <button type="button" {...pill(holes === 9)} onClick={() => setHoles(9)}>9 holes</button>
         </div>
@@ -567,8 +572,8 @@ export function NewMatchForm({
           scroll on, say "net", and scroll back up to fill in a column that had
           only just appeared. Format, then basis, then the players it shapes. */}
       <div className="field">
-        <label>Are shots being given?</label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+        <span className="field-caption" id={`${fid}-shots`}>Are shots being given?</span>
+        <div role="group" aria-labelledby={`${fid}-shots`} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
           <button type="button" {...pill(!useHandicaps)} onClick={() => setUseHandicaps(false)}>
             No — play level (gross)
           </button>
@@ -582,6 +587,23 @@ export function NewMatchForm({
             this can be scored. Playing level needs nothing.
           </p>
         )}
+      </div>
+
+      {/* WHO ENTERS SCORES, ONE LINE (2026-11-05). A new round keeps the group's
+          card on one phone (`scoringDefaults`), and two friends on two phones had no
+          way to say they each keep their own — the second phone was told the
+          first was keeping it. One line, the same two pills as the line above,
+          one phone first because that is the default. Not a section: the casual
+          round stays one screen. */}
+      <div className="field">
+        <span className="field-caption" id={`${fid}-keeping`}>Who enters scores?</span>
+        <div role="group" aria-labelledby={`${fid}-keeping`} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          {CASUAL_KEEPING.map((k) => (
+            <button key={k.key} type="button" {...pill(keeping === k.key)} onClick={() => setKeeping(k.key)}>
+              {k.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div>
@@ -641,7 +663,7 @@ export function NewMatchForm({
             )}
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
             <div className="field" style={{ flex: 1, minWidth: 0, position: "relative" }}>
-              <label>
+              <label htmlFor={`${fid}-player-${i}`}>
                 Player {i + 1}
                 {/* WHICH KIND OF PLAYER THIS IS, said on the row itself.
 
@@ -667,6 +689,7 @@ export function NewMatchForm({
                 ) : null}
               </label>
               <input
+                id={`${fid}-player-${i}`}
                 className="input"
                 value={p.name}
                 onChange={(e) => typeName(i, e.target.value)}
@@ -759,7 +782,7 @@ export function NewMatchForm({
             </div>
             {useHandicaps && (
               <div className="field" style={{ width: 104 }}>
-                <label aria-hidden="true">Handicap</label>
+                <span className="field-caption" aria-hidden="true">Handicap</span>
                 <input
                   className="input"
                   inputMode="decimal"
@@ -844,8 +867,8 @@ export function NewMatchForm({
           asks "how much?" before it asks anything else has made a bet the
           condition of playing. */}
       <div className="field">
-        <label>Playing for anything?</label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+        <span className="field-caption" id={`${fid}-game`}>Playing for anything?</span>
+        <div role="group" aria-labelledby={`${fid}-game`} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
           <button type="button" {...pill(moneyGame === "")} onClick={() => setMoneyGame("")}>
             No — just the golf
           </button>
@@ -880,8 +903,8 @@ export function NewMatchForm({
                 round played for a pint is one where there is simply nothing to
                 record. */}
             <div className="field" style={{ marginTop: 10 }}>
-              <label>What for?</label>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <span className="field-caption" id={`${fid}-stakekind`}>What for?</span>
+              <div role="group" aria-labelledby={`${fid}-stakekind`} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
                 <button type="button" {...pill(stakeKind === "money")} onClick={() => setStakeKind("money")}>
                   Money
                 </button>

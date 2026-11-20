@@ -1,4 +1,4 @@
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
+import { fieldRefusal } from "@/lib/services/field-change";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireOrgScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
@@ -6,8 +6,12 @@ import { prisma } from "@/lib/db";
 import { loadRoster } from "@/lib/services/roster";
 import { handicapReadable } from "@/lib/services/integrations";
 import { clubHandicapBody } from "@/lib/domain/handicap-body";
+import { handicapPolicyOf } from "@/lib/domain/handicap-policy";
 import { RosterClient } from "@/components/RosterClient";
 import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roster-link";
+import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
+import { orgSetupFactsFor } from "@/lib/services/organization";
+import { orgSetupState } from "@/lib/domain/org-setup";
 
 // /roster used to be the per-event player list, which now lives inside
 // Entries. The path now means what it says: the club's standing
@@ -54,7 +58,8 @@ export default async function RosterPage() {
     session.eventId
       ? prisma.event.findUnique({
           where: { id: session.eventId },
-          select: { name: true, status: true, configUnlocked: true },
+          // The name only: the status and the retired blanket flag were selected and never read (state machine PR 9b).
+          select: { name: true },
         })
       : null,
   ]);
@@ -97,10 +102,32 @@ export default async function RosterPage() {
    * and not unlocked` by hand, which is a screen and the server it calls
    * holding separate copies of one rule — and a screen offering a control the
    * server refuses is a bug report filed against the wrong thing.
+   *
+   * The one field rule now (day-of field changes, PR A): a late entry stays
+   * open after launch where the rule allows it, and the refusal is its words.
    */
-  const fieldLocked = !!event && configurationLocked(event);
+  const fieldLocked = event && session.eventId ? await fieldRefusal(session.eventId, "add") : null;
+  const policy = handicapPolicyOf(org.handicapPolicy);
+
+  /**
+   * THE WAY ON, BEFORE THE FIRST TOURNAMENT (the secretary's home, 2026-10-24).
+   * A new club used to be sent here to add its members before its first
+   * tournament (no longer: event-first, Cut A, 15 Nov 2026; a club may still
+   * come here first of its own accord) — and then this screen offered no way back: on a phone, after "Isla added to
+   * the roster", nothing on the page led anywhere but the Menu. Found by
+   * measuring the time to a first event (`e2e/secretary-first-event.spec.ts`).
+   * The club's own checklist, the one /choose shows, says what is next.
+   */
+  const facts = event ? null : await orgSetupFactsFor(session.email, session.name);
+  const setup = facts ? orgSetupState(facts) : null;
 
   return (
+    <>
+    {setup && (
+      <div style={{ marginBottom: 16 }}>
+        <OrgSetupChecklist state={setup} currentPath="/roster" />
+      </div>
+    )}
     <RosterClient
       clubName={org.shortName || org.name}
       bodyNumber={clubHandicapBody(org).number}
@@ -116,8 +143,11 @@ export default async function RosterPage() {
        * keeping its own handicaps has nothing to fetch and must not be shown a
        * warning about a service it does not use.
        */
-      handicapPolicy={org.handicapPolicy}
-      indexesReadable={org.handicapPolicy === "club" ? true : await handicapReadable(organizationId)}
+      // Read through `handicapPolicyOf`, as every reader is: a stored
+      // service-only value is the club's own record while no federation link
+      // is live (`federationLinkLive`).
+      handicapPolicy={policy}
+      indexesReadable={policy === "club" ? true : await handicapReadable(organizationId)}
       eventName={event?.name ?? ""}
       fieldLocked={fieldLocked}
       fieldSize={fieldSizeOf(entered)}
@@ -127,5 +157,6 @@ export default async function RosterPage() {
         return { ...m, entered: entry.live, entryStatus: entry.status };
       })}
     />
+    </>
   );
 }

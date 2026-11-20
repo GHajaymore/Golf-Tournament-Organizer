@@ -4,6 +4,7 @@ import {
   effectivePrice,
   effectiveAnnualPrice,
   parsePricingOverrides,
+  pricingOverrides,
   ANNUAL_MONTHS_CHARGED,
 } from "@/lib/plans";
 
@@ -25,21 +26,21 @@ import {
 
 describe("subscription prices are configurable and fail safe", () => {
   it("quotes the plan's own price when nothing overrides it", () => {
-    expect(effectivePrice(PLANS.club, { plans: {} })).toBe(PLANS.club.priceMonthly);
-    expect(effectivePrice(PLANS.free, { plans: {} })).toBe(0);
+    expect(effectivePrice(PLANS.club, { plans: {} }, "")).toBe(PLANS.club.priceMonthly);
+    expect(effectivePrice(PLANS.free, { plans: {} }, "")).toBe(0);
   });
 
   it("CONTROL: a valid override changes the quoted price", () => {
     const overrides = parsePricingOverrides('{"plans":{"club":{"monthly":39}}}');
     expect(overrides.plans.club?.monthly).toBe(39);
-    expect(effectivePrice(PLANS.club, overrides)).toBe(39);
+    expect(effectivePrice(PLANS.club, overrides, "")).toBe(39);
     // A plan the override does not name still quotes its own default.
-    expect(effectivePrice(PLANS.free, overrides)).toBe(0);
+    expect(effectivePrice(PLANS.free, overrides, "")).toBe(0);
   });
 
   it("a price of zero is a real override, not a missing one", () => {
     const overrides = parsePricingOverrides('{"plans":{"club":{"monthly":0}}}');
-    expect(effectivePrice(PLANS.club, overrides)).toBe(0);
+    expect(effectivePrice(PLANS.club, overrides, "")).toBe(0);
   });
 
   it("falls back to the default on every malformed shape", () => {
@@ -56,7 +57,7 @@ describe("subscription prices are configurable and fail safe", () => {
       '{"club":{"monthly":39}}', // missing the `plans` wrapper
     ];
     for (const raw of bad) {
-      expect(effectivePrice(PLANS.club, parsePricingOverrides(raw)), raw).toBe(
+      expect(effectivePrice(PLANS.club, parsePricingOverrides(raw), ""), raw).toBe(
         PLANS.club.priceMonthly,
       );
     }
@@ -65,7 +66,7 @@ describe("subscription prices are configurable and fail safe", () => {
   it("NaN and Infinity are not prices", () => {
     // These cannot come from JSON.parse directly, but a future caller could
     // hand them in; the guard is `Number.isFinite`, so prove it holds.
-    expect(effectivePrice(PLANS.club, { plans: { club: { monthly: NaN } } })).toBe(
+    expect(effectivePrice(PLANS.club, { plans: { club: { monthly: NaN } } }, "")).toBe(
       PLANS.club.priceMonthly,
     );
   });
@@ -77,34 +78,34 @@ describe("subscription prices are configurable and fail safe", () => {
     const prev = process.env.TOURNEYHQ_PRICING;
     try {
       process.env.TOURNEYHQ_PRICING = '{"plans":{"club":{"monthly":49}}}';
-      expect(effectivePrice(PLANS.club)).toBe(49);
+      expect(effectivePrice(PLANS.club, pricingOverrides(), "")).toBe(49);
     } finally {
       if (prev === undefined) delete process.env.TOURNEYHQ_PRICING;
       else process.env.TOURNEYHQ_PRICING = prev;
     }
     // And it is back to the default once the env value is gone.
-    expect(effectivePrice(PLANS.club)).toBe(PLANS.club.priceMonthly);
+    expect(effectivePrice(PLANS.club, pricingOverrides(), "")).toBe(PLANS.club.priceMonthly);
   });
 });
 
 describe("the annual price is the monthly one with two months free", () => {
   it("charges ten months for a year", () => {
     expect(ANNUAL_MONTHS_CHARGED).toBe(10);
-    expect(effectiveAnnualPrice(PLANS.club, { plans: {} })).toBe(
-      effectivePrice(PLANS.club, { plans: {} }) * 10,
+    expect(effectiveAnnualPrice(PLANS.club, { plans: {} }, "")).toBe(
+      effectivePrice(PLANS.club, { plans: {} }, "") * 10,
     );
   });
 
   it("keeps free free", () => {
-    expect(effectiveAnnualPrice(PLANS.free, { plans: {} })).toBe(0);
+    expect(effectiveAnnualPrice(PLANS.free, { plans: {} }, "")).toBe(0);
   });
 
   it("CONTROL: an override to the monthly price moves the annual one with it", () => {
     const overrides = parsePricingOverrides('{"plans":{"club":{"monthly":39}}}');
-    expect(effectivePrice(PLANS.club, overrides)).toBe(39);
-    expect(effectiveAnnualPrice(PLANS.club, overrides)).toBe(390);
+    expect(effectivePrice(PLANS.club, overrides, "")).toBe(39);
+    expect(effectiveAnnualPrice(PLANS.club, overrides, "")).toBe(390);
     // Not the un-overridden annual — proves it reads the override, not the default.
-    expect(effectiveAnnualPrice(PLANS.club, overrides)).not.toBe(
+    expect(effectiveAnnualPrice(PLANS.club, overrides, "")).not.toBe(
       PLANS.club.priceMonthly * 10,
     );
   });

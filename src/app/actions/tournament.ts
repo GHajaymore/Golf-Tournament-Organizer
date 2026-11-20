@@ -4,7 +4,16 @@ import { clearsConcession, deriveMatchFromItsCards, recomputeTeamMatch } from "@
 import { COURSE_REF, roundCard } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
-import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
+import {
+  CLONED_EVENT_FIELDS,
+  CLONED_STAGE_FIELDS,
+  CLONED_CONTEST_FIELDS,
+  CLONED_SIDE_GAME_FIELDS,
+  CLONED_SKINS_POT_FIELDS,
+} from "@/lib/services/clone";
+import { copiedCalendar } from "@/lib/domain/copy-dates";
+import { organizationAccessFor } from "@/lib/services/org-access";
+import { clubToday } from "@/lib/domain/club-clock";
 import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -19,12 +28,16 @@ import { prisma } from "@/lib/db";
 // session — see deleteEvent.
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
-import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
-import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
-import { myPlayerIds } from "@/lib/services/me";
+import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount, roundRobinCutAfter } from "@/lib/services/regroup";
+import { applyStrokeCut, applyCutLeftOwing, applyCutOwedInto, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
+import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
+import { myPlayerIds, myPlayerIdsFor } from "@/lib/services/me";
+import { guestActorFor } from "@/lib/player-viewer";
+import type { GuestIdentity } from "@/lib/domain/player-link";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
-import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { groupLeftShort, parseTeeSheet, shortGroupLine } from "@/lib/domain/tee-sheet";
+import { resultsLine } from "@/lib/domain/field-change";
 import { publishedFoursomes, mayWriteCard } from "@/lib/domain/group-entry";
 
 /**
@@ -35,40 +48,45 @@ import { publishedFoursomes, mayWriteCard } from "@/lib/domain/group-entry";
  * changes nothing. Resolved through `myPlayerIds`, the same reader the card
  * screen and the score-write guard use, so "which player am I" has one answer.
  */
-async function authorPlayerId(eventId: string, session: Session | null): Promise<string> {
+async function authorPlayerId(eventId: string, session: ScoreActor | null): Promise<string> {
   if (!session || session.role !== "player") return "";
   // A Set, not an array — and normally of one. A person entered twice in the
   // same tournament is the rare case, and either id identifies the author well
   // enough for the only question asked of it: "was this you?".
-  const [first] = await myPlayerIds(eventId, session.email);
+  const [first] = await myPlayerIdsFor(session, eventId);
   return first ?? "";
 }
 import {
-  canEnterScores,
   mayReportPartialCard,
   allowsAutoConfirm,
-  entryNeedsEmail,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
-import { clubNameClash, organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
+
+/** Who writes a score: an account session, or a guest's player link wearing its shape (J39/J40). */
+type ScoreActor = Session & { guest?: GuestIdentity | null };
+import { clubNameClash, golfTermsForEvent, organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
-import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal } from "@/lib/domain/close-terms";
-import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal, wipesOnClose } from "@/lib/domain/close-terms";
+import { dayAtClubForEvent, clubDayForEvent } from "@/lib/services/club-clock";
+import { entriesChange } from "@/lib/registration";
+import { parseSetupAnswers, draftFromAnswers } from "@/lib/domain/setup-questions";
+import { markCourseCardChecked } from "@/lib/services/course-card-checked";
 import { tournamentNameRefusal, nameOrFree, withNameBackstop } from "@/lib/services/tournament-name";
 import { holdsItsName, UNNAMED_TOURNAMENT } from "@/lib/domain/tournament-name";
 import { generateShareToken } from "@/lib/codes";
-import { templateFor } from "@/lib/tournament-templates";
+import { templateFor, type TemplateRound } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
-import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
+import { cleanHoleResults, cleanStartingCards, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
+import { cardRevision, overwritesUnseenFromAll, unanchoredMatchSave, MATCH_CHANGED_ELSEWHERE, MAX_STARTING_CARDS, SIGNED_OFF_MATCH_REFUSAL } from "@/lib/domain/pending-card";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, storedCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
@@ -82,19 +100,27 @@ import {
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
 import { overridesAfterFormatChange, playingHandicapInRound } from "@/lib/round-allowance";
-import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
+import { isTournamentShape, isMatch, type TournamentShape } from "@/lib/tournament-shape";
+import { scoringDefaults, roundScoring, isScoreKeeping, isEndCheck, entryRefusalFor } from "@/lib/domain/round-scoring";
+import { assertOwnMatch, playerRoundRefusal } from "@/lib/services/match-membership";
+import { keeperGate, playersWhoEntered } from "@/lib/services/group-keeping";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
-import { drainWaitlist, fieldLimitFor } from "@/lib/services/waitlist";
+import { drainWaitlist, fieldLimitFor, promoteFromWaitlist } from "@/lib/services/waitlist";
+import { withEventIntakeLock } from "@/lib/services/intake-lock";
+import { fieldFactsFor, fieldRefusal, fieldVerdictFor } from "@/lib/services/field-change";
+import { reserveWords, unplacedWords, warnWords, type FieldWarn } from "@/lib/domain/field-change";
+import { storedMatchIsOver } from "@/lib/domain/match";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
-import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
+import { parseCsv, hasNameColumn, cell, type CsvTable } from "@/lib/csv";
+import { planCsvSignups, readChoices, maskEmail, maskHandicapId, type SignupRowPlan } from "@/lib/domain/csv-signups";
+import { GUEST, MEMBER, CODES_TURNED_ON, isGuest, readStanding, type EntryStanding, type StandingCheck } from "@/lib/domain/entry-standing";
 import { cloneSingleMatchRule, parseSingleMatchRule, singleMatchRuleRefusal } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import {
-  EMAIL_RE,
   EMAIL_REFUSAL,
   isEmailAddress,
   nameRefusal,
@@ -109,7 +135,7 @@ import {
   PRIZE_DETAIL_MAX,
   prizeAmountRefusal,
 } from "@/lib/domain/prize-amount";
-import { indexRefusal } from "@/lib/domain/handicap-label";
+import { indexRefusal, indexLabel } from "@/lib/domain/handicap-label";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
@@ -117,9 +143,26 @@ import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-l
 import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
-import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
-import { launchCheckFor } from "@/lib/services/setup-flow";
+import { withdrawEntry } from "@/lib/services/playing-history";
+// Launch, Complete, Reopen, play and closing a round ask the state machine (PR 4).
+import { roundCloseCheck, statusRequestOf } from "@/lib/domain/tournament-status";
+import { playRefusedBecause, tournamentStatusNow, refuseIfLocked, refuseIfAddingARoundIsLocked } from "@/lib/services/tournament-status";
+import { lockFactsFor } from "@/lib/services/tournament-facts";
+import {
+  locksFor,
+  correctionRefusal,
+  correctionReasonRefusal,
+  correctionOpenedLine,
+  correctionClosedLine,
+  openCorrectionOf,
+  redrawRefusal,
+  LOCK_SCOPES,
+  type LockScope,
+  type ScopeLock,
+} from "@/lib/domain/tournament-status";
+import { endOfClubDay } from "@/lib/domain/club-clock";
+import { zoneOfEvent } from "@/lib/services/club-clock";
+import { roundCloseFactsFor } from "@/lib/services/tournament-facts";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { bracketDraws, tieByKey, tieReportRefusal, marginWords } from "@/lib/domain/my-tie";
@@ -165,14 +208,18 @@ import { FORMAT_NAMES } from "@/lib/formats";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked, lockedRefusal, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
+import { logAudit, roundWordsFor } from "@/lib/services/action-shared";
+import { acrossRoundsRefusal, afterTermChange, beforeTermChange, roundRefusal, roundVerdictFor } from "@/lib/services/round-change";
+import { filesMatches, goesWithItWords, redrawWords, SCHEDULES_WORDS } from "@/lib/domain/round-change";
+import { purgeEvent, purgeRound } from "@/lib/services/purge";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
-import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
+import { isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
+import { notifyRoundMoved } from "@/lib/services/round-moved-notify";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
-import { ensureRoundCodes } from "@/lib/services/round-codes";
-import { isSupportedLocale } from "@/lib/domain/locale";
+import { ensureRoundCodes, codesOnForAnEntryWithoutEmail } from "@/lib/services/round-codes";
+import { isSupportedLocale, formatDayRange, resolveLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 
 /**
@@ -205,6 +252,21 @@ async function adminEventOrRefusal(): Promise<{ eventId: string } | { refused: s
   }
 }
 
+/**
+ * The staff gate for a press that says its refusals. An archived tournament's
+ * refusal comes back as words to show where the press was, never thrown into
+ * the error screen ("This screen didn't load").
+ */
+async function staffEventOrRefusal(): Promise<{ eventId: string } | { refused: string }> {
+  try {
+    return { eventId: await requireStaffEvent() };
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
+}
+
 /** Organizer or Assistant Organizer — operational tasks. */
 async function requireStaffEvent(): Promise<string> {
   const session = await getSession();
@@ -224,16 +286,18 @@ async function requireStaffEvent(): Promise<string> {
  * entry screen in the sidebar stops nobody from calling the action directly.
  */
 async function requireScoreEntry(
-  scoped?: Session,
-): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
+  scoped?: ScoreActor,
+): Promise<{ eventId: string; session: ScoreActor; settings: TournamentSettings }> {
   const session = scoped ?? (await getSession());
   if (!session) throw new Error("Not authenticated");
   const event = await prisma.event.findUnique({ where: { id: session.eventId } });
   if (!event) throw new Error("Event not found");
   const settings = settingsOf(event);
-  if (!canEnterScores(settings, session.role)) {
-    throw new Error("Scores for this tournament are entered by the organizer.");
-  }
+  // The one gate (`entryRefusalFor`), asked of the tournament here; a round
+  // the organizer keeps from paper cards is refused where the round is known
+  // (`assertOwnMatch`, `assertMayKeepCard`).
+  const entryRefused = entryRefusalFor(settings, session.role, null);
+  if (entryRefused) throw new Error(entryRefused);
   /**
    * AND THE TOURNAMENT HAS TO HAVE STARTED.
    *
@@ -248,9 +312,9 @@ async function requireScoreEntry(
    * It cannot strand the certify and dispute paths below, which need a card to
    * act on — a card existing is itself a result, so `playRefusal` returns null
    * for them. And staff hold the remedy: the refusal names it, and launching
-   * is theirs to do.
+   * is theirs to do. The machine's refusal (`refusals.play`, PR 4).
    */
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) throw new Error(notStarted);
   /**
    * AND NOT IN A LAPSED CLUB'S ARCHIVE: an unfinished tournament there is
@@ -284,23 +348,42 @@ async function requireScoreEntry(
  */
 async function requireScoreEntryForStage(
   stageId: unknown,
-): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
+): Promise<{ eventId: string; session: ScoreActor; settings: TournamentSettings }> {
   const session = await getSession();
-  if (!session) throw new Error("Not authenticated");
   const stage =
     typeof stageId === "string" && stageId
       ? await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } })
       : null;
-  if (!stage || stage.eventId === session.eventId) return requireScoreEntry(session);
-  const access = await effectiveAccess(session.email, stage.eventId);
-  if (!access) return requireScoreEntry(session);
-  return requireScoreEntry({
-    ...session,
-    eventId: stage.eventId,
-    accountId: access.accountId,
-    role: access.role,
-    viewRole: access.role,
-  });
+  // A SIGNED-IN PERSON WHO REACHES THIS ROUND'S TOURNAMENT acts as themselves,
+  // and never needs the guest cookie: their own tournament, or one their access
+  // reaches (as before the guest link existed).
+  if (session && stage) {
+    if (stage.eventId === session.eventId) return requireScoreEntry(session);
+    const access = await effectiveAccess(session.email, stage.eventId);
+    if (access) {
+      return requireScoreEntry({
+        ...session,
+        eventId: stage.eventId,
+        accountId: access.accountId,
+        role: access.role,
+        viewRole: access.role,
+      });
+    }
+  }
+  /**
+   * NOBODY SIGNED IN REACHES IT: a guest's player link for this round's own
+   * event, if this browser holds one (J39/J40; S4 — a member of club B invited
+   * to club A's outing has no access to A, so the link speaks for its entry
+   * there, unless they chose their own account, SF-1). It is a player, so every
+   * guard below treats it as one, and "which card is mine" is the pass's entry
+   * only while confirmed (S5, `myPlayerIdsFor`). A round in any other event
+   * never sees the link. The four card actions through here are GUEST_ACTIONS.
+   */
+  const guest = stage ? await guestActorFor(stage.eventId, session) : null;
+  if (guest) return requireScoreEntry(guest);
+  if (!session) throw new Error("Not authenticated");
+  // Their own tournament's gate, where `assertEventStage` refuses the round, exactly as before.
+  return requireScoreEntry(session);
 }
 
 /**
@@ -318,49 +401,19 @@ async function requireScoreEntryForStage(
  * offered it and this function authorised the write, both agreeing about a row
  * the scoring engines ignore.
  */
-const ownPlayerIds = myPlayerIds;
+const ownPlayerIds = myPlayerIdsFor;
 
-/**
- * A player may write scores for their own match and nobody else's.
- *
- * requireScoreEntry answers "may this role enter scores at all"; it never
- * asked "for whom". With the answer missing, any signed-in player could
- * overwrite any match or any card in the event — the round-code path had
- * this check from day one, and the console path did not. Staff pass through
- * untouched: entering the whole field's cards is their job.
- *
- * Membership means being on one of the match's sides — the player columns in
- * an individual format, team membership in a team format. Same scoring-group
- * rule as domain/attest.ts and savePlayMatchHoles.
+/*
+ * A player may write scores for their own match and nobody else's — and on a
+ * round kept by one scorer per group, only that group's scorer may.
+ * `assertOwnMatch` lives in services/match-membership.ts (2026-11-04), one
+ * membership rule with the round-code saves in actions/play.ts.
  */
-async function assertOwnMatch(session: Session, eventId: string, matchId: string): Promise<void> {
-  if (session.role !== "player") return;
-  const match = await prisma.match.findFirst({
-    where: { id: matchId, eventId },
-    include: { stage: { select: { type: true, lineupPublished: true } } },
-  });
-  if (!match) throw new Error("Match not found.");
-  // A cup match in a lineup nobody has announced: not playable yet. Every
-  // match write a player can reach comes through here, so one check covers
-  // the hole-by-hole, the result and the card paths alike.
-  if (match.stage && lineupHidden(match.stage)) throw new Error(LINEUP_HIDDEN);
-  const own = await ownPlayerIds(eventId, session.email);
-  if (own.has(match.playerAId) || own.has(match.playerBId)) return;
-  const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
-  if (teamIds.length) {
-    const member = await prisma.teamMember.findFirst({
-      where: { teamId: { in: teamIds }, playerId: { in: [...own] } },
-      select: { id: true },
-    });
-    if (member) return;
-  }
-  throw new Error("You can only enter scores for your own match.");
-}
 
 /** Same rule for a stroke card: your own, or you are staff. */
-async function assertOwnCard(session: Session, eventId: string, playerId: string): Promise<void> {
+async function assertOwnCard(session: ScoreActor, eventId: string, playerId: string): Promise<void> {
   if (session.role !== "player") return;
-  const own = await ownPlayerIds(eventId, session.email);
+  const own = await ownPlayerIds(session, eventId);
   if (!own.has(playerId)) throw new Error("You can only enter your own scorecard.");
 }
 
@@ -377,7 +430,7 @@ async function assertOwnCard(session: Session, eventId: string, playerId: string
  * round's (or another club's) grouping to reach a card.
  */
 async function assertMayKeepCard(
-  session: Session,
+  session: ScoreActor,
   eventId: string,
   stageId: string,
   playerId: string,
@@ -394,8 +447,26 @@ async function assertMayKeepCard(
     throw new Error("Only the players who made the cut have a card for this round.");
   }
   await assertRoundOpen(eventId, stageId);
-  const own = await ownPlayerIds(eventId, session.email);
+  // A round the organizer keeps from paper cards takes nothing from a player.
+  const refused = await playerRoundRefusal(eventId, stageId);
+  if (refused) throw new Error(refused);
+  const own = await ownPlayerIds(session, eventId);
+  /**
+   * ONE SCORER PER GROUP (2026-11-04). On a round kept by one scorer per group,
+   * only the group's scorer writes its cards — their own included — so a
+   * signed-in player cannot write beside the phone keeping the card. On any
+   * other round this answers `applies: false` and the marker rule below
+   * stands as it was.
+   */
+  const kept = await keeperGate({ eventId, stageId, actorIds: [...own], targetIds: [playerId], epoch: undefined });
+  if (kept.applies && !kept.ok) throw new Error(kept.error);
   if (own.has(playerId)) return;
+  if (!kept.applies) await assertInPublishedFoursome(eventId, stageId, own, playerId);
+  await assertPartnerCardUnsigned(eventId, stageId, playerId);
+}
+
+/** The marker rule: a partner's card, only in the foursome this round's published sheet drew. */
+async function assertInPublishedFoursome(eventId: string, stageId: string, own: Set<string>, playerId: string): Promise<void> {
   const [stage, confirmed] = await Promise.all([
     prisma.stage.findFirst({
       where: { id: stageId, eventId },
@@ -411,6 +482,9 @@ async function assertMayKeepCard(
   if (!mayWriteCard(own, playerId, foursomes)) {
     throw new Error("You can only keep score for yourself and the group you were drawn with.");
   }
+}
+
+async function assertPartnerCardUnsigned(eventId: string, stageId: string, playerId: string): Promise<void> {
   /**
    * AND NOT A CARD ITS PLAYER HAS RETURNED (2026-10-09). A marker could step
    * a partner's certified card: the save de-certifies a card whose numbers
@@ -471,10 +545,12 @@ async function assertEventTeam(eventId: string, teamId: string): Promise<void> {
  * call sites each remembering to pass an id, and a change nobody has to
  * remember is the only kind that survives.
  */
-async function refresh() {
+async function refresh(eventId?: string) {
   revalidatePath("/", "layout");
-  const session = await getSession();
-  if (session?.eventId) boardChanged(session.eventId);
+  // The tournament the write was in, when the caller knows it: a card is saved in
+  // its round's tournament, and a guest's player link has no session to ask.
+  const id = eventId || (await getSession())?.eventId;
+  if (id) boardChanged(id);
 }
 
 /* ── Registration ─────────────────────────────────────────────────────── */
@@ -490,11 +566,23 @@ export interface SignupInput {
   homeClub?: string;
   handicapSource?: string;
   handicapType?: string;
+  /** "member" | "guest" — the organizer's choice on Add (`readStanding`). */
+  standing?: string;
+  /**
+   * A flight for the late entrant, from the add form (J12, PR 7a): offered in
+   * stroke play and Stableford, required in a launched round robin. Asked of the
+   * one rule as "add-to-flight".
+   */
+  flightId?: string;
+  /** Onto the waiting list as a reserve, on purpose — a knockout's way out once its draw is made. */
+  reserve?: boolean;
 }
 
 export interface SignupResult {
   ok: boolean;
   error?: string;
+  /** After launch: what is left to do for the new entry (a tee time, a flight). */
+  said?: string;
 }
 
 /**
@@ -512,10 +600,23 @@ async function casualRoundFull(event: { id: string; shape: string }, adding: num
 
 export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
+  // A public endpoint: whatever arrives is checked here, not trusted to the form.
+  if (!input || typeof input !== "object") return { ok: false, error: "Enter a player name." };
   const clean = String(input.name ?? "").trim();
   const badName = nameRefusal(clean, PERSON_NAME_MAX, "Enter a player name.");
   if (badName) return { ok: false, error: badName };
-  const cleanEmail = String(input.email ?? "").trim().toLowerCase();
+  /**
+   * MEMBER OR GUEST, the organizer's choice (Ajay, 2026-11-07). Read at the
+   * boundary; a caller that says nothing is entering a member, which is what
+   * this form did before the choice existed.
+   */
+  const standing = input.standing === undefined ? MEMBER : readStanding(input.standing);
+  if (!standing) return { ok: false, error: "Choose Member or Guest (not a club member)." };
+  const guest = standing === GUEST;
+  // A guest's email and mobile are never asked for and never stored: an email
+  // on the entry would make a sign-in account and hand the entry to whoever
+  // holds that address (`syncPlayerAccount`, `byAddress`).
+  const cleanEmail = guest ? "" : String(input.email ?? "").trim().toLowerCase();
   // A home club is a place's name, held to a place's length like the club's
   // own town — said, not cut (the text-box crawl, 2026-10-21).
   if (String(input.homeClub ?? "").trim().length > PLACE_MAX) {
@@ -533,23 +634,35 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    * organizer filled it in, pressed Add, and got the whole-page "Application
    * error" (walked 2026-09-27). The form is gated now too; this is for any
    * client still out of step, who is a person and should be told something.
+   *
+   * THE ONE FIELD RULE now (day-of field changes, PR A): after launch a late
+   * entry is open in stroke play, Stableford and a league until play has
+   * begun, and refused in a drawn field — see `domain/field-change.ts`.
+   *
+   * AND THE UPSTREAM-CHANGE RULES (J12, PR 7a): an entry with a flight is
+   * asked as one ("add-to-flight") — the only late entry a launched round robin
+   * takes — and a reserve as one ("reserve"), the way out of a knockout whose
+   * draw is made. The verdict, not only the refusal: a taken entry says what is
+   * left to do (the unplaced flag, a round robin's matches drawn).
    */
-  if (configurationLocked(event)) {
-    return { ok: false, error: "Configuration is locked. Unlock the tournament to change the field." };
-  }
+  const reserve = input.reserve === true;
+  const flightId = !reserve && typeof input.flightId === "string" && input.flightId ? input.flightId : null;
+  // A flight of THIS tournament, never a match carrier — a public endpoint posts any id.
+  const flights = flightId ? await prisma.group.findMany({ where: { eventId, isCarrier: false }, orderBy: { position: "asc" }, select: { id: true, name: true } }) : [];
+  const flightAt = flights.findIndex((g) => g.id === flightId);
+  if (flightId && flightAt < 0) return { ok: false, error: "Flight not found in this tournament." };
+  const flightName = flightAt >= 0 ? flightLabel(flights[flightAt].name, flightAt) : "";
+  const verdict = await fieldVerdictFor(eventId, reserve ? "reserve" : flightId ? "add-to-flight" : "add");
+  if (!verdict.ok) return { ok: false, error: verdict.says };
   const casualFull = await casualRoundFull(event, 1);
   if (casualFull) return { ok: false, error: casualFull };
   /**
-   * Asked of the tournament, not demanded of everybody — see `entryNeedsEmail`.
-   *
-   * A tournament signing players in by email genuinely needs one from each of
-   * them, and says so. One using Round Codes does not, and refusing the entry
-   * anyway is what stopped a society with a names-only roster entering its own
-   * members.
+   * NO ENTRY IS REFUSED FOR WANT OF AN EMAIL (Ajay, 2026-11-07: a member may
+   * enter without one, a guest needs none). This refused one on an email-only
+   * tournament ("Email is required — it's how this player signs in"); now the
+   * entry is made and Round Codes come on beside email sign-in, below
+   * (`codesOnForAnEntryWithoutEmail`), so the player still has a way to the card.
    */
-  if (!cleanEmail && entryNeedsEmail(settingsOf(event))) {
-    return { ok: false, error: "Email is required — it's how this player signs in." };
-  }
   if (cleanEmail && !isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
   // A handicap that was typed is one a golfer can have. Not finite is "left
   // blank", which is allowed and is recorded below as no index.
@@ -560,8 +673,9 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // The same rule the public form follows. An organizer typing someone in must
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
-  const cleanPhone = String(input.phone ?? "").trim();
-  if (phoneRequiredFor(event.requirePhone)) {
+  // Never of a guest, even where the tournament asks every member (ruled 2026-11-07).
+  const cleanPhone = guest ? "" : String(input.phone ?? "").trim();
+  if (!guest && phoneRequiredFor(event.requirePhone)) {
     if (!cleanPhone) return { ok: false, error: "Enter a mobile number for this player." };
   }
   // A number that was typed is a number, whether or not this tournament asks
@@ -606,75 +720,135 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    * tee slots and two shares of a split expense; being asked about a real
    * namesake costs one look.
    */
-  const duplicate = cleanEmail
-    ? await prisma.player.findFirst({
-        where: { eventId, ...byAddress(cleanEmail) },
-        select: { name: true, status: true },
-      })
-    : await prisma.player.findFirst({
-        where: { eventId, name: { equals: clean, mode: "insensitive" } },
-        select: { name: true, status: true },
-      });
-  if (duplicate) {
+  // Asked twice: here, so a plain duplicate costs nothing more, and AGAIN under
+  // the intake lock below (J46), which is the one that holds when two presses
+  // arrive together.
+  const findDuplicate = (db: Pick<typeof prisma, "player">) =>
+    cleanEmail
+      ? db.player.findFirst({
+          where: { eventId, ...byAddress(cleanEmail) },
+          select: { name: true, status: true },
+        })
+      : db.player.findFirst({
+          where: { eventId, name: { equals: clean, mode: "insensitive" } },
+          select: { name: true, status: true },
+        });
+  const duplicateRefusal = (duplicate: { name: string; status: string }): SignupResult => {
     const how = cleanEmail ? "with that email" : "under that name";
     return {
       ok: false,
       error:
         duplicate.status === "withdrawn"
-          ? `${duplicate.name} is already entered ${how} but has withdrawn — re-enter them from the roster rather than adding a second entry.`
+          ? // "Re-enter them from the roster" sent the organizer to a picker that skips
+            // anybody already entered; Put back is the door (day-of field changes, PR A).
+            `${duplicate.name} is already entered ${how} but has withdrawn — press Put back beside their name under Withdrawn rather than adding a second entry.`
           : duplicate.status === "disqualified"
             ? // "Already in the field" is the one thing they are not, and a
               // second entry beside the ruling would quietly undo it.
               `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Entries rather than adding a second entry.`
             : `${duplicate.name} is already in the field ${how}.`,
     };
-  }
+  };
+  const duplicate = await findDuplicate(prisma);
+  if (duplicate) return duplicateRefusal(duplicate);
 
-  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
-  const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   // The plan's field cap over the stored number, as `register` and `enter` do.
   // A club moved down to Par keeps the unlimited field it set on a higher tier,
   // and this confirmed an eleventh player past a ten-player cap (2026-09-30).
   const capacity = await fieldLimitFor(event);
   const unlimited = capacity <= 0; // 0 = open / unlimited field
-  const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
   // Entering someone in a tournament is also how they join the club roster —
   // so the club list is never a separate chore an organizer has to remember.
   const memberId = await upsertMember(
     event.organizationId,
-    { ...input, name: clean, email: cleanEmail },
+    // A guest is matched onto nobody: never onto a member of the same name, whose
+    // index this staff door would otherwise restate (design §4.3).
+    { ...input, name: clean, email: cleanEmail, phone: cleanPhone, guest },
     "staff",
   );
-  await prisma.player.create({
-    data: {
-      eventId,
-      memberId,
-      name: clean,
-      handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
-      seed: (maxSeed._max.seed ?? 0) + 1,
-      status,
-      email: cleanEmail,
-      phone: (input.phone ?? "").trim(),
-      ghin: (input.ghin ?? "").trim(),
-      homeClub: (input.homeClub ?? "").trim(),
-      // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
-      // is stored as "none" whatever the source said: this stored it as 0 "by
-      // hand" — a scratch golfer nobody declared, given no strokes in a net
-      // round. The guide has always said a blank is not scratch.
-      handicapSource: !Number.isFinite(input.handicap)
-        ? "none"
-        : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
-          ? input.handicapSource!
-          : "manual",
-      handicapType: input.handicapType === "9" ? "9" : "18",
-      gender: await memberGender(memberId),
-    },
+  const gender = await memberGender(memberId);
+  // DUPLICATE, COUNT, SEED AND CREATE UNDER THE EVENT'S INTAKE LOCK (J46), as
+  // `enter.ts` and `register.ts` do. Without it two presses at once both found
+  // nobody and both created a row, or both counted the same confirmed total.
+  const placed = await withEventIntakeLock(eventId, async (tx) => {
+    const again = await findDuplicate(tx);
+    if (again) return { duplicate: again, status: null, id: null };
+    const confirmedCount = await tx.player.count({ where: { eventId, status: "confirmed" } });
+    const maxSeed = await tx.player.aggregate({ where: { eventId }, _max: { seed: true } });
+    // A reserve waits whatever the room: that is what they were added as.
+    const status = !reserve && (unlimited || confirmedCount < capacity) ? "confirmed" : "waitlisted";
+    const created = await tx.player.create({
+      select: { id: true },
+      data: {
+        eventId,
+        memberId,
+        // Into the flight chosen with the entry — only when they are in the field; a waiting entry has no flight.
+        groupId: flightId && status === "confirmed" ? flightId : null,
+        name: clean,
+        handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
+        seed: (maxSeed._max.seed ?? 0) + 1,
+        status,
+        standing,
+        email: cleanEmail,
+        phone: cleanPhone,
+        ghin: (input.ghin ?? "").trim(),
+        homeClub: (input.homeClub ?? "").trim(),
+        // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
+        // is stored as "none" whatever the source said: this stored it as 0 "by
+        // hand" — a scratch golfer nobody declared, given no strokes in a net
+        // round. The guide has always said a blank is not scratch.
+        handicapSource: !Number.isFinite(input.handicap)
+          ? "none"
+          : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
+            ? input.handicapSource!
+            : "manual",
+        handicapType: input.handicapType === "9" ? "9" : "18",
+        gender,
+      },
+    });
+    return { duplicate: null, status, id: created.id };
   });
+  if (placed.status === null) return duplicateRefusal(placed.duplicate);
+  const status = placed.status;
+  const inFlight = !!flightId && status === "confirmed";
+  /**
+   * THEIR MATCHES, DRAWN (the re-draw, panel Q3): in a round robin the flight
+   * decides who they play, so a late entrant placed in one is given a match
+   * against each player in it — and nobody else's pairing changes
+   * (`repairPlayerPairings`, the same repair a move makes).
+   */
+  if (inFlight && placed.id) await repairPlayerPairings(eventId, placed.id);
   await syncPlayerAccount(eventId, clean, cleanEmail);
   // On the record ("Recent changes to the field"), whoever added them.
-  await logAudit(eventId, "added", `${clean} was added to the field (${status}).`);
+  await logAudit(
+    eventId,
+    "added",
+    reserve
+      ? `${clean} was added to the waiting list as a reserve${guest ? " (guest)" : ""}.`
+      : `${clean} was added to the field (${status}${guest ? ", guest" : ""})${inFlight ? ` in ${flightName}` : ""}.`,
+  );
+  const codesOn = !cleanEmail && (await codesOnForAnEntryWithoutEmail(eventId, `${clean} was added without an email`));
   await refresh();
-  return { ok: true };
+  const late = reserve ? reserveWords(clean) : lateEntryWords(event.status, clean, status, verdict.ok ? verdict.warn : null, flightName);
+  const said = [late, codesOn ? CODES_TURNED_ON : ""].filter(Boolean).join(" ");
+  return { ok: true, said: said || undefined };
+}
+
+/**
+ * WHAT THE ORGANIZER IS TOLD AFTER A LATE ENTRY (day-of field changes, PR A):
+ * where the new name still has to go. Only once launched — before it, the tee
+ * sheet and the flights are still being made and the screen says so itself.
+ * And what the one rule's verdict left to say (J12, PR 7a): in stroke play and
+ * Stableford a flight is offered, not forced, so a late entrant in no flight is
+ * FLAGGED in the panel's words; a round robin's, given a flight, has their
+ * matches drawn.
+ */
+function lateEntryWords(eventStatus: string, name: string, status: string, warn: FieldWarn | null, flight: string): string | undefined {
+  if (!isLaunched(eventStatus)) return undefined;
+  if (status === "waitlisted") return `${name} is on the waiting list: the field is full.`;
+  const lead = warn === "unplaced" ? unplacedWords([name]) : `${name} is in the field.`;
+  const drawn = warn === "matches-drawn" ? ` ${warnWords(warn, name, flight)}` : "";
+  return `${lead} Put them in a group on the Tee sheet.${drawn}`;
 }
 
 export interface SignupPatch {
@@ -688,7 +862,11 @@ export interface SignupPatch {
 /** Edit an existing player's details in place — e.g. correcting a handicap after import. */
 export async function updateSignup(playerId: string, patch: SignupPatch): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // The one field rule: a player's details stay locked after launch (their
+  // index has its own door, `setPlayerIndex`). Returned, not thrown.
+  const refused = await fieldRefusal(eventId, "edit");
+  if (refused) return { ok: false, error: refused };
+  if (typeof playerId !== "string" || !patch || typeof patch !== "object") return { ok: false, error: "Player not found." };
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player || player.eventId !== eventId) return { ok: false, error: "Player not found." };
   const data: Record<string, string | number> = {};
@@ -715,6 +893,11 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   if (patch.email !== undefined) {
     const cleanEmail = String(patch.email).trim().toLowerCase();
     if (cleanEmail && !isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
+    // A guest's entry holds no email: one here would make a sign-in account and
+    // hand the entry to whoever holds the address (`byAddress`). Make member is a later change.
+    if (cleanEmail && isGuest(player)) {
+      return { ok: false, error: `${player.name} is entered as a guest (not a club member), so the entry holds no email.` };
+    }
     /**
      * Correcting an email must not create the duplicate `addSignup` now refuses.
      *
@@ -780,8 +963,13 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   // of having one record per person. Re-resolving rather than updating the
   // linked member directly, because a changed email may now identify someone
   // else on the roster (or nobody, in which case they're added).
+  //
+  // Not a guest already on the roster: a guest is matched onto nobody, so
+  // re-resolving would add a fresh row of theirs on every correction. Their row
+  // is the one they were given when entered (design §4.3).
   const organizationId = await organizationIdForEvent(eventId);
-  if (organizationId) {
+  const guest = isGuest(player);
+  if (organizationId && !(guest && player.memberId)) {
     const memberId = await upsertMember(organizationId, {
       name: (data.name as string) ?? player.name,
       email: (data.email as string) ?? player.email,
@@ -791,6 +979,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
       handicap: (data.handicap as number) ?? player.handicap,
       handicapType: (data.handicapType as string) ?? player.handicapType,
       handicapSource: (data.handicapSource as string) ?? player.handicapSource,
+      guest,
     },
       // Details only: an existing member's index is changed through
       // `setPlayerIndex`, which asks first (2026-10-16).
@@ -833,20 +1022,35 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
 // `hasPlayingHistory` — whether removing this person would DESTROY something —
 // lives in services/playing-history.ts, shared with the member's own
 // `withdrawMyEntry` so both doors keep a player with history the same way.
-export async function removeSignup(playerId: string): Promise<"deleted" | "withdrawn" | "missing"> {
+//
+// AFTER LAUNCH, A WITHDRAWAL IS NEVER A DELETE (day-of field changes, PR A).
+// On the morning of play nearly everybody drawn has no card yet, so "no
+// history, delete" made a drawn player who never teed off vanish, leaving only
+// an audit line — no WD, no DNS, nobody to put back. Once launched, a confirmed
+// player in a tournament is kept as `withdrawn`; before launch an entry with no
+// history is still deleted (a typo, a list cleared to re-import), and a casual
+// round keeps its own rule. Open to an Assistant as well as the Organizer, at
+// every stage before completed, in every family (`fieldChangeAllowed`); "Put
+// back" (`reinstateWithdrawn`) undoes a mistaken tap.
+//
+// RETURNED, NEVER THROWN: this threw "Configuration is locked" through
+// `assertUnlocked`, which a production build blanks into "Application error".
+export type RemoveResult =
+  | { ok: true; outcome: "deleted" | "withdrawn" | "missing"; said: string }
+  | { ok: false; error: string };
+
+export async function removeSignup(playerId: string): Promise<RemoveResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  if (typeof playerId !== "string" || !playerId) return { ok: false, error: "Choose a player." };
+  const refused = await fieldRefusal(eventId, "withdraw");
+  if (refused) return { ok: false, error: refused };
   const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player || player.eventId !== eventId) return "missing";
+  if (!player || player.eventId !== eventId) return { ok: true, outcome: "missing", said: "" };
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, shape: true } });
+  const launched = !!event && isLaunched(event.status) && !isMatch(event.shape);
 
-  const played = await hasPlayingHistory(eventId, playerId);
-
-  if (played) {
-    await prisma.player.update({ where: { id: playerId }, data: { status: "withdrawn" } });
-    await keepDefaultStakes(eventId, playerId);
-  } else {
-    await prisma.player.delete({ where: { id: playerId } });
-  }
+  // The one keep path (`withdrawEntry`), shared with a replacement on the tee sheet.
+  const { played, keep } = await prisma.$transaction((tx) => withdrawEntry(tx, eventId, player, { launched }));
   if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
   // On the record ("Recent changes to the field") — the organizer's removal, in
   // the same list as a member's own withdrawal.
@@ -863,7 +1067,9 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
         ? `${player.name} was taken off the waiting list.`
         : played
           ? `${player.name} was withdrawn from the field (their results are kept).`
-          : `${player.name} was removed from the field.`,
+          : keep
+            ? `${player.name} was withdrawn from the field.`
+            : `${player.name} was removed from the field.`,
   );
 
   /**
@@ -881,13 +1087,103 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
    * than inline also means the limit is read from `playerCountMode` rather than
    * from `capacity`, which goes stale the moment an organizer sets a manual
    * field size.
+   *
+   * `promoteFromWaitlist` is that rule, answering WHO moved in, so the
+   * organizer is told the reserve has no tee time yet.
    */
-  if (player.status === "confirmed") {
-    await drainWaitlist(eventId);
-  }
+  const movedIn = player.status === "confirmed" ? await promoteFromWaitlist(eventId) : [];
 
   await refresh();
-  return played ? "withdrawn" : "deleted";
+  return {
+    ok: true,
+    outcome: keep ? "withdrawn" : "deleted",
+    said: await withdrawalWords(eventId, player, keep, launched, movedIn),
+  };
+}
+
+/**
+ * THE RESULTS LINE AND THE SHORT GROUP, after a withdrawal once launched
+ * (day-of field changes, PR B). "WD" for a player who had begun, "DNS" for one
+ * who had not — the office's codes, as the results sheet lists them
+ * (`resultsSheetRows`). And where they were drawn on a published sheet for a
+ * round they have not begun: the group goes out short at its time (Rule 5.3a),
+ * said as the club says it — "Group 3 goes out as a twosome".
+ */
+async function sheetWords(eventId: string, player: { id: string; name: string }): Promise<string[]> {
+  const [cards, stages, terms] = await Promise.all([
+    prisma.scorecard.findMany({ where: { eventId, playerId: player.id }, select: { stageId: true, strokes: true } }),
+    prisma.stage.findMany({
+      where: { eventId },
+      orderBy: { position: "asc" },
+      select: { id: true, type: true, holes: true, nine: true, position: true, teeSheet: true, teeSheetPublished: true, closedAt: true },
+    }),
+    golfTermsForEvent(eventId),
+  ]);
+  const begunIn = new Set(cards.filter((c) => hasAnyHole(c.strokes)).map((c) => c.stageId));
+  // Only where the results ARE a stroke sheet: a drawn field's result is its matches, recorded as walkovers.
+  const family = (await fieldFactsFor(eventId))?.family;
+  const out = family === "stroke" || family === "stableford" ? [resultsLine(player.name, begunIn.size > 0)] : [];
+
+  const round = stages.find((s) => s.teeSheetPublished && !s.closedAt && !begunIn.has(s.id) && parseTeeSheet(s.teeSheet)?.groups.some((g) => g.playerIds.includes(player.id)));
+  const sheet = round ? parseTeeSheet(round.teeSheet) : null;
+  if (round && sheet) {
+    const field = new Set((await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } })).map((p) => p.id));
+    const short = groupLeftShort(sheet, player.id, field);
+    // A group still four strong (it had five) is not short; `shortGroupLine` says nothing then.
+    const line = short ? shortGroupLine(roundLabel(stages, round.id), short, terms) : null;
+    if (line) out.push(line);
+  }
+  return out;
+}
+
+/**
+ * WHAT THE ORGANIZER IS TOLD AFTER TAKING SOMEBODY OUT (day-of field changes,
+ * PR A, words section 5.3). Their scores and side-game entries stay on the
+ * record and nothing moves money (Hard rule 7); a reserve who moved in has no
+ * tee time yet; in a drawn field the matches they will not play are recorded
+ * as walkovers by the committee, never awarded by the app.
+ */
+async function withdrawalWords(
+  eventId: string,
+  player: { id: string; name: string; status: string },
+  kept: boolean,
+  launched: boolean,
+  movedIn: string[],
+): Promise<string> {
+  const name = player.name;
+  if (player.status === "pending") return `${name}’s entry was declined.`;
+  if (player.status === "waitlisted") return `${name} is off the waiting list.`;
+  if (!kept) return movedIn.length ? `${name} is out. ${movedInWords(movedIn)} moved in from the waiting list.` : `${name} is out.`;
+  const parts = [`${name} is out.`];
+  // PR B: how the results list them, and the group they leave short on a published sheet.
+  if (launched) parts.push(...(await sheetWords(eventId, player)));
+  if (movedIn.length) {
+    parts.push(`${movedInWords(movedIn)} moved in from the waiting list.`);
+    if (launched) parts.push(`${movedInWords(movedIn)} ${movedIn.length === 1 ? "has" : "have"} no tee time yet: put them in a group on the Tee sheet.`);
+  }
+  if (launched) {
+    const facts = await fieldFactsFor(eventId);
+    const family = facts?.family;
+    if (family === "knockout" || family === "flightedKnockout") {
+      parts.push("If their tie is still to play, record it as a walkover on the Bracket.");
+    } else if (family === "match" || family === "roundRobinFlights" || family === "league") {
+      const theirs = await prisma.match.findMany({
+        where: { eventId, OR: [{ playerAId: player.id }, { playerBId: player.id }] },
+        select: { holes: true, forfeitedBy: true },
+      });
+      const unplayed = theirs.filter((m) => !storedMatchIsOver(m)).length;
+      if (unplayed > 0) {
+        parts.push(`${unplayed} unplayed ${unplayed === 1 ? "match" : "matches"}: record ${unplayed === 1 ? "it" : "them"} as ${unplayed === 1 ? "a walkover" : "walkovers"} on Score entry.`);
+      }
+    }
+  }
+  parts.push("Their scores and side-game entries stay on the record. The app records who owes what; you settle outside it.");
+  return parts.join(" ");
+}
+
+/** "Pat", "Pat and Lee", "Pat, Lee and Kim". */
+function movedInWords(names: string[]): string {
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /**
@@ -898,14 +1194,69 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
  */
 export async function removeSignups(
   playerIds: string[],
-): Promise<{ deleted: number; withdrawn: number; missing: number }> {
+): Promise<{ deleted: number; withdrawn: number; missing: number; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
   const tally = { deleted: 0, withdrawn: 0, missing: 0 };
+  // Not a day-of act: after launch players are withdrawn one at a time (the one field rule).
+  const refused = await fieldRefusal(eventId, "bulk");
+  if (refused) return { ...tally, error: refused };
+  if (!Array.isArray(playerIds)) return { ...tally, error: "Choose the players to remove." };
   for (const id of playerIds) {
-    tally[await removeSignup(id)] += 1;
+    const res = await removeSignup(id);
+    tally[res.ok ? res.outcome : "missing"] += 1;
   }
   return tally;
+}
+
+/**
+ * PUT BACK — undo a withdrawal (day-of field changes, PR A).
+ *
+ * A mistaken tap on the morning is the case it is for: before this only a
+ * disqualification could be undone, and a withdrawn player could not even be
+ * re-entered (`addSignup` refuses them as a duplicate, rightly). Open whenever
+ * a withdrawal is — every family, every stage before completed, an Assistant
+ * as well as the Organizer — through the one field rule.
+ *
+ * Back into the field when there is room, and onto the waiting list when the
+ * place they left has been taken by a reserve in the meantime: nobody already
+ * told "you're in" is put out by an undo. Their seed is unchanged, so on the
+ * waiting list they are where they always queued. Their cards were never
+ * deleted, so whatever they had played is theirs again.
+ */
+export async function reinstateWithdrawn(playerId: string): Promise<{ ok: true; said: string } | { ok: false; error: string }> {
+  const eventId = await requireStaffEvent();
+  if (typeof playerId !== "string" || !playerId) return { ok: false, error: "Choose a player." };
+  const refused = await fieldRefusal(eventId, "reinstate");
+  if (refused) return { ok: false, error: refused };
+  // Looked up WITHIN this tournament, so an id from another one finds nothing.
+  const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
+  if (!player) return { ok: false, error: "That player isn't in this tournament." };
+  if (player.status !== "withdrawn") return { ok: false, error: `${player.name} hasn’t withdrawn.` };
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
+  if (!event) return { ok: false, error: "Event not found." };
+  const casualFull = await casualRoundFull(event, 1);
+  if (casualFull) return { ok: false, error: casualFull };
+
+  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
+  const place = placementOnApproval(await fieldLimitFor(event), confirmedCount);
+  await prisma.player.update({ where: { id: player.id }, data: { status: place } });
+  // `removeSignup` took their sign-in away with the place; it comes back with it.
+  if (player.email.trim()) await syncPlayerAccount(eventId, player.name, player.email);
+  await logAudit(
+    eventId,
+    "put-back",
+    place === "confirmed"
+      ? `${player.name} was put back in the field.`
+      : `${player.name} was put back on the waiting list: the field is full.`,
+  );
+  await refresh();
+  return {
+    ok: true,
+    said:
+      place === "confirmed"
+        ? `${player.name} is back in the field.${isLaunched(event.status) ? " Check they still have a group on the Tee sheet." : ""}`
+        : `The field is full, so ${player.name} is back on the waiting list.`,
+  };
 }
 
 /* CSV parsing lives in src/lib/csv.ts, shared with the roster importer. The
@@ -918,25 +1269,46 @@ export interface CsvImportResult {
   skippedDuplicates: number;
   skippedInvalid: number;
   error?: string;
-  /** True when a names-only list switched this tournament to Round Codes as well as email. */
+  /** True when an entry without an email switched this tournament to Round Codes as well as email. */
   codesTurnedOn?: boolean;
+  /** Members and guests imported, for the line under the button. */
+  members?: number;
+  guests?: number;
+  /** Guest rows whose file carried an email, imported without it. */
+  emailsDropped?: number;
 }
 
-export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
-  const eventId = await requireStaffEvent();
-  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
-  if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
-  // A sentence, not a throw — the same reasoning and words as `addSignup`:
-  // the import sat beside the Add form, ungated, on a locked tournament.
-  if (configurationLocked(event)) {
-    return {
-      imported: 0,
-      skippedDuplicates: 0,
-      skippedInvalid: 0,
-      error: "Configuration is locked. Unlock the tournament to change the field.",
-    };
-  }
+/** One row of the preview: what the import will do with it. Masked: the screen needs to recognise, not copy. */
+export interface CsvPreviewRow {
+  row: number;
+  name: string;
+  email: string;
+  handicapId: string;
+  /** As the field shows it ("12.4", "+1.2", "No index") — `indexLabel`'s words, never a bare figure. */
+  handicapLabel: string;
+  standing: EntryStanding;
+  check: StandingCheck | null;
+  rosterName: string;
+  skip: "invalid" | "duplicate" | null;
+  emailDropped: boolean;
+}
 
+export type CsvPreviewResult = { ok: true; rows: CsvPreviewRow[] } | { ok: false; error: string };
+
+/**
+ * THE ENTRY LIST, READ ONCE FOR THE PREVIEW AND THE IMPORT (no-email player
+ * identity, PR 1). Every refusal about the FILE (empty, no name column, a
+ * casual round past eight, no phone column where one is collected) is here, so
+ * the preview refuses exactly what the import would. Every decision about a
+ * ROW is `planCsvSignups`.
+ */
+async function readEntryList(
+  eventId: string,
+  event: { organizationId: string; requirePhone: boolean; id: string; shape: string },
+  csv: unknown,
+  rawChoices: unknown,
+): Promise<{ error: string } | { table: CsvTable; plan: SignupRowPlan[] }> {
+  if (typeof csv !== "string") return { error: "The file is empty." };
   /**
    * Parsed with the shared reader, the same one the roster import uses.
    *
@@ -947,100 +1319,109 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
    * format is how that happens; there is now one.
    */
   const table = parseCsv(csv);
-  if (!table) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
+  if (!table) return { error: "The file is empty." };
   if (!hasNameColumn(table)) {
     return {
-      imported: 0,
-      skippedDuplicates: 0,
-      skippedInvalid: 0,
       error:
         'Couldn\'t find a name column in the header row. Expected a header like: name, handicap, email, phone — or first name and last name in separate columns.',
     };
   }
   // Before anything is written: a casual round cannot be imported past eight.
   const casualFull = await casualRoundFull(event, table.rows.length);
-  if (casualFull) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: casualFull };
-  const headerCols = table.columns;
-  const emailIdx = headerCols.indexOf("email");
-  /**
-   * The same rule as every other way in — see `entryNeedsEmail`.
-   *
-   * Refused at the HEADER for the reason the phone check below records: a file
-   * with no email column at all would otherwise read as a hundred individually
-   * invalid rows, and the organizer would be told "skipped 100" with no hint
-   * that one missing column caused it. That stays; what changes is that a
-   * tournament using Round Codes is not asked for the column, because a
-   * names-only membership list is exactly the file it will be handed.
-   */
-  let needsEmail = entryNeedsEmail(settingsOf(event));
-  /**
-   * A LIST WITH NO ADDRESSES AT ALL TURNS ROUND CODES ON, rather than being
-   * refused (Ajay, 2026-09-28, left to my recommendation: "Round Codes by
-   * default when the roster has no emails").
-   *
-   * A club's membership export is very often names and handicaps and nothing
-   * else, and the refusal — "email is required so each player can sign in" —
-   * sent the organizer off to collect sixty addresses before anybody could be
-   * entered. Round Codes exist for exactly that list. So an email-only
-   * tournament handed a names-only file keeps email sign-in AND gains codes
-   * ("both"), imports the list, and says so on the screen.
-   *
-   * Only for a file with NO address anywhere. A file where some rows have one
-   * is a list with gaps, and those rows are still refused one by one — the
-   * organizer meant email sign-in and has most of the addresses.
-   */
-  const noAddresses = emailIdx === -1 || table.rows.every((cols) => !cell(table, cols, "email").trim());
-  const codesTurnedOn = needsEmail && noAddresses;
-  const phoneIdx = headerCols.indexOf("phone");
+  if (casualFull) return { error: casualFull };
   // Same rule as every other way in: the organizer's setting, on any plan.
   // Refused at the header rather than row by row: a file with no phone column
   // at all would otherwise be read as a hundred individually invalid rows, and
   // the organizer would be told "skipped 100" with no hint that one missing
   // column caused it.
   const needsPhone = phoneRequiredFor(event.requirePhone);
-  if (needsPhone && phoneIdx === -1) {
+  if (needsPhone && !table.columns.includes("phone")) {
     return {
-      imported: 0,
-      skippedDuplicates: 0,
-      skippedInvalid: 0,
       error:
-        'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every entrant. Add a phone column, or enter the field by hand.',
+        'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every member (never a guest). Add a phone column, or enter the field by hand.',
     };
   }
-  // After every header refusal, so a file that is going to be turned away
-  // anyway does not change the tournament's sign-in on its way out.
-  if (codesTurnedOn) {
-    await prisma.event.update({ where: { id: eventId }, data: { playerAccess: "both" } });
-    await ensureRoundCodes(eventId);
-    await logAudit(eventId, "round-codes-on", "Round Codes turned on: the imported list has no email addresses");
-    needsEmail = false;
-  }
   /**
-   * De-duplicated on email where there is one, and on name where there is not.
-   *
-   * The name check was removed once, correctly, with this reasoning: it drops
-   * the second real John Smith in a club that has two of them, "and clubs do"
-   * — and it was safe to remove because "the entry importer already requires
-   * one from every row".
-   *
-   * That last clause is no longer true, so the conclusion no longer follows.
-   * A file of names with no addresses would re-import in full on every upload,
-   * because every row's key is the empty string and `.filter(Boolean)` drops
-   * it — the field doubles and nothing says a word.
-   *
-   * So: email remains the key whenever a row has one, and namesakes are still
-   * both imported in that case. Name is the fallback ONLY for rows that have
-   * no address at all, which is the same fallback `upsertMember` already makes
-   * for the roster. The John Smith cost is real and confined to lists that
-   * carry no addresses, where nothing better exists — and it fails towards
-   * skipping a row an organizer can add by hand, rather than towards a silent
-   * double entry nobody sees until the tee sheet.
+   * De-duplicated on email where there is one, and on name where there is not
+   * (`planCsvSignups`). The name check was removed once, correctly, because it
+   * drops the second real John Smith — and put back when lists without
+   * addresses arrived, because a file of names would otherwise re-import in
+   * full on every upload. Email remains the key whenever an entry has one.
    */
-  const existing = await prisma.player.findMany({ where: { eventId }, select: { email: true, name: true } });
-  const seenEmails = new Set(existing.map((p) => p.email.trim().toLowerCase()).filter(Boolean));
-  const seenNames = new Set(
-    existing.filter((p) => !p.email.trim()).map((p) => p.name.trim().toLowerCase()).filter(Boolean),
+  const [existing, roster] = await Promise.all([
+    prisma.player.findMany({ where: { eventId }, select: { email: true, name: true } }),
+    prisma.member.findMany({ where: { organizationId: event.organizationId }, select: { name: true } }),
+  ]);
+  const plan = planCsvSignups(
+    table,
+    { existing, rosterNames: roster.map((m) => m.name), needsPhone },
+    readChoices(rawChoices, table.rows.length),
   );
+  return { table, plan };
+}
+
+/**
+ * WHAT THE FILE WILL DO, BEFORE IT DOES IT ("Check the list"). Staff-only and
+ * read-only: it writes nothing, and the import re-reads the file rather than
+ * trusting what this said.
+ */
+export async function previewCsvSignups(csv: string): Promise<CsvPreviewResult> {
+  const eventId = await requireStaffEvent();
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
+  if (!event) return { ok: false, error: "Event not found." };
+  const refused = await fieldRefusal(eventId, "bulk");
+  if (refused) return { ok: false, error: refused };
+  const read = await readEntryList(eventId, event, csv, {});
+  if ("error" in read) return { ok: false, error: read.error };
+  return {
+    ok: true,
+    rows: read.plan.map((p) => {
+      const hcp = parseHandicapInput(cell(read.table, read.table.rows[p.row], "handicap"));
+      return {
+        row: p.row,
+        name: p.name,
+        email: maskEmail(p.email),
+        handicapId: maskHandicapId(p.handicapId),
+        handicapLabel: indexLabel({ handicap: hcp.ok ? hcp.value : 0, handicapSource: hcp.ok ? hcp.source : "none" }),
+        standing: p.standing,
+        check: p.check,
+        rosterName: p.rosterName,
+        skip: p.skip,
+        emailDropped: p.emailDropped,
+      };
+    }),
+  };
+}
+
+/**
+ * Import an entry list. `choices` are the preview's switches, row → member or
+ * guest; they are read again here (`readChoices`), never trusted, and a row
+ * nobody switched takes the default (`defaultStanding`).
+ */
+export async function importCsvSignups(csv: string, choices?: Record<number, string>): Promise<CsvImportResult> {
+  const eventId = await requireStaffEvent();
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
+  if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
+  // A sentence, not a throw — the same reasoning as `addSignup`: the import sat
+  // beside the Add form, ungated, on a locked tournament. A list is not a
+  // day-of act, so after launch it stays locked (the one field rule, "bulk").
+  const refused = await fieldRefusal(eventId, "bulk");
+  if (refused) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: refused };
+  const read = await readEntryList(eventId, event, csv, choices);
+  if ("error" in read) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: read.error };
+  const { table, plan } = read;
+
+  /**
+   * AN ENTRY WITHOUT AN EMAIL TURNS ROUND CODES ON, rather than being refused
+   * (Ajay, 2026-09-28 for a names-only list; 2026-11-07 for any member without
+   * one, and every guest). After every refusal about the file, so a file that
+   * is going to be turned away does not change the tournament's sign-in on its
+   * way out. `codesOnForAnEntryWithoutEmail` is the one place this happens.
+   */
+  const accepted = plan.filter((p) => !p.skip);
+  const codesTurnedOn =
+    accepted.some((p) => !p.entryEmail) &&
+    (await codesOnForAnEntryWithoutEmail(eventId, "the imported list has players without an email address"));
 
   let confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   // The plan's field cap over the stored number — see `addSignup`.
@@ -1050,44 +1431,17 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   let seed = (agg._max.seed ?? 0) + 1;
 
   let imported = 0;
-  let skippedDuplicates = 0;
-  let skippedInvalid = 0;
+  let members = 0;
+  let guests = 0;
+  let emailsDropped = 0;
+  const skippedDuplicates = plan.filter((p) => p.skip === "duplicate").length;
+  const skippedInvalid = plan.filter((p) => p.skip === "invalid").length;
 
-  for (const cols of table.rows) {
-    // Handles a single "Name" column and a "First Name"/"Last Name" pair alike.
-    const name = nameFrom(table, cols);
-    if (!name) {
-      skippedInvalid += 1;
-      continue;
-    }
-    const emailKey = emailIdx === -1 ? "" : cell(table, cols, "email").toLowerCase();
-    /**
-     * A blank address is a refusal only where the tournament needs one. A
-     * MALFORMED one is always a refusal — "j.smith@" is somebody's mistake in
-     * either case, and importing it would create an entrant whose sign-in can
-     * never work while the roster shows an address that looks fine at a
-     * glance.
-     */
-    if (!emailKey && needsEmail) {
-      skippedInvalid += 1;
-      continue;
-    }
-    if (emailKey && !EMAIL_RE.test(emailKey)) {
-      skippedInvalid += 1;
-      continue;
-    }
-    const nameKey = name.trim().toLowerCase();
-    if (emailKey ? seenEmails.has(emailKey) : seenNames.has(nameKey)) {
-      skippedDuplicates += 1;
-      continue;
-    }
-    // The column exists (checked above), so a row failing here is that one
-    // player's cell being blank or unreadable — the same class as a missing
-    // email, and counted the same way.
-    if (needsPhone && !looksLikePhone(cell(table, cols, "phone"))) {
-      skippedInvalid += 1;
-      continue;
-    }
+  for (const p of accepted) {
+    const cols = table.rows[p.row];
+    const guest = p.standing === GUEST;
+    const name = p.name;
+    const emailKey = p.entryEmail;
     // Same reading as the public form, for the same reason: parseFloat("+2.4")
     // is 2.4, and a plus handicap is 2.4 the other way. An entry list is where
     // the club's better players arrive, so this is the importer where the sign
@@ -1103,12 +1457,14 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     if (status === "confirmed") confirmedCount += 1;
     // One reading, shared with the roster importer — see `parseHandicapType`.
     const handicapType = parseHandicapType(cell(table, cols, "handicapType"));
-    const phone = cell(table, cols, "phone");
+    // A guest is never asked for a mobile, and none is kept (ruled 2026-11-07).
+    const phone = guest ? "" : cell(table, cols, "phone");
     // THE COLUMNS THE ROSTER IMPORT READS, READ HERE TOO. A "Home club" or "GHIN"
     // column in an entry list was recognised by its header and then dropped, so
     // the same file put a visitor's club on Members and not on the entry
-    // (2026-10-21, checking every door that adds a player).
-    const ghin = cell(table, cols, "ghin").trim();
+    // (2026-10-21, checking every door that adds a player). The handicap ID
+    // column, whichever body's words head it, is read into the same field.
+    const ghin = p.handicapId;
     const homeClub = cell(table, cols, "homeClub").trim();
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
@@ -1116,7 +1472,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     // is what the entry carries (`memberGender`).
     const memberId = await upsertMember(
       event.organizationId,
-      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender") },
+      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender"), guest },
       "staff",
     );
     await prisma.player.create({
@@ -1127,6 +1483,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         handicap,
         seed: seed++,
         status,
+        standing: p.standing,
         email: emailKey,
         phone,
         ghin,
@@ -1139,19 +1496,22 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     // A no-op for a blank address, which is what makes an email-less entry a
     // Round Code player rather than a broken sign-in.
     await syncPlayerAccount(eventId, name, emailKey);
-    /**
-     * BOTH KEYS UPDATED AS WE GO, or a file that repeats a row imports it
-     * twice. `seenEmails` alone would have let every duplicate of an
-     * address-less name straight through — the within-file half of the same
-     * hole the set above closes for rows already in the field.
-     */
-    if (emailKey) seenEmails.add(emailKey);
-    else seenNames.add(nameKey);
     imported += 1;
+    if (guest) guests += 1;
+    else members += 1;
+    if (p.emailDropped) emailsDropped += 1;
   }
 
   await refresh();
-  return { imported, skippedDuplicates, skippedInvalid, ...(codesTurnedOn ? { codesTurnedOn } : {}) };
+  return {
+    imported,
+    skippedDuplicates,
+    skippedInvalid,
+    members,
+    guests,
+    ...(emailsDropped ? { emailsDropped } : {}),
+    ...(codesTurnedOn ? { codesTurnedOn } : {}),
+  };
 }
 
 export async function setInviteMessage(message: string) {
@@ -1191,15 +1551,13 @@ export async function saveEvent(data: {
   courseId: string;
   city: string;
   address: string;
-  regDeadline: string;
-  /** First day entries are taken. Optional so an older caller leaves it alone. */
-  regOpens?: string;
-  capacity: number;
+  // The entry terms (opens, closes, how many) are saved on Entries: `saveEntryTerms`.
   playerCountMode: string;
   courseMode: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "details", "change the tournament’s details");
+  if (locked) return locked;
 
   /**
    * A TOURNAMENT HAS A NAME (the text-box crawl, 2026-10-21). This stored
@@ -1296,24 +1654,8 @@ export async function saveEvent(data: {
       // Only ever the two known values — an unrecognised mode would decide
       // whether every match asks where it was played.
       courseMode: data.courseMode === "open" ? "open" : "fixed",
-      regDeadline: data.regDeadline,
-      // A real date or nothing. This is a public endpoint, and free text here
-      // would be displayed as a date while opening nothing — see
-      // `parseDeadlineIso`. Left out entirely, the stored value is kept.
-      ...(data.regOpens === undefined
-        ? {}
-        : { regOpens: parseDeadlineIso(String(data.regOpens)) }),
-      // 0 is the deliberate "open / unlimited field" sentinel (see the Fixed/Open
-      // toggle in EventSetupClient) — only clamp upward when the organizer has
-      // actually set a positive fixed capacity, otherwise every save was
-      // silently converting "open" into "capacity 1" the moment anyone hit Save.
-      //
-      // STORED AS THE ORGANIZER SET IT, and held to the plan's cap where it is
-      // READ (2026-10-09). This stored the cap — "open" on Par became ten — so
-      // a club that later moved up a tier kept a ten-player field it never
-      // chose. Every intake, promotion and waitlist path reads through
-      // `fieldLimitFor` / `fieldCapFor`; see `createTournament`.
-      capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
+      // The entry terms (opens, closes, how many) are not this form's:
+      // `saveEntryTerms` writes them from Entries.
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
       // `sideStyle` is no longer written. Tournament details stopped asking
       // "how do people play?" — see the note where that field stood — and the
@@ -1389,7 +1731,8 @@ export async function saveEvent(data: {
 
 export async function applyManualCount(target: number, force = false): Promise<RegenResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "field", "change the field limit");
+  if (locked) return locked;
 
   // Resizing the field rebuilds the schedule, which discards scored matches
   // exactly as regenGroups does — same guard, for the same reason.
@@ -1525,15 +1868,12 @@ export async function movePlayerToGroup(
   force = false,
 ): Promise<MovePlayerResult> {
   const eventId = await requireStaffEvent();
-  // Returned, not thrown: the board can be open in a tab while the tournament is launched in
-  // another, and a throw made the whole screen "This screen didn't load" (2026-10-21).
-  const locked = await lockedRefusal(eventId, "change the flights");
-  if (locked) return { ok: false, error: locked };
-  // A confirmed draw is moved by nobody until it is reopened — checked here, not only hidden on the
-  // board, because a server action is a public endpoint.
-  const confirmedDraw = await prisma.event.findUnique({ where: { id: eventId }, select: { flightsConfirmed: true } });
-  if (confirmedDraw?.flightsConfirmed) return { ok: false, error: "Draw confirmed. Reopen it to move anyone." };
+  if (typeof playerId !== "string" || typeof groupId !== "string") return { ok: false, error: "Player not found in this tournament." };
+  return intoFlight(eventId, playerId, groupId, force === true);
+}
 
+/** The move itself, once the caller is known to be staff. Not exported: two doors (this and `placeInFlight`), one body. */
+async function intoFlight(eventId: string, playerId: string, groupId: string, force: boolean): Promise<MovePlayerResult> {
   // Both ends scoped to the caller's tournament. Either one unscoped would let
   // an organizer of any event move a stranger's player into a stranger's
   // flight by posting two ids.
@@ -1550,6 +1890,17 @@ export async function movePlayerToGroup(
   if (!player) return { ok: false, error: "Player not found in this tournament." };
   if (!group) return { ok: false, error: "Flight not found in this tournament." };
   if (player.groupId === groupId) return { ok: true };
+  /**
+   * THE ONE FIELD RULE (day-of field changes, PR A) — in place of the setup
+   * lock (`lockedRefusal`) and the confirmed-draw check that were asked here
+   * in turn. Returned, not thrown: the board can be open in a tab while the
+   * tournament is launched in another, and a throw made the whole screen
+   * "This screen didn't load" (2026-10-21). A confirmed draw moves nobody
+   * until it is reopened; after launch a placed player stays where they are,
+   * and an unplaced one may be placed while the rule allows.
+   */
+  const refused = await fieldRefusal(eventId, player.groupId ? "move-flight" : "place-in-flight");
+  if (refused) return { ok: false, error: refused };
 
   const scored = await scoredMatchCount(eventId);
   if (scored > 0 && !force) {
@@ -1589,6 +1940,29 @@ export async function movePlayerToGroup(
   return { ok: true };
 }
 
+/**
+ * PLACE AN UNPLACED PLAYER IN A FLIGHT — a late entrant, from Entries
+ * (day-of field changes, PR A). Only somebody in no flight: moving a placed
+ * player is the Flights board's act and stays locked after launch. After
+ * launch it is open in stroke play and Stableford until play has begun, and it
+ * moves nobody else (the one field rule, "place-in-flight", asked in `intoFlight`).
+ */
+export async function placeInFlight(playerId: string, groupId: string): Promise<MovePlayerResult> {
+  const eventId = await requireStaffEvent();
+  if (typeof playerId !== "string" || typeof groupId !== "string") return { ok: false, error: "Choose a player and a flight." };
+  const player = await prisma.player.findFirst({ where: { id: playerId, eventId }, select: { groupId: true, status: true, name: true } });
+  if (!player) return { ok: false, error: "Player not found in this tournament." };
+  if (player.status !== "confirmed") return { ok: false, error: `${player.name} isn’t in the field.` };
+  if (player.groupId) return { ok: false, error: `${player.name} is in a flight already. Moving a player between flights is done on Flights.` };
+  // A flight of THIS tournament, named for the record ("Flight 2", as the field table names it).
+  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { name: true } });
+  if (!flight) return { ok: false, error: "Flight not found in this tournament." };
+  const res = await intoFlight(eventId, playerId, groupId, false);
+  if (res.needsConfirm) return { ok: false, error: "Matches have been scored. Place them on Flights, where the move asks first." };
+  if (res.ok) await logAudit(eventId, "placed", `${player.name} was placed in ${flight.name.trim() || "a flight"}.`);
+  return res;
+}
+
 export async function regenGroups(
   rule: FormationRule,
   mode = "auto",
@@ -1596,7 +1970,8 @@ export async function regenGroups(
   force = false,
 ): Promise<RegenResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "flights", "make the flights again");
+  if (locked) return locked;
 
   // Refused, not quietly rewritten.
   //
@@ -1642,7 +2017,9 @@ export async function regenGroups(
  * round's data and scores are left alone.
  */
 export async function generateNextRound(stageId: string) {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   /**
    * RUNNING THE COMPETITION, NOT SETTING IT UP (Ajay, 2026-09-27: "go with
    * what a golf pro would decide"). Drawing the next round from the results
@@ -1650,19 +2027,19 @@ export async function generateNextRound(stageId: string) {
    * has to be unlocked for it.
    *
    * What the lock was also doing, and still must: `generateCutRound` DELETES
-   * the target round's cards or matches before drawing it. So once setup is
-   * locked, the draw is allowed only while that round has nothing on it — a
-   * re-press after the round has started would wipe the scores being played.
-   * Redrawing a round with results in it stays behind an explicit unlock.
+   * the target round's cards or matches before drawing it. So a round with
+   * scores on it is NEVER redrawn (`redrawRefusal`; panel review of 5b, must-fix
+   * 2) — asked of the round's cards alone, before and instead of any lock. The
+   * draw's lock was the wrong guard: in a flighted knockout the draw stays open
+   * while live until the first knockout result, so a re-press on a scored
+   * qualifying round wiped its cards with no refusal; and where it did refuse,
+   * it offered a committee correction — a way to wipe scores, against "never
+   * over recorded scores". The way out is Clear scores on Score entry, which
+   * refuses an approved card and leaves a line. Refused in words, never thrown.
    */
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, configUnlocked: true } });
-  if (event && configurationLocked(event) && (await enteredCardCount(eventId, stageId)) > 0) {
-    return {
-      ok: false as const,
-      error:
-        "That round already has scores, so drawing it again would wipe them. Unlock setup first if that is really what you want.",
-    };
-  }
+  const stages = await prisma.stage.findMany({ where: { eventId }, select: { id: true, type: true, position: true } });
+  const refused = redrawRefusal(roundLabel(stages, stageId), await enteredCardCount(eventId, stageId));
+  if (refused) return { ok: false as const, error: refused };
   const result = await generateCutRound(eventId, stageId);
   /**
    * A refusal has to reach the screen, or it is the same silence as before.
@@ -1690,6 +2067,21 @@ export async function generateNextRound(stageId: string) {
             : `Only ${result.survivors} players survive this cut and none of them can be paired. Widen the cut.`,
       };
     }
+    if (result.reason === "cut-tie") {
+      // Said where the press was, with the tie card right under it (J31).
+      const t = result.undecided[0];
+      const names = t.playerIds.map((id) => result.names.get(id) ?? "A player");
+      const who = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+      const places = t.places === 1 ? "the last place" : `the last ${t.places} places`;
+      const more = result.undecided.length > 1 ? ` (and ${result.undecided.length - 1} more flight${result.undecided.length === 2 ? " is" : "s are"} tied)` : "";
+      return {
+        ok: false as const,
+        error:
+          t.by === "playoff"
+            ? `${who} are level on points for ${places}${more}. This cut settles a tie by play-off: record who won it below, then draw the round.`
+            : `${who} are level on points and on every tie-break for ${places}${more}, so lots are drawn: record who the draw sent through below, then draw the round.`,
+      };
+    }
     if (result.reason === "seeded-not-generated") {
       return {
         ok: false as const,
@@ -1712,9 +2104,10 @@ export async function saveScoring(data: {
   holeRatioPts: number;
   bonusPts: number;
   maxPerMatch: number;
-}) {
+}): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the points");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -1727,22 +2120,27 @@ export async function saveScoring(data: {
     },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function setQualifyPerGroup(n: number) {
+export async function setQualifyPerGroup(n: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change who qualifies");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: { qualifyPerGroup: Math.min(3, Math.max(1, Math.round(n))) },
   });
   await refresh();
+  return { ok: true };
 }
 
 /* ── Stages ───────────────────────────────────────────────────────────── */
 
 export async function setStageDeadline(stageId: string, deadline: string): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   // Not behind the lock: moving the day scores are due is a decision made
   // during an event (rain, a late group) — Ajay, 2026-09-27.
   //
@@ -1752,6 +2150,9 @@ export async function setStageDeadline(stageId: string, deadline: string): Promi
   const typed = typeof deadline === "string" ? deadline : "";
   const due = cleanIsoDate(typed);
   if (typed.trim() && !due) return { ok: false, error: "Pick a date from the calendar." };
+  // A day like the round's own (J12, PR 7b): open while it runs, refused once completed.
+  const dayRefused = await roundRefusal(eventId, stageId, { kind: "day" });
+  if (dayRefused) return { ok: false, error: dayRefused };
   const round = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
   // A round removed in another tab matched nothing, and the box went on showing a date nobody
   // held, with nothing said (2026-10-21). The same words the sign-up deadline uses.
@@ -1848,8 +2249,17 @@ async function parRoundWindowRefusal(
   return roundWindowRefusal(dated[0], [...others, ...dated.slice(1)]);
 }
 
-export async function setStagePlayedOn(stageId: string, date: string): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+export async function setStagePlayedOn(stageId: string, date: string): Promise<{ ok: boolean; error?: string; said?: string }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  /**
+   * THE ROUNDS RULE (J12, PR 7b), section 3's "Name, dates, venue" row: open
+   * while the tournament runs, said after scores ("Players' schedules show the
+   * new day"), and refused once it is completed — the record is final there.
+   */
+  const judged = await roundVerdictFor(eventId, stageId, { kind: "day" });
+  if (judged && !judged.verdict.ok) return { ok: false, error: judged.verdict.says };
   const refusal = await parRoundWindowRefusal(eventId, [cleanIsoDate(date)], stageId);
   if (refusal) return { ok: false, error: refusal };
   /**
@@ -1860,12 +2270,18 @@ export async function setStagePlayedOn(stageId: string, date: string): Promise<{
    * the save then failed, so a rain-out could not be recorded without first
    * unlocking the whole tournament's setup.
    */
+  // The day it had, read before the write: a MOVE is news to a field that could see it (J39/J40 PR 2).
+  const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
+  const after = cleanIsoDate(date);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { playedOn: cleanIsoDate(date) },
+    data: { playedOn: after },
   });
+  // Push to every entry that can be reached (a guest's link too); never throws. "" when nobody was told.
+  const noticesOff = before ? await notifyRoundMoved({ eventId, stageId, before: before.playedOn ?? "", after }) : "";
   await refresh();
-  return { ok: true };
+  const said = [judged?.verdict.ok && judged.verdict.warn === "schedules" ? SCHEDULES_WORDS : "", noticesOff].filter(Boolean).join(" ");
+  return said ? { ok: true, said } : { ok: true };
 }
 
 /**
@@ -1889,6 +2305,9 @@ export async function dateUndatedRounds(
   if (!Number.isInteger(step) || step < 1 || step > 31) {
     throw new Error("How often the rounds are played should be between 1 and 31 days.");
   }
+  // Every round's day at once (J12, PR 7b): refused once the tournament is completed.
+  const completed = await acrossRoundsRefusal(eventId, { kind: "day" });
+  if (completed) return { dated: 0, error: completed };
   const stages = await prisma.stage.findMany({
     where: { eventId },
     orderBy: { position: "asc" },
@@ -1911,9 +2330,12 @@ export async function dateUndatedRounds(
   return { dated: plan.length, first };
 }
 
-export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
-  const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+export async function setStageCarry(stageId: string, enabled: boolean, pct: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  const locked = await refuseIfLocked(eventId, "rounds", "change the points carried forward");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: {
@@ -1926,11 +2348,13 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
     },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function setStageCut(stageId: string, enabled: boolean, mode: string, count: number, percent: number) {
+export async function setStageCut(stageId: string, enabled: boolean, mode: string, count: number, percent: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the cut");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: {
@@ -1940,7 +2364,12 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
       cutPercent: Math.min(100, Math.max(1, Math.round(percent))),
     },
   });
+  // A cut set on a round whose round before is ALREADY closed (a committee
+  // correction after Round 1): closing is what makes a cut, and that press is
+  // in the past, so it is made now or never (`applyCutOwedInto`).
+  if (enabled) await applyCutOwedInto(eventId, stageId);
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -1955,9 +2384,10 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
  *
  * Same guard and same shape as `setStageFormat`, for the same reason.
  */
-export async function setStageScoringBasis(stageId: string, basis: string, force = false) {
-  const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+export async function setStageScoringBasis(stageId: string, basis: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; says?: string; error?: string; lock?: ScopeLock }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const current = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
     select: { scoringBasis: true, format: true },
@@ -1966,19 +2396,24 @@ export async function setStageScoringBasis(stageId: string, basis: string, force
   // asking for gross on one gets net, because this is a public endpoint and the
   // picker no longer offers it.
   const value = basisFor(current?.format, basis);
-  // No "this re-scores N cards" on a Stableford round: its points were always
-  // worked out off handicap, so moving a stored "gross" to net changes nothing.
-  if (!force && !isStablefordFormat(current?.format)) {
-    // Only when it actually changes — see `setStageHoles`.
-    if (current && current.scoringBasis !== value) {
-      const cards = await enteredCardCount(eventId, stageId);
-      if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
-    }
-  }
+  /**
+   * THE ROUNDS RULE (J12, PR 7b), with the allowance: gross or net is how the
+   * handicaps are applied to the same holed-out strokes. Open until the round
+   * has scores, then asked and — once confirmed — logged; refused once
+   * completed, or on a round whose matches are recorded. No question on a
+   * Stableford round: its points were always worked out off handicap, so moving
+   * a stored "gross" to net changes nothing. Only when it actually changes —
+   * see `setStageHoles`.
+   */
+  const changed = !!current && current.scoringBasis !== value && !isStablefordFormat(current.format);
+  const term = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed, force });
+  if ("refused" in term) return term.refused;
+  if ("asked" in term) return term.asked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { scoringBasis: value },
   });
+  await afterTermChange(eventId, term.go, `${await roundWordsFor(eventId, stageId)}: scored on ${current?.scoringBasis || "net"} → ${value}`);
   await refresh();
   return { ok: true as const };
 }
@@ -1997,16 +2432,19 @@ export async function setStageScoringBasis(stageId: string, basis: string, force
  * public HTTP endpoint that will be called with whatever the caller likes, and
  * "final result only" on a Stableford round would be a shape no engine reads.
  */
-export async function setStageScoreInput(stageId: string, input: string) {
-  const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+export async function setStageScoreInput(stageId: string, input: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  const locked = await refuseIfLocked(eventId, "rounds", "change how scores are entered");
+  if (locked) return locked;
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
     // The basis as well as the format: whether a two-ball side may record
     // one score depends on whether the round is won on gross or on net.
     select: { format: true, scoringBasis: true },
   });
-  if (!stage) return;
+  if (!stage) return { ok: false, error: "Round not found." };
   const wanted = (input ?? "").trim();
   /**
    * "" always means "no opinion" and is always allowed; anything else must be
@@ -2027,6 +2465,7 @@ export async function setStageScoreInput(stageId: string, input: string) {
       : "";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { scoreInput: value } });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -2043,8 +2482,11 @@ export async function setStageScoreInput(stageId: string, input: string) {
  * any match in the round holds a hole or a card.
  */
 export async function setStageMatchKeptBy(stageId: string, kept: string): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  const locked = await refuseIfLocked(eventId, "rounds", "change who keeps the match card");
+  if (locked) return locked;
   const stage = await prisma.stage.findFirst({
     where: { id: String(stageId), eventId },
     select: { id: true, type: true, format: true, scoreInput: true, matchKeptBy: true },
@@ -2069,6 +2511,63 @@ export async function setStageMatchKeptBy(stageId: string, kept: string): Promis
   return { ok: true };
 }
 
+/**
+ * WHO KEEPS THE ROUND'S CARD, AND WHO CHECKS IT (2026-11-04, sprint 2 part B)
+ * — "Who enters scores" and "End-of-round check" on the round's card.
+ *
+ * Staff only. NOT behind the setup lock, unlike the round's format and
+ * scoring: this changes who may PRESS, never what a score means, and the
+ * committee needs it most once the round is under way — a group whose
+ * scorer's phone has died is rescued by switching the round to each player or
+ * to the organizer. Either field may be sent alone; what is sent must be one
+ * of the values `roundScoring` reads, or it is refused in words rather than
+ * stored to be read back as the default.
+ *
+ * AND NOT A LATE SWITCH TO ONE SCORER PER GROUP. Once two different players
+ * have entered scores on the round, each of them is keeping their own — and
+ * the first save after the switch would hand the group's card to whichever of
+ * them pressed first, locking the other out mid-round. Switching AWAY from one
+ * scorer (to each player, or to the organizer) is always allowed: it is how a
+ * committee rescues a group whose scorer's phone has died.
+ */
+export async function setStageScoring(
+  stageId: string,
+  input: { scoreKeeping?: string; endCheck?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  const stage = await prisma.stage.findFirst({
+    where: { id: String(stageId), eventId },
+    select: { id: true, scoreKeeping: true, endCheck: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+  const keeping = input?.scoreKeeping === undefined ? undefined : String(input.scoreKeeping).trim();
+  const check = input?.endCheck === undefined ? undefined : String(input.endCheck).trim();
+  if (keeping !== undefined && !isScoreKeeping(keeping)) {
+    return { ok: false, error: "Choose one scorer per group, each player, or the organizer." };
+  }
+  if (check !== undefined && !isEndCheck(check)) return { ok: false, error: "Turn the end-of-round check on or off." };
+  const now = roundScoring(stage);
+  if (keeping === "group" && now.scoreKeeping !== "group" && (await playersWhoEntered(eventId, stage.id)) >= 2) {
+    return {
+      ok: false,
+      error:
+        "Players have already entered their own scores on this round, so it stays that way. Choose one scorer per group before anyone scores.",
+    };
+  }
+  const data = { ...(keeping !== undefined ? { scoreKeeping: keeping } : {}), ...(check !== undefined ? { endCheck: check } : {}) };
+  if (Object.keys(data).length === 0) return { ok: true };
+  await prisma.stage.updateMany({ where: { id: stage.id, eventId }, data });
+  await logAudit(
+    eventId,
+    "round.scoring",
+    `${await roundWordsFor(eventId, stage.id)}: ${[keeping ? `who enters scores ${keeping}` : "", check ? `end-of-round check ${check}` : ""].filter(Boolean).join(", ")}`,
+  );
+  await refresh();
+  return { ok: true };
+}
+
 /** Whether any match in this round holds a hole, a result or a card. */
 async function roundHoldsAScore(stageId: string): Promise<boolean> {
   const [matches, teamCards, matchCards] = await Promise.all([
@@ -2087,9 +2586,21 @@ async function roundHoldsAScore(stageId: string): Promise<boolean> {
   });
 }
 
-export async function setStageFormat(stageId: string, format: string, force = false) {
-  const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+/**
+ * A ROUND'S FORMAT, judged by the rounds rule (J12, PR 7b;
+ * `domain/round-change.ts`): open before the round has scores — with the
+ * re-draw said where the new format draws differently — and REFUSED once it
+ * has them, both ways (Golf Pro, Q5: a Stableford card may hold a hole with no
+ * score, which in stroke play is a disqualification; and stroke to Stableford
+ * changes the Terms after play). The way out is to clear the round's scores.
+ * `force` is kept for the callers that still send it; there is nothing left to
+ * confirm. Staff, as every round setting is.
+ */
+export async function setStageFormat(stageId: string, format: string, force = false): Promise<{ ok: boolean; error?: string; said?: string; needsConfirm?: boolean; cards?: number }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  void force;
   /**
    * Changing a format re-scores every card in the round.
    *
@@ -2111,10 +2622,9 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   if (shape && shape.format !== format && !formatFitsRound(shape.type, format)) {
     return { ok: false as const, error: roundShapeMismatch(shape.type, format)?.message ?? "That format cannot be played in this kind of round." };
   }
-  if (!force) {
-    const cards = await enteredCardCount(eventId, stageId);
-    if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
-  }
+  const judged = await roundVerdictFor(eventId, stageId, { kind: "format", to: format });
+  if (!judged) return { ok: false as const, error: "That round isn’t in this tournament." };
+  if (!judged.verdict.ok) return { ok: false as const, error: judged.verdict.says };
   const value = format;
   // A round becoming Stableford becomes net with it — `basisFor`. Its current
   // basis is kept for every other format.
@@ -2135,8 +2645,13 @@ export async function setStageFormat(stageId: string, format: string, force = fa
     },
   });
   await followFlightDefault(eventId, flightsBefore);
+  // The re-draw, said where the press was: what the new format needs drawn.
+  const said = judged.verdict.warn === "redraw" ? redrawWords(judged.round.label, filesMatches({ type: judged.round.type, format: value })) : undefined;
+  if (judged.verdict.step !== "before-draw" && before && before.format !== value) {
+    await logAudit(eventId, "round.format", `${await roundWordsFor(eventId, stageId)}: format ${before.format} → ${value}`);
+  }
   await refresh();
-  return { ok: true as const };
+  return { ok: true as const, ...(said ? { said } : {}) };
 }
 
 /**
@@ -2157,22 +2672,27 @@ export async function setStageFormat(stageId: string, format: string, force = fa
  * See `enteredCardCount`, whose own header calls that out and names this as
  * the kind of thing that must ask first.
  */
-export async function setStageHoles(stageId: string, holes: number, force = false) {
-  const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+export async function setStageHoles(stageId: string, holes: number, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; error?: string; lock?: ScopeLock }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  void force;
   const value = holesPlayed(holes);
-  if (!force) {
-    const current = await prisma.stage.findFirst({
-      where: { id: stageId, eventId },
-      select: { holes: true },
-    });
-    // Only when it actually CHANGES. Re-saving the same number re-scores
-    // nothing, and a confirmation on a no-op teaches an organizer to click
-    // through the one that matters.
-    if (current && holesPlayed(current.holes) !== value) {
-      const cards = await enteredCardCount(eventId, stageId);
-      if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
-    }
+  const current = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { holes: true },
+  });
+  if (!current) return { ok: false as const, error: "That round isn’t in this tournament." };
+  /**
+   * FORMAT-LIKE, ASKED OF THE ROUNDS RULE (J12, PR 7b; the coordinator's
+   * ruling of 8 Nov): open until the round has scores, REFUSED once it has
+   * them — no confirm and no force, the cards would mean something else — and
+   * refused once completed. Only when it actually CHANGES: re-saving the same
+   * number re-scores nothing. Not the setup lock: launch changes no round's length.
+   */
+  if (holesPlayed(current.holes) !== value) {
+    const refused = await roundRefusal(eventId, stageId, { kind: "holes" });
+    if (refused) return { ok: false as const, error: refused };
   }
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
@@ -2333,9 +2853,10 @@ export async function applyRoundHandicapToRest(
 
 /* ── Tiebreakers & qualification ──────────────────────────────────────── */
 
-export async function saveTiebreakers(order: string[]) {
+export async function saveTiebreakers(order: string[]): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the tie-breakers");
+  if (locked) return locked;
   // isTiebreakerKey rather than a membership test against a fixed list: the
   // countbacks are `toughest-N` for any N a committee names, and it bounds N
   // to the holes on a card. De-duplicated because the same tiebreaker twice
@@ -2351,11 +2872,13 @@ export async function saveTiebreakers(order: string[]) {
     data: { tiebreakers: JSON.stringify(valid) },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function setQualifyMode(mode: string, overall: number) {
+export async function setQualifyMode(mode: string, overall: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change who qualifies");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -2364,6 +2887,7 @@ export async function setQualifyMode(mode: string, overall: number) {
     },
   });
   await refresh();
+  return { ok: true };
 }
 
 /* Stage types live in src/lib/stage-types.ts, shared with the picker. Two
@@ -2402,12 +2926,19 @@ export interface AddStageOptions {
 export async function addStage(
   type: string,
   countOrOpts: number | AddStageOptions = 1,
-): Promise<{ id?: string; error?: string }> {
-  const eventId = await requireStaffEvent();
-  // Not behind the lock: a live league adds next week's round as it goes, and
-  // a championship adds a play-off round when the field finishes level. Adding
-  // is additive — the rounds already played are untouched (2026-09-27).
+): Promise<{ id?: string; error?: string; lock?: ScopeLock }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { error: gate.refused };
+  const { eventId } = gate;
+  // Not behind the launch lock: a live league adds next week's round as it goes,
+  // and a championship adds a play-off round when the field finishes level.
+  // Adding is additive — the rounds already played are untouched (2026-09-27).
   // Deleting a round (`removeStage`) and changing one's format stay locked.
+  // REFUSED ONLY ONCE COMPLETED (TD ruling on PR 5a, Q2), by the one rule the
+  // described tournament (`applySetupProposal`) asks too — this refused nothing
+  // at all before PR 5b, not even a completed tournament. Returned, never thrown.
+  const locked = await refuseIfAddingARoundIsLocked(eventId);
+  if (locked) return { error: locked.error, lock: locked.lock };
   // Refused, not read as a round robin: an unknown kind of round used to add a
   // full set of pairings for whatever the caller had actually meant.
   if (!isStageType(type)) return { error: "That is not a kind of round." };
@@ -2536,13 +3067,29 @@ export async function addStage(
   // Created one at a time rather than with createMany so the first round's id
   // can be returned — the screen scrolls to and opens the round it just made,
   // and losing that would make adding a round feel like nothing happened.
+  // A STAND-IN STAYS OUT OF A WEEK ADDED LATER: where the league asks each week, every player carrying the mark
+  // of a stand-in made by Replace (`STAND_IN_MARK`) is written OUT on each new round, in the same transaction.
+  const evFull = await prisma.event.findUnique({ where: { id: eventId } });
+  const asksWeekly = !!evFull && tracksPerRound(settingsOf(evFull).attendanceMode as AttendanceMode);
+  const standIns = asksWeekly
+    ? [...new Set((await prisma.roundAttendance.findMany({ where: { eventId, decidedBy: { contains: STAND_IN_MARK } }, select: { playerId: true } })).map((r) => r.playerId))]
+    : [];
   let firstId: string | undefined;
-  for (let i = 0; i < howMany; i += 1) {
-    const created = await prisma.stage.create({
-      data: { ...common, scoringBasis, position: position + i, playedOn: dates[i] ?? "" },
-    });
-    if (i === 0) firstId = created.id;
-  }
+  await prisma.$transaction(async (tx) => {
+    for (let i = 0; i < howMany; i += 1) {
+      const created = await tx.stage.create({
+        // Who keeps the card and who checks it, for a new round (`scoringDefaults`).
+        data: { ...common, scoringBasis, position: position + i, playedOn: dates[i] ?? "", ...scoringDefaults(ev?.shape) },
+      });
+      if (i === 0) firstId = created.id;
+      if (standIns.length > 0) {
+        await tx.roundAttendance.createMany({
+          data: standIns.map((playerId) => ({ eventId, stageId: created.id, playerId, status: "out", decidedBy: `Desk ${STAND_IN_MARK}an earlier week only)` })),
+          skipDuplicates: true,
+        });
+      }
+    }
+  });
   // A medal's field divides by handicap unless somebody has chosen otherwise.
   await followFlightDefault(eventId, flightsBefore);
 
@@ -2604,9 +3151,23 @@ export async function addStage(
   return { id: firstId };
 }
 
-export async function removeStage(stageId: string, force = false) {
-  const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+export async function removeStage(stageId: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; stakes?: number; records?: number; drawn?: string; refused?: string; error?: string; lock?: ScopeLock }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
+  /**
+   * THE ROUNDS RULE (J12, PR 7b; `domain/round-change.ts`): a round with no
+   * draw goes on one press; one whose pairings or tee sheet are made is asked
+   * first ("Round 2's pairings go with it"); one with SCORES is refused, with
+   * the way out — clear them on Score entry — since deleting it would delete
+   * what was played; and nothing is deleted once the tournament is completed.
+   * Not the setup lock: launch invalidates no round that has not been drawn.
+   */
+  const judged = await roundVerdictFor(eventId, stageId, { kind: "delete" });
+  // A round already gone (another tab) deletes nothing and says nothing, as before.
+  if (!judged) return { ok: true as const };
+  if (!judged.verdict.ok) return { ok: false as const, needsConfirm: false as const, refused: judged.verdict.says };
+  const drawn = judged.verdict.warn === "goes-with-it" ? goesWithItWords(judged.round) : undefined;
 
   /**
    * Deleting a round deletes everything played in it.
@@ -2620,18 +3181,53 @@ export async function removeStage(stageId: string, force = false) {
    * 7 says this app records money rather than moving it, which makes the record
    * the only thing there is — losing it silently is losing the money.
    */
-  if (!force) {
-    const [cards, stakes] = await Promise.all([
-      enteredCardCount(eventId, stageId),
-      prisma.skinsEntry.count({ where: { pot: { stageId }, confirmed: true } }),
-    ]);
-    if (cards > 0 || stakes > 0) {
-      return { ok: false as const, needsConfirm: true as const, cards, stakes };
-    }
+  // `records`: the expenses, funds, contests and side games tied to this round,
+  // which the purge also removes, so the warning says so.
+  const tied = { eventId, stageId };
+  const [cards, stakes, ...kinds] = await Promise.all([
+    enteredCardCount(eventId, stageId),
+    prisma.skinsEntry.count({ where: { pot: { eventId, stageId }, confirmed: true } }),
+    prisma.expense.count({ where: tied }),
+    prisma.tournamentFund.count({ where: tied }),
+    prisma.contest.count({ where: tied }),
+    prisma.sideGame.count({ where: tied }),
+  ]);
+  const records = kinds.reduce((a, b) => a + b, 0);
+  /**
+   * The purge destroys money records, which an Assistant Organizer may not do
+   * (the Organizer and the club's Commissioner may), whether or not the
+   * confirmation was shown: `force` is a public argument.
+   */
+  if ((stakes > 0 || records > 0) && (await getSession())?.role === "assistant") {
+    return {
+      ok: false as const,
+      needsConfirm: false as const,
+      refused: "Ask the Organizer to delete this round — it holds money records.",
+    };
+  }
+  if (!force && (cards > 0 || stakes > 0 || records > 0 || drawn)) {
+    return { ok: false as const, needsConfirm: true as const, cards, stakes, records, ...(drawn ? { drawn } : {}) };
   }
 
+  // The id is this tournament's own round, or nothing is deleted.
+  const owned = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, position: true } });
+  if (!owned) return { ok: true as const };
+
   const flightsBefore = await flightDefaultFor(eventId);
-  await prisma.stage.deleteMany({ where: { id: stageId, eventId } });
+  /**
+   * A PURGE (Ajay, 2026-11-07): the round and everything tied to it go in one
+   * transaction, including the rows with a `stageId` and no foreign key
+   * (cards, handicaps, expenses ...), which used to stay behind and be counted
+   * by `enteredCardCount(eventId)` (`services/purge.ts`). The audit line names
+   * the round and the person, never a player.
+   */
+  const words = await roundWordsFor(eventId, stageId);
+  if (await purgeRound(eventId, stageId)) {
+    await logAudit(eventId, "Round deleted", words);
+    // A cut that followed this round now follows the round before it; if that
+    // round is already closed, nothing else would ever make it (G3).
+    await applyCutLeftOwing(eventId, owned.position);
+  }
   await followFlightDefault(eventId, flightsBefore);
   await refresh();
   return { ok: true as const };
@@ -2640,7 +3236,11 @@ export async function removeStage(stageId: string, force = false) {
 /* ── Match score entry ────────────────────────────────────────────────── */
 
 
-export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
+export async function saveMatchHoles(
+  matchId: string,
+  holes: HoleResult[],
+  startedFrom?: HoleResult[][],
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const { eventId, session, settings } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, matchId);
   // A card of THIS round's length, as the round-code screen's path cleans it
@@ -2648,13 +3248,70 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   // by `resolveMatch(list).complete`: an empty list was a finished match, and
   // ["A"] an eighteen-hole match won 1 up
   // (`a-match-result-is-a-card-of-its-length.audit.test.ts`).
-  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stageId: true, stage: { select: { holes: true } } } });
+  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { holes: true, scoreStatus: true, stageId: true, stage: { select: { holes: true } } } });
   if (!owner) throw new Error("Match not found.");
   // Not on a round kept on stroke cards: the next card would rebuild over it.
   const keptOnCards = await keptByRefusal(owner.stageId, "holes");
   if (keptOnCards) throw new Error(keptOnCards);
-  const clean = cleanHoleResults(holes, holesPlayed(owner.stage?.holes));
+  const roundHoles = holesPlayed(owner.stage?.holes);
+  const clean = cleanHoleResults(holes, roundHoles);
   if (!clean) throw new Error("Each hole is won by one side or halved. Check the card and save again.");
+  /**
+   * A SAVE BASED ON AN OLDER CARD DOES NOT UNDO A NEWER ONE (2026-11-09).
+   *
+   * Round G571-4, WebKit as an iPhone: Score entry saved hole 1, the page was
+   * reloaded, the committee corrected the match to 5&4 and pressed "Confirm
+   * result" — and then the hole-1 save arrived AGAIN, byte for byte, posted
+   * under the reloaded page's address. Being a whole card it wrote the match
+   * back to one hole played and "pending": the sign-off and the correction
+   * gone, and nobody told.
+   *
+   * So the console says which cards it may have STARTED FROM — the last one
+   * the server acknowledged, every one sent since whose outcome it does not
+   * know (no signal, or a reply lost), and the card just before this tap —
+   * and the stroke card's conflict rule decides (`overwritesUnseenFromAll`,
+   * content revisions at the round's length). A scorer whose tap failed
+   * taps on and the next save carries the whole card; a run of taps at a
+   * scorer's pace all land; a replay, or a screen that loaded before
+   * somebody else's change, names no card the server holds and is refused
+   * in words. Absent `startedFrom` (the tap card `MatchKeeper` every phone and
+   * the cup's Score entry keep, a test, a page loaded before this shipped) is
+   * the old write — except over a signed-off result (below).
+   */
+  let storedRaw: unknown = [];
+  try {
+    storedRaw = JSON.parse(owner.holes);
+  } catch {
+    storedRaw = [];
+  }
+  const stored = cardRevision(cleanHoleResults(storedRaw, roundHoles) ?? []);
+  const sent = cardRevision(clean);
+  if (startedFrom !== undefined) {
+    // Validated at the boundary: one to MAX_STARTING_CARDS cards, each of the round's length.
+    const from = cleanStartingCards(startedFrom, roundHoles, MAX_STARTING_CARDS);
+    if (!from || overwritesUnseenFromAll(from.map(cardRevision), stored, sent)) {
+      return { ok: false, error: MATCH_CHANGED_ELSEWHERE };
+    }
+    // The card arriving IS the card stored: nothing to write, and nothing to
+    // send back through approval — a replay must not undo a sign-off either.
+    if (sent === stored) return { ok: true };
+  } else {
+    /**
+     * A SAVE THAT DOES NOT SAY WHAT IT STARTED FROM DOES NOT UNDO A SIGN-OFF
+     * (2026-11-09). The tap card (`MatchKeeper`, through `keepMyMatchHoles`)
+     * sends the card alone — and it was THAT card's save, left on the phone
+     * because the page was left before its answer came back, that the reloaded
+     * page sent again after the committee confirmed a corrected 5&4
+     * (`match-kept-by.spec.ts`, `stale-match-save.spec.ts`; the console's own
+     * tap card above was never the sender). Nothing says what such a sender
+     * saw, so it may not change a signed-off result; the same card twice is
+     * taken without a write (`unanchoredMatchSave`). Thrown, because the tap
+     * card's door turns a throw into its refusal in words.
+     */
+    const verdict = unanchoredMatchSave(owner.scoreStatus, stored, sent);
+    if (verdict === "refuse") throw new Error(SIGNED_OFF_MATCH_REFUSAL);
+    if (verdict === "same") return { ok: true };
+  }
   const complete = matchIsOver(clean);
   // Where the organizer wants finished cards only, a player can't dribble
   // holes onto the leaderboard as they play. Staff are never restricted this
@@ -2664,8 +3321,12 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   }
   // Any score edit resets confirmation to pending — including an organizer's,
   // so a correction always goes back through approval.
-  await prisma.match.updateMany({
-    where: { id: matchId, eventId },
+  const written = await prisma.match.updateMany({
+    // A conditional save writes over the card it compared, or over nothing:
+    // a change landing between that read and this write is not overwritten.
+    // One that names no starting card is not written over a sign-off that
+    // landed after its read.
+    where: { id: matchId, eventId, ...(startedFrom !== undefined ? { holes: owner.holes } : { scoreStatus: { not: "confirmed" } }) },
     data: {
       holes: JSON.stringify(clean),
       // A real result supersedes a forfeit. Without this, an organizer who
@@ -2676,9 +3337,19 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,
+      // Who wrote it, and a clean slate of signatures — as `applyMatchResult`
+      // and the round-code saves record them (2026-11-04): the end-of-round
+      // check refuses the author, and a signature of an older scoreline is
+      // not a signature of this one.
+      enteredBy: session.name,
+      enteredById: await authorPlayerId(eventId, session),
+      attestedBy: "[]",
     },
   });
+  if (written.count === 0 && startedFrom !== undefined) return { ok: false, error: MATCH_CHANGED_ELSEWHERE };
+  if (written.count === 0) throw new Error(SIGNED_OFF_MATCH_REFUSAL);
   await refresh();
+  return { ok: true };
 }
 
 /** Existing hole count for a match, from its stored holes array (18 or 9 depending on the round). */
@@ -3122,7 +3793,7 @@ export async function saveScorecard(
   }
   // The cache belongs to the caller: this action serves the console, and the
   // play surface revalidates something else entirely.
-  if (result.ok) await refresh();
+  if (result.ok) await refresh(eventId);
   return result;
 }
 
@@ -3394,7 +4065,7 @@ export async function saveTeamScorecard(
   // Team match play: recompute the match from both sides' cards, so the same
   // resolveMatch that decides singles decides this too.
   if (match) {
-    await recomputeTeamMatch(eventId, match, stage.format, holesPlayed(stage.holes));
+    await recomputeTeamMatch(eventId, match, stage.format, holesPlayed(stage.holes), { name: session.name, playerId: await authorPlayerId(eventId, session) });
   }
 
   await refresh();
@@ -3548,6 +4219,8 @@ export async function confirmMatch(matchId: string): Promise<ConfirmResult> {
       match,
       me!.id,
       ruleFrom(settings.attestBy),
+      // Players approve here (staff approval returned above).
+      "confirm",
     );
     if (!outcome.ok) return { ok: false, error: outcome.error };
 
@@ -3743,33 +4416,31 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
   // (`tieNotReady` — the same rule a player's report is held to).
   const notReady = existing?.winnerId === winnerId ? null : tieNotReady(tie.match);
   if (notReady) return { ok: false, error: notReady };
+  // A result its winner has played on from is not changed or taken back here:
+  // the later result would leave the draw without a word (cut 3, 2026-11-14).
+  // The one rule, asked by Undo on Score entry too (`undoTieResult`).
+  const { clearTieResult, resultHeldBecause, syncThirdPlace, tieRoundWords } = await import("@/lib/services/knockout-result");
+  const held = existing ? resultHeldBecause(state!, key) : null;
+  if (held) return { ok: false, error: held.said };
 
+  // Every press on the draw is on the record: who (the actor), when, and from what to what.
+  const round = tieRoundWords(state!, key);
+  const was = existing ? `${resultLine(round, { ...tie.match, winnerId: existing.winnerId })}${marginWords(existing.result)}` : "";
   if (existing?.winnerId === winnerId) {
-    // Toggle off if the same slot is clicked again.
-    await prisma.bracketWinner.delete({ where: { id: existing.id } });
-    /**
-     * Clearing the last result re-opens the draw.
-     *
-     * Without this a frozen draw would be a one-way door: an organizer who
-     * recorded a result by mistake, undid it, and then fixed the qualifying
-     * scores would be stuck with a bracket seeded from the wrong standings and
-     * no way in the UI to say so. A bracket with no results has not started,
-     * so there is no draw to protect.
-     */
-    const remaining = await prisma.bracketWinner.count({ where: { eventId } });
-    if (remaining === 0) {
-      // A FLAT draw is what the first result wrote down, and is what this
-      // re-opens. A division into flights was made by the organizer before any
-      // result and is not a by-product of one: clearing the last result leaves
-      // it exactly as they arranged it.
-      const kept = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketDraw: true } });
-      if (!parseFlightPlan(kept?.bracketDraw)) {
-        await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
-      }
-    }
+    // Toggle off if the same slot is clicked again: the one delete, which
+    // re-opens a draw left with no results (`clearTieResult`).
+    await clearTieResult(eventId, key);
+    await logAudit(eventId, "knockout.undo", `${was}: taken back on the draw`);
   } else {
-    await recordBracketWinner(eventId, key, winnerId);
+    // A CHANGED winner does not inherit the margin: "3&2" was the other player's,
+    // and "B beat A 3&2" would be a false result (review of #1143). Recorded
+    // afresh it has none until the committee types one.
+    await recordBracketWinner(eventId, key, winnerId, existing ? "" : undefined);
+    const now = resultLine(round, { ...tie.match, winnerId });
+    await logAudit(eventId, "knockout.result", existing ? `${now}, changed on the draw (was: ${was})` : `${now}, recorded on the draw (it had no result)`);
   }
+  // A play-off for third not yet played follows the semi-finals it is made from.
+  if (existing) await syncThirdPlace(eventId);
   // Whatever a player reported for this tie, staff have now answered it
   // themselves — a report left behind would ask them the same question again.
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
@@ -3825,10 +4496,21 @@ async function recordBracketWinner(eventId: string, key: string, winnerId: strin
 
 export async function setBracketResult(key: string, result: string) {
   const eventId = await requireStaffEvent();
-  await prisma.bracketWinner.updateMany({
+  const before = await prisma.bracketWinner.findFirst({ where: { eventId, key }, select: { result: true } });
+  const now = cleanMargin(result);
+  const moved = await prisma.bracketWinner.updateMany({
     where: { eventId, key },
-    data: { result: cleanMargin(result) },
+    data: { result: now },
   });
+  // A margin is part of the result, so changing it is on the record too (review of
+  // #1143, F2): who, when, and from what to what. Nothing changed, nothing written.
+  if (moved.count > 0 && before && before.result !== now) {
+    const { tieRoundWords } = await import("@/lib/services/knockout-result");
+    const state = await loadEventState(eventId);
+    const round = (state && tieRoundWords(state, key)) || "A knockout tie";
+    // Worded "was … now …": the sweeps that read source take `from "…"` for an import.
+    await logAudit(eventId, "knockout.margin", `${round}: the result's margin was ${before.result || "none"}, now ${now || "none"}, changed on the draw`);
+  }
   await refresh();
 }
 
@@ -3877,9 +4559,13 @@ export async function recordTieResult(input: {
   await recordBracketWinner(eventId, key, winnerId, result);
   // A player's report of the same tie has been answered.
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
-  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const { drawRoundWords } = await import("@/lib/domain/knockout-ties");
+  const round = drawRoundWords(tie.draw, tie.round);
   const said = `${resultLine(round, { a: m.a, b: m.b, winnerId })}${marginWords(result)}`;
-  await logAudit(eventId, "knockout.result", `${said}, recorded from To play`);
+  // Said as what happened, from what to what: the screen that pressed it is not
+  // known here (To play on the Bracket, or Score entry's list), and it is only
+  // ever recorded on a tie with no result (refused above otherwise).
+  await logAudit(eventId, "knockout.result", `${said}, recorded (it had no result)`);
   await refresh();
   return { ok: true, said };
 }
@@ -3925,7 +4611,7 @@ export async function reportBracketResult(
   }
 
   // A draw nobody has launched is not being played yet — the same rule as a card.
-  const notStarted = await playRefusalFor(eventId);
+  const notStarted = await playRefusedBecause(eventId);
   if (notStarted) return { ok: false, error: notStarted };
   // Nor one paused in a lapsed club's archive.
   const archived = await archiveRefusalFor(eventId, "player");
@@ -4125,8 +4811,20 @@ export async function switchEvent(eventId: string) {
  *     hand this year's tournament last year's public link.
  *   - Round Codes. They are credentials; a new tournament gets new ones, and
  *     only if it turns code access on.
+ *
+ * "COPY LAST EVENT" (the secretary's home, 2026-10-24) adds the DAY: given a
+ * first day (and a last), the copy is dated from it — its entry window and its
+ * rounds keep their distance from the first day, worked out by
+ * `copiedCalendar` against the club's own today — and its side games come with
+ * it as games, with nobody in them. Without a day it starts undated, as it
+ * always has, so the two older doors (Tournaments, the first-tournament form)
+ * are unchanged.
  */
-export async function cloneEvent(sourceEventId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+export async function cloneEvent(
+  sourceEventId: string,
+  name: string,
+  when?: { startOn?: unknown; endOn?: unknown },
+): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
@@ -4144,9 +4842,50 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
 
   const source = await prisma.event.findUnique({
     where: { id: sourceEventId },
-    include: { stages: { orderBy: { position: "asc" } }, courses: true },
+    include: {
+      stages: { orderBy: { position: "asc" } },
+      courses: true,
+      // The games, as games — see `CLONED_CONTEST_FIELDS`. A fourball's own
+      // pot or game names a group of a tee sheet the copy does not have.
+      contests: true,
+      sideGames: { where: { groupKey: "" } },
+      skinsPots: { where: { groupKey: "" } },
+      organization: { select: { timeZone: true, locale: true } },
+    },
   });
   if (!source) return { ok: false, error: "Tournament not found." };
+
+  /**
+   * AND THE CLUB'S ROLE, because a copy is made in the CLUB's name
+   * (2026-10-24). Organizer of the source is not enough on its own: a Guest of
+   * the club made organizer of one tournament would otherwise mint new
+   * tournaments for a club that has only lent them one — the S1 leak
+   * `org-access.ts` describes, one door along. `canEdit`: the club's
+   * Commissioner or an Admin, or an ownerless club's organizer.
+   */
+  const club = await organizationAccessFor(session.email, source.organizationId, access.role);
+  if (!club.canEdit) {
+    return { ok: false, error: "Only the club's Commissioner or an Admin can copy its tournaments." };
+  }
+
+  /**
+   * THE COPY'S DAYS, from the day the secretary picked and the club's own
+   * today — never the server's (`copiedCalendar`). A day already gone at the
+   * club is refused in words before anything is made.
+   */
+  const calendar = copiedCalendar({
+    source: {
+      startOn: source.startOn,
+      endOn: source.endOn,
+      regDeadline: source.regDeadline,
+      regOpens: source.regOpens,
+      rounds: source.stages.map((s) => ({ id: s.id, playedOn: s.playedOn })),
+    },
+    startOn: typeof when?.startOn === "string" ? when.startOn : "",
+    endOn: typeof when?.endOn === "string" ? when.endOn : "",
+    today: clubToday(source.organization?.timeZone),
+  });
+  if (!calendar.ok) return { ok: false, error: calendar.error };
 
   // A copy is a new tournament and counts like one.
   const refusal = await refusalFor(source.organizationId, "activeEvents");
@@ -4208,9 +4947,16 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
         fieldCap === null ? carried.manualPlayerCount : Math.min(carried.manualPlayerCount, fieldCap),
       name: clean,
       // Dates and the registration deadline are the two things that are always
-      // wrong on a copy, so they start empty rather than pointing at last year.
-      dates: "",
-      regDeadline: "",
+      // wrong on a copy, so they never point at last year: they are the day the
+      // secretary picked, and the entry window kept at its distance from it —
+      // or empty, when no day was given (`copiedCalendar`).
+      startOn: calendar.startOn,
+      endOn: calendar.endOn,
+      dates: calendar.startOn
+        ? formatDayRange(calendar.startOn, calendar.endOn, resolveLocale(source.organization, source))
+        : "",
+      regDeadline: calendar.regDeadline,
+      regOpens: calendar.regOpens,
       status: "draft",
       // A fresh token: unique index aside, the copy must not inherit the
       // original's public link.
@@ -4245,6 +4991,8 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
         scoringBasis: basisFor(s.format, s.scoringBasis),
         // Always in the past on a copy.
         deadline: "",
+        // The round's day from the copy's first day — see `copiedCalendar`.
+        playedOn: calendar.playedOn[s.id] ?? "",
         /**
          * Written in the second pass below, once every round exists and has an
          * id to point at.
@@ -4270,6 +5018,40 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
     if (!rule) continue;
     await prisma.stage.update({ where: { id: newStageId.get(s.id)! }, data: { singleMatchRule: rule } });
   }
+
+  /**
+   * THE SIDE GAMES, AS GAMES (2026-10-24). Each from its declared policy, on
+   * the copy's own round, with nobody in it: who entered, who paid and who won
+   * belong to last year's day (`clone.ts`). A game whose round is not one the
+   * copy has — a stray id — stays behind rather than pointing anywhere.
+   */
+  const by = session.name || session.email;
+  for (const c of source.contests) {
+    const stageId = c.stageId ? newStageId.get(c.stageId) : "";
+    if (stageId === undefined) continue;
+    const game = Object.fromEntries(CLONED_CONTEST_FIELDS.map((f) => [f, c[f]])) as Pick<typeof c, (typeof CLONED_CONTEST_FIELDS)[number]>;
+    await prisma.contest.create({ data: { ...game, eventId: created.id, stageId, createdBy: by } });
+  }
+  for (const g of source.sideGames) {
+    const stageId = newStageId.get(g.stageId);
+    if (!stageId) continue;
+    const game = Object.fromEntries(CLONED_SIDE_GAME_FIELDS.map((f) => [f, g[f]])) as Pick<typeof g, (typeof CLONED_SIDE_GAME_FIELDS)[number]>;
+    await prisma.sideGame.create({ data: { ...game, eventId: created.id, stageId, groupKey: "", createdBy: by } });
+  }
+  for (const p of source.skinsPots) {
+    const stageId = newStageId.get(p.stageId);
+    if (!stageId) continue;
+    const pot = Object.fromEntries(CLONED_SKINS_POT_FIELDS.map((f) => [f, p[f]])) as Pick<typeof p, (typeof CLONED_SKINS_POT_FIELDS)[number]>;
+    await prisma.skinsPot.create({ data: { ...pot, eventId: created.id, stageId, groupKey: "" } });
+  }
+  // A name against the games' stakes, as every money write has (`money-leaves-a-trail`).
+  const games = source.contests.length + source.sideGames.length + source.skinsPots.length;
+  await logAudit(
+    created.id,
+    "copy-tournament",
+    `${by} copied this tournament from ${source.name.trim() || "another tournament"}` +
+      (games > 0 ? `, with its side games and nobody entered in them` : ""),
+  );
 
   // The creator is the organizer of the copy.
   await prisma.account.create({
@@ -4335,7 +5117,6 @@ export async function createEvent(
 ): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
-  const clean = name.trim() || UNNAMED_TOURNAMENT;
   /**
    * THE SHAPE IS ASKED, NEVER ASSUMED.
    *
@@ -4366,6 +5147,90 @@ export async function createEvent(
   // against a movable constant is the shape that silently broke the branding
   // nudge for every existing club. See tournament-templates.ts.
   const templated = template && !template.blank ? template : null;
+  return createTournament(session, {
+    name,
+    shape,
+    orgName,
+    chosenOrganizationId,
+    confirmedClubName,
+    orgKind,
+    settings: templated ? templated.settings : null,
+    rounds: templated?.rounds ?? [],
+  });
+}
+
+/**
+ * Create a tournament from the setup questionnaire's answers (2 Nov) — a DRAFT,
+ * through `createTournament`, the same writer "Create tournament" uses. Nothing
+ * goes live and nobody is invited; the organizer lands on the dashboard and its
+ * setup checklist.
+ *
+ * Every answer is checked at this boundary (`parseSetupAnswers`), against the
+ * same lists the screen offers; the course and tees against the club that will
+ * own the tournament, inside `createTournament`.
+ */
+export async function createEventFromAnswers(input: {
+  answers: unknown;
+  orgName?: unknown;
+  orgKind?: unknown;
+  organizationId?: unknown;
+  confirmedClubName?: unknown;
+}): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const raw = input && typeof input === "object" ? input : { answers: null };
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
+  const chosenOrganizationId = text(raw.organizationId, 64) || undefined;
+  // The club's country only decides which format is offered FIRST; the set of
+  // choices is the same in every register, so any register validates it.
+  const parsed = parseSetupAnswers(raw.answers, "us");
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const a = parsed.answers;
+  const draft = draftFromAnswers(a);
+  return createTournament(session, {
+    name: draft.name,
+    shape: draft.shape,
+    orgName: text(raw.orgName, 120),
+    chosenOrganizationId,
+    confirmedClubName: raw.confirmedClubName === true,
+    orgKind: text(raw.orgKind, 20),
+    settings: draft.settings,
+    rounds: draft.rounds,
+    dates: { startOn: draft.startOn, endOn: draft.endOn },
+    course: a.courseId ? { courseId: a.courseId, teeId: a.teeId, cardChecked: a.cardChecked, fixCard: a.fixCard } : null,
+  });
+}
+
+/** What `createTournament` makes. Every field decided by its caller; nothing defaulted here. */
+interface NewTournament {
+  name: string;
+  shape: TournamentShape;
+  orgName: string | undefined;
+  chosenOrganizationId: string | undefined;
+  confirmedClubName: boolean | undefined;
+  orgKind: string | undefined;
+  /** The starting bundle (a template's), or null for the club's house defaults alone. */
+  settings: TournamentSettings | null;
+  rounds: Array<TemplateRound & { playedOn?: string }>;
+  /** The tournament's days, when the caller knows them. Checked against the club's today. */
+  dates?: { startOn: string; endOn: string };
+  /** The course and tees chosen, with the organizer's word that the card matches. */
+  course?: { courseId: string; teeId: string; cardChecked: boolean; fixCard: boolean } | null;
+}
+
+/**
+ * THE ONE WRITER OF A NEW TOURNAMENT. "Create tournament" (`createEvent`) and
+ * the setup questionnaire (`createEventFromAnswers`) both come here, so the
+ * club-first gate, the plan's limits, the name rule, the home course, the
+ * rounds, the event's scoring and the round codes are one rule each — a second
+ * writer would be a second answer to every one of them (One rule, one place).
+ */
+async function createTournament(
+  session: Session,
+  input: NewTournament,
+): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
+  const { name, shape, orgName, chosenOrganizationId, confirmedClubName, orgKind } = input;
+  const clean = name.trim() || UNNAMED_TOURNAMENT;
   // Every tournament belongs to a billing tenant; this creates the organizer's
   // organization on their first event, named after their club/society/company
   // when they said who runs it (else after them). An organizer who already owns
@@ -4438,6 +5303,9 @@ export async function createEvent(
       country: true,
       communityNoun: true,
       moneyMode: true,
+      timeZone: true,
+      locale: true,
+      subscription: { select: { plan: true, planTermsApply: true } },
       _count: { select: { roster: true, events: true, courses: true } },
     },
   });
@@ -4459,6 +5327,68 @@ export async function createEvent(
   // created on the published terms — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
+
+  /**
+   * THE DAYS, WHEN THE CALLER KNOWS THEM — counted in the CLUB's time
+   * (`clubToday`), never the server's: a first day before the club's today is
+   * refused, and a Par tournament's rounds keep to its window, the rule
+   * `addStage` applies through `parRoundWindowRefusal`.
+   */
+  const startOn = cleanIsoDate(input.dates?.startOn);
+  const endOn = cleanIsoDate(input.dates?.endOn) || startOn;
+  if (startOn && startOn < clubToday(owner?.timeZone ?? "")) {
+    return { ok: false, error: "That first day has already passed where the club is. Choose a day from today on." };
+  }
+  const roundDays = input.rounds.map((r) => cleanIsoDate(r.playedOn)).filter(Boolean);
+  if (
+    roundDays.length > 1 &&
+    wipesOnClose({
+      planTermsApply: owner?.subscription?.planTermsApply,
+      plan: owner?.subscription?.plan,
+      shape,
+      retainUntil: null,
+      archivedAt: null,
+    })
+  ) {
+    const windowRefusal = roundWindowRefusal(roundDays[0], roundDays.slice(1));
+    if (windowRefusal) return { ok: false, error: windowRefusal };
+  }
+
+  /**
+   * THE COURSE AND TEES CHOSEN, checked against THIS club before anything is
+   * made. A course with no tees is refused in words: every net would otherwise
+   * be worked off a raw index (backlog J27/J28).
+   */
+  /*
+   * `fixCard`: the organizer said the card is wrong or missing and will put it
+   * right on the course's own card screen once the draft exists — the course
+   * library is reached through a tournament. Then a course with no tees, or
+   * tees not yet chosen, is linked as it stands, and nothing is marked checked.
+   */
+  let chosenCourse: { id: string; name: string; city: string; teeId: string | null } | null = null;
+  if (input.course) {
+    const { fixCard } = input.course;
+    const course = await prisma.course.findFirst({
+      where: { id: input.course.courseId, organizationId },
+      select: { id: true, name: true, city: true, tees: { select: { id: true } } },
+    });
+    if (!course) return { ok: false, error: "That course is not one of your club's courses." };
+    if (course.tees.length === 0 && !fixCard) {
+      return {
+        ok: false,
+        error: `${course.name} has no tees yet, so nobody's handicap could be worked out on it. Add them once the draft is made (Fix the card), or pick the course later.`,
+      };
+    }
+    const teeId = course.tees.some((t) => t.id === input.course?.teeId) ? input.course.teeId : null;
+    if (!teeId && (input.course.teeId || !fixCard)) {
+      return { ok: false, error: "Those tees are not on that course." };
+    }
+    if (!input.course.cardChecked && !fixCard) {
+      return { ok: false, error: "Check the card against the club's own and tick that it matches." };
+    }
+    chosenCourse = { id: course.id, name: course.name, city: course.city, teeId };
+  }
+  const datesLabel = startOn ? formatDayRange(startOn, endOn, resolveLocale(owner ?? null)) : "";
   /**
    * ONE NAME IN PLAY PER CLUB (Ajay, 2026-11-01) — `tournamentNameRefusal`. A name the organizer
    * typed is refused in words with a free one offered; the app's own "New Tournament", for an
@@ -4480,7 +5410,9 @@ export async function createEvent(
     data: {
       organizationId,
       name: named,
-      dates: "",
+      dates: datesLabel,
+      startOn,
+      endOn: startOn ? endOn : "",
       course: "",
       city: "",
       address: "",
@@ -4509,7 +5441,8 @@ export async function createEvent(
       bracketMode: "single",
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
-      ...(templated ? templated.settings : {}),
+      ...(input.settings ?? {}),
+      ...(chosenCourse?.teeId ? { defaultTeeId: chosenCourse.teeId } : {}),
     },
       }),
     { organizationId, name: named, selfId: null, door: "create" },
@@ -4523,12 +5456,15 @@ export async function createEvent(
     where: { id: organizationId },
     select: { defaultCourseId: true },
   });
-  const home = org?.defaultCourseId
-    ? await prisma.course.findFirst({
-        where: { id: org.defaultCourseId, organizationId },
-        select: { id: true, name: true, city: true },
-      })
-    : null;
+  // The course the organizer CHOSE (the questionnaire's card step) wins over the home course.
+  const home = chosenCourse
+    ? chosenCourse
+    : org?.defaultCourseId
+      ? await prisma.course.findFirst({
+          where: { id: org.defaultCourseId, organizationId },
+          select: { id: true, name: true, city: true },
+        })
+      : null;
   if (home) {
     await prisma.eventCourse.create({
       data: { eventId: event.id, courseId: home.id },
@@ -4572,7 +5508,13 @@ export async function createEvent(
    * written, and Rounds & formats is step two of the guided flow. The
    * organizer now arrives there and picks, which is what that screen is for.
    */
-  const plannedRounds = templated?.rounds ?? [];
+  // The organizer looked at the card and said it matches the club's: recorded
+  // by the one writer of "checked", the same as Mark as checked on Courses.
+  if (chosenCourse && input.course?.cardChecked) {
+    await markCourseCardChecked(chosenCourse.id, organizationId, session.name);
+  }
+
+  const plannedRounds = input.rounds;
   if (plannedRounds.length > 0) {
     await prisma.stage.createMany({
       data: plannedRounds.map((r, position) => ({
@@ -4582,7 +5524,10 @@ export async function createEvent(
         type: r.type,
         format: r.format,
         holes: r.holes,
+        playedOn: cleanIsoDate(r.playedOn),
         scoringBasis: basisFor(r.format, r.scoringBasis),
+        // Who keeps the card and who checks it, for a new round (`scoringDefaults`).
+        ...scoringDefaults(event.shape),
         // How the template keeps its matches, where it says (`TemplateRound.kept`).
         ...(r.kept
           ? keptByScoreInput(r.format)
@@ -4654,7 +5599,8 @@ export async function deleteEvent(eventId: string) {
   const access = await effectiveAccess(session.email, eventId);
   if (access?.role !== "admin") throw new Error("Only the organizer can delete a tournament");
 
-  await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
+  // A purge: the cascade plus the rows that have no foreign key (`services/purge.ts`).
+  await purgeEvent(eventId, { deliberate: true });
   await landAfterDeleting(session);
 }
 
@@ -4744,9 +5690,17 @@ export async function setEventStatus(
     select: { status: true, closesAt: true, organizationId: true, name: true, shape: true },
   });
   if (!current) return { ok: false, error: "That tournament no longer exists." };
-  const move = statusMove(current.status, status);
-  if (move.kind === "refuse") return { ok: false, error: move.error };
-  if (move.kind === "launch") return launchTournament();
+  /**
+   * ASKED OF THE STATE MACHINE (PR 4): the move is refused for exactly the
+   * reason the dashboard's button is refused, in the same words — going live is
+   * Launch (`refusals.launch`), completing is Complete (`refusals.complete`, and
+   * its question about unplayed rounds), "live" on a completed one is Reopen.
+   */
+  const told = await tournamentStatusNow(eventId);
+  if (!told) return { ok: false, error: "That tournament no longer exists." };
+  const request = statusRequestOf(told.status, current.status, status);
+  if (request.kind === "refuse") return { ok: false, error: request.error };
+  if (request.kind === "launch") return launchNow(eventId);
   const s = status;
   /**
    * REOPENING BRINGS A NAME BACK INTO PLAY (Ajay, 2026-11-01). A completed Spring Medal may share
@@ -4783,17 +5737,12 @@ export async function setEventStatus(
    * a club fixes exactly this, and a gate on the way back would be the app
    * refusing the remedy it just asked for.
    */
-  if (s === "completed") {
-    const state = await loadEventState(eventId);
-    const refusal = state
-      ? finishRefusal({
-          pendingConfirmations: state.pendingConfirmations,
-          disputed: state.reviewing.disputed,
-        })
-      : null;
-    if (refusal) return { ok: false, error: refusal };
-
+  if (request.kind === "complete") {
     /**
+     * The refusal — a disputed result, one waiting to be signed off, nothing
+     * scored at all (`finishRefusal`, `completingCheckFor`) — was the machine's,
+     * above (`refusals.complete`).
+     *
      * ROUNDS NOBODY HAS PLAYED ARE ASKED ABOUT FIRST (2026-10-31, the panel). Completing closes
      * every open round below, so a round with no scores would close as not played on one confirm.
      * Asked rather than refused — a committee may abandon a round — and refused only when nothing
@@ -4801,11 +5750,7 @@ export async function setEventStatus(
      * the golf, that one about keeping the tournament. A public endpoint, so a caller that did not
      * ask is answered with the question, as `confirmDelete` is.
      */
-    if (state) {
-      const check = completingCheckFor(state.stages, state.roundsWithResults);
-      if (check && "refuse" in check) return { ok: false, error: check.refuse };
-      if (check && "ask" in check && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: check.ask };
-    }
+    if (request.asks && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: request.asks };
 
     /**
      * ON THE FREE PLAN, COMPLETING IS DELETING (Ajay, 2026-09-29) — for a club
@@ -4856,6 +5801,12 @@ export async function setEventStatus(
    * one. Pinned here, by the act that would otherwise move them.
    */
   await setActiveEvent(eventId);
+  // THE TRAIL (PR 5b; panel 8.0 F1): Complete and Reopen each leave a line, as Launch does.
+  if (s === "completed") {
+    await logAudit(eventId, "tournament-completed", "Completed the tournament. The result is final and every open round is closed.");
+  } else if (current.status === "completed") {
+    await logAudit(eventId, "tournament-reopened", "Reopened the completed tournament to correct it. The result is no longer final.");
+  }
   /**
    * COMPLETING CLOSES EVERY ROUND STILL OPEN — Ajay's call, 2026-09-26.
    *
@@ -4891,7 +5842,7 @@ export async function setEventStatus(
         "round-closed",
         `Completing the tournament closed ${open
           .map((st) => st.description || roundLabel(all, st.id))
-          .join(", ")}. Anybody without a card for a closed round no longer holds a place on a stroke board.`,
+          .join(", ")}. Anybody without a complete card for a closed round no longer holds a place on a stroke board.`,
       );
     }
   }
@@ -4902,23 +5853,36 @@ export async function setEventStatus(
 export async function launchTournament(): Promise<{ ok: boolean; error?: string }> {
   const gate = await adminEventOrRefusal();
   if ("refused" in gate) return { ok: false, error: gate.refused };
-  const { eventId } = gate;
+  return launchNow(gate.eventId);
+}
+
+/**
+ * LAUNCH, behind the Organizer's gate — the one body both doors reach
+ * (`launchTournament`, and `setEventStatus("live")` on a tournament setting up).
+ * Not exported: a `"use server"` export is a public endpoint, and this one has
+ * no gate of its own.
+ */
+async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string }> {
   /**
    * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
-   * the tournament to its field and clears `configUnlocked`, so a tournament
+   * the tournament to its field and locks its setup, so a tournament
    * with no rounds and nobody in it went live AND locked. The organizer's next
    * move was to unlock the thing they had just locked, in order to build the
    * tournament they had just published.
    *
-   * The conditions are in `launchRefusal` with the reasoning. Guided
-   * inside setting up, gated between phases — see phase-gate.ts.
-   *
-   * The facts are the setup flow's own (`launchCheckFor`, gap G3 2026-10-31):
-   * the dashboard's button asks the same function, so this refuses exactly what
-   * the button refuses, in the same words. Behind the staff gate above; the
-   * refusal names this tournament's own rounds and screens, nothing else.
+   * ASKED OF THE STATE MACHINE (PR 4): `refusals.launch` is the setup flow's own
+   * gate first, in its words (`launchRefusal`), then the panel's holds per
+   * format family (8.2: two players for a match or a knockout, every player on
+   * a side, a round robin's flights, a league's next week dated). The dashboard
+   * draws the same refusal under its button, so this refuses exactly what the
+   * button refuses — where it asked `launchCheckFor` and let through a
+   * knockout of one the button had refused. And a tournament already live is
+   * refused rather than launched again, which re-stamped it and locked setup
+   * an organizer had unlocked.
    */
-  const { refusal } = await launchCheckFor(eventId);
+  const told = await tournamentStatusNow(eventId);
+  if (!told) return { ok: false, error: "This tournament could not be found." };
+  const refusal = told.status.refusals.launch;
   if (refusal) return { ok: false, error: refusal };
 
   // On launch, every non-staff account receives the Player role. Once registration
@@ -4929,16 +5893,95 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
   });
   await prisma.event.update({
     where: { id: eventId },
-    data: { status: "live", launchedAt: new Date(), configUnlocked: false },
+    // The retired blanket flag is neither read nor written since state machine PR 9b: launching
+    // locks setup because the machine says a launched tournament is locked (`setupLockedByLaunch`).
+    data: { status: "live", launchedAt: new Date() },
   });
+  // THE TRAIL (PR 5b; panel 8.0 F1): launching wrote no line of its own, so
+  // Recent changes could not say who declared the tournament live, or when.
+  await logAudit(eventId, "tournament-launched", "Launched the tournament. Setup is locked; a committee correction opens one part of it.");
   await refresh();
   return { ok: true };
 }
 
-export async function setConfigUnlocked(unlocked: boolean) {
+/*
+ * THE BLANKET UNLOCK IS GONE (PR 5b retired opening it; state machine PR 9b
+ * deleted its last action, the dashboard's "Lock setup again"). Its flag on the
+ * row is no longer read — a tournament that held it is locked like any other —
+ * and the column is dropped after launch (9d). The committee correction below
+ * is the one way to change a launched tournament's setup.
+ */
+
+/**
+ * OPEN A COMMITTEE CORRECTION ON ONE SCOPE (PR 5b; TD Q2, panel 8.1).
+ *
+ * The Committee may correct its own errors (Rule 20.2d); the Terms of the
+ * Competition are not changed once play has started except in exceptional
+ * circumstances (Committee Procedures, Section 5A). So: the Organizer only
+ * (`requireAdminEvent`); on a launched tournament that is not completed (for a
+ * completed one Reopen is the remedy); ONE scope, and only one whose lock is by
+ * launch or by the draw — never over recorded scores or results
+ * (`correctionRefusal`); a reason of 10–200 characters, which goes in Recent
+ * changes with the Organizer's name (`committee-correction`); open until Done
+ * (`endCorrection`) or the end of the CLUB's day (`endOfClubDay(zone)`),
+ * whichever comes first — never overnight, as `configUnlocked` was.
+ *
+ * One at a time: opening a second scope replaces the first, and the record says
+ * both happened — a closing line for the first, then the opening line for the
+ * second, which says when it ends (panel review of 5b, must-fix 3).
+ */
+export async function openCorrection(scope: string, reason: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: unlocked } });
+  if (!(LOCK_SCOPES as readonly string[]).includes(scope)) return { ok: false, error: "Choose which part of setup to open." };
+  const facts = await lockFactsFor(eventId);
+  if (!facts) return { ok: false, error: "This tournament could not be found." };
+  if (!isLaunched(facts.status)) return { ok: false, error: "Nothing is locked before launch — change it directly." };
+  if (isFinished(facts.status)) return { ok: false, error: "The tournament is completed. Reopen it on the dashboard to change anything." };
+  const clean = String(reason ?? "").trim();
+  const badReason = correctionReasonRefusal(clean);
+  if (badReason) return { ok: false, error: badReason };
+  // The locks as they stand with NO correction, so an open correction on this very scope reads as locked and may be renewed.
+  const refused = correctionRefusal(locksFor({ ...facts, correction: null }), scope as LockScope);
+  if (refused) return { ok: false, error: refused };
+  const session = await getSession();
+  const by = session?.name || "The Organizer";
+  const zone = await zoneOfEvent(eventId);
+  const until = endOfClubDay(zone);
+  // A correction still standing on another scope (or this one) is closed by this press: the record says so before it says what opened.
+  if (facts.correction) await logAudit(eventId, "committee-correction", correctionClosedLine(facts.correction, by, "replaced"), { actor: by });
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { correctionScope: scope, correctionReason: clean, correctionBy: by, correctionUntil: until },
+  });
+  await logAudit(eventId, "committee-correction", correctionOpenedLine({ scope: scope as LockScope, by, reason: clean, until: until.toISOString() }, zone), { actor: by });
   await refresh();
+  return { ok: true };
+}
+
+/**
+ * Done: the correction closes now, and the record says who closed it. Idempotent
+ * — nothing open is simply nothing, and a correction that already LAPSED with
+ * the club's day (`openCorrectionOf` reads it as none) is cleared with no line:
+ * its opening line said when it ended (panel review of 5b, must-fix 3).
+ */
+export async function endCorrection(): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const row = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { correctionScope: true, correctionReason: true, correctionBy: true, correctionUntil: true },
+  });
+  if (!row) return { ok: false, error: "This tournament could not be found." };
+  const standing = openCorrectionOf(row, new Date());
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { correctionScope: null, correctionReason: null, correctionBy: null, correctionUntil: null },
+  });
+  if (standing) {
+    const closedBy = (await getSession())?.name || "The Organizer";
+    await logAudit(eventId, "committee-correction", correctionClosedLine(standing, closedBy), { actor: closedBy });
+  }
+  await refresh();
+  return { ok: true };
 }
 
 /* ── Prizes & payouts ─────────────────────────────────────────────────── */
@@ -5091,9 +6134,23 @@ async function lockEventForPrizes(tx: PrizeTx, eventId: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
 }
 
-/** Players' names for a refusal that names them. */
-async function prizeWinnerNames(eventId: string, ids: string[]): Promise<Map<string, string>> {
-  const rows = await prisma.player.findMany({ where: { eventId, id: { in: ids } }, select: { id: true, name: true } });
+/**
+ * Players' names for a refusal that names them — read on the TRANSACTION's own
+ * connection (2026-11-09).
+ *
+ * This used to read through the bare `prisma` client from inside the open
+ * transaction, so the transaction held one pooled connection while the read
+ * waited for a second. In the nightly round (G26-1-nightly, Firefox) that read
+ * stalled past the transaction's five seconds; the commit then failed with
+ * P2028 "Transaction already closed", the action threw instead of answering,
+ * and the organizer's Prizes screen became "This screen didn't load" where the
+ * refusal in words should have been. A read inside a transaction goes on the
+ * transaction's client, and only there — the transaction then needs exactly one
+ * connection, and nothing it waits for is outside its own timeout.
+ */
+async function prizeWinnerNames(tx: PrizeTx, eventId: string, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.player.findMany({ where: { eventId, id: { in: ids } }, select: { id: true, name: true } });
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
@@ -5115,7 +6172,7 @@ export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; 
     await lockEventForPrizes(tx, eventId);
     if (want) {
       const holdings = await prizeHoldings(tx, eventId);
-      const names = await prizeWinnerNames(eventId, holdings.flatMap((p) => (p.winnerId ? [p.winnerId] : [])));
+      const names = await prizeWinnerNames(tx, eventId, holdings.flatMap((p) => (p.winnerId ? [p.winnerId] : [])));
       const refusal = onePrizeTickRefusal(holdings, (pid) => names.get(pid) ?? "");
       if (refusal) return { ok: false, error: refusal };
     }
@@ -5145,7 +6202,7 @@ export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<
     const prize = holdings.find((p) => p.id === prizeId);
     if (!prize) return { ok: false, error: "That prize isn't in this tournament." };
     if (want && event?.onePrizePerPlayer && prize.winnerId) {
-      const names = await prizeWinnerNames(eventId, [prize.winnerId]);
+      const names = await prizeWinnerNames(tx, eventId, [prize.winnerId]);
       const refusal = onePrizeRefusal({
         on: true,
         prizes: holdings.map((p) => (p.id === prizeId ? { ...p, counts: true } : p)),
@@ -5269,10 +6326,20 @@ export async function removeAnnouncement(announcementId: string) {
  * Organizer-only and blocked once the tournament is locked: changing the shape
  * of a bracket mid-event would redraw who plays whom, which is a rule change
  * rather than a setting.
+ *
+ * THE ROUNDS' LOCK, NOT THE DRAW'S. The arrangement is setup — the Terms of the
+ * Competition, which are not changed once play has started (Committee
+ * Procedures 5A) — and it is drawn on the knockout round's card on Rounds &
+ * formats, under that screen's rounds lock. The DRAW scope is the wrong guard:
+ * in a knockout in flights it stays OPEN while live until the first result,
+ * because dividing the field is the draw (`locksOf`) — so asking it let a live
+ * flighted knockout be switched to one bracket, wiping the division, with no
+ * correction and no record (`a-knockout-in-flights.audit.test.ts`).
  */
-export async function setBracketMode(mode: string): Promise<{ ok: boolean; error?: string }> {
+export async function setBracketMode(mode: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireAdminEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the bracket’s arrangement");
+  if (locked) return locked;
   if (!isBracketMode(mode)) return { ok: false, error: "Unknown bracket arrangement." };
   /**
    * INTO OR OUT OF FLIGHTS, ONLY BEFORE A RESULT (2026-10-12).
@@ -5463,8 +6530,8 @@ export async function renameFlight(flight: unknown, name: unknown): Promise<{ ok
  */
 export async function renameGroup(groupId: string, name: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  const locked = await lockedRefusal(eventId, "change the flights");
-  if (locked) return { ok: false, error: locked };
+  const locked = await refuseIfLocked(eventId, "flights", "rename a flight", { except: ["draw"] });
+  if (locked) return locked;
   const clean = name.trim().slice(0, 40);
   if (!clean) return { ok: false, error: "Give the flight a name." };
 
@@ -5495,8 +6562,8 @@ export async function renameGroup(groupId: string, name: string): Promise<{ ok: 
  */
 export async function setFlightsConfirmed(confirmed: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  const locked = await lockedRefusal(eventId, "change the flights");
-  if (locked) return { ok: false, error: locked };
+  const locked = await refuseIfLocked(eventId, "flights", "confirm or reopen the draw", { except: ["draw"] });
+  if (locked) return locked;
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { formationRule: true } });
   if (event?.formationRule !== "manual") {
     return { ok: false, error: "Only a manual draw is confirmed by hand — the other rules regenerate." };
@@ -5517,7 +6584,8 @@ export async function setFlightsConfirmed(confirmed: boolean): Promise<{ ok: boo
  */
 export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the match tie-breakers");
+  if (locked) return locked;
   // Cleaned rather than trusted: this is a public endpoint, and an unknown key
   // reaching the engine would silently skip instead of failing loudly.
   const clean = cleanMatchTiebreakers(keys).filter((k) => OFFERED_MATCH_TIEBREAKS.includes(k));
@@ -5530,67 +6598,103 @@ export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean
 }
 
 /**
- * Close registration early, or keep it open past the deadline.
+ * ENTRIES: OPEN THEM, OR CLOSE THEM — THE ONE SWITCH (the entries cleanup,
+ * 2026-11-05).
  *
- * `null` hands control back to the deadline. `true` closes now. `false` keeps
- * entries open after the date has passed — the common case, because a deadline
- * gets extended by a word at the bar long before anyone edits it in software.
+ * This replaces two: `setRegistrationOpen` (publish or take down the link) and
+ * `setRegistrationOverride` (close now, keep open past the deadline, follow the
+ * deadline). An organizer wanting to stop sign-ups had two plausible buttons and
+ * no way to tell them apart. What each wrote is now decided in one place,
+ * `entriesChange` (`registration.ts`), against the CLUB'S day: opening publishes
+ * the link (minting its token the first time, and keeping it for good, so a link
+ * already in fifty inboxes survives a close and reopen) and, when the dates alone
+ * would keep the door shut, takes entries now; closing keeps the link and says
+ * "closed by the organizer" to anyone who follows it.
  *
- * Note what this deliberately does NOT do: stop an organizer adding a player.
- * `addSignup` is staff-only and stays available whatever this says. Closing
- * registration is a statement about what members may do, and the organizer
- * adding a late entry by hand is the normal way a closed event still takes one.
- * When a self-service signup flow exists, it is this flag it should read.
+ * Deliberately no assertUnlocked, for the reason the two old actions gave: the
+ * lock stops a live tournament being RESHAPED, and this decides whether the door
+ * is open. Requiring it locked the organizer out of the one control that stops
+ * entries at exactly the moment they need it. And it does not stop an organizer
+ * adding a player by hand — that is how a closed event still takes a late entry.
  */
-export async function setRegistrationOverride(
-  override: boolean | null,
-): Promise<{ ok: boolean; error?: string }> {
-  // Deliberately no assertUnlocked, and the same reasoning as saveCustomCourse:
-  // the lock exists to stop a live tournament being RESHAPED, and this changes
-  // nothing about the field, the draw or the schedule — it decides whether the
-  // door is open. Requiring it locked the organizer out of the one control that
-  // stops entries at exactly the moment they need it: assertUnlocked throws for
-  // status live|completed, so a running tournament kept taking public entries
-  // and the only escape was unlocking the whole configuration of a live event.
+export async function setEntriesOpen(open: boolean): Promise<{ ok: boolean; error?: string }> {
+  // A "use server" export is a public endpoint and types are erased: anything but a real
+  // boolean used to read as "close". Refused in words instead.
+  if (typeof open !== "boolean") return { ok: false, error: "That was not a clear open or close. Reload the page and try again." };
   const eventId = await requireStaffEvent();
-  await prisma.event.update({
+  const event = await prisma.event.findUnique({
     where: { id: eventId },
-    data: { registrationOverride: override },
+    select: { status: true, regDeadline: true, regOpens: true, registrationToken: true, registrationOpen: true },
   });
+  if (!event) return { ok: false, error: "Event not found." };
+  const change = entriesChange(open, {
+    eventStatus: event.status,
+    deadline: event.regDeadline,
+    opens: event.regOpens,
+    capacity: 0,
+    confirmedCount: 0,
+    override: null,
+    // The club's day, told — a deadline is a day at the club that set it.
+    now: await clubDayForEvent(eventId),
+  }, event.registrationOpen);
+  if (!change.ok) return { ok: false, error: change.error };
+  const data: { registrationOpen?: boolean; registrationOverride: boolean | null; registrationToken?: string; regOpens?: string } = {
+    registrationOverride: change.registrationOverride,
+  };
+  if (change.clearOpens) data.regOpens = "";
+  if (change.registrationOpen) {
+    data.registrationOpen = true;
+    if (!event.registrationToken) data.registrationToken = generateShareToken();
+  }
+  await prisma.event.update({ where: { id: eventId }, data });
   await refresh();
   return { ok: true };
 }
 
-/* ── Open (self-service) registration ─────────────────────────────────────
- *
- * The switch, the mode, and the two actions that clear a pending queue. The
- * public sign-up flow (src/app/actions/register.ts) reads the state these set;
- * these are the organizer's side of the same feature and are staff-only.
- */
-
 /**
- * Turn the public registration link on or off.
+ * THE ENTRY TERMS, TOGETHER: when entries open, when they close, how many.
  *
- * Minting the token lazily — on first open, never before — is deliberate. Every
- * event that predates this feature has an empty token and no public page; only
- * an organizer choosing to open registration brings one into existence. The
- * token is then kept forever, so a link already shared keeps working across an
- * off/on cycle: closing registration must not silently invalidate a URL that's
- * already in fifty inboxes.
+ * They were set on Tournament details while approval and the sign-up link were
+ * on Entries, and Entries showed the deadline read-only and sent the organizer
+ * back to step one to change it. A tournament office decides these together,
+ * before the notice goes out, so they are saved together, on Entries, beside
+ * the switch they govern. Tournament details keeps the event's facts.
+ *
+ * Admin and lock-gated exactly as `saveEvent` was when it carried them. Each
+ * date is a real day or nothing (a public endpoint: free text here would print
+ * as a date while opening nothing — `parseDeadlineIso`), and a window that
+ * closes before it opens is refused in words.
  */
-export async function setRegistrationOpen(open: boolean): Promise<{ ok: boolean; error?: string }> {
-  // No assertUnlocked, for the reason given on setRegistrationOverride: turning
-  // the public link off is how an organizer stops entries, and a lock that
-  // fires on `live` made that impossible precisely when it was needed.
-  const eventId = await requireStaffEvent();
-  const event = await prisma.event.findUnique({
+export async function saveEntryTerms(data: {
+  regOpens: string;
+  regDeadline: string;
+  capacity: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const locked = await refuseIfLocked(eventId, "field", "change the entry terms");
+  if (locked) return locked;
+  const opens = parseDeadlineIso(String(data.regOpens ?? ""));
+  const closes = parseDeadlineIso(String(data.regDeadline ?? ""));
+  if (opens && closes && closes < opens) {
+    return { ok: false, error: "Entries cannot close before they open. Move the closing day to the opening day or later." };
+  }
+  const asked = Number(data.capacity);
+  if (!Number.isFinite(asked)) return { ok: false, error: "Enter the number of places as a whole number, or choose Open." };
+  await prisma.event.update({
     where: { id: eventId },
-    select: { registrationToken: true },
+    data: {
+      regOpens: opens,
+      // Stored as sent, as `saveEvent` always did: a deadline saved before the
+      // date picker existed is free text, and `parseDeadlineIso` reads it as none.
+      regDeadline: String(data.regDeadline ?? "").slice(0, 80),
+      // 0 is the deliberate "open / unlimited field" sentinel; stored as set and
+      // held to the plan's cap where it is READ (`fieldLimitFor`).
+      capacity: asked <= 0 ? 0 : Math.max(1, Math.round(asked)),
+    },
   });
-  if (!event) return { ok: false, error: "Event not found." };
-  const data: { registrationOpen: boolean; registrationToken?: string } = { registrationOpen: open };
-  if (open && !event.registrationToken) data.registrationToken = generateShareToken();
-  await prisma.event.update({ where: { id: eventId }, data });
+  // A bigger field takes the people already queuing for it (see `saveEvent`'s
+  // history): never demotes, promotes nobody when there is no room.
+  await drainWaitlist(eventId);
   await refresh();
   return { ok: true };
 }
@@ -5600,7 +6704,8 @@ export async function setRegistrationOpen(open: boolean): Promise<{ ok: boolean;
  *  than stored, since an unknown mode would decide where every entry goes. */
 export async function setRegistrationApproval(mode: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "field", "change how entries are approved");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: { registrationApproval: mode === "approve" ? "approve" : "auto" },
@@ -5620,7 +6725,10 @@ export async function setRegistrationApproval(mode: string): Promise<{ ok: boole
  */
 export async function approveSignup(playerId: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  if (typeof playerId !== "string" || !playerId) return { ok: false, error: "Entry not found." };
+  // A late entry by another door: the one field rule, returned (it threw "Configuration is locked").
+  const refused = await fieldRefusal(eventId, "approve");
+  if (refused) return { ok: false, error: refused };
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Entry not found." };
   if (player.status !== "pending") return { ok: true };
@@ -5646,14 +6754,17 @@ export async function approveSignup(playerId: string): Promise<{ ok: boolean; er
 }
 
 /** Whether a round's cut is taken across the field or within each flight. */
-export async function setStageCutScope(stageId: string, scope: string): Promise<void> {
+// RETURNED, NEVER THROWN (PR 5b): these two answered `void`, so the lock could only throw.
+export async function setStageCutScope(stageId: string, scope: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the cut");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { cutScope: isCutScope(scope) ? scope : "overall" },
   });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -5662,14 +6773,16 @@ export async function setStageCutScope(stageId: string, scope: string): Promise<
  * terms, which a committee publishes before play (Committee Procedures 5A(6)),
  * so it locks with the rest of setup. See `strokeCutOutcome`.
  */
-export async function setStageCutTies(stageId: string, rule: string): Promise<void> {
+export async function setStageCutTies(stageId: string, rule: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the cut");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { cutTies: cutTieRuleOf(rule) },
   });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -5683,21 +6796,32 @@ export async function setStageCutTies(stageId: string, rule: string): Promise<vo
  * Not behind the lock: a play-off is played on the day, after launch by
  * definition. Refused once the round is closed — the cut has been made, and
  * re-opening the round is how it is changed.
+ *
+ * A ROUND ROBIN'S CUT TOO (J31, 2026-11-06): `feederId` is then the round
+ * robin the cut is taken out of, and the decision is kept on the round it
+ * feeds, as a stroke cut's is. That cut is made by drawing the next round, so
+ * what refuses a change is the next round holding results, not a closed round.
  */
 export async function settleCutTie(
   feederId: string,
   tied: string[],
   through: string[],
-): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+): Promise<{ ok: boolean; error?: string; notice?: string }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const feeder = await prisma.stage.findFirst({
     where: { id: feederId, eventId },
     select: { id: true, closedAt: true },
   });
   if (!feeder) return { ok: false, error: "That round isn't in this tournament." };
-  if (feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it on Rounds & formats to change who went through." };
-  const made = await strokeCutOutcomeOf(eventId, feeder.id);
+  const stroke = await strokeCutOutcomeOf(eventId, feeder.id);
+  if (stroke && feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it on Rounds & formats to change who went through." };
+  const made = stroke ?? (await roundRobinCutAfter(eventId, feeder.id));
   if (!made) return { ok: false, error: "There is no cut out of this round." };
+  if (!stroke && (await enteredCardCount(eventId, made.next.id)) > 0) {
+    return { ok: false, error: "The round after this one has results already, so its field has been played on. Clear its scores on Score entry first, then redraw it to change who went through." };
+  }
   const wanted = Array.isArray(tied) ? tied.filter((x) => typeof x === "string") : [];
   const same = (a: readonly string[]) => a.length === wanted.length && a.every((id) => wanted.includes(id));
   const tie = [...made.outcome.undecided, ...made.outcome.decided].find((t) => same(t.playerIds));
@@ -5722,6 +6846,24 @@ export async function settleCutTie(
       : `The ${tie.by === "playoff" ? "play-off" : "draw"} for the last place in the cut was taken back — ${tie.playerIds.map(name).join(", ")} are level again.`,
   );
   await refresh();
+  /**
+   * RECORDED AFTER THE ROUND WAS ALREADY DRAWN (J31 review, 2026-11-07). A round
+   * robin's cut is made by drawing the next round, and recording the play-off
+   * does not move anybody already drawn: the round still holds the field it
+   * was drawn with. A bare success left the secretary believing the winner was
+   * in. Say what to do — redraw it, which is allowed while nothing is played.
+   */
+  if (!stroke) {
+    const [drawnMatches, drawnCards] = await Promise.all([
+      prisma.match.count({ where: { eventId, stageId: made.next.id } }),
+      prisma.scorecard.count({ where: { eventId, stageId: made.next.id } }),
+    ]);
+    if (drawnMatches + drawnCards > 0) {
+      const stages = await prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: { id: true, type: true, description: true, position: true } });
+      const next = roundKicker(made.next.description, roundLabel(stages, made.next.id));
+      return { ok: true, notice: `Recorded. ${next} was drawn before this, so it does not have this result yet. Redraw ${next} so the draw uses it.` };
+    }
+  }
   return { ok: true };
 }
 
@@ -6230,7 +7372,8 @@ export async function importTeamScores(
   }
 
   if (returned) await freezeRoundHandicaps(eventId, stageId);
-  for (const m of touched.values()) await recomputeTeamMatch(eventId, m, stage.format, holes);
+  const importer = (await getSession())?.name ?? "";
+  for (const m of touched.values()) await recomputeTeamMatch(eventId, m, stage.format, holes, { name: `${importer || "The committee"} (from a file)`, playerId: "" });
 
   await refresh();
   return { ok: written > 0, written, problems: problems.length ? problems : undefined };
@@ -6271,7 +7414,8 @@ export async function clearRoundScores(
    * assistant, which is the wrong way round.
    */
   const eventId = await requireAdminEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "clear scores");
+  if (locked) return { ...locked, cleared: 0 };
 
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, cleared: 0, error: "That round isn't in this tournament." };
@@ -6439,8 +7583,9 @@ export async function certifyScorecard(stageId: string, playerId: string) {
    * The guards above are what did not move. Who may sign is this action's
    * question and the play surface asks a different one.
    */
-  await certifyCard({ eventId, stageId, playerId, by: session.email });
-  await refresh();
+  // A guest has no address: their name signs, as a round code's holder does.
+  await certifyCard({ eventId, stageId, playerId, by: session.email || session.name });
+  await refresh(eventId);
   return { ok: true };
 }
 
@@ -6478,8 +7623,8 @@ export async function disputeScorecard(stageId: string, playerId: string) {
   // format where one person enters three other people's rounds.
   // The player by id — `recentChanges` turns it back into their name — and the
   // round by its words, since any other id reads as a departed player.
-  await logAudit(eventId, "card.dispute", `${playerId}'s ${await roundWordsFor(eventId, stageId)} card disputed`);
-  await refresh();
+  await logAudit(eventId, "card.dispute", `${playerId}'s ${await roundWordsFor(eventId, stageId)} card disputed`, { actor: session.name });
+  await refresh(eventId);
   return { ok: true };
 }
 
@@ -6626,7 +7771,8 @@ export async function reopenScorecard(stageId: string, playerId: string) {
  */
 export async function setRequirePhone(required: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "field", "change the entry terms");
+  if (locked) return locked;
   await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !!required } });
   await refresh();
   return { ok: true };
@@ -6701,7 +7847,8 @@ export async function setSingleMatchRule(
   rule: { kind: string; a: string | number; b: string | number },
 ): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the match’s rule");
+  if (locked) return locked;
 
   const parsed = parseSingleMatchRule(JSON.stringify(rule ?? {}));
   if (!parsed) {
@@ -6789,7 +7936,8 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
 /** Whether this knockout plays off for third. Off by default. */
 export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the play-off for third");
+  if (locked) return locked;
 
   // A knockout in several flights is a pure knockout in each: there is no one pair of beaten
   // semi-finalists to play off, and finishing order does not read a play-off there.
@@ -6837,8 +7985,12 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
 export async function setRoundClosed(
   stageId: string,
   closed: boolean,
-): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  /** Must be true to close over a card not yet approved or signed (`roundCloseCheck` asks first). */
+  confirmUnsigned = false,
+): Promise<{ ok: boolean; error?: string; needsUnsignedConfirm?: boolean }> {
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
@@ -6852,6 +8004,19 @@ export async function setRoundClosed(
   if (closed) {
     const refusal = await strokeCutRefusal(eventId, stage.id);
     if (refusal) return { ok: false, error: refusal };
+    /**
+     * AND ANY ROUND, OVER CARDS STILL OUTSTANDING (panel 8.1, TD Q4; state
+     * machine PR 4). A disputed card or result is REFUSED until the committee
+     * rules on it; a card not yet approved (or, where players sign, not yet
+     * signed) is ASKED about, naming whose — closing leaves that card as it
+     * stands, and it can still be approved or signed afterwards. A public
+     * endpoint, so a caller that did not ask is answered with the question, as
+     * completing answers `confirmUnplayed`.
+     */
+    const facts = await roundCloseFactsFor(eventId, stage.id);
+    const check = facts ? roundCloseCheck(facts) : null;
+    if (check && "refuse" in check) return { ok: false, error: check.refuse };
+    if (check && "ask" in check && !confirmUnsigned) return { ok: false, needsUnsignedConfirm: true, error: check.ask };
   }
 
   await prisma.stage.update({
@@ -6873,7 +8038,7 @@ export async function setRoundClosed(
     eventId,
     "round-closed",
     closed
-      ? `Closed ${which}. Anybody without a card for it no longer holds a place on a stroke board.`
+      ? `Closed ${which}. Anybody without a complete card for it no longer holds a place on a stroke board.`
       : `Re-opened ${which}.`,
   );
   /**

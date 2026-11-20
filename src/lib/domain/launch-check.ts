@@ -26,6 +26,8 @@
  */
 import { launchRefusal, type LaunchFacts } from "./phase-gate";
 import type { SetupFacts, SetupStep } from "./setup-flow";
+import { isRated } from "./handicap";
+import { GIVE_STROKES, SINK_LIVE, needsFigureSaid, type NeedsStrokes } from "./committee-figure";
 
 /**
  * The facts, with the two that `SetupFacts` leaves optional made REQUIRED: a
@@ -35,6 +37,8 @@ import type { SetupFacts, SetupStep } from "./setup-flow";
 export type LaunchSource = SetupFacts & {
   playingRounds: number;
   missingCards: readonly { label: string; course: string }[];
+  /** Tees with no rating under a round that needs a handicap — `unratedTeesFact`; null when nothing is wrong. */
+  unratedTees: UnratedTees | null;
 };
 
 /** THE ONE BUILDER of `LaunchFacts`. */
@@ -76,16 +80,17 @@ export interface LaunchWarning {
   screen: string;
   /**
    * Whether the fix can still be made once the tournament is live ("open"), or
-   * needs Unlock first because launching locks configuration ("unlock") — flights,
-   * sides and the name are structural; a round's day, the tee sheet and the money
-   * answer are not.
+   * needs a committee correction first because launching locks its scope
+   * ("unlock", the code's name for it; state machine PR 5b retired the blanket
+   * Unlock, and the words say "a committee correction") — flights, sides and the
+   * name are structural; a round's day, the tee sheet and the money answer are not.
    */
   afterLaunch: "open" | "unlock";
 }
 
 /** The warning as one line of text — what a screen reader and a test both read. */
 export function warningText(w: LaunchWarning): string {
-  return `${w.says} ${w.fix}${w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}`;
+  return `${w.says} ${w.fix}${w.afterLaunch === "unlock" ? " — after launch, this needs a committee correction first." : " — you can still do this after launch."}`;
 }
 
 /**
@@ -161,6 +166,156 @@ function teeSheetWarning(f: LaunchSource, teeSheetLabel: string): LaunchWarning 
   };
 }
 
+/**
+ * THE TEES THAT CANNOT GIVE A COURSE HANDICAP, and the rounds that need one.
+ * `null` when nothing is wrong: every round is gross (no handicap is used), or
+ * every tee has its Course Rating and Slope.
+ *
+ * Pure, so the one reader that builds it (`tournament-facts.ts`) hands it the
+ * rounds and the tees and the rule stays here. Any basis but "gross" uses a
+ * handicap, Stableford included (`unratedWarning` explains why it is not
+ * `isNetBasis`).
+ */
+export interface UnratedTees {
+  /** Labels of the rounds that score off a handicap. */
+  rounds: string[];
+  /** Tees with no Slope: `courseHandicapExact` falls back to the raw Handicap Index. */
+  noSlope: string[];
+  /** Tees with a Slope but no Course Rating: scaled by Slope, without the Course Rating minus Par term. */
+  noRating: string[];
+  /** The course has no tees at all, so nothing can be rated. */
+  noTees: boolean;
+  /** No course is saved, but a card was typed in (par and stroke index on the event): there are no tees to rate. */
+  typedCard?: boolean;
+}
+
+/**
+ * WAS A CARD ACTUALLY TYPED IN? The event's own pars (`Event.customPars`), and
+ * not merely a venue's name: a name with no card says nothing about tees.
+ */
+export function hasTypedCard(customPars: string): boolean {
+  const v = customPars.trim();
+  return v !== "" && v !== "[]";
+}
+
+export function unratedTeesFact(input: {
+  rounds: readonly { label: string; scoringBasis: string }[];
+  /** The tees the field actually plays (`teesInPlayFor`), not every set on the course. */
+  tees: readonly { name: string; slopeRating: number; courseRating: number }[];
+  /**
+   * Whether there is a fixed course. Without one (players choose, or none is
+   * named yet) "no tees are set up" would be false, so nothing is said.
+   * Defaults to true: a caller that has a course says nothing extra.
+   */
+  fixedCourse?: boolean;
+  /**
+   * A card was typed in (the event's own pars, or a venue named) with no saved
+   * course, and players are not choosing their own course. Only read when
+   * `fixedCourse` is false. Players-choose-course and no-venue-yet leave it
+   * false and stay silent.
+   */
+  typedCard?: boolean;
+}): UnratedTees | null {
+  const rounds = input.rounds.filter((r) => r.scoringBasis !== "gross").map((r) => r.label);
+  if (rounds.length === 0) return null;
+  if (input.tees.length === 0) {
+    if (input.fixedCourse === false) {
+      return input.typedCard ? { rounds, noSlope: [], noRating: [], noTees: false, typedCard: true } : null;
+    }
+    return { rounds, noSlope: [], noRating: [], noTees: true };
+  }
+  // The app's own test for a Slope (`isRated`), the one `courseHandicapExact` falls back on.
+  const noSlope = input.tees.filter((t) => !isRated(t)).map((t) => t.name);
+  const noRating = input.tees.filter((t) => isRated(t) && !(t.courseRating > 0)).map((t) => t.name);
+  return noSlope.length === 0 && noRating.length === 0 ? null : { rounds, noSlope, noRating, noTees: false };
+}
+
+const joined = (names: readonly string[]) =>
+  names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+/**
+ * WHICH FAULT, ONCE (J27). The launch warning and the rail's to-do both ask
+ * this, so they cannot come to name different faults. Worst first: no tees at
+ * all, a tee with no Slope (the raw Handicap Index is used), a Slope with no
+ * Course Rating (scaled by Slope alone).
+ */
+export type UnratedTier = "typedCard" | "noTees" | "noSlope" | "noRating";
+export function unratedTiers(u: UnratedTees | null | undefined): UnratedTier[] {
+  if (!u) return [];
+  if (u.typedCard) return ["typedCard"];
+  if (u.noTees) return ["noTees"];
+  const tiers: UnratedTier[] = [];
+  if (u.noSlope.length > 0) tiers.push("noSlope");
+  if (u.noRating.length > 0) tiers.push("noRating");
+  return tiers;
+}
+
+/**
+ * A WARNING, NEVER A REFUSAL (the panel's ruling stands: unrated tees never stop
+ * a launch). Under the World Handicap System a Course Handicap is made from the
+ * tee's Slope and Course Rating, so without them the app has only the raw
+ * Handicap Index to score with.
+ */
+function unratedTeesWarning(u: UnratedTees | null | undefined, screen: string): LaunchWarning | null {
+  const tiers = unratedTiers(u);
+  if (!u || tiers.length === 0) return null;
+  const rounds = joined(u.rounds);
+  const rawIndex = "usually understates strokes on a hard course and overstates them on an easy one";
+  const parts = tiers.map((tier) => {
+    if (tier === "typedCard") {
+      return "The card was typed in without tees, so players get strokes off their raw Handicap Index.";
+    }
+    if (tier === "noTees") {
+      return `No tees are set up for the course, so there is no Slope or Course Rating to work out a Course Handicap for ${rounds}: players are scored on their raw Handicap Index, which ${rawIndex}.`;
+    }
+    if (tier === "noSlope") {
+      const one = u.noSlope.length === 1;
+      return `${joined(u.noSlope)} ${one ? "has" : "have"} no Slope, so ${rounds} score players on ${one ? "it" : "them"} off their raw Handicap Index, which ${rawIndex}.`;
+    }
+    const one = u.noRating.length === 1;
+    return `${joined(u.noRating)} ${one ? "has" : "have"} a Slope but no Course Rating, so ${rounds} score players on ${one ? "it" : "them"} on the Slope alone, without the Course Rating minus Par adjustment, which can leave their strokes a little off.`;
+  });
+  return { says: parts.join(" "), fix: `Add the Course Rating and Slope on ${screen}`, href: "/event", screen, afterLaunch: "open" };
+}
+
+/** The rail's one line for each fault, in the same terms as the warning. */
+const TODO_WORDS: Record<UnratedTier, string> = {
+  typedCard: "Add the course with its tees, their Course Rating and Slope, or players get strokes off their raw Handicap Index.",
+  noTees: "Add tees with their Course Rating and Slope, or players get strokes off their raw Handicap Index.",
+  noSlope: "Add the Slope Rating to the tees, or players get strokes off their raw Handicap Index.",
+  noRating: "Add the Course Rating to the tees, or players' strokes are a little off.",
+};
+
+/**
+ * THE SETUP RAIL'S TO-DO FOR THE SAME FACT (J27): the worst fault, in one line.
+ * Optional, never a hold: a scratch or gross-only event has nothing to add (the
+ * fact is null for it).
+ */
+export function unratedTeesTodo(u: UnratedTees | null | undefined): string | null {
+  const tier = unratedTiers(u)[0];
+  return tier ? TODO_WORDS[tier] : null;
+}
+
+/**
+ * PLAYERS WITH NO HANDICAP INDEX IN A ROUND SCORED NET (lane N, PR A). A WARNING, NEVER A REFUSAL: a
+ * handicap often arrives on the morning, and unrated tees set the precedent. The sentence is the one
+ * every door says (`needsFigureSaid`), to "you" — only staff see the launch dialog — and the fix opens
+ * the band on Rounds & formats. Who needs strokes is `needsCommitteeFigure`, never worked out here.
+ *
+ * THE STATE MACHINE PUTS IT IN THE DIALOG (state machine PR 9a), not `launchCheck` below: the machine
+ * passes today's warnings through filters keyed on a warning's screen — dropped while a step on that
+ * screen HOLDS, dropped when the family draws no such step, a league's "/stages" row reworded as its
+ * later weeks — and this row is about a PLAYER, not about the rounds that screen sets. Handed through
+ * those filters it vanished whenever the rounds still lacked a course card (#1144's audit asked the
+ * deleted `launchCheckFor`, which never filtered). So `tournamentStatus` asks this from its own fact,
+ * first, past the filters; `launchCheck` does not build it, so there is one row and one place.
+ */
+export function needsStrokesWarning(n: NeedsStrokes | null | undefined, screen: string): LaunchWarning | null {
+  if (!n || n.players === 0) return null;
+  const { text } = needsFigureSaid({ count: n.players, rounds: n.rounds, sideGameRounds: n.sideGameRounds, canGive: true, sinkLive: SINK_LIVE });
+  return { says: text, fix: `${GIVE_STROKES} on ${screen}`, href: "/stages", screen, afterLaunch: "open" };
+}
+
 export function launchCheck(
   f: LaunchSource,
   steps: readonly SetupStep[],
@@ -172,6 +327,9 @@ export function launchCheck(
     .filter((w): w is LaunchWarning => !!w);
   const tee = teeSheetWarning(f, labelFor("/foursomes"));
   if (tee) warnings.push(tee);
+  const unrated = unratedTeesWarning(f.unratedTees, labelFor("/event"));
+  if (unrated) warnings.push(unrated);
+  // No handicap index in a net round: the machine's first row (`needsStrokesWarning`, above), never here.
   return {
     refusal: launchRefusal(launchFactsFrom(f)),
     warnings,

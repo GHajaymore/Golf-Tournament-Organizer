@@ -109,9 +109,9 @@ export const ABROAD = [
 export const SCHEDULES = {
   all: "every layer, one after another (a round on one machine)",
   pr: "the round a change asks for before it merges",
-  // Scheduled for 02:00 UTC; GitHub starts a scheduled run when it has room, and the last eight
+  // Scheduled for 02:17 UTC; GitHub starts a scheduled run when it has room, and the last eight
   // nights (to 2026-10-31) it started between 07:30 and 08:15 UTC.
-  nightly: "the full round on main, every night (scheduled 02:00 UTC; it has been starting 07:30–08:15 UTC), with all six countries and the console crawl in full",
+  nightly: "the full round on main, every night (scheduled 02:17 UTC; it has been starting 07:30–08:15 UTC), with all six countries and the console crawl in full",
   weekly: "Chrome and Edge as installed, and the front door with its animation on, every Sunday",
 };
 
@@ -483,6 +483,7 @@ export const TEXT_PARTS = 3;
 export const SHARDS = {
   "suite:desktop": 3,
   "suite:phone": 2,
+  "suite:small-phone": 2,
   "firefox:desktop": 2,
   "firefox:phone": 2,
   "firefox:small-phone": 2,
@@ -578,8 +579,14 @@ export function partsFor(round, plan = {}) {
       }
     }
   }
-  return parts;
+  // `image`: the part runs in Playwright's container image (round.yml), which holds exactly its
+  // own three engines. Said ONCE here so the workflow reads a field and not four copies of a list;
+  // a part that drives the installed Chrome or Edge ("chromium chrome") or no browser stays on the runner.
+  return parts.map((p) => ({ ...p, image: IMAGE_ENGINES.includes(p.browsers) }));
 }
+
+/** The `browsers` values that Playwright's container image can run. */
+export const IMAGE_ENGINES = ["chromium", "firefox", "webkit"];
 
 /** Flags every scenario's own log is read for, whatever else that scenario adds. */
 const ALWAYS = "page errors: [1-9]|sideways=[1-9]|\\[5[0-9][0-9] →|Unknown player|Application error";
@@ -599,7 +606,7 @@ export const SCENARIOS = [
     key: "a",
     file: "e2e/scenarios/a-society-stableford.spec.ts",
     name: "A society's Saturday Stableford",
-    plays: "a society on the Birdie plan, 110 on the roster and a field the plan caps at 50; members enter from their own phones; net Stableford at 95%",
+    plays: "a society on the Birdie plan, 110 on the roster and a field the plan caps, with more sign-ups than it holds so the waiting list is real; members enter from their own phones; net Stableford at 95%",
     phases: ["A1", "A2", "A3", "A4", "A5", "A6", "A7"],
     flags: `${ALWAYS}|${ENTERED}|ROSTER MEMBER CANNOT SEE`,
   },
@@ -767,6 +774,10 @@ export const ARITHMETIC = [
   "src/lib/domain/carry.ts",
   "src/lib/domain/expenses.ts",
   "src/lib/services/skins-pot.ts",
+  // A side's playing handicap (Appendix C, of the partners who play) and a match's holes worked from
+  // its stroke cards: handicap arithmetic that sat at "function in one area" until J22 (#1000, 2026-11-04).
+  "src/lib/services/teams.ts",
+  "src/lib/services/match-from-cards.ts",
 ];
 
 /**
@@ -910,6 +921,8 @@ export const TIER_RULES = [
   ["tests", ["e2e/", "scripts/qa/", ".github/", "playwright.config.ts", "vitest.config.ts", "vitest.audit.config.ts", ".claude/", ".gitignore"]],
   ["tests", ["src/lib/__tests__/", "src/lib/domain/__tests__/"]],
   ["tests", ["scripts/smoke-all.mjs", "scripts/smoke-routes.mjs", "scripts/verify-*.mjs", "scripts/seed-club.mjs", "scripts/e2e-coverage.mjs", "scripts/look-at-screens.mjs", "scripts/run-mark.mjs", "scripts/session-cookie.mjs"]],
+  // A read-only diagnostic a developer runs by hand to see which schema the shared client holds: no app code runs it.
+  ["tests", ["scripts/prisma-client-check.mjs"]],
   // The load test and the production canary: they ask the app questions and ship nothing.
   ["tests", ["scripts/load/", "scripts/prod-smoke.mjs"]],
   // Words.
@@ -924,8 +937,8 @@ export const TIER_RULES = [
   // Who the owners are: the sign-in gate reads it (`parseOwnerEmails`), so it is who may sign in at all.
   ["core", ["src/lib/owner.ts", "src/lib/sign-in-gate.ts"]],
   // Core: the arithmetic of golf and of money, and who plays whom.
-  ["core", ["src/lib/domain/stroke.ts", "src/lib/domain/stroke-agg.ts", "src/lib/domain/stroke-countback.ts", "src/lib/domain/match.ts", "src/lib/domain/match-tiebreak.ts", "src/lib/domain/handicap.ts", "src/lib/domain/handicap-policy.ts", "src/lib/domain/round-handicap.ts", "src/lib/domain/card-points.ts", "src/lib/domain/card-totals.ts", "src/lib/domain/ranked-score.ts", "src/lib/domain/standings.ts", "src/lib/domain/shared-position.ts", "src/lib/domain/cut.ts", "src/lib/domain/bracket.ts", "src/lib/domain/bracket-flights.ts", "src/lib/domain/draw.ts", "src/lib/domain/league-draw.ts", "src/lib/domain/grouping.ts", "src/lib/domain/team.ts", "src/lib/domain/team-match-standings.ts", "src/lib/domain/cup.ts", "src/lib/domain/pair-totals.ts"]],
-  ["core", ["src/lib/domain/money.ts", "src/lib/domain/money-layout.ts", "src/lib/domain/money-mode.ts", "src/lib/domain/skins.ts", "src/lib/domain/skins-pot.ts", "src/lib/domain/nassau.ts", "src/lib/domain/derived-games.ts", "src/lib/domain/carry.ts", "src/lib/domain/expenses.ts", "src/lib/domain/score-payload.ts", "src/lib/services/scorecard-write.ts", "src/lib/services/handicaps.ts", "src/lib/services/round-handicap.ts", "src/lib/services/tournament.ts", "src/lib/services/skins-pot.ts", "src/lib/services/stroke-cut.ts", "src/lib/services/bracket-results.ts", "src/lib/services/finish-order.ts", "src/lib/services/intake-lock.ts", "src/lib/services/limits.ts", "src/lib/services/entitlements.ts", "src/lib/plans.ts"]],
+  ["core", ["src/lib/domain/stroke.ts", "src/lib/domain/stroke-agg.ts", "src/lib/domain/stroke-countback.ts", "src/lib/domain/match.ts", "src/lib/domain/match-tiebreak.ts", "src/lib/domain/handicap.ts", "src/lib/domain/handicap-policy.ts", "src/lib/domain/round-handicap.ts", "src/lib/domain/card-points.ts", "src/lib/domain/card-totals.ts", "src/lib/domain/ranked-score.ts", "src/lib/domain/standings.ts", "src/lib/domain/level-places.ts", "src/lib/domain/shared-position.ts", "src/lib/domain/cut.ts", "src/lib/domain/bracket.ts", "src/lib/domain/bracket-flights.ts", "src/lib/domain/draw.ts", "src/lib/domain/league-draw.ts", "src/lib/domain/grouping.ts", "src/lib/domain/team.ts", "src/lib/domain/team-match-standings.ts", "src/lib/domain/cup.ts", "src/lib/domain/pair-totals.ts"]],
+  ["core", ["src/lib/domain/money.ts", "src/lib/domain/money-layout.ts", "src/lib/domain/money-mode.ts", "src/lib/domain/skins.ts", "src/lib/domain/skins-pot.ts", "src/lib/domain/nassau.ts", "src/lib/domain/derived-games.ts", "src/lib/domain/carry.ts", "src/lib/domain/expenses.ts", "src/lib/domain/score-payload.ts", "src/lib/services/scorecard-write.ts", "src/lib/services/handicaps.ts", "src/lib/services/round-handicap.ts", "src/lib/services/tournament.ts", "src/lib/services/skins-pot.ts", "src/lib/services/teams.ts", "src/lib/services/match-from-cards.ts", "src/lib/services/stroke-cut.ts", "src/lib/services/bracket-results.ts", "src/lib/services/finish-order.ts", "src/lib/services/intake-lock.ts", "src/lib/services/limits.ts", "src/lib/services/entitlements.ts", "src/lib/plans.ts"]],
   // Everything else a user runs is function in one area.
   ["function", ["src/", "public/", "scripts/"]],
 ];
