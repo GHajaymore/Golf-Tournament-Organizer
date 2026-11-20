@@ -50,6 +50,13 @@ describe("every action that asks the AI is rate-limited first", () => {
     expect(unthrottled("f.ts", ok)).toEqual([]);
   });
 
+  it("a refused draft puts no limiter wording into the commentary box (it sits one press from the public board)", () => {
+    const fn = functionsOf("commentary.ts", readSource(DIR, "commentary.ts")).find((f) => f.where.endsWith("suggestCommentary"));
+    expect(fn, "suggestCommentary must be found").toBeTruthy();
+    expect(fn!.body, "return an empty draft when the limiter refuses, never its message").not.toMatch(/limit\.message|throttleMessage/);
+    expect(fn!.body).toMatch(/if \(!limit\.allowed\) return \{ text: "", configured: true \}/);
+  });
+
   it("no action file asks the model without a rate limit ahead of the call", () => {
     const files = readdirSync(join(process.cwd(), DIR)).filter((f) => f.endsWith(".ts"));
     const askers = files.filter((f) => readSource(DIR, f).includes("askClaude("));

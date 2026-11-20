@@ -55,7 +55,7 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
   // The AI budget is ONE account for every club: an unthrottled loop here would spend it for all of
   // them. Same bucket as the other staff AI actions (card photos), per user.
   const limit = await checkRateLimit("card-photo", session.userId);
-  if (!limit.allowed) return { text: limit.message, configured: true };
+  if (!limit.allowed) return { text: "", configured: true };
 
   const key = aiJobOn("commentary");
   const state = await loadEventState(session.eventId);
