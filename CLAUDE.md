@@ -35,7 +35,15 @@ These are not preferences. Breaking one has consequences that cannot be undone f
 7. **TourneyHQ calculates and records money. It never moves money.** Skins, payouts and prize
    splits are arithmetic and a record. No payment rails, no transfers.
 
-**Rules 2–6 are also enforced, not only written:** `.claude/hooks/guard.mjs` runs before every Bash and PowerShell command and refuses them, naming the rule. What it refuses and how to change it: `docs/claude/what-the-tests-enforce.md`.
+**Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
+every Bash and PowerShell command (`.claude/settings.json`) and refuses `git add -A`/`.`, any `git stash`,
+a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number or a
+local path (`C:\Users\<you>`), PowerShell writing a source file, `gh run watch`, a merge or `round/*` push from
+any session but the one named in the untracked `.claude/main-session` (or from a subagent), a migration applied
+to the shared dev database from anywhere but the main checkout (`--create-only` is fine), and — on the
+Windows desktop only — builds, dev servers and Playwright.
+A refusal names its rule. Text in quotes and heredocs is never read as a command. To change what it
+allows, edit the script with `src/lib/__tests__/claude-guard-hook.test.ts`.
 
 ## Test fixtures
 
@@ -107,6 +115,13 @@ them corrupts it.
 
 `npm run smoke` and `npm run smoke:all` are the CI smoke set; capture counts by grepping `Test Files|Tests `, never `| tail`; Playwright is the sixth part of the gate, and a branch is never called verified having skipped it. A red CI job your change cannot explain is one of five known faults. Detail: `docs/claude/smoke-and-gate-scripts.md`, `docs/claude/playwright-runs.md`, `docs/claude/ci-failure-signatures.md`.
 
+- **A red CI job your change cannot explain** is one of five known faults — Chromium `SEGV_MAPERR` (signal 11,
+  desktop), `Could not find the module … in the React Client Manifest`, `next/font`, the `offline.spec.ts`
+  card-chooser click, or React #418. Open the log, name which, and `gh run rerun <id> --failed`; do NOT add
+  `retries` and do not edit application code on the strength of one. After the hydration backport a
+  `[hydration #418]` line is a REAL mismatch — fix the element it names. See `docs/claude/ci-failure-signatures.md`,
+  `docs/claude/offline-chooser-flake.md`, `docs/claude/hydration-418.md`.
+
 ## The testing framework: `docs/testing.md`
 
 Ajay, 2026-10-13: "you should be building these permanent test script which covers all aspects
@@ -125,21 +140,70 @@ any functionality." That is `scripts/qa/` and `docs/testing.md`, and three habit
 
 Since 2026-10-23 the pipeline is the testing panel's (`docs/testing-panel-2026-10-23.md`; manual `docs/testing.md`): rounds by tier, the nightly and weekly, zero retries, `e2e/quarantine.json`. **Two sessions on one machine share one e2e fixture and a Playwright run in either wipes the other's:** send "fixture turn: starting" and wait for "go". A round stopped with TaskStop is not stopped; kill what is left. Read `docs/claude/testing-pipeline.md`.
 
+**TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN IN EITHER WIPES THE
+OTHER'S.** Every run seeds the e2e fixture at its start and tears it down at its end, under one
+mark, in the one development database — whichever worktree it is started from. On 2026-10-13 a
+second session's runs (nine of them between 01:25 and 02:08) deleted the rows this session's
+specs were reading: two "caught" results in a break-the-app run were the fixture vanishing, not
+the test working, and both read exactly like success. A wiped fixture produces FAILURES, so a
+"caught" or a red result taken while another session was running is the suspect one. The rule
+the two sessions settled, by message: before any Playwright run, one line to the other session
+("fixture turn: starting, ~N min"), wait for "go", and say "done" when the teardown has finished.
+Unit tests, a build into your own dist directory and a server on your own port collide with
+nothing.
+
 ## What gates a merge, and what gates a deploy
 
 The `verify` check (ruleset "main must be green") gates a merge; `deploy.yml` gates a deploy (verify green, nightly cleared, no freeze) and never builds: Vercel does. Read WHICH JOB failed first: `verify` red is your change, `deploy` red on a green `verify` is the token, database or allowance. **A green PR is not a green commit:** tie the verdict to the head SHA (`--match-head-commit`). Only the main session merges. Long form, signatures and commands: `docs/claude/deploy-history.md`.
 
+**The deploy job does not build.** It uploads the source and Vercel builds it; `vercel-build` runs
+`prisma migrate deploy` against PRODUCTION, so never build on the runner or ship `--prebuilt` (it would put
+production database credentials on GitHub). **A red `deploy` on a green `verify` is not the code:** the
+`VERCEL_TOKEN` (check `vercel whoami` FIRST), the production database unreachable, the 100-deployments-a-day
+allowance (every push counts, not every merge — batch work into fewer, larger PRs and push each branch once),
+or CANCELLED after a long `Completing…` (the deploy may be Ready — check the Vercel dashboard for that SHA
+before re-running). `android-release.yml` / `ios-testflight.yml` are scaffolding with no secrets. Long
+form and the signatures: `docs/claude/deploy-history.md`.
+
 ## What the tests enforce
 
-Guard tests make whole classes of mistake impossible: extend them rather than working around them, read a guard before updating it, read source through `readSource`, and prove a new test can fail (commit, revert, watch red, restore). The list: `docs/claude/what-the-tests-enforce.md`.
+Several test files exist to make a whole class of mistake impossible — extend them rather than working
+around them; the list is in `docs/claude/what-the-tests-enforce.md` (`audit-idor`, `club-actions-check-the-role`,
+`every-action-says-who-may-call-it`, `source-guard`, `round-number-source`, `themes`, `brand-consistency`, …).
+**A test that searches source reads it through `readSource`** (`src/lib/__tests__/source.ts`, which strips
+comments). **When a correct change makes a guard fail, read the guard before updating it** — pin the
+GUARANTEE, not the expression. **Prove a new test can fail:** revert the fix (commit first), watch it go red,
+put it back; when a mutation stays green suspect your theory of the defect before the harness. Enumerate a
+string column's real values (`groupBy`) before narrowing a test on one. `TypeScript types are erased at
+runtime` — a `"use server"` export is a public endpoint; validate payloads at the boundary (`score-payload.ts`).
 
 ## Money: what may be reported while a round is live
 
-**Final only, never live** (`money-layout.ts`): ask "can the amount still change", and enforce at the sink (`gameNets`). TourneyHQ calculates and records money; it never moves it. The app says "side game", never "bet". Read `docs/claude/money.md`.
+`money-layout.ts` opens with the rule — **final only, never live.** Ask "can the amount still change", not
+"has the event happened": a birdie pot, low gross and low net change as cards come in; a Nassau's completed
+segments are paid live. Enforce at the SINK (`gameNets`, as `standingRows` returns `[]` for a manual
+format) so a caller written later cannot forget. `matchSettled` is too loose to release money. A player may
+still see their EXPOSURE (`stakeFor`). **TourneyHQ calculates and records money; it never moves it** (Hard
+rule 7).
 
 ## Golf rules that have bitten (read the long form before touching them)
 
-Read the long form before touching: handicaps and tees (`docs/claude/handicaps-and-tees.md`: an allowance is taken of the EXACT course handicap and rounded once with `wholeStrokes()`; the organizer decides tees, `teeIdFor` is the one resolver), knockouts and leagues (`docs/claude/knockouts-and-leagues.md`: arranged is not happened), course cards (`docs/claude/course-cards.md`: `--revalidate` destroys cards).
+- **Handicaps** (`docs/claude/handicaps-and-tees.md`): an allowance is taken of the EXACT course handicap and
+  rounded ONCE (`wholeStrokes()`) — never hand `playingHandicapFrom`, `allocatedStrokes` or
+  `sidePlayingHandicap` a rounded figure (`courseHandicapExact`, `resolveRoundHandicap(...).exact`). A player on
+  tees of a higher par is given the difference (`roundPlayingHandicap(exact, allowance, parStrokes)` — the third
+  argument is required; none for Stableford). The right allowance depends on the round's type, not only the
+  format (`recommendedAllowance(format, stage.type)` in `round-allowance.ts`). Work an expectation from the
+  Rules by a route the code does not take, with decimal indexes.
+- **Tees**: the organizer decides, at three levels (tournament, flight, one player); `teeIdFor` is the one
+  resolver; nothing creates a player with a `teeId`; every reader of a round selects `FIELD_PLAYER`.
+- **Knockouts and leagues** (`docs/claude/knockouts-and-leagues.md`): past the first round there is no bye; a
+  tie not yet played is "TBD"; flights are separate knockouts (`bracketDraws()` is the one answer to "which
+  draws"; test with THREE). What has been ARRANGED has not HAPPENED: `matchIsOver(holes)`, never
+  `resolveMatch(holes).complete`; count what there SHOULD be, not the rows that exist; a lookup by
+  `id: { in: [...] }` has no order.
+- **Course cards** (`docs/claude/course-cards.md`): `--revalidate` DESTROYS every card it refuses — judge the
+  catalogue with a read-only script that calls `cardRefusal`; yardage is never a reason to discard a card.
 
 ## One rule, one place
 
@@ -151,7 +215,13 @@ A change to scoring, draw, cut, bracket or handicap code adds a cell to `src/lib
 
 ## Migrations
 
-Name a new migration folder `A001_…`, `A002_…` (`A0NN`), never a timestamp; read the SQL it generated; never a reset (Hard rule 6); after a new model run `npx prisma generate` and restart the dev server. Read `docs/claude/migrations.md`.
+`schema.prisma` splits the datasource: `url` pooled, `directUrl` direct; migrations need the direct URL.
+Read the SQL a migration generated — fix the *schema* if an unrelated `DROP DEFAULT` rides along. **Name a new
+migration folder `A001_…`, `A002_…` (`A0NN`) — never `100_`, never Prisma's timestamp** (a fresh database
+replays folders in text order; `migrations-replay-in-the-order-written.test.ts` refuses anything else).
+`prisma migrate dev --create-only` then rename the folder; apply with `prisma migrate deploy`; never a reset
+(Hard rule 6). After a new model: `npx prisma generate` and RESTART the dev server (a running Next process
+holds the old client: `prisma.yourNewModel` is `undefined`). `docs/claude/migrations.md`.
 
 ## Design
 
