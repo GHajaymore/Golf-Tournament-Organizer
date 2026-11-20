@@ -24,7 +24,8 @@ import { OrganizerLedger } from "@/components/OrganizerLedger";
 import { moneyFor, playedOnceRoundIsOver, sidePotResults } from "@/lib/services/expenses";
 import { flightStandings } from "@/lib/services/me";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor } from "@/lib/services/tournament-status";
+import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 
 export const metadata = screenMetadata("/prizes");
 
@@ -262,10 +263,18 @@ export default async function PrizesPage({
    * what `SetupFlowRail` renders nothing for — see its first line.
    */
   const flow = isStaff ? await setupRailFor(session.eventId) : null;
+  /**
+   * THE MONEY LOCK (PR L): a completed tournament's prize table, one-prize rule, pot and contest definitions and
+   * money mode are shut, and Reopen is the way out. The ledger below (who has paid, the kitty, the expenses, the
+   * settle-up) and awarding a prize are never behind it. Docs: `docs/claude/lock-scopes.md`.
+   */
+  const moneyLock = await screenLocksFor(session.eventId, ["money"]);
+  const moneyLocked = moneyLock.locks.length > 0;
 
   return (
     <>
       <SetupFlowRail flow={flow} href="/prizes" />
+      {isStaff && <ScopeLockBanner locks={moneyLock.locks} correction={moneyLock.correction} isAdmin={session.viewRole === "admin"} />}
       <div style={{ marginBottom: 20 }}>
         {/* "Set up" while the guide is still running, because that is what
             this screen is then: the last question before the tournament can
@@ -304,6 +313,7 @@ export default async function PrizesPage({
         flights={prizeFlights}
         byScore={prizeOrders}
         onePrizePerPlayer={state.event.onePrizePerPlayer}
+        locked={moneyLocked}
       />
       {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT — THE CLUB'S OWN SCREEN.
           `/group-games` said this from the day the rule landed (#495) and this
@@ -342,6 +352,7 @@ export default async function PrizesPage({
             rounds={weeks.map((s) => ({ stageId: s.id, label: roundLabel(weeks, s.id) }))}
             activeStageId={week.id}
             view={g.view}
+            locked={moneyLocked}
           />
         ))
       )}
@@ -406,6 +417,7 @@ export default async function PrizesPage({
           /* A Nassau is three bets on one MATCH, so it is only offered where
              this round draws opponents — see the prop. */
           headToHead={isHeadToHead(week.type)}
+          locked={moneyLocked}
         />
       )}
       <SkinsSeason rows={skinsSeason} />
@@ -450,6 +462,7 @@ export default async function PrizesPage({
           orgKind={org?.kind ?? ""}
           clubName={org?.shortName || org?.name || ""}
           eventEntry={state.event.expenseEntry}
+          locked={moneyLocked}
         />
         </div>
       )}

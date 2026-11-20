@@ -13,6 +13,7 @@ import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
 import { money } from "@/lib/domain/money-format";
 import { isMatch } from "@/lib/tournament-shape";
 import { currencyForEvent } from "@/lib/services/organization";
@@ -103,6 +104,9 @@ export async function saveSkinsPot(
   const access = await requirePotAccess(stageId, groupKey);
   if (!access.ok) return { ok: false, error: access.error };
   const eventId = access.eventId;
+  // The pot's definition is what was OFFERED: shut at completion, Reopen the way out (PR L). Who is in it and who has paid are not.
+  const locked = await refuseIfLocked(eventId, "money", "change a skins game");
+  if (locked) return locked;
 
   const buyIn = Math.round(input.buyInCents);
   // Bounded top AND bottom, the same ceiling every other money action uses
@@ -365,6 +369,8 @@ export async function removeSkinsPot(
   const access = await requirePotAccess(stageId, key);
   if (!access.ok) return { ok: false, error: access.error };
   const eventId = access.eventId;
+  const locked = await refuseIfLocked(eventId, "money", "remove a skins game");
+  if (locked) return locked;
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }

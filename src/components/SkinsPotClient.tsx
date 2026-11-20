@@ -80,7 +80,14 @@ export function SkinsPotClient({
   view,
   groupKey = "",
   groupLabel = "",
+  locked = false,
 }: {
+  /**
+   * The pot's definition is shut (the machine's \`money\` lock: a completed tournament, drawn by
+   * \`ScopeLockBanner\` on the screen). Saving or removing the pot ask it; who is in it and who has paid
+   * never do.
+   */
+  locked?: boolean;
   rounds: SkinsRound[];
   activeStageId: string;
   view: SkinsView;
@@ -304,7 +311,7 @@ export function SkinsPotClient({
             </select>
           </div>
         )}
-        <button type="button" className="btn btn-primary" disabled={pending} onClick={saveSetup}>
+        <button type="button" className="btn btn-primary" disabled={pending || locked} onClick={saveSetup}>
           Save
         </button>
         {setupRefusal && (
@@ -587,7 +594,7 @@ export function SkinsPotClient({
       )}
 
       {error && !(renaming && renamePressed) && !setupPressed && (
-        <p className="form-error" role="alert">
+        <p className="form-error" role="alert" ref={bringIntoView}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -604,7 +611,7 @@ export function SkinsPotClient({
           title="Remove this pot"
           confirmLabel="Remove the pot"
           note={`${view.entrantIds.length} ${view.entrantIds.length === 1 ? "person has" : "people have"} paid in.`}
-          disabled={pending}
+          disabled={pending || locked}
           onConfirm={() => {
             setSetupPressed(false);
             run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey));

@@ -8,6 +8,7 @@ import { isContestKind, CONTEST_LABEL } from "@/lib/domain/contests";
 import { SPONSOR_NAME_MAX, sponsorUrl } from "@/lib/domain/contest-board";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
 import { money } from "@/lib/domain/money-format";
 import { currencyForEvent } from "@/lib/services/organization";
 
@@ -70,6 +71,9 @@ export async function addContest(input: {
   hole?: number;
 }): Promise<ContestResult> {
   const { eventId, name: by } = await requireStaff();
+  // A contest's definition is what was OFFERED: shut at completion, Reopen the way out (PR L). Who is in it, who has paid and who won are not.
+  const locked = await refuseIfLocked(eventId, "money", "add a contest");
+  if (locked) return locked;
 
   const kind = isContestKind(input.kind) ? input.kind : "other";
   const name = (input.name ?? "").trim().slice(0, NAME_MAX) || CONTEST_LABEL[kind];
@@ -374,6 +378,8 @@ export async function setContestSponsor(contestId: string, sponsorName: string, 
 
 export async function removeContest(contestId: string): Promise<ContestResult> {
   const { eventId } = await requireStaff();
+  const locked = await refuseIfLocked(eventId, "money", "remove a contest");
+  if (locked) return locked;
   const contest = await contestInEvent(eventId, contestId);
 
   // Entries cascade with the contest.

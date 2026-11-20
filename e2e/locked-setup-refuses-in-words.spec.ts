@@ -23,6 +23,8 @@ import { makeCommitteeCorrection, CORRECTION_REASON } from "./committee-correcti
  *   Entries              Save entry terms                → the field
  *   Flights              Rename <the first flight> (Enter) → flights
  *   Rounds & formats     Round 1 · Cut the field for Round 2 → rounds
+ *   Team cup             Save name on the first team     → the cup's teams (PR L)
+ *   Prizes & payouts     Add a prize, on a tournament completed in another tab → money (PR L)
  *
  * (Round 2 is this spec's own: the seeded medal is one round, so an empty one is
  * added to this file's copy of the club before the walk. Deleting it was the
@@ -122,13 +124,13 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
   const flightLabel = /^[A-Za-z0-9]{1,2}$/.test(flightName) ? `Flight ${flightName}` : flightName;
 
   /** The correction opened and closed by the database, so each screen is drawn open and then locked "in another tab". */
-  const opened = (scope: string) =>
+  const opened = (scope: string, eventId: string = ev.id) =>
     prisma.event.update({
-      where: { id: ev.id },
+      where: { id: eventId },
       data: { correctionScope: scope, correctionReason: "zz-sm5b drawn open", correctionBy: "Zz Organizer", correctionUntil: new Date(Date.now() + 60 * 60 * 1000) },
     });
-  const closed = () =>
-    prisma.event.update({ where: { id: ev.id }, data: { correctionScope: null, correctionReason: null, correctionBy: null, correctionUntil: null } });
+  const closed = (eventId: string = ev.id) =>
+    prisma.event.update({ where: { id: eventId }, data: { correctionScope: null, correctionReason: null, correctionBy: null, correctionUntil: null } });
 
   try {
     await context.addCookies([
@@ -146,13 +148,27 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
      * said and in view, nothing written, the screen still there, and caught up with the banner.
      */
     const pressedAfterTheLock = async (
-      step: { label: string; path: string; scope: string; heading: RegExp; said: string; stored: () => Promise<unknown>; press: (page: Page) => Promise<void> },
+      step: {
+        label: string;
+        path: string;
+        scope: string;
+        heading: RegExp;
+        said: string;
+        stored: () => Promise<unknown>;
+        press: (page: Page) => Promise<void>;
+        /** The tournament the step is about: the medal unless it says (the cup is its own). */
+        eventId?: string;
+        /** A screen that asks two scopes is drawn with the other one locked: what the banner must NOT say while this one is open. */
+        drawnWithout?: RegExp;
+      },
     ) => {
-      await opened(step.scope);
+      await opened(step.scope, step.eventId);
       await open(step.path);
-      await expect(page.getByRole("region", { name: "Locked" }), `${step.label}: the screen was drawn locked`).toHaveCount(0);
+      const drawn = page.getByRole("region", { name: "Locked" });
+      if (step.drawnWithout) await expect(drawn.filter({ hasText: step.drawnWithout }), `${step.label}: the screen was drawn locked`).toHaveCount(0);
+      else await expect(drawn, `${step.label}: the screen was drawn locked`).toHaveCount(0);
       const before = await step.stored();
-      await closed();
+      await closed(step.eventId);
       await step.press(page);
       // Said where the press was (its words), then the screen moves to the way out (below):
       // the refusal is read for what it is, not for where the page has scrolled to since.
@@ -285,6 +301,75 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
     await expect(page.getByRole("button", { name: /Unlock configuration|Unlock setup|Lock setup again/ })).toHaveCount(0);
     await expect(page.getByText(/unlocked as a whole/), "the retired note is still drawn").toHaveCount(0);
 
+    /**
+     * THE CUP'S TEAMS (PR L). The seeded cup is its own tournament, live, with two teams: Save name on the first one is
+     * pressed on a screen drawn while the `cup` scope was open and refused after it locked. The Team cup screen also asks
+     * the rounds (points to win, the holder), so it is drawn with that line locked all along: what must be absent while
+     * the cup is open is the cup's own line.
+     */
+    const cupEv = club.events.find((e) => e.slug === "cup")!;
+    const cupTeams = await prisma.group.findMany({ where: { eventId: cupEv.id, stageId: null, isCarrier: false }, orderBy: { position: "asc" } });
+    expect(cupTeams.length, "the seeded cup does not have two teams").toBe(2);
+    const cupTeam = cupTeams[0];
+    expect((await prisma.event.findUniqueOrThrow({ where: { id: cupEv.id } })).status, "the seeded cup is not launched").toBe("live");
+    await context.addCookies([{ name: "ng_active_event", value: sign(cupEv.id), url: baseURL! }]);
+    await pressedAfterTheLock({
+      label: `Team cup · Save name on ${cupTeam.name}`,
+      path: "/cup",
+      scope: "cup",
+      eventId: cupEv.id,
+      drawnWithout: /Cup teams/,
+      heading: /^Team cup$/,
+      said: LIVE("change the cup’s teams"),
+      stored: async () => (await prisma.group.findUniqueOrThrow({ where: { id: cupTeam.id } })).name,
+      press: async (p) => {
+        const card = p.getByRole("group", { name: `Team ${cupTeam.name}` });
+        await card.getByLabel("Team name").fill(`${cupTeam.name} zz`);
+        await card.getByRole("button", { name: "Save name" }).click();
+      },
+    });
+    await expect(page.getByRole("region", { name: "Locked" }), "the cup's teams line is not on the banner").toContainText("Cup teams");
+    await context.addCookies([{ name: "ng_active_event", value: sign(ev.id), url: baseURL! }]);
+
+    /**
+     * MONEY (PR L; Ajay, 19 Nov): nothing locks at launch; at COMPLETION what was offered locks and Reopen is the way
+     * out. Prizes & payouts is drawn while the medal is live (open), the tournament is completed "in another tab", and
+     * Add on a prize is refused in the money scope's words, with Reopen as a link (a correction cannot open it), nothing
+     * written, the screen still there and caught up. Then awarding a prize — the ledger — still works on the
+     * completed tournament, and the status is put back.
+     */
+    const prizeName = "zz-pr-l prize";
+    const prizeCount = () => prisma.prize.count({ where: { eventId: ev.id } });
+    try {
+      await open("/prizes");
+      await expect(page.getByRole("region", { name: "Locked" }), "Prizes & payouts was drawn locked while the tournament is live").toHaveCount(0);
+      const prizesBefore = await prizeCount();
+      await prisma.event.update({ where: { id: ev.id }, data: { status: "completed" } });
+      await page.getByLabel("Category", { exact: true }).fill(prizeName);
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      const said = page.getByText("Locked because the tournament is completed. Reopen it on the dashboard to change the prizes.").first();
+      await expect(said, "Money · Add a prize: the refusal was not said").toBeVisible({ timeout: 20_000 });
+      await expect(said, "Money · Add a prize: the refusal was said off screen").toBeInViewport();
+      await expect(page.getByRole("heading", { level: 1, name: /^Prizes & payouts$/ }), "Money · the screen was replaced by an error page").toBeVisible();
+      const moneyBanner = page.getByRole("region", { name: "Locked" });
+      await expect(moneyBanner, "Money · the screen did not catch up with the lock").toContainText(/Money · Locked because the tournament is completed\./, { timeout: 20_000 });
+      await expect(moneyBanner.getByRole("link", { name: "Reopen it on the dashboard" }), "Money · Reopen is not offered on the banner").toBeVisible();
+      await expect(moneyBanner.getByRole("button", { name: "Make a committee correction" }), "Money · a committee correction is offered for a lock it cannot open").toHaveCount(0);
+      expect(await prizeCount(), "Money · a prize was written while locked").toBe(prizesBefore);
+      // The ledger is not behind it: a prize on a completed tournament can still be awarded. The seeded medal holds no prize,
+      // so this file's own is made and awarded by the organizer's own press, then removed with the fixture.
+      const made = await prisma.prize.create({ data: { eventId: ev.id, position: 99, category: prizeName, amount: 0 } });
+      await open("/prizes");
+      const winner = (await prisma.player.findFirstOrThrow({ where: { eventId: ev.id, status: "confirmed" }, orderBy: { name: "asc" } })).id;
+      await page.getByLabel(`Winner of ${prizeName}`).selectOption(winner);
+      await expect
+        .poll(async () => (await prisma.prize.findUniqueOrThrow({ where: { id: made.id } })).winnerId, { message: "Money · awarding a prize was refused on a completed tournament" })
+        .toBe(winner);
+    } finally {
+      await prisma.prize.deleteMany({ where: { eventId: ev.id, category: prizeName } });
+      await prisma.event.update({ where: { id: ev.id }, data: { status: "live" } });
+    }
+
     // ── ON A PHONE (375 × 812): the field's press again, and the way out one press away ──
     await page.setViewportSize({ width: 375, height: 812 });
     await pressedAfterTheLock(entriesPress);
@@ -302,6 +387,11 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
     await prisma.$executeRawUnsafe(`UPDATE "Event" SET "configUnlocked" = false WHERE id = $1`, ev.id);
     await prisma.event.update({ where: { id: ev.id }, data: { formationRule: event.formationRule } });
     await closed();
+    const cupRow = club.events.find((e) => e.slug === "cup");
+    if (cupRow) {
+      await closed(cupRow.id);
+      await prisma.auditLog.deleteMany({ where: { eventId: cupRow.id, action: "committee-correction" } });
+    }
     await prisma.auditLog.deleteMany({ where: { eventId: ev.id, action: "committee-correction" } });
   }
 });

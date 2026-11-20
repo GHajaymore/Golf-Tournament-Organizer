@@ -73,7 +73,7 @@ function lockedNow(st: TournamentStatus): Locked {
 
 /** Every blanket scope locked by one reason; `except` stays open. */
 function allBy(by: LockBy, except: LockScope[] = []): Locked {
-  const scopes: readonly LockScope[] = by === "completed" ? [...BLANKET, "teeSheet"] : BLANKET; // a completed tournament shuts the tee sheet too (PR 7c)
+  const scopes: readonly LockScope[] = by === "completed" ? [...BLANKET, "teeSheet", "money"] : BLANKET; // a completed tournament shuts the tee sheet too (PR 7c) and what money OFFERED (PR L)
   return Object.fromEntries(scopes.filter((s) => !except.includes(s)).map((s) => [s, by])) as Locked;
 }
 
@@ -1025,8 +1025,8 @@ describe("what the next action may and may not offer — swept over every stage 
         expect(allowed[st.step]).toContain(st.journey);
       });
 
-      it("money was never locked, and the tee sheet is shut only by a completed tournament (PR 7c)", () => {
-        expect(st.locks.money.locked).toBe(false);
+      it("money and the tee sheet are shut only by a completed tournament (PR 7c, PR L)", () => {
+        expect(st.locks.money.locked).toBe(st.step === "completed");
         expect(st.locks.teeSheet.locked).toBe(st.step === "completed");
       });
 

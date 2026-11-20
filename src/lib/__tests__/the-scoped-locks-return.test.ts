@@ -60,6 +60,14 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   setRequirePhone: { file: TOURNAMENT, scope: "field", what: "change the entry terms" },
   setSingleMatchRule: { file: TOURNAMENT, scope: "rounds", what: "change the match’s rule" },
   setThirdPlace: { file: TOURNAMENT, scope: "rounds", what: "change the play-off for third" },
+  // PR L (Ajay, 19 Nov): what money OFFERED shuts at completion. The prize table and the one-prize rule; awarding a prize
+  // (`setPrizeWinner`) is the ledger's and stays open — pinned below. The other money files are `every-lock-scope-is-asked.test.ts`'s.
+  addPrize: { file: TOURNAMENT, scope: "money", what: "change the prizes" },
+  updatePrize: { file: TOURNAMENT, scope: "money", what: "change the prizes" },
+  removePrize: { file: TOURNAMENT, scope: "money", what: "change the prizes" },
+  applyPrizeStructure: { file: TOURNAMENT, scope: "money", what: "change the prizes" },
+  setOnePrizePerPlayer: { file: TOURNAMENT, scope: "money", what: "change the one-prize rule" },
+  setPrizeCounts: { file: TOURNAMENT, scope: "money", what: "change the one-prize rule" },
 };
 
 /** An exported action's body, up to the next export. */
@@ -119,8 +127,8 @@ describe("the scoped locks return, never throw", () => {
     });
   }
 
-  // Thirty-six until PR 7b moved six to the rounds rule (allowance, split, basis, format, delete, and holes on 8 Nov).
-  it("thirty sites, and no other lock-asking action in the three files goes unlisted", () => {
+  // Thirty-six until PR 7b moved six to the rounds rule (allowance, split, basis, format, delete, and holes on 8 Nov); thirty-six again with PR L's six money sites.
+  it("thirty-six sites, and no other lock-asking action in the three files goes unlisted", () => {
     const listed = new Set(Object.keys(SITES));
     for (const file of FILES) {
       for (const part of readSource(file).split(/export async function /).slice(1)) {
@@ -128,7 +136,11 @@ describe("the scoped locks return, never throw", () => {
         if (/refuseIfLocked\(/.test(part)) expect(listed.has(name), `${name} asks a lock and is not pinned here`).toBe(true);
       }
     }
-    expect(listed.size).toBe(30);
+    expect(listed.size).toBe(36);
+  });
+
+  it("awarding a prize is the ledger's: setPrizeWinner asks no lock, so a completed tournament's winners can still be named (PR L)", () => {
+    expect(body(TOURNAMENT, "setPrizeWinner")).not.toMatch(/refuseIfLocked\(/);
   });
 
   /**

@@ -94,6 +94,12 @@ const session = { email: "zz-prize-tx@example.invalid", name: "zz secretary", ev
 vi.mock("@/lib/db", () => ({ prisma: client(true) }));
 vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: async () => {} }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
+// The money lock (PR L) is read through the machine's own narrow facts, which this fake database does not hold: the
+// tournament here is open (money is locked only once completed — `scoped-locks.test.ts`). What this file pins is the transaction.
+vi.mock("@/lib/services/tournament-status", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/tournament-status")>()),
+  refuseIfLocked: async () => null,
+}));
 
 const { prisma } = await import("@/lib/db");
 const { setPrizeCounts, setOnePrizePerPlayer } = await import("@/app/actions/tournament");
