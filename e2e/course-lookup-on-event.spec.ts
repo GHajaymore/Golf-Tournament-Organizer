@@ -101,19 +101,21 @@ test("Look up a course: found as you type, added with its card and tees, and eve
     const search = await openLookup(page);
     const hit = (name: string) => page.locator("#course-search-results").getByRole("option").filter({ hasText: name });
 
-    await test.step("fewer than three letters: no list, nothing asked", async () => {
-      await search.fill(word.slice(0, 2));
-      await page.waitForTimeout(700);
-      await expect(page.locator("#course-search-results")).toHaveCount(0);
-      await expect(page.getByText(/Nothing matching that/)).toHaveCount(0);
-    });
-
     await test.step("typing finds the catalogue's courses with their town and par", async () => {
       await search.fill(word);
       await expect(hit(withCard), "typing did not bring the course up").toBeVisible({ timeout: 20_000 });
       await expect(hit(withCard)).toContainText("Invented Bay");
       await expect(hit(withCard)).toContainText("par 72");
       await expect(hit(withoutCard)).toBeVisible();
+    });
+
+    await test.step("cutting the box back under three letters clears the list; nothing is asked", async () => {
+      // The list going away IS the condition: the box clears it once the typing settles.
+      await search.fill(word.slice(0, 2));
+      await expect(page.locator("#course-search-results")).toHaveCount(0);
+      await expect(page.getByText(/Nothing matching that/)).toHaveCount(0);
+      await search.fill(word);
+      await expect(hit(withCard)).toBeVisible({ timeout: 20_000 });
     });
 
     await test.step("Add to library on a course with a card: its card and tees arrive", async () => {
