@@ -25,3 +25,12 @@
 - Grid and flex children need `min-width: 0` to be allowed to shrink; `minmax(0, 1fr)`
   constrains the track, not the item. Anything wide (tables, scorecards) gets its own
   `overflow-x: auto` wrapper, so the page body never scrolls sideways.
+
+## Moved from CLAUDE.md (20 Nov 2026): Design
+
+Two grounds, one set of tokens (`DARK_GROUND`, `LIGHT_GROUND` in `src/lib/themes.ts`); components read
+`--color-*` properties and never hard-code a colour. One club theme drives the console, the public board
+AND the player app (`themeCss`). Outdoor legibility is a requirement (`SUNLIGHT_RATIO` 7:1 on dark, 4.5 on
+light). Grid/flex children need `min-width: 0`; anything wide gets its own `overflow-x: auto` wrapper.
+`docs/claude/design.md`.
+
