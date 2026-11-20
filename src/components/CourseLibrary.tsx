@@ -818,7 +818,7 @@ export function CourseLibrary({
               tee sets, which is the part a club otherwise types twice — but it
               covers US courses only, so the two paths that always work stay
               right beside it rather than behind it. */}
-          <button type="button" className="btn" onClick={() => { setCheck(null); }}>
+          <button type="button" className="btn" onClick={() => { setCheck(null); setSearching(true); }}>
             <Icon name="magnifying-glass" /> Look up a course
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => { resetForm(); setAdding(true); }}>
