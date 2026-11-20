@@ -198,3 +198,23 @@ Player row in the app and allows exactly one to set tees.
   write the column list out again: a reader that left `gender` off would put a
   woman on the tournament's rating while the board had her on her own.
 - What was left out on purpose is in `docs/deferred-register.md`.
+
+## Moved from CLAUDE.md (20 Nov 2026): Golf rules that have bitten
+
+- **Handicaps** (`docs/claude/handicaps-and-tees.md`): an allowance is taken of the EXACT course handicap and
+  rounded ONCE (`wholeStrokes()`) — never hand `playingHandicapFrom`, `allocatedStrokes` or
+  `sidePlayingHandicap` a rounded figure (`courseHandicapExact`, `resolveRoundHandicap(...).exact`). A player on
+  tees of a higher par is given the difference (`roundPlayingHandicap(exact, allowance, parStrokes)` — the third
+  argument is required; none for Stableford). The right allowance depends on the round's type, not only the
+  format (`recommendedAllowance(format, stage.type)` in `round-allowance.ts`). Work an expectation from the
+  Rules by a route the code does not take, with decimal indexes.
+- **Tees**: the organizer decides, at three levels (tournament, flight, one player); `teeIdFor` is the one
+  resolver; nothing creates a player with a `teeId`; every reader of a round selects `FIELD_PLAYER`.
+- **Knockouts and leagues** (`docs/claude/knockouts-and-leagues.md`): past the first round there is no bye; a
+  tie not yet played is "TBD"; flights are separate knockouts (`bracketDraws()` is the one answer to "which
+  draws"; test with THREE). What has been ARRANGED has not HAPPENED: `matchIsOver(holes)`, never
+  `resolveMatch(holes).complete`; count what there SHOULD be, not the rows that exist; a lookup by
+  `id: { in: [...] }` has no order.
+- **Course cards** (`docs/claude/course-cards.md`): `--revalidate` DESTROYS every card it refuses — judge the
+  catalogue with a read-only script that calls `cardRefusal`; yardage is never a reason to discard a card.
+

@@ -51,13 +51,7 @@ Use a throwaway organization and event, prefix every row with a mark (`zz-<purpo
 names, and `@example.invalid` addresses. Delete them in a `finally` — a fixture left in the
 database is a fixture someone will later mistake for real.
 
-**A fixture that signs itself in signs `signedInNow(user.id)`**, from
-`scripts/session-cookie.mjs` — never the bare user id. Since 2026-10-11 a session cookie
-carries when it was issued (`src/lib/domain/session-token.ts`): the server holds a sign-in to
-seven days itself, and a password reset ends every earlier one. A cookie made the old way is
-refused, and a refused fixture does not fail loudly — every screen answers 307 to the sign-in
-page, which a route walk reads as the app working. `session-token.test.ts` sweeps `e2e/` and
-`scripts/` for the old spellings.
+A fixture that signs itself in signs `signedInNow(user.id)` (from `scripts/session-cookie.mjs`), never the bare user id: a cookie made the old way is refused and every screen answers 307. Long form: `docs/claude/sign-ins.md`.
 
 ## Sign-ins until launch: production is held
 
@@ -84,16 +78,7 @@ Long form: `docs/claude/sign-ins.md`.
 
 ## The club's clock: "today" is asked of the club, never of the server
 
-A deadline is a DAY and a day belongs to a place. `Organization.timeZone` is an IANA name (or `""` = keep
-the server's day). `src/lib/domain/club-clock.ts` is the rule: `clubToday(zone)`, `clubDay(zone)`; on the
-server get the zone through `state.today` / `state.timeZone`, or `clubDayForEvent(eventId)`. The day helpers
-(`todayIso`, `deadlinePassed`, `deadlineState`, `playerMayChange`, `registrationStatus`) must be TOLD the
-day; never hand them `new Date()`. An INSTANT (timestamp, expiry, "3 minutes ago") is still the server's
-clock; `clubDay(zone)` is NOT an instant — never compare it with a stored timestamp. **`E2E_TZ`**
-(`E2E_TZ=Pacific/Auckland`) puts the browser AND the seeded club in another zone while the server stays
-put — the only way a walk tells a server that asks the club from one that asks itself. Dates the app writes
-go through `date-words.ts`; amounts typed in a club's language are read with `minorUnitsFrom` /
-`decimalPoint` (see the index). Long form: `docs/claude/club-clock.md`, `docs/claude/dates-and-figures.md`.
+A deadline is a DAY and a day belongs to a place: `Organization.timeZone`, `clubToday(zone)` / `clubDay(zone)` in `src/lib/domain/club-clock.ts`. The day helpers must be TOLD the day; never hand them `new Date()`, and `clubDay` is not an instant. `E2E_TZ` puts the browser and the seeded club in another zone. Long form: `docs/claude/club-clock.md`, `docs/claude/dates-and-figures.md`.
 
 ## Help and docs travel with the change
 
@@ -120,34 +105,11 @@ chrome also dresses `/faq`, `/privacy`, `/terms`. Pictures are unedited captures
 club. Two sections are green on a phone as Ajay's TEST — never extend, restyle or remove them on
 anybody's word but his; after go-live nothing changes without his preview. **Read `docs/claude/landing-page.md` before touching it.**
 
-Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
-no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
-`guide-steps.test.ts`), and a search result with nowhere to jump (`guide-search.test.ts`). The
-fourth is not testable and is yours: a flow that works differently under the same button names.
-The day this rule was written, the guide already held a sentence that morning's work had made
-false — "Only Manual lets you … set tees per flight".
+Stale help is tested (`player-help.test.ts`, `guide-steps.test.ts`, `guide-search.test.ts`); a flow that works differently under the same button names is not, and is yours.
 
 ## The secretary's home: what's next, and copy last event
 
-The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **What's next** is one line for
-each job waiting on the person in every tournament they run at the open tournament's club — entries
-awaiting approval, a tee sheet for the next fortnight unpublished, a launch, the next draw or week,
-cards not returned, results not released — soonest first. Per-round facts come from the screens' own
-functions (`services/whats-next.ts`: `awaitingApproval`, `nextUnplayedRound`, `boardProgress`); each
-tournament's own job is the state machine's `nextAction`, with its refusal and way out
-(`lifecycleJob`), never worked out on the home. `whatsNext` in `domain/needs-you-now.ts` only words
-and orders them, so the home cannot disagree with the screen it sends you to. Buttons only with the
-club's `canEdit`; a job in another tournament opens it through `enterTournament(eventId, screen)`,
-which honours `JOB_SCREENS` (`/registration`, `/foursomes`, `/stages`, `/entry`, `/dashboard`) and nothing else.
-
-**Copy last event** is `cloneEvent` given a first day: `copiedCalendar` moves the entry window and the
-rounds by the same distance against the club's own today, side games come across as games with nobody
-in them (`CLONED_CONTEST_FIELDS` and its two siblings in `clone.ts`), and the copy is made only by the
-club's Commissioner or an Admin (`organizationAccessFor`). **The journeys are MEASURED and RATCHETED**
-(row 0b, 14 Nov): seven walks at a person's pace — sign-up to an entry link, a first event somebody can
-PLAY (held under ten minutes), copy last event, a member's and a guest's first hole, a signed-out member,
-a whole card on one bar — print one `JOURNEY {…}` line each, and fail CI over OR under their ceilings in
-`e2e/journey-budgets.ts`. Read `docs/claude/journeys.md` before touching one or answering a breach.
+The secretary's home (**What's next**) and **Copy last event** were approved by Ajay, 2026-10-24; the journeys are MEASURED and RATCHETED in `e2e/journey-budgets.ts`. Read `docs/claude/secretary-home.md` and `docs/claude/journeys.md` before touching them.
 
 ## End-to-end means across the board
 
@@ -179,31 +141,8 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
-- **`npm run smoke`** GETs every route against a running server (default `http://localhost:3000`; set
-  `SMOKE_BASE_URL`) and fails on a 5xx. In a worktree check `preview_list`'s `cwd` first: `preview_start`
-  reuses a dev server running from the MAIN checkout and every route then passes against code you did not write.
-- **`npm run smoke:all`** is CI's whole "Smoke-test every route" step locally (SEVEN scripts: `smoke-routes`,
-  `verify-round-controls`, `verify-drafting`, `verify-week-view`, `verify-lifecycle`, `verify-player-states`,
-  `verify-public-boards`) against a BUILT server in `.next-ci` on 3102; `-- --no-build` reuses the build. Run
-  it when you change copy, move a control, or touch a screen that reads a list that can be empty — five of
-  the scripts pin user-facing strings. `FAIL 0` / `fetch failed` means NO SERVER (the dev server restarts
-  itself at a memory threshold), not a broken route: restart and run the set again.
-- **Capture the counts, not the tail.** `| tail` swallows an exit code and a failing vitest still prints
-  `Duration`. Grep `Test Files|Tests ` and record the command's own status:
-  `npx vitest run 2>&1 | grep -E "Test Files|Tests " >> "$O"; echo "unit exit=${PIPESTATUS[0]}" >> "$O"`.
-  A check whose failure looks like its success is not a check.
-- **Playwright is the sixth part of the gate:** `AUTH_SECRET=local-e2e-secret npx playwright test` (needs a
-  database it may write — the development one only). Never say a branch or `main` is verified having skipped
-  it. It builds into `.next-e2e` (no clash with the dev server), but **`reuseExistingServer` is `!CI`**: a
-  killed run leaves `next start` listening on 3101 and the next run tests the OLD build. Before believing a
-  local e2e result: `ls -la --time-style=full-iso .next-e2e/BUILD_ID` (older than your last edit = stale) and
-  `curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3101/` (200 before you start = stale). Cleanup:
-  kill the listener on 3101 (`powershell -c "Get-NetTCPConnection -LocalPort 3101 -State Listen | %{ Stop-Process -Id \$_.OwningProcess -Force }"`)
-  and `rm -rf .next-e2e`. Failures that all take the same time, cascade across unrelated files and carry no
-  expected/received value mean the server under them died.
-- **Reading a change in the browser: bust the URL** (`?bust=1`) or assert against `fetch(url, { cache: "no-store" })`.
-- **WebKit** (`E2E_ENGINE=webkit`) needs the server started with `E2E_PLAIN_HTTP=1`; await `landingSettled(page)`
-  before measuring or pressing on the front door. More in `docs/claude/e2e-traps.md`.
+`npm run smoke` and `npm run smoke:all` are the CI smoke set; capture counts by grepping `Test Files|Tests `, never `| tail`; Playwright is the sixth part of the gate, and a branch is never called verified having skipped it. A red CI job your change cannot explain is one of five known faults. Detail: `docs/claude/smoke-and-gate-scripts.md`, `docs/claude/playwright-runs.md`, `docs/claude/ci-failure-signatures.md`.
+
 - **A red CI job your change cannot explain** is one of five known faults — Chromium `SEGV_MAPERR` (signal 11,
   desktop), `Could not find the module … in the React Client Manifest`, `next/font`, the `offline.spec.ts`
   card-chooser click, or React #418. Open the log, name which, and `gh run rerun <id> --failed`; do NOT add
@@ -227,30 +166,11 @@ any functionality." That is `scripts/qa/` and `docs/testing.md`, and three habit
 - **"Is everything covered?" is answered with the measured figure** (`node scripts/e2e-coverage.mjs`), never
   with the size of the suite.
 
-A round on GitHub is a push to `round/<name>-1` (`round.yml`: about thirty parts side by side).
-Firefox will not start on this Windows machine at all — it is run there or not at all — and
-its first run is where the dates above and `src/lib/leave-on-enter.ts` came from.
+Since 2026-10-23 the pipeline is the testing panel's (`docs/testing-panel-2026-10-23.md`; manual `docs/testing.md`): rounds by tier, the nightly and weekly, zero retries, `e2e/quarantine.json`. **Two sessions on one machine share one e2e fixture and a Playwright run in either wipes the other's:** send "fixture turn: starting" and wait for "go". A round stopped with TaskStop is not stopped; kill what is left. Read `docs/claude/testing-pipeline.md`.
 
-**SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testing-panel-2026-10-23.md`; the
-manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
-
-- **Rounds by tier**: tests, words and the front door need none; function in one area ONE —
-  TARGETED (that area's specs + the always-on sweeps) when `scripts/qa/specs-by-area.mjs` places
-  every file in one area; every function commit, targeted or full, then waits for the NIGHTLY; core
-  ONE round that visits all six countries, and then it waits for the NIGHTLY before production;
-  money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
-  on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`
-  prints the exact branches; the Round workflow plans a pushed branch with the same function.
-- **The nightly** (scheduled 02:17 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
-  console crawl in full, the Android tablet and the libraries' holes, and deploys what it cleared.
-  **The weekly** (`weekly.yml`) runs Chrome, Edge and the front door's motion. A change's round
-  runs the console crawl only when it touches input screens (`crawlNeeded`).
 - **The machine is not the app**: a part the runner, the setup, the build download or the browser
   install stopped makes the verdict `INCOMPLETE — re-run`, never NOT CLEAN, and `round-waiter.yml`
   re-runs it. A crashed browser or a timed-out test is still a finding.
-- **Zero retries stays**; `e2e/quarantine.json` (owner, reason, expiry) is the only way a red test
-  does not count, and every entry is reported in every verdict.
-- **`node scripts/qa/retro.mjs --write`** is the evidence for changing any of this.
 
 **TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN IN EITHER WIPES THE
 OTHER'S.** Every run seeds the e2e fixture at its start and tears it down at its end, under one
@@ -264,32 +184,14 @@ the two sessions settled, by message: before any Playwright run, one line to the
 Unit tests, a build into your own dist directory and a server on your own port collide with
 nothing.
 
-**A background round stopped with TaskStop is NOT stopped.** The shell dies and its children do
-not: on 2026-10-13 a "stopped" round went on reseeding the club for hours under later trials,
-which read as the app losing a sign-in mid-walk, and then started a build over the working
-tree. After stopping one, list the processes (`Get-CimInstance Win32_Process` for `node.exe`
-with `playwright`, `next` or `round.mjs` in the command line) and kill what is left.
-
 ## What gates a merge, and what gates a deploy
 
-`ci.yml` is the only workflow that runs on its own — every PR, and every push to `main` (since
-2026-11-02 a branch push alone runs nothing: open a PR, even a draft, to get its checks). It does the
-command above plus the smoke pass and Playwright.
+The `verify` check (ruleset "main must be green") gates a merge; `deploy.yml` gates a deploy (verify green, nightly cleared, no freeze) and never builds: Vercel does. Read WHICH JOB failed first: `verify` red is your change, `deploy` red on a green `verify` is the token, database or allowance. **A green PR is not a green commit:** tie the verdict to the head SHA (`--match-head-commit`). Only the main session merges. Long form, signatures and commands: `docs/claude/deploy-history.md`.
 
-**What stops a bad merge** is a RULESET named "main must be green", not classic branch
-protection. Branch protection is OFF, so `/repos/.../branches/main/protection` returns 404
-and tells you nothing; ask `/rules/branches/main` instead. It requires the `verify` check
-and blocks deletion and force-push on `main`. `strict` is off, so a branch need not be
-rebased onto `main` to merge.
-
-**What stops a bad deploy**, since 2026-09-04: the `deploy` job in `ci.yml`, which
-`needs: verify` and runs only on a push to `main`. Nothing reaches production until the
-whole gate is green. Vercel's own Git deploy for `main` is off — `vercel.json` sets
-`git.deploymentEnabled.main = false` — so that job is the only route in. Preview deploys
-on `claude/*` branches are untouched, since a PR's reviewer needs one. **`round/*`, `breaks/*`
-and `dependabot/*` build no preview** (2026-10-30): a round builds its own server on the runner
-and never opened the preview, and 170 round branches had filled Function Storage past the free
-plan's 10 GB, the point at which Vercel may refuse a production deploy.
+Since 2026-10-23 a green deploy job may also be a HOLD (a core change waiting for the nightly, or
+the freeze): its summary starts "Deploy gate: hold" and says why. "Merged" is "live" only when the
+gate said deploy, or when a GitHub deployment to `tourneyhq-production` names that commit or a
+later one.
 
 **SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
 panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
@@ -316,42 +218,6 @@ or CANCELLED after a long `Completing…` (the deploy may be Ready — check the
 before re-running). `android-release.yml` / `ios-testflight.yml` are scaffolding with no secrets. Long
 form and the signatures: `docs/claude/deploy-history.md`.
 
-So read WHICH JOB failed before reading anything else. `verify` red is your change; `deploy` red
-on a green `verify` is the token, the database, or the allowance, and the message names which.
-A BUILD that fails inside `next/font` is none of them and is not yours either.
-Nothing shipped unverified either way — `deploy` has `needs: verify` — but a commit CAN sit
-undeployed until the next merge, so do not read "merged" as "live" without checking the run:
-
-```bash
-gh run view <run-id> --json jobs -q '.jobs[] | select(.name|endswith("Deploy to production")) | .conclusion'
-```
-
-Since 2026-10-23 a green deploy job may also be a HOLD (a core change waiting for the nightly, or
-the freeze): its summary starts "Deploy gate: hold" and says why. "Merged" is "live" only when the
-gate said deploy, or when a GitHub deployment to `tourneyhq-production` names that commit or a
-later one.
-
-**AND A GREEN PR IS NOT A GREEN COMMIT.** `gh pr checks <n>` answers "is this
-PR green". On 2026-09-20 an auto-merge read it seconds after a second commit
-was pushed to the branch, counted the PREVIOUS head's sixteen green checks,
-merged, and `main` took the first commit only. The PR closed, the work looked
-shipped, and nothing in the output said otherwise — it was found because a file
-on the new `main` was missing a function it should have had.
-
-Tie the verdict to a SHA at both ends:
-
-```bash
-head=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
-gh api "repos/$REPO/commits/$head/check-runs" -q '.check_runs[] | .status + ":" + (.conclusion // "pending")'
-gh pr merge "$PR" --squash --match-head-commit "$head"
-```
-
-Also: `--delete-branch` from a worktree fails with `'main' is already used by worktree` on a merge that
-SUCCEEDED — take the verdict from `gh pr view --json state` and confirm with `git show origin/main:<file>`.
-Merge one at a time and let each `verify` finish when the history must mean something (a batch merge
-leaves a wall of `cancelled`); ask for a commit's run with `gh run list --branch main --json headSha,conclusion`.
-`main` auto-deploys (Hard rule 3).
-
 ## What the tests enforce
 
 Several test files exist to make a whole class of mistake impossible — extend them rather than working
@@ -372,11 +238,6 @@ segments are paid live. Enforce at the SINK (`gameNets`, as `standingRows` retur
 format) so a caller written later cannot forget. `matchSettled` is too loose to release money. A player may
 still see their EXPOSURE (`stakeFor`). **TourneyHQ calculates and records money; it never moves it** (Hard
 rule 7).
-
-**The app says "side game", never "bet"** (Ajay, 2026-10-21: "side games will resonate with our
-moto of no gambling"). On every screen, in the guide and in the player's Help, not only on the
-public pages that ads land on. `public-pages-never-say-bet.test.ts` sweeps the whole of `src` for
-the phrases a sentence makes of the word; `bet` as a code NAME (`bet.name`, `renameBet`) is fine.
 
 ## Golf rules that have bitten (read the long form before touching them)
 
@@ -399,24 +260,11 @@ the phrases a sentence makes of the word; `bet` as a code NAME (`bet.name`, `ren
 
 ## One rule, one place
 
-Ajay, 2026-10-13: "make sure the underlying pieces/modules are in line and built as shareable vs every
-screen/function/round using different logic or their own way." Two screens answering one question
-differently is the class a screen test cannot see. `docs/one-rule-one-place.md` is the inventory. For each
-rule: (1) ONE function holds it and takes what it needs as REQUIRED arguments, so the compiler lists every
-caller the day the rule grows; (2) ONE test worked from the Rules of Golf by a route the code does not take,
-on the axis the fixtures missed; (3) ONE sweep that refuses a second copy, with a control proving it can see
-one. A single reader must be pinned to the RULES (readers that agree by construction agree whether or not
-they are right); a dead twin of a live rule is a second copy waiting to be used. Ban the shape, not the
-spelling. Long form: `docs/claude/one-rule-one-place-rationale.md`.
+Ajay, 2026-10-13: shared pieces, not each screen's own logic. ONE function holds each rule (REQUIRED arguments), ONE test worked from the Rules by another route, ONE sweep that refuses a second copy. Inventory: `docs/one-rule-one-place.md`; long form: `docs/claude/one-rule-one-place-rationale.md`.
 
 ## Combination sweep
 
-For any change to scoring, draw, cut, bracket or handicap code add the cell to
-`src/lib/__tests__/matrix.test.ts` (format x stage type x field sizes starting at ONE; invariants, not
-features), assert against the Rules of Golf with the citation, and mutate what a cell covers to watch it
-go red. A constant offset on every row is invisible to ordering tests: check one row against the Rules.
-Ask which table (Scorecard, TeamScorecard, Match, BracketWinner) a round files its result in before
-believing any count. `docs/claude/combination-sweep.md`.
+A change to scoring, draw, cut, bracket or handicap code adds a cell to `src/lib/__tests__/matrix.test.ts` (invariants, asserted against the Rules of Golf) and mutates it to watch it go red. Read `docs/claude/combination-sweep.md`.
 
 ## Migrations
 
@@ -430,11 +278,7 @@ holds the old client: `prisma.yourNewModel` is `undefined`). `docs/claude/migrat
 
 ## Design
 
-Two grounds, one set of tokens (`DARK_GROUND`, `LIGHT_GROUND` in `src/lib/themes.ts`); components read
-`--color-*` properties and never hard-code a colour. One club theme drives the console, the public board
-AND the player app (`themeCss`). Outdoor legibility is a requirement (`SUNLIGHT_RATIO` 7:1 on dark, 4.5 on
-light). Grid/flex children need `min-width: 0`; anything wide gets its own `overflow-x: auto` wrapper.
-`docs/claude/design.md`.
+Two grounds, one set of tokens (`src/lib/themes.ts`); components read `--color-*` and never hard-code a colour; outdoor legibility is a requirement; grid/flex children need `min-width: 0`. Read `docs/claude/design.md`.
 
 ## Shell
 
@@ -490,4 +334,6 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |
 | the demo club, `isDemo`, `/demo`, the replay cron, anything that counts or messages clubs | `docs/claude/demo-club.md` | an invented club in production; every place it is left out, and the test for each |
 | a journey spec, `e2e/journey*.ts`, a `JOURNEY-BREACH` in CI, a press or screen added to a set-up or player path | `docs/claude/journeys.md` | the seven journeys, what is counted, the ratchet both ways, when a ceiling may be raised |
+| the dashboard's What's next, copy last event | `docs/claude/secretary-home.md` | the home's jobs, `cloneEvent`, who may copy |
+| rounds, the nightly, shared e2e fixture, a stopped round | `docs/claude/testing-pipeline.md` | the pipeline by tier; two sessions one fixture |
 | history only | `docs/claude/retired.md` | Paragraphs superseded by a later ruling, kept verbatim with the reason |

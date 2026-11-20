@@ -82,3 +82,14 @@ Three things to carry forward from them:
   uncommitted to lose. With the work committed, `git checkout -- <file>` is exactly right.
 - **A finding from reading code becomes a test in the BROWSER, not only a fix.** The next round
   must be able to find it again without anybody remembering it.
+
+## Moved from CLAUDE.md (20 Nov 2026): End-to-end means across the board
+
+Ajay, 2026-10-10: the e2e "should cover EVERYTHING IN THE APP". **A browser-test result is never reported
+without its reach**: `node scripts/e2e-coverage.mjs` (`--reset` empties the ledger before a run) prints what
+was reached and, by name, what never was; the first measurement was 36 of 263 server actions. "A round" is
+the whole suite and is "clean" only with its reach stated beside it. A screen every walk opens and nobody
+uses is not a tested screen; a refusal is said where the press was; a step that did not run says so. A
+finding from reading code becomes a browser test, not only a fix. **Commit before any mutation check** so
+`git checkout -- <file>` is exactly right. Long form: `docs/claude/e2e-across-the-board.md`.
+

@@ -25,3 +25,11 @@ shared chrome (`components/landing/chrome.tsx`, `lib/landing/styles.ts`) also dr
 - **Until go-live it is built and shipped as the designer and reported to Ajay; after go-live
   nothing on it changes without his preview first** (his ruling, 2026-10-11). Another session
   used to own these files; it has said it holds nothing in them.
+
+## Moved from CLAUDE.md (20 Nov 2026): The landing page
+
+**The landing page** (`src/app/page.tsx`, `src/lib/landing/home-styles.ts`) is its own stylesheet and its
+chrome also dresses `/faq`, `/privacy`, `/terms`. Pictures are unedited captures with an invented demo
+club. Two sections are green on a phone as Ajay's TEST — never extend, restyle or remove them on
+anybody's word but his; after go-live nothing changes without his preview. **Read `docs/claude/landing-page.md` before touching it.**
+
