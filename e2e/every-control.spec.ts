@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path";
 import { consoleScreens, playerScreens } from "./routes";
 import { watchPageErrors } from "./page-errors";
-import { watchNavigations } from "./navigation-settle";
+import { arrivedAt, elsewhere, sameAddress, watchNavigations } from "./navigation-settle";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 
 /**
@@ -489,7 +489,7 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
     const goes = c.kind === "select" && (await page.locator("main select").nth(c.nth).getAttribute("data-view-picker").catch(() => null)) === "url";
     await choose(page, c, choice);
     if (goes) {
-      const arrived = await page.waitForURL((u) => u.href !== startUrl, { timeout: 20_000 }).then(() => true, () => false);
+      const arrived = await page.waitForURL((u) => !sameAddress(u.href, startUrl), { timeout: 20_000 }).then(() => true, () => false);
       if (!arrived) return { outcome: "stuck", note: "chose another round and the address never changed in 20s" };
       await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
       if (new URL(page.url()).searchParams.get("round") !== choice) {
@@ -506,16 +506,16 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
     if (!answered.ok) return { outcome: "stuck", note: `the press started a navigation (${answered.waiting}) and it was not answered in 10s` };
     // An answer lands a moment before the screen is drawn and the address changes: wait for the address the
     // navigation went to, however early it answered. A request to the address we are on (router.refresh) has none to wait for.
-    const here = (u: URL) => u.pathname + u.search;
-    const targets = navigations.seen().filter((t) => t !== here(new URL(startUrl)));
+    // Compared as addresses, not spellings (`addressKey`): a redirect, a trailing slash or a reordered query is the same arrival.
+    const targets = elsewhere(startUrl, navigations.seen());
     if (targets.length) {
-      const drawn = await page.waitForURL((u) => targets.includes(here(u)), { timeout: 5_000 }).then(() => true, () => false);
+      const drawn = await page.waitForURL((u) => arrivedAt(u.href, targets), { timeout: 5_000 }).then(() => true, () => false);
       if (!drawn) return { outcome: "stuck", note: `the press started a navigation to ${targets[0]} and the address never reached it in 5s` };
     }
     if (picker) return { outcome: "view", note: `chooses ${picker}` };
     const builder = BUILDERS[`${path}|${c.label}`];
     if (builder) return { outcome: "in a form", note: builder };
-    if (fired.length === 0 && page.url() === startUrl) {
+    if (fired.length === 0 && sameAddress(page.url(), startUrl)) {
       const save = await saveFor(page, c);
       if (save.how === "form") return { outcome: "in a form", note: save.label };
       if (save.how === "save") {
@@ -539,7 +539,7 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
     }
     await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
 
-    if (page.url() !== startUrl && fired.length === 0) return { outcome: "view", note: new URL(page.url()).search };
+    if (!sameAddress(page.url(), startUrl) && fired.length === 0) return { outcome: "view", note: new URL(page.url()).search };
     const textAfter = await page.locator("main").innerText().catch(() => "");
     const fresh = textAfter.split("\n").filter((line) => line.trim() && !textBefore.includes(line.trim()));
     const trouble = (await complaints(page, c)).find((line) => !complaintsBefore.includes(line));
