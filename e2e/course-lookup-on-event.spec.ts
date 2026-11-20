@@ -99,12 +99,12 @@ test("Look up a course: found as you type, added with its card and tees, and eve
     await signIn(context, baseURL!, club, event.id);
 
     const search = await openLookup(page);
-    const hit = (name: string) => page.getByRole("option").filter({ hasText: name });
+    const hit = (name: string) => page.locator("#course-search-results").getByRole("option").filter({ hasText: name });
 
     await test.step("fewer than three letters: no list, nothing asked", async () => {
       await search.fill(word.slice(0, 2));
       await page.waitForTimeout(700);
-      await expect(page.getByRole("option")).toHaveCount(0);
+      await expect(page.locator("#course-search-results")).toHaveCount(0);
       await expect(page.getByText(/Nothing matching that/)).toHaveCount(0);
     });
 
