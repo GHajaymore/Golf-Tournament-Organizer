@@ -102,7 +102,7 @@ Sentry) and the canary's and trigger's steps say "SKIPPED".
      `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Shorter than 32 is refused.
    - (`DATABASE_URL`, `CRON_SECRET` and `SENTRY_DSN` are already there.)
 4. **Redeploy** production (variables reach new deployments only), then Settings → **Cron Jobs** →
-   `/api/cron/backup` → **Run**. Its log line should read `{"ok":true,"tables":61,…}`.
+   `/api/cron/backup` → **Run**. Its log line should read `{"ok":true,"tables":65,…}`.
 5. **Give GitHub the trigger.** Repository → Settings → Secrets and variables → Actions → New secret
    `BACKUP_TRIGGER_SECRET`, the same value as step 3. (Do this after step 4, or the canary goes red until
    the first copy exists.)

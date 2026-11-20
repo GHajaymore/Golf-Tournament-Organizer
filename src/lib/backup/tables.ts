@@ -26,6 +26,7 @@
 export const BACKED_UP_TABLES = [
   "_prisma_migrations",
   "Account",
+  "AiSpend",
   "Announcement",
   "AuditLog",
   "BracketReport",
@@ -61,6 +62,9 @@ export const BACKED_UP_TABLES = [
   "OrganizationMember",
   "PlatformSetting",
   "Player",
+  "PlayerPass",
+  "PlayerPassDevice",
+  "PlayerPassPush",
   "Prize",
   "PushSubscription",
   "RoundAttendance",

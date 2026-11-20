@@ -9,8 +9,6 @@ import { backupPaths, choosePruning, parseBackupPath, LATEST, type StoredFile } 
  */
 
 const NOW = new Date("2026-12-20T02:30:00Z"); // a Sunday
-const HOUR = 3600_000;
-const DAY = 24 * HOUR;
 
 function copy(at: Date, kind: "daily" | "event-day" = "daily", size = 1000): StoredFile[] {
   const p = backupPaths(at, kind);
