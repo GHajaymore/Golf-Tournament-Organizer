@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -111,6 +111,6 @@ test("a notice is posted, pinned above a player's round, unpinned and deleted â€
 
     expect(errors, "a screen threw").toEqual([]);
   } finally {
-    await Promise.all([organizer, member].map((c) => c.close()));
+    await closeAll(organizer, member);
   }
 });

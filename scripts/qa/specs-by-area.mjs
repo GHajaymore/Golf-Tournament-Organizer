@@ -338,6 +338,8 @@ export const FULL_ONLY = [
   "e2e/club-theme.spec.ts",
   "e2e/code-event-no-mobile.spec.ts",
   "e2e/commentary.spec.ts",
+  // State machine PR L (B95): every offer-side money control (skins, side games, contests, money mode, a player's side game) refused in words once completed; the ledger still works; Reopen gives it back.
+  "e2e/completed-offers-refuse-in-words.spec.ts",
   "e2e/completing-asks-about-unplayed-rounds.spec.ts",
   "e2e/contest-sponsor.spec.ts",
   "e2e/country-words.spec.ts",
