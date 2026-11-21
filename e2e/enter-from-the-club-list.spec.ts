@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -211,6 +211,6 @@ test("a member takes the last place from their club's list, the next goes on the
 
     expect(errors, "a screen threw").toEqual([]);
   } finally {
-    await Promise.all([first, other].map((x) => x.close()));
+    await closeAll(first, other);
   }
 });

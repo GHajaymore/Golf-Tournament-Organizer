@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Locator } from "./coverage";
+import { test, expect, closeAll, type Page, type Locator } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -249,7 +249,7 @@ test("a side game is started, joined, paid into, won, tied, opened to the field 
     expect(await standing(phone), "after all of it, what I am owed is not what it was").toBe(before);
     expect(errors, "a screen threw").toEqual([]);
   } finally {
-    await Promise.all([organizer, member].map((c) => c.close()));
+    await closeAll(organizer, member);
   }
 });
 
