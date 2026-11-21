@@ -34,7 +34,6 @@ export function RoundColumn({ label, state, ring, children }: RoundColumnProps) 
         {ring ? (
           <span
             data-round-ring={ring.holds ? "holds" : "open"}
-            aria-label={roundRingWords(ring)}
             style={{
               minWidth: 0,
               padding: "1px 8px",

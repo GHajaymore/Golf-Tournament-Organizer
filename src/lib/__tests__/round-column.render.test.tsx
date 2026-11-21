@@ -18,7 +18,8 @@ describe("RoundColumn", () => {
   it("draws the ring's words when it is given a ring, and its children below", () => {
     const html = draw("not-started", { set: 2, of: 3, holds: true });
     expect(html).toContain("2 of 3 set");
-    expect(html).toContain('aria-label="2 of 3 set"');
+    // The words are the visible text a screen reader reads; no role-less aria-label (aria-label-needs-a-role).
+    expect(html).toContain(">2 of 3 set<");
     expect(html).toContain('data-round-ring="holds"');
     expect(html).not.toContain("data-round-state");
     expect(html.indexOf("Round 2")).toBeLessThan(html.indexOf("inside"));
