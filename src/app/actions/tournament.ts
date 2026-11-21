@@ -6003,6 +6003,9 @@ export async function endCorrection(): Promise<{ ok: boolean; error?: string }> 
  */
 export async function addPrize(category: string, amount: number, detail = ""): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  // The prize table is what was OFFERED: shut at completion, Reopen the way out (PR L). Awarding it is not (`setPrizeWinner`).
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   // REFUSED IN WORDS (the text-box crawl, 2026-10-21): a blank name returned
   // nothing, and the screen pressing Add said nothing; an impossible amount
   // was stored as no prize. See `prize-amount.ts`.
@@ -6037,6 +6040,8 @@ export async function updatePrize(
   data: { category?: string; detail?: string; amount?: number },
 ): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   const patch: { category?: string; detail?: string; amount?: number } = {};
   if (data.category !== undefined) {
     const category = String(data.category).trim();
@@ -6171,6 +6176,8 @@ async function prizeWinnerNames(tx: PrizeTx, eventId: string, ids: string[]): Pr
  */
 export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the one-prize rule");
+  if (locked) return locked;
   const want = on === true;
   const outcome = await prisma.$transaction(async (tx) => {
     await lockEventForPrizes(tx, eventId);
@@ -6198,6 +6205,8 @@ export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; 
  */
 export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the one-prize rule");
+  if (locked) return locked;
   const want = counts === true;
   const outcome = await prisma.$transaction(async (tx) => {
     await lockEventForPrizes(tx, eventId);
@@ -6233,6 +6242,8 @@ export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<
 
 export async function removePrize(prizeId: string) {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   // Read before it goes, or the line says nothing but an id nobody can look up.
   const gone = await prisma.prize.findFirst({
     where: { id: prizeId, eventId },
@@ -6260,6 +6271,8 @@ export async function removePrize(prizeId: string) {
  */
 export async function applyPrizeStructure(key: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   // An unknown structure is refused by name, not treated as one with no lines.
   if (!prizeStructure(key)) return { ok: false, error: "That isn't one of the prize structures." };
   // Real flights only — a carrier is a structural row, not a division a prize

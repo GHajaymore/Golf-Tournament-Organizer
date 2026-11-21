@@ -6,6 +6,7 @@ import { useAction } from "./useAction";
 import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
 import { ConfirmButton } from "./ConfirmButton";
 import { bringIntoView } from "@/lib/bring-into-view";
+import { ScopeLockMark } from "./ScopeLockBanner";
 
 type Run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => void;
 
@@ -54,9 +55,16 @@ export function CupLineup({
   sessions,
   pointsToWin,
   holder,
+  locked,
 }: {
   teams: [Team, Team];
   sessions: Session[];
+  /**
+   * The cup's points to win and holder are shut (the machine's `rounds` lock, drawn above this by
+   * `ScopeLockBanner`; `setCupSettings` asks it). The lineup and the points beside it are the day's
+   * work and are never behind it.
+   */
+  locked: boolean;
   pointsToWin: number;
   holder: string;
 }) {
@@ -65,11 +73,11 @@ export function CupLineup({
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {error && (
-        <p role="alert" className="form-error" style={{ margin: 0 }}>
+        <p role="alert" className="form-error" style={{ margin: 0 }} ref={bringIntoView}>
           {error}
         </p>
       )}
-      <CupSettings teams={teams} pointsToWin={pointsToWin} holder={holder} pending={pending} run={run} />
+      <CupSettings teams={teams} pointsToWin={pointsToWin} holder={holder} locked={locked} pending={pending} run={run} />
       {sessions.map((s) => (
         <SessionLineup key={s.id} session={s} teams={teams} pending={pending} run={run} />
       ))}
@@ -81,12 +89,14 @@ function CupSettings({
   teams,
   pointsToWin,
   holder,
+  locked,
   pending,
   run,
 }: {
   teams: [Team, Team];
   pointsToWin: number;
   holder: string;
+  locked: boolean;
   pending: boolean;
   run: Run;
 }) {
@@ -137,9 +147,10 @@ function CupSettings({
           ))}
         </select>
       </label>
-      <button type="submit" className="btn btn-secondary" disabled={pending}>
+      <button type="submit" className="btn btn-secondary" disabled={pending || locked}>
         Save
       </button>
+      {locked && <ScopeLockMark />}
       {said && (
         <p role="alert" className="form-error" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
           {said}

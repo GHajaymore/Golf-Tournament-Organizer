@@ -13,6 +13,7 @@ import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { logAudit } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
 import { isHeadToHead } from "@/lib/stage-types";
 import { money } from "@/lib/domain/money-format";
 import { isMatch } from "@/lib/tournament-shape";
@@ -155,6 +156,9 @@ export async function saveSideGame(
   const access = await requirePotAccess(stageId, groupKey);
   if (!access.ok) return { ok: false, error: access.error };
   const eventId = access.eventId;
+  // The game's definition is what was OFFERED: shut at completion, Reopen the way out (PR L). Who is in it and who has paid are not.
+  const locked = await refuseIfLocked(eventId, "money", "change a side game");
+  if (locked) return locked;
   const name = await actorName();
 
   if (!KINDS.includes(kind)) return { ok: false, error: "Unknown side game." };
@@ -557,6 +561,8 @@ export async function removeSideGame(sideGameId: string): Promise<SideGameResult
   const found = await requireGameAccess(sideGameId);
   if (!found.ok) return { ok: false, error: found.error };
   const { game, eventId } = found;
+  const locked = await refuseIfLocked(eventId, "money", "remove a side game");
+  if (locked) return locked;
 
   /**
    * A POT WITH MONEY IN IT IS NOT DELETED, IT IS EMPTIED FIRST.

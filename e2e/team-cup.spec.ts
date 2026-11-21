@@ -2,6 +2,8 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedCup, teardownCup, PARS, CUP_EVENT } from "./cup-fixture.mjs";
 import { pressRadio } from "./press-radio";
+import { PrismaClient } from "@prisma/client";
+import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
 
 /**
  * A TEAM CUP, PLAYED BY ITS PLAYERS — the Ryder Cup shape a golf trip runs,
@@ -545,7 +547,15 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
    */
   await test.step("the organizer renames a team, and the board calls the winners by it", async () => {
     await as(page, baseURL!, "organizer");
-    await open(page, "/cup");
+    // The cup is live, and a team's name is the cup scope's (PR L): locked by launch, opened for this one step by a
+    // committee correction on the cup, closed again below. The lineup and the points beside it never needed one.
+    const prisma = new PrismaClient();
+    try {
+      await openCorrectionFor(prisma, f.eventId, "cup");
+      await open(page, "/cup");
+    } finally {
+      await prisma.$disconnect();
+    }
     const whites = page.getByRole("group", { name: "Team Whites" });
     await whites.getByLabel("Team name").fill("Blues");
     await whites.getByRole("button", { name: "Save name" }).click();
@@ -555,6 +565,12 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await whites.getByLabel("Team name").fill("White Knights");
     await whites.getByRole("button", { name: "Save name" }).click();
     await expect(page.getByRole("group", { name: "Team White Knights" })).toBeVisible({ timeout: 20_000 });
+    const closer = new PrismaClient();
+    try {
+      await endCorrectionFor(closer, f.eventId);
+    } finally {
+      await closer.$disconnect();
+    }
 
     await page.context().clearCookies();
     await open(page, `/live/${f.shareToken}`);

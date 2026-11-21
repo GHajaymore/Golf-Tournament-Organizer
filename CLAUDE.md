@@ -334,6 +334,7 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |
 | the demo club, `isDemo`, `/demo`, the replay cron, anything that counts or messages clubs | `docs/claude/demo-club.md` | an invented club in production; every place it is left out, and the test for each |
 | a journey spec, `e2e/journey*.ts`, a `JOURNEY-BREACH` in CI, a press or screen added to a set-up or player path | `docs/claude/journeys.md` | the seven journeys, what is counted, the ratchet both ways, when a ceiling may be raised |
+| a lock scope, `refuseIfLocked`, the cup's teams, what money locks at completion | `docs/claude/lock-scopes.md` | which action asks which scope; the offer side locks at completion, the ledger never |
 | the dashboard's What's next, copy last event | `docs/claude/secretary-home.md` | the home's jobs, `cloneEvent`, who may copy |
 | rounds, the nightly, shared e2e fixture, a stopped round | `docs/claude/testing-pipeline.md` | the pipeline by tier; two sessions one fixture |
 | history only | `docs/claude/retired.md` | Paragraphs superseded by a later ruling, kept verbatim with the reason |
