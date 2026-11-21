@@ -9,7 +9,7 @@ with no asker is red the day it lands.
 | Scope | Locked when | Asked by |
 | --- | --- | --- |
 | `details`, `rounds`, `field`, `flights`, `sides` | launch (way out: the committee correction), completion (Reopen) | `refuseIfLocked(eventId, scope, what)` in `actions/tournament.ts`, `teams.ts`, `setup-suggest.ts` — listed in `the-scoped-locks-return.test.ts` |
-| `draw` | a flighted knockout: results, completion | `flightsOpenForChange` in `actions/tournament.ts` — a hand-spelled twin of the machine's answer, read by the Bracket screen as `locks.draw` |
+| `draw` | a flighted knockout: results, completion | `refuseIfLocked(eventId, "draw", "change the flights")` inside `flightsOpenForChange` in `actions/tournament.ts`, which every flight action calls (PR L2: it keeps only the "arranged in flights" precondition and the state load; WHEN the draw is shut is the machine's, the same answer the Bracket banner draws) |
 | `teeSheet` | completion only (Reopen) | `teeSheetVerdictFor` (the one rule `teeSheetChangeAllowed`); `scoped-locks.test.ts` holds `locksFor(f).teeSheet.locked` to `!teeSheetChangeAllowed(…).ok` over every family, status, step and change |
 | `cup` | launch (the committee correction), completion (Reopen) | `createCupTeams`, `renameCupTeam`, `setCupPlayerTeam` |
 | `money` | completion only (Reopen) — **never at launch** | the OFFER-side actions below |

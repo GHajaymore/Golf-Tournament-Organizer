@@ -6389,9 +6389,9 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
 
 /**
  * WHAT EVERY ONE OF THE FLIGHT ACTIONS ASKS NEXT, in one place — after its own
- * first line has asked for the primary organizer: a tournament that is not
- * finished, the arrangement set to flights, and no result yet recorded in any
- * flight. The last is the Rules' own line — the draw is fixed once play in it
+ * first line has asked for the primary organizer: the arrangement set to flights
+ * and the machine's `draw` lock open (`refuseIfLocked`: not completed, no result
+ * yet recorded in any flight). The lock is the Rules' own line — the draw is fixed once play in it
  * has begun (Committee Procedures 5F(1)) — and it is asked HERE rather than by
  * each action, which is how one of five would come to forget it.
  *
@@ -6408,18 +6408,17 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
  */
 async function flightsOpenForChange(eventId: string): Promise<
   | { ok: true; eventId: string; state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>; stored: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; lock?: ScopeLock }
 > {
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true, bracketDraw: true, status: true } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true, bracketDraw: true } });
   if (!event || event.bracketMode !== "flights") {
     return { ok: false, error: "This knockout is not arranged in flights. Choose \"Several flights\" first." };
   }
-  if (isFinished(event.status)) {
-    return { ok: false, error: "This tournament is completed, so its flights are as they finished. Reopen it to change them." };
-  }
-  if ((await prisma.bracketWinner.count({ where: { eventId } })) > 0) {
-    return { ok: false, error: "This knockout has results, so its flights are fixed. Clear the results to change them." };
-  }
+  // WHEN the draw may change is the machine's `draw` lock (completed, or the knockout has results), asked here like
+  // every other scope, so the Bracket's banner and this refusal are one answer. What stays here is not a lock: that
+  // the tournament is in flights at all, and the state the actions read.
+  const locked = await refuseIfLocked(eventId, "draw", "change the flights");
+  if (locked) return locked;
   const state = await loadEventState(eventId);
   if (!state) return { ok: false, error: "This tournament could not be read." };
   return { ok: true, eventId, state, stored: event.bracketDraw };
