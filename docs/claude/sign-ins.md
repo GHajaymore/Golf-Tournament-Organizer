@@ -208,3 +208,42 @@ password goes through `passwordRefusal` (`services/password-breach.ts`); club st
 before are sent a code (`KnownDevice`) — sign a STAFF fixture in with `signedInNow`, not the password form.
 Long form: `docs/claude/sign-ins.md`.
 
+
+## A guest enters themselves on the one sign-up link (J39/J40 PR 3B, 2026-11-20)
+
+Ajay, 7 Nov: guests need no email and no app; they enter themselves only when the organizer switches it on, and ALWAYS
+with approval. The organizer ticks **Let guests enter themselves** on Entries (`Event.guestEntryOpen`, off by default,
+never cloned). The sign-up page (`/register/<token>`) then carries **Enter as a guest** FIRST, above the member form;
+the member form keeps one line under it, guests on or off ("Not a member of the club? Ask the organizer: they can add
+you.").
+
+- **A waiting entry and nothing else.** `registerAsGuest(token, form, nonce)` (`actions/guest-entry.ts`) writes a
+  `Player` with `standing: guest`, `status: "pending"` WHATEVER the approval mode, no email, no phone, no `teeId`, no
+  roster `Member` and no `Account`, plus its `PlayerPass`; it sets `ng_guest` and returns the guest's own code once.
+  It never calls `createSession`, `syncPlayerAccount`, `sendRegistrationEmail`, `getSession` or the hold: the guest door
+  is NOT held (`NOT_SWITCHED` `guest-entry`, `the-guest-door-makes-no-sign-in.test.ts`).
+- **The token only.** `registerAsGuest` takes the 114-bit `registrationToken`, never the 8-character code (C1.1). The
+  code is the link's typed form (`Event.registrationCode`, 38 bits), printed under the poster's QR, typed at `/register`,
+  and redeemed ONLY by the one door for a typed code (`openAnyCode`; `guestEntryFor` is the press). On success the
+  browser is redirected to `/register/<token>`: the token IS revealed to a code holder, on purpose (C1.2), because the
+  poster's QR carries it beside the code. A code at an event whose entries have closed is the one neutral sentence, counted
+  like an unknown code and never redirected to a page that names it (C1.3, C4.4); only a TOKEN names a closed event, and
+  only the event and the day (C4.1).
+- **One lifecycle (C1.4).** The code is made lazily by a staff press (Show QR code, the first guest turn-on), only while a
+  token exists, checked against both `Stage.accessCode` and `Event.registrationCode`; it rotates with the token in ONE
+  write (New link, C2.1) and is never cloned. Turning the guest switch off does not end it.
+- **Limits (D3).** `register-token` (grows with the field), `guest-entry-device` 3 an hour per browser + event,
+  `guest-entry-cookieless` 10 an hour per network + event counting ONLY requests with no device cookie (the cookie is set
+  by pressing Enter as a guest, before the submit), and the waiting cap `max(24, the field's limit)`. There is NO per-network
+  budget on successful entries (a clubhouse is one address). Residue, stated: `ng_device` is an unsigned random value, so a
+  script that sets a well-formed one of its own per request is not held by the device or cookieless budget; it is held by the
+  token's budget, the cap, the switch and New link, and earns only rows staff remove.
+- **Approval** (`approveSignup(playerId, figure?)`): a guest is approved AS A GUEST (`upsertMember(…, { guest: true })`),
+  counted and placed under `withEventIntakeLock`; where ANY round is scored net the committee's figure ("Handicap for
+  today") is required (`approvalFigureRefusal`) and is stored as the entry's index; a gross-only event asks none and stores
+  "none". The figure is validated as a payload (`figurePayload`).
+- **The waiting screen** is the layout's waiting card (`GuestWaitingCard`): `router.refresh()` of Today with no argument
+  (no new guest action), only while the page is visible (`waiting-refresh.ts`), with **Check now**. The guest's code is held
+  in client memory only (`guest-code-memory.ts`) and is never server-rendered.
+- **A retry returns the same entry (C3.5):** a nonce of at least 128 bits, its keyed hash stored with the pass, bound to
+  the event and the device, for 15 minutes; never matched on the name.

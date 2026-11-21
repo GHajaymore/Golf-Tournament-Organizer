@@ -40,6 +40,12 @@ const LINK_FILES = [
   "src/app/actions/code-box.ts",
   "src/lib/domain/code-shape.ts",
   "src/components/PlayClient.tsx",
+  // PR 3B: a guest who entered themselves is handed their own code once, and the waiting screen shows it.
+  "src/app/actions/guest-entry.ts",
+  "src/lib/services/guest-entry.ts",
+  "src/components/GuestEntryForm.tsx",
+  "src/components/GuestWaitingCard.tsx",
+  "src/lib/guest-code-memory.ts",
 ];
 
 /** Each call's own argument list, from its opening bracket to the one that closes it. */
