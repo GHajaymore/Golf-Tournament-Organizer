@@ -346,7 +346,29 @@ describe("every screen a scope can refuse mounts the banner with the way out (PR
     }
   });
 
+  /**
+   * A PAGE THAT REACHES A REFUSING CLIENT BUT CANNOT PRESS ITS EVENT-LEVEL ACTION (PR L). Club settings draws
+   * `MoneySetup` in its club mode only, which sets the CLUB's default (`setOrgMoneyMode`, no event, no lock); the
+   * tournament's own money mode (`setEventMoneyMode`, which asks the `money` lock) is drawn on Prizes & payouts,
+   * which mounts the banner. Each exemption is asserted true below, so it cannot outlive its reason.
+   */
+  const PAGE_EXEMPT: Record<string, string> = {
+    "src/app/(app)/organization/page.tsx → src/components/MoneySetup.tsx": 'MoneySetup mode="organization" only',
+  };
+
   it("every page that reaches a refusing control offers the committee correction on the screen", () => {
-    expect(pagesWithoutTheWayOut(disk, pages, refusing), "mount <ScopeLockBanner> for the scope this screen's actions ask, or draw <CorrectionButton> beside the control").toEqual([]);
+    const missing = pagesWithoutTheWayOut(disk, pages, refusing).filter((x) => !(x in PAGE_EXEMPT));
+    expect(missing, "mount <ScopeLockBanner> for the scope this screen's actions ask, or draw <CorrectionButton> beside the control").toEqual([]);
+  });
+
+  it("a page exemption is still true: club settings draws MoneySetup for the club only, and Prizes draws the tournament's with the banner", () => {
+    const org = readSource("src", "app", "(app)", "organization", "page.tsx");
+    expect(org).toMatch(/<MoneySetup\s+mode="organization"/);
+    expect(org).not.toMatch(/mode="tournament"/);
+    const prizes = readSource("src", "app", "(app)", "prizes", "page.tsx");
+    expect(prizes).toMatch(/<MoneySetup\s+mode="tournament"/);
+    expect(prizes).toMatch(/<ScopeLockBanner locks=\{moneyLock\.locks\}/);
+    // CONTROL: the sweep without the exemption does see the page.
+    expect(pagesWithoutTheWayOut(disk, pages, refusing)).toContain("src/app/(app)/organization/page.tsx → src/components/MoneySetup.tsx");
   });
 });

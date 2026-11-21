@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { lookupFormat } from "@/lib/formats";
@@ -18,7 +19,11 @@ import { TEAM_NAME_MAX } from "@/lib/domain/typed-limits";
  * lineup of each session.
  *
  * Staff only. A lineup is set DURING the event — the afternoon foursomes are
- * named at lunch — so these are not behind the setup lock. A match is only
+ * named at lunch — so the lineup and the points are not behind the setup lock.
+ * The TEAMS are (PR L): making them, renaming one and putting a player on one
+ * ask the `cup` scope; the points to win and the holder ask `rounds`. A captain
+ * replacing a player on the morning goes through the field rule
+ * (`field-change.ts`), not through an open cup scope. A match is only
  * removed before a shot has been recorded in it.
  *
  * Every id a caller sends is narrowed to this event: the session, both teams'
@@ -90,6 +95,8 @@ async function teamsOf(eventId: string) {
  */
 export async function createCupTeams(nameA: string, nameB: string): Promise<Result> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "cup", "change the cup’s teams");
+  if (locked) return locked;
   const a = String(nameA ?? "").trim();
   const b = String(nameB ?? "").trim();
   if (!a || !b) return { ok: false, error: "Name both teams." };
@@ -115,6 +122,8 @@ export async function createCupTeams(nameA: string, nameB: string): Promise<Resu
 /** A team's name. One of the cup's two flights, and nothing else. */
 export async function renameCupTeam(groupId: string, name: string): Promise<Result> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "cup", "change the cup’s teams");
+  if (locked) return locked;
   const clean = String(name ?? "").trim();
   if (!clean) return { ok: false, error: "Give the team a name." };
   if (clean.length > TEAM_NAME_MAX) return { ok: false, error: `Keep the team's name to ${TEAM_NAME_MAX} characters.` };
@@ -178,6 +187,8 @@ export async function nameCupSession(stageId: string, name: string): Promise<Res
  */
 export async function setCupPlayerTeam(playerId: string, groupId: string): Promise<Result> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "cup", "change the cup’s teams");
+  if (locked) return locked;
   const teams = await teamsOf(eventId);
   if (!teams) return { ok: false, error: "A cup needs exactly two teams. Make them first." };
   const target = String(groupId ?? "");
@@ -212,6 +223,9 @@ export async function setCupPlayerTeam(playerId: string, groupId: string): Promi
 
 export async function setCupSettings(pointsToWin: number, holderGroupId: string): Promise<Result> {
   const eventId = await requireStaffEvent();
+  // Points to win and the holder are how the cup is DECIDED, so they are the rounds' (TD, Q5).
+  const locked = await refuseIfLocked(eventId, "rounds", "change how the cup is decided");
+  if (locked) return locked;
   const target = Number(pointsToWin);
   // Whole or half points, within reason; 0 means "more than half on offer".
   if (!Number.isFinite(target) || target < 0 || target > 200 || Math.round(target * 2) !== target * 2) {

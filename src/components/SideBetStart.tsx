@@ -9,6 +9,8 @@ import { useMoney } from "@/components/CurrencyProvider";
 import { nameHold, type NameHold } from "@/lib/domain/bet-name";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { MoreInfo } from "./MoreInfo";
 
 /**
@@ -77,7 +79,13 @@ export function SideBetStart({
    * still offered — a bet does not require having been drawn.
    */
   groups = [],
+  locked = false,
 }: {
+  /**
+   * The games' definitions are shut (the machine's `money` lock: a completed tournament, drawn by
+   * `ScopeLockBanner` on the screen): a game cannot be started. Reopen is the way out.
+   */
+  locked?: boolean;
   stageId: string;
   field: Array<{ id: string; name: string }>;
   taken: NameHold[];
@@ -87,6 +95,7 @@ export function SideBetStart({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [game, setGame] = useState<string>("skins");
@@ -180,13 +189,15 @@ export function SideBetStart({
       // arithmetic for each lives with its own rows. The name is the same
       // group key either way, which is what makes them settle together.
       if (game === "skins") {
-        const made = await saveSkinsPot(stageId, {
-          buyInCents: cents,
-          net: true,
-          scope: "full",
-          groupKey: trimmed,
-          stakeNote: note,
-        });
+        const made = caughtUp(
+          await saveSkinsPot(stageId, {
+            buyInCents: cents,
+            net: true,
+            scope: "full",
+            groupKey: trimmed,
+            stakeNote: note,
+          }),
+        );
         if (!made.ok) {
           setError(made.error ?? "Couldn't start that.");
           return;
@@ -199,7 +210,7 @@ export function SideBetStart({
           return;
         }
       } else {
-        const made = await saveSideGame(stageId, game, cents, trimmed, note);
+        const made = caughtUp(await saveSideGame(stageId, game, cents, trimmed, note));
         if (!made.ok || !made.id) {
           setError(made.error ?? "Couldn't start that.");
           return;
@@ -225,6 +236,7 @@ export function SideBetStart({
         type="button"
         className="btn btn-secondary touch-target"
         style={{ marginTop: 16, alignSelf: "flex-start" }}
+        disabled={locked}
         onClick={() => setOpen(true)}
       >
         <Icon name="plus" /> Start a side game
@@ -397,7 +409,7 @@ export function SideBetStart({
       </div>
 
       {error && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+        <p role="alert" ref={bringIntoView} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -410,7 +422,7 @@ export function SideBetStart({
           type="button"
           className="btn btn-primary"
           style={{ flex: 2 }}
-          disabled={pending || !valid}
+          disabled={pending || locked || !valid}
           onClick={create}
         >
           {picked.size > 1 ? `Start it with ${picked.size}` : "Pick at least two"}

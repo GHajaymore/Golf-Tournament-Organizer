@@ -719,7 +719,7 @@ function laterUndatedWeeks(f: TournamentFacts): RoundFacts[] {
 const DASHBOARD = "/dashboard";
 const SCORE_ENTRY = "/entry";
 
-/** The scopes today's blanket lock covers (the retired `assertUnlocked` and its kin). Money and the tee sheet it never did. */
+/** The scopes today's blanket lock covers (the retired `assertUnlocked` and its kin). The tee sheet and money were never under it: each has its own line in `locksOf`. */
 const BLANKET: readonly LockScope[] = ["details", "rounds", "field", "flights", "draw", "sides", "cup"];
 
 function lock(by: LockBy, because: string, wayOut: WayOut): Lock {
@@ -797,6 +797,14 @@ function locksOf(f: LockFacts, family: Family): Record<LockScope, Lock> {
   }
   // The tee sheet was never under the blanket lock; only a completed tournament shuts it (`teeSheetChangeAllowed`, PR 7c).
   if (finished) out.teeSheet = lock("completed", "Locked because the tournament is completed.", REOPEN_WAY_OUT);
+  /**
+   * MONEY (PR L; Ajay, 19 Nov 2026): nothing about money locks at launch (stakes are taken on the day). At
+   * COMPLETION what was OFFERED locks — the prize table, one prize per player, the pots' and contests'
+   * definitions, the money mode — and Reopen is the way out. The LEDGER never locks (who has paid, the
+   * kitty, expenses, settling up, awarding a prize): it is settled after the result is final.
+   * Which action is on which side: docs/claude/lock-scopes.md.
+   */
+  if (finished) out.money = lock("completed", "Locked because the tournament is completed.", REOPEN_WAY_OUT);
   // The confirmed draw — `movePlayerToGroup`'s second lock, asked after the first.
   if (!out.flights.locked && f.flightsConfirmed) {
     out.flights = lock("draw", "Locked because the draw is confirmed.", { says: "Reopen the draw on Flights", href: "/grouping" });
