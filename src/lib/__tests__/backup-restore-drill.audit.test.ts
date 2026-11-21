@@ -68,11 +68,18 @@ interface Column {
   is_generated: string;
 }
 
+const LEGAL_WORDS: Record<string, string[]> = {
+  "Event.status": ["draft", "live", "completed"], // Event_status_is_one_the_app_writes
+};
+
 /** An invented value for a column, from its type alone. Row 1 carries the awkward ones; row 2 the NULLs. */
 function inventedValue(table: string, c: Column, i: number, enumLabels: Map<string, string[]>): unknown {
   if (i === 2 && c.is_nullable === "YES") return null;
   const t = c.data_type;
   const text = (s: string) => (c.character_maximum_length ? s.slice(0, c.character_maximum_length) : s);
+  // A text column a CHECK constraint limits to words the app writes (A045): an invented string would be refused.
+  const legal = LEGAL_WORDS[`${table}.${c.column_name}`];
+  if (legal && t === "text") return legal[i % legal.length];
   if (t === "text" || t === "character varying" || t === "character") {
     const base = `${MARK} ${table}.${c.column_name} #${i}`;
     return text(i === 1 ? `${base} tab\tnewline\nquote" apostrophe' back\\slash emoji⛳ sep end` : base);
