@@ -150,6 +150,26 @@ describe("the event-day trigger door", () => {
     expect(runBackup).toHaveBeenCalledWith("event-day", expect.any(Date));
   });
 
+  it("a copy already running answers 429 and is not an error; the cron overlapping it answers ran:false, 200", async () => {
+    const { BackupBusy } = await import("@/lib/backup/run");
+    runBackup.mockRejectedValue(new BackupBusy());
+    const res = await trigger(`Bearer ${TRIGGER}`);
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ ok: true, ran: false, why: "another copy is running" });
+    const night = await cron(`Bearer ${CRON}`);
+    expect(night.status).toBe(200);
+    expect(await night.json()).toEqual({ ok: true, ran: false, why: "another copy is running" });
+    expect(reportBackup).not.toHaveBeenCalled();
+  });
+
+  it("the workflow prints the HTTP code and whether it ran, never the answer (the Actions log is public)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const yml = readFileSync(".github/workflows/backup-event-day.yml", "utf8");
+    expect(yml).not.toMatch(/cat\s+answer\.json/);
+    expect(yml).not.toMatch(/\$\(cat /);
+    expect(yml).toMatch(/answered \$code/);
+  });
+
   it("does not answer a GET", async () => {
     const mod = (await import("@/app/api/backup/run/route")) as Record<string, unknown>;
     expect(mod.GET).toBeUndefined();

@@ -6,7 +6,9 @@
  * `…-daily.manifest.json`. `backups/latest.json` is the newest manifest again,
  * overwritten each time; the status check reads only its upload time.
  *
- * KEPT, at most 35 days:
+ * KEPT, at most 35 days (ONE retention for every copy of the data: this store,
+ * and the owner's offline copy too, which is replaced, never added to;
+ * docs/operations/backups.md):
  *   - every copy from the last 48 hours (an event day's hourly copies);
  *   - the newest copy of each of the last 14 days;
  *   - the newest copy of each Sunday in the last 35 days;
@@ -17,7 +19,8 @@
  *
  * AND THE STORE'S SIZE. Vercel Blob on Hobby holds 1 GB and BLOCKS the store
  * for 30 days when it goes over. So when what would be kept is over the budget,
- * the oldest kept copies go too — never the newest two — and the run says so
+ * the extra copies of a busy day go first (oldest first), then the oldest day's
+ * newest copy — never the newest two — and the run says so
  * (`shortened`), which reaches Sentry: the moment one copy is past ~25 MB, the
  * 35 days cannot all fit, and somebody must choose (a paid plan, or a weekly
  * catalogue copy; docs/operations/backups.md).
@@ -98,9 +101,19 @@ export function choosePruning(files: StoredFile[], now: Date, budgetBytes = STOR
 
   let shortened = false;
   let total = keep.reduce((sum, s) => sum + s.size, 0);
+  // OVER BUDGET: the extra copies of a busy day (kept only because they are under 48 hours old) go first,
+  // oldest first; only when none is left does a day's newest copy (the daily and Sunday history) go, oldest
+  // first. The newest two are never dropped. A burst of hourly copies must not eat the history.
   while (total > budgetBytes && keep.length > 2) {
-    const oldest = keep.pop()!;
-    total -= oldest.size;
+    let at = -1;
+    for (let i = keep.length - 1; i >= 2; i--) {
+      if (!newestOfDay.has(`${keep[i].day}|${keep[i].at.getTime()}`)) {
+        at = i;
+        break;
+      }
+    }
+    const [gone] = keep.splice(at >= 0 ? at : keep.length - 1, 1);
+    total -= gone.size;
     shortened = true;
   }
 

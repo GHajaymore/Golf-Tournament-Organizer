@@ -52,7 +52,11 @@ jobs:
           code=$(curl -s -o answer.json -w "%{http_code}" --max-time 320 -X POST \
             -H "Authorization: Bearer $BACKUP_TRIGGER_SECRET" \
             https://tourneyhq.club/api/backup/run)
-          echo "answered $code: $(cat answer.json)"
+          # The repository is public, so this log is too: say only the code and whether a copy was taken.
+          # The counts are in Vercel's logs and the manifest, never here.
+          if grep -q '"ran":true' answer.json; then ran=yes; else ran=no; fi
+          rm -f answer.json
+          echo "answered $code, copy taken: $ran"
           if [ "$code" != "200" ] && [ "$code" != "429" ]; then
             echo "::error::The event-day backup failed (HTTP $code). Sentry has the reason, tagged backup."
             exit 1

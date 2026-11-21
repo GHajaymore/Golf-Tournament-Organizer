@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Readable } from "node:stream";
-import { sealedExport } from "@/lib/backup/run";
+import { sealedExport, BackupBusy, BACKUP_LOCK_KEY } from "@/lib/backup/run";
 import { dumpLines } from "@/lib/backup/dump";
 import { BACKED_UP_TABLES, EXCLUDED_TABLES } from "@/lib/backup/tables";
 import { checkRestored, databaseUrlNamed, isLocalHost, loadSealed, prismaMigrate, restoreInto } from "@/lib/backup/restore";
@@ -317,6 +317,27 @@ describe("the restore", () => {
       await client.$disconnect();
     }
   });
+
+  it("ONE EXPORT AT A TIME: while one holds the lock, three at once all refuse (BackupBusy); after it ends, one runs", async () => {
+    const holder = new PrismaClient({ datasourceUrl: srcUrl, log: ["error"] });
+    const opts = { startedAt: new Date("2026-11-14T02:00:00Z"), commit: "zz-drill", now: () => new Date("2026-11-14T02:00:09Z") };
+    try {
+      const outcomes = await holder.$transaction(
+        async (tx) => {
+          const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(${BACKUP_LOCK_KEY}) AS locked`;
+          expect(locked).toBe(true);
+          return Promise.allSettled([sealedExport(srcUrl, publicPem, opts), sealedExport(srcUrl, publicPem, opts), sealedExport(srcUrl, publicPem, opts)]);
+        },
+        { timeout: 120_000 },
+      );
+      expect(outcomes.map((o) => (o.status === "rejected" ? (o.reason as Error).name : "ran"))).toEqual(["BackupBusy", "BackupBusy", "BackupBusy"]);
+      expect(outcomes.every((o) => o.status === "rejected" && o.reason instanceof BackupBusy)).toBe(true);
+    } finally {
+      await holder.$disconnect();
+    }
+    const after = await sealedExport(srcUrl, publicPem, opts);
+    expect(after.file.length).toBeGreaterThan(1000);
+  }, 120_000);
 
   it("refuses to restore over a database that has tables", async () => {
     await expect(restoreInto(srcUrl, Readable.from([file]), privateKey)).rejects.toThrow(RestoreRefused);

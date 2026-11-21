@@ -103,7 +103,13 @@ function pemFrom(text: string): string {
 }
 
 export function readPublicKey(text: string): KeyObject {
-  return rsaOnly(createPublicKey(pemFrom(text)), "backup public key");
+  const pem = pemFrom(text);
+  // Node's createPublicKey ACCEPTS a private key and quietly derives the public half: a private key pasted
+  // into BACKUP_PUBLIC_KEY would work, match its id, and sit in Vercel. Refuse it, naming the setting only.
+  if (/PRIVATE KEY/.test(pem)) {
+    throw new Error("BACKUP_PUBLIC_KEY holds a private key. Put the PUBLIC key there and remove the private one from Vercel.");
+  }
+  return rsaOnly(createPublicKey(pem), "backup public key");
 }
 
 export function readPrivateKey(text: string): KeyObject {

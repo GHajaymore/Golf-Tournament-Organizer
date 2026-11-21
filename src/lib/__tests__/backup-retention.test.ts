@@ -37,6 +37,17 @@ describe("backup names", () => {
   });
 });
 
+describe("ONE retention, in the code and in the doc the /privacy wording comes from", () => {
+  it("the code's longest keep is 35 days, and the doc says 35 days for every copy, offline included", async () => {
+    const { KEEP_SUNDAYS_DAYS } = await import("../backup/retention");
+    expect(KEEP_SUNDAYS_DAYS).toBe(35);
+    const { readFileSync } = await import("node:fs");
+    const doc = readFileSync("docs/operations/backups.md", "utf8");
+    expect(doc).toMatch(/ONE retention, 35 days, for every copy/);
+    expect(doc).toMatch(/destroy the one you downloaded the month before/);
+  });
+});
+
 describe("what is kept", () => {
   it("40 nightly copies: the last 14 days, and the Sundays before them inside 35 days", () => {
     const files = Array.from({ length: 40 }, (_, n) => copy(daysAgo(n))).flat();
@@ -88,5 +99,21 @@ describe("what is kept", () => {
     expect(keptDays(files, tight.remove)).toEqual(["2026-12-17", "2026-12-18", "2026-12-19", "2026-12-20"]);
     const tiny = choosePruning(files, NOW, 1);
     expect(keptDays(files, tiny.remove)).toEqual(["2026-12-19", "2026-12-20"]);
+  });
+
+  it("over budget, a burst of event-day copies goes before any day's newest copy (the history is never eaten)", () => {
+    // 96 half-hourly event-day copies across the last 48 hours, and a daily for each of the 12 days before them.
+    const burst = Array.from({ length: 96 }, (_, k) => copy(new Date(NOW.getTime() - k * 30 * 60 * 1000), "event-day", 100)).flat();
+    const dailies = Array.from({ length: 12 }, (_, i) => copy(daysAgo(i + 3), "daily", 100));
+    const all = [...burst, ...dailies.flat()];
+    // Room for the history: the newest two copies (never dropped), the newest copy of the other two event days
+    // and the twelve dailies make 16; one spare. Only the extra copies of the busy days have to go.
+    const { remove, shortened } = choosePruning(all, NOW, 17 * 110);
+    expect(shortened).toBe(true);
+    for (const daily of dailies) for (const f of daily) expect(remove, f.pathname).not.toContain(f.url);
+    // What went is event-day copies only.
+    const removedNames = all.filter((f) => remove.includes(f.url)).map((f) => f.pathname);
+    expect(removedNames.length).toBeGreaterThan(0);
+    for (const n of removedNames) expect(n).toContain("-event-day.");
   });
 });

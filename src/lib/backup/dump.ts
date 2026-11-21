@@ -76,6 +76,12 @@ export interface DumpOptions {
   pageRows?: number;
   /** Called before every statement; throws to stop the export (the route's time limit). */
   checkDeadline?: () => void;
+  /**
+   * ONE EXPORT AT A TIME. When set, the export first takes a transaction-scoped advisory lock on `key`
+   * (it lasts as long as the transaction) and throws `busy()` when another export holds it. Taken AFTER
+   * `SET TRANSACTION READ ONLY` (which must come before any query) and before the first read.
+   */
+  lock?: { key: number; busy: () => Error };
 }
 
 export const DEFAULT_PAGE_ROWS = 2000;
@@ -133,6 +139,11 @@ export async function* dumpLines(sql: Sql, options: DumpOptions): AsyncGenerator
   }
 
   await sql.$executeRawUnsafe(`SET TRANSACTION READ ONLY`);
+  if (options.lock) {
+    if (!Number.isSafeInteger(options.lock.key)) throw new Error("The backup's lock key must be a whole number.");
+    const [got] = await sql.$queryRawUnsafe<{ locked: boolean }[]>(`SELECT pg_try_advisory_xact_lock(${options.lock.key}) AS locked`);
+    if (!got?.locked) throw options.lock.busy();
+  }
   check();
   const present = await tablesInDatabase(sql);
   const keys = await primaryKeys(sql);

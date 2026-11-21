@@ -62,6 +62,17 @@ export class BackupNotConfigured extends Error {
   }
 }
 
+/** The key of the advisory lock one export holds: an arbitrary number no other part of the app takes. */
+export const BACKUP_LOCK_KEY = 2_100_021;
+
+/** Another backup is running right now; this one took nothing. */
+export class BackupBusy extends Error {
+  constructor() {
+    super("Another backup is running; this one took nothing.");
+    this.name = "BackupBusy";
+  }
+}
+
 export class BackupFailed extends Error {
   constructor(message: string) {
     super(message);
@@ -137,6 +148,9 @@ export async function sealedExport(
             commit: options.commit,
             now: options.now,
             pageRows: options.pageRows,
+            // ONE EXPORT AT A TIME: a second export (a leaked trigger sent many times at once, or the cron
+            // landing on a trigger) cannot take the lock and is refused before it reads a row.
+            lock: { key: BACKUP_LOCK_KEY, busy: () => new BackupBusy() },
             checkDeadline: () => {
               if (Date.now() > deadline) {
                 throw new BackupFailed(`The export ran past its ${Math.round((options.deadlineMs ?? EXPORT_DEADLINE_MS) / 1000)} s limit; nothing was filed.`);

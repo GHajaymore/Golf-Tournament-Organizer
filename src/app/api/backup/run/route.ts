@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { bearerMatches, backupMayRunHere, TRIGGER_SECRET_MIN_LENGTH } from "@/lib/backup/bearer";
-import { runBackup, reportBackup, backupStore, lastBackupAt, TRIGGER_MIN_GAP_MS } from "@/lib/backup/run";
+import { runBackup, reportBackup, backupStore, lastBackupAt, BackupBusy, TRIGGER_MIN_GAP_MS } from "@/lib/backup/run";
 import { aTournamentIsOnToday } from "@/lib/services/deploy-window";
 
 /**
@@ -44,6 +44,9 @@ export async function POST(request: Request) {
     const outcome = await runBackup("event-day", now);
     return NextResponse.json({ ok: true, ran: true, ...outcome }, { headers: NO_STORE });
   } catch (error) {
+    if (error instanceof BackupBusy) {
+      return NextResponse.json({ ok: true, ran: false, why: "another copy is running" }, { status: 429, headers: NO_STORE });
+    }
     await reportBackup("error", error, "event-day");
     return NextResponse.json({ ok: false }, { status: 500, headers: NO_STORE });
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { bearerMatches, backupMayRunHere } from "@/lib/backup/bearer";
-import { runBackup, reportBackup } from "@/lib/backup/run";
+import { runBackup, reportBackup, BackupBusy } from "@/lib/backup/run";
 
 /**
  * THE NIGHTLY BACKUP OF PRODUCTION (B21; docs/operations/backups.md).
@@ -36,6 +36,8 @@ export async function GET(request: Request) {
     const outcome = await runBackup("daily", new Date());
     return NextResponse.json({ ok: true, ...outcome }, { headers: NO_STORE });
   } catch (error) {
+    // A trigger's copy is running: the night's copy is that one (a daily is a minutes-old snapshot), nothing to report.
+    if (error instanceof BackupBusy) return NextResponse.json({ ok: true, ran: false, why: "another copy is running" }, { headers: NO_STORE });
     await reportBackup("error", error, "daily");
     return NextResponse.json({ ok: false }, { status: 500, headers: NO_STORE });
   }

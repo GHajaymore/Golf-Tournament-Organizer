@@ -195,6 +195,23 @@ describe("the key as it arrives from an environment variable", () => {
     expect(keyIdOf(readPrivateKey(privatePem))).toBe(keyIdOf(pub));
   });
 
+  it("refuses a PRIVATE key in the public-key setting, in every form it may arrive in", () => {
+    // Node's createPublicKey would quietly derive the public half from it, and the private key would sit in Vercel.
+    for (const type of ["pkcs8", "pkcs1"] as const) {
+      const pem = priv.export({ type, format: "pem" }).toString();
+      for (const text of [pem, pem.split("\n").join("\\n"), Buffer.from(pem).toString("base64")]) {
+        expect(() => readPublicKey(text)).toThrow(/BACKUP_PUBLIC_KEY holds a private key/);
+      }
+    }
+    // The message names the setting, never the key.
+    const pem = priv.export({ type: "pkcs8", format: "pem" }).toString();
+    try {
+      readPublicKey(pem);
+    } catch (e) {
+      expect(String((e as Error).message)).not.toContain(pem.split("\n")[1]);
+    }
+  });
+
   it("refuses a key that is not RSA, or too small", () => {
     const ec = generateKeyPairSync("ec", { namedCurve: "P-256" }).publicKey.export({ type: "spki", format: "pem" }).toString();
     expect(() => readPublicKey(ec)).toThrow(/RSA/);

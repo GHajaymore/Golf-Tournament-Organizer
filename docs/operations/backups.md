@@ -110,10 +110,19 @@ Sentry) and the canary's and trigger's steps say "SKIPPED".
    (any value) → email you.
 7. **Run the drill once** (next section) on the first real copy.
 8. **Every month, on the 1st:** download the newest `.thqbak` and keep it on your own drive. It is
-   ciphertext, safe at rest, and it is the copy that survives losing the Vercel account.
+   ciphertext, safe at rest, and it is the copy that survives losing the Vercel account. **The same day,
+   destroy the one you downloaded the month before**: you hold ONE offline copy, never two, so none is ever
+   older than 35 days.
 
-**Your call (public text):** `/privacy` should say that deleted data stays in encrypted backups for up
-to 35 days. Nothing here changes that page.
+**ONE retention, 35 days, for every copy of the data** (the store's, and yours offline): nothing is kept
+longer, and no copy is kept "for good". `/privacy` should say that deleted data stays in encrypted
+backups for up to 35 days; that is what the code and this page do. It is your call whether and when the
+page says so; nothing here changes it.
+
+**A restore brings back what was deleted after the copy was taken** (an account, a player, a message). So
+after a real restore, re-apply the deletions made since that copy (the audit log and the owner's
+deletion list name them) before sign-ins reopen. The drill below never reaches that step: it restores into
+a throwaway database.
 
 ## The restore drill (Drill B) — on your machine, counts only, ~15 minutes, then every quarter
 
@@ -138,7 +147,7 @@ is checked, and is dropped.
    **drops it**.
 3. It prints **only** table names, counts, `match`/`MISMATCH` and the time taken — never a row. Pass is
    `every table matches (rows and SHA-256)`. Record the date, the result and the minutes on the board.
-4. Clear the clipboard; delete the downloaded file unless it is this month's offline copy.
+4. Clear the clipboard; delete the downloaded file unless it is this month's offline copy (and then destroy last month's).
 
 If it says the backup's schema is not the checkout's, check out the commit it names
 (`git checkout <commit>`) and run again.
