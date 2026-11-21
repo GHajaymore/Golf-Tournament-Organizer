@@ -79,6 +79,8 @@ export type RateLimitKind =
   | "link-slips"
   | "guest-entry-device"
   | "guest-entry-cookieless"
+  | "guest-mint-alarm"
+  | "guest-mint-slow"
   | "discount-check"
   | "register-token"
   | "register-email"
@@ -190,6 +192,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  network plus event, counting ONLY requests that arrive without the cookie. A phone arrives holding one (it is set on
    *  the way to the form), so a whole outing on one wifi costs this nothing; only a script that drops cookies meets it. */
   "guest-entry-cookieless": { limit: 10, windowMs: 60 * MINUTE },
+  /** MAKING A DEVICE COOKIE (B96): `startGuestEntry` mints a signed `ng_device` for a browser that holds none. A phone
+   *  mints once, so a whole outing on one wifi is never refused while the platform alarm is quiet; the alarm counts every
+   *  mint and, past 300 an hour across the app, each client network is held to `guest-mint-slow` (twelve per fifteen
+   *  minutes, the code door's own figures), so a script collecting cookies is slowed to 48 an hour per network. */
+  "guest-mint-alarm": { limit: 300, windowMs: 60 * MINUTE },
+  "guest-mint-slow": { limit: 12, windowMs: 15 * MINUTE },
   /** Discount codes, tried at sign-up or on a club's plan panel. A code is
    *  eight characters from 31, so this is not about guessing one — it is about
    *  a script trying to, and ten typos in fifteen minutes is a person who
@@ -467,6 +475,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     // ONE sentence for every limit in the guest branch (C1.10): it reveals nothing and ends in a way on.
     case "guest-entry-device":
     case "guest-entry-cookieless":
+    case "guest-mint-alarm":
+    case "guest-mint-slow":
       return GUEST_WORDS.limit;
     case "link-slips":
       return `You have printed slips several times this hour. Wait ${wait}, or show one guest's link from their row on Entries.`;
