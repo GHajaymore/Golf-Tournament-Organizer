@@ -2,8 +2,8 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { clientAddress } from "@/lib/client-address";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { deviceValueHere } from "@/lib/services/known-device";
+import { checkRateLimit, clientGuessGate } from "@/lib/rate-limit";
+import { mintSignedDevice, signedDeviceHere } from "@/lib/services/known-device";
 import { setGuestCookie, holdsLivePassIn } from "@/lib/guest-auth";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
@@ -26,8 +26,20 @@ import { roundCodeLink } from "@/lib/code-format";
  * These are PUBLIC endpoints: every argument is `unknown` and read at the boundary.
  */
 
-/** A device value as `newBrowserValue` makes it (32 random bytes, base64url). Anything else is not a device we set. */
-const DEVICE_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+const NO_CLIENT = "no-client-address";
+
+/**
+ * MAKING A DEVICE COOKIE COSTS A TURN (B96). The platform alarm (`guest-mint-alarm`, 300 an hour) counts every mint; while
+ * it stands each client network is held to `guest-mint-slow` (twelve per fifteen minutes). A phone mints once, so a whole
+ * outing on one wifi is never refused while it is quiet. Null when the mint may go ahead, else the one limit sentence.
+ */
+async function mintRefusal(): Promise<string | null> {
+  const client = (await clientAddress()) ?? NO_CLIENT;
+  const alarm = await clientGuessGate("guest-mint-alarm", "guest-mint-platform");
+  if (alarm.decision.allowed) return null;
+  const slow = await clientGuessGate("guest-mint-slow", client);
+  return slow.decision.allowed ? null : slow.decision.message;
+}
 
 export type GuestEntryResult =
   | { ok: true; /** Waiting for staff (the only status this door makes). */ status: "pending"; /** The browser's own code, grouped; shown ONCE, held in client state only (C3.3). */ code: string | null; already?: boolean }
@@ -38,8 +50,12 @@ export type GuestEntryResult =
  * arrives holding one and costs the cookieless bucket nothing. A phone that refuses cookies still gets in, counted in
  * `guest-entry-cookieless`. Makes no row.
  */
-export async function startGuestEntry(): Promise<{ ok: boolean }> {
-  await deviceValueHere(true);
+export async function startGuestEntry(): Promise<{ ok: boolean; error?: string }> {
+  // A browser already holding a device WE signed makes nothing and costs nothing.
+  if (await signedDeviceHere()) return { ok: true };
+  const refused = await mintRefusal();
+  if (refused) return { ok: false, error: refused };
+  await mintSignedDevice();
   return { ok: true };
 }
 
@@ -65,9 +81,8 @@ export async function registerAsGuest(token: unknown, form: unknown, nonce: unkn
   // The same neutral answer for an unknown, rotated or deleted token.
   if (!event) return { ok: false, error: GUEST_WORDS.codeOpensNothing };
 
-  // This browser, as the link's own key hashes it: a device we set (the shape we make), or none.
-  const raw = await deviceValueHere(false);
-  const device = raw && DEVICE_SHAPE.test(raw) ? raw : null;
+  // This browser, as the link's own key hashes it: a device WE signed, or none (an unsigned or forged value is none, B96).
+  const device = await signedDeviceHere();
   const deviceHash = device ? deviceHashOf(device) : "";
   const nonceHash = nonceHashOf(nonce, event.id, deviceHash);
 
@@ -82,13 +97,13 @@ export async function registerAsGuest(token: unknown, form: unknown, nonce: unkn
   // One browser, one guest per event: a browser already holding a live pass here is sent to its Today.
   if (await holdsLivePassIn(event.id)) return { ok: true, status: "pending", code: null, already: true };
 
-  const client = (await clientAddress()) ?? "no-client-address";
+  const client = (await clientAddress()) ?? NO_CLIENT;
   if (device) {
     const perDevice = await checkRateLimit("guest-entry-device", `${deviceHash}|${event.id}`);
     if (!perDevice.allowed) return { ok: false, error: perDevice.message };
   } else {
     // No valid device: set one for the next request, and count THIS one against its own network + event.
-    await deviceValueHere(true);
+    await mintSignedDevice();
     const cookieless = await checkRateLimit("guest-entry-cookieless", `${client}|${event.id}`);
     if (!cookieless.allowed) return { ok: false, error: cookieless.message };
   }

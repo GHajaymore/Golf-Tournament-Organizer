@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { generateShareToken } from "@/lib/codes";
+import { sign } from "@/lib/auth";
 
 /**
  * THE FIXTURE OF THE GUEST SELF-ENTRY AUDIT TESTS (J39/J40 PR 3B). Not a test: the club, the event with its sign-up link,
@@ -80,5 +81,6 @@ export function newNonce(): string {
 export function arrive(jar: Map<string, string>, head: Map<string, string>, opts: { address: string; device?: boolean | string }): void {
   jar.clear();
   head.set("x-forwarded-for", opts.address);
-  if (opts.device !== false) jar.set("ng_device", typeof opts.device === "string" ? opts.device : deviceValue());
+  // The device cookie as the app sets it: SIGNED (B96). a test of a forged one sets the jar's value itself afterwards.
+  if (opts.device !== false) jar.set("ng_device", sign(typeof opts.device === "string" ? opts.device : deviceValue()));
 }

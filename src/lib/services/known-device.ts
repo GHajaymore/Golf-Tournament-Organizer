@@ -5,6 +5,7 @@ import { SECURE_COOKIES } from "@/lib/secure-cookies";
 import { hashBrowserValue, newBrowserValue } from "@/lib/domain/email-code-hash";
 import { deviceLabel } from "@/lib/domain/device-words";
 import { isOwner } from "@/lib/owner";
+import { sign, verify } from "@/lib/auth";
 
 /**
  * THE BROWSERS A PERSON HAS SIGNED IN ON (2026-10-21; Ajay: "go with your
@@ -40,19 +41,46 @@ async function deviceHashHere(make: boolean): Promise<string | null> {
  */
 export async function deviceValueHere(make: boolean): Promise<string | null> {
   const jar = await cookies();
-  let value = jar.get(DEVICE_COOKIE)?.value;
-  if (!value) {
-    if (!make) return null;
-    value = newBrowserValue();
-    jar.set(DEVICE_COOKIE, value, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: SECURE_COOKIES,
-      path: "/",
-      maxAge: DEVICE_COOKIE_SECONDS,
-    });
-  }
+  const held = jar.get(DEVICE_COOKIE)?.value;
+  if (held) return verify(held) ?? held; // a signed value gives its raw part; an older unsigned one is kept as it was
+  if (!make) return null;
+  return setSignedDevice(jar);
+}
+
+type Jar = Awaited<ReturnType<typeof cookies>>;
+
+/** Make a device value, set it SIGNED (B96), and return its raw part. */
+function setSignedDevice(jar: Jar): string {
+  const value = newBrowserValue();
+  jar.set(DEVICE_COOKIE, sign(value), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: SECURE_COOKIES,
+    path: "/",
+    maxAge: DEVICE_COOKIE_SECONDS,
+  });
   return value;
+}
+
+/** A device value as `newBrowserValue` makes it (32 random bytes, base64url). Anything else is not one we set. */
+const DEVICE_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * THIS BROWSER'S DEVICE VALUE FOR THE GUEST DOOR (B96): the raw value only when the cookie carries OUR signature
+ * (an HMAC under the app secret). An unsigned value, a forged one or none is `null` — a new device, which the guest
+ * door counts. Older unsigned cookies stay good for the staff known-device check (`deviceValueHere`) and are not
+ * good here.
+ */
+export async function signedDeviceHere(): Promise<string | null> {
+  const jar = await cookies();
+  const held = jar.get(DEVICE_COOKIE)?.value;
+  const raw = held ? verify(held) : null;
+  return raw && DEVICE_SHAPE.test(raw) ? raw : null;
+}
+
+/** Set a NEW signed device cookie, replacing whatever the browser held (a forged or unsigned value included). */
+export async function mintSignedDevice(): Promise<void> {
+  setSignedDevice(await cookies());
 }
 
 /** Has this person signed in on this browser before? */
