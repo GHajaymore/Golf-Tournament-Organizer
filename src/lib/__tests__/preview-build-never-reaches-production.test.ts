@@ -112,11 +112,11 @@ describe("a preview build never reaches production", () => {
     const PREV_DIRECT = "zz-preview-direct-placeholder";
     const moduleUrl = pathToFileURL(join(scriptsDir, "build-database.mjs")).href;
     const run = (extra: Record<string, string>) => {
-      const env: Record<string, string> = {
+      const env = {
         PRISMA_DATABASE_URL: PROD_POOLED,
         DATABASE_URL: PROD_DIRECT,
         ...extra,
-      };
+      } as unknown as NodeJS.ProcessEnv;
       const r = spawnSync(
         process.execPath,
         [
@@ -148,7 +148,8 @@ describe("a preview build never reaches production", () => {
     expect(swapped.status).toBe(0);
     expect(JSON.parse(swapped.out)).toEqual([PREV_POOLED, PREV_DIRECT]);
     // Anywhere else the caller chose: untouched.
-    for (const extra of [{ VERCEL_ENV: "production" }, { VERCEL_ENV: "development" }, {}]) {
+    const elsewhere: Record<string, string>[] = [{ VERCEL_ENV: "production" }, { VERCEL_ENV: "development" }, {}];
+    for (const extra of elsewhere) {
       const r = run(extra);
       expect(r.status, JSON.stringify(extra)).toBe(0);
       expect(JSON.parse(r.out)).toEqual([PROD_POOLED, PROD_DIRECT]);
