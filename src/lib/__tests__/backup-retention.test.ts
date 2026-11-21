@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readSource } from "./source";
 import { backupPaths, choosePruning, parseBackupPath, LATEST, type StoredFile } from "../backup/retention";
 
 /**
@@ -41,8 +42,7 @@ describe("ONE retention, in the code and in the doc the /privacy wording comes f
   it("the code's longest keep is 35 days, and the doc says 35 days for every copy, offline included", async () => {
     const { KEEP_SUNDAYS_DAYS } = await import("../backup/retention");
     expect(KEEP_SUNDAYS_DAYS).toBe(35);
-    const { readFileSync } = await import("node:fs");
-    const doc = readFileSync("docs/operations/backups.md", "utf8");
+    const doc = readSource("docs", "operations", "backups.md");
     expect(doc).toMatch(/ONE retention, 35 days, for every copy/);
     expect(doc).toMatch(/destroy the one you downloaded the month before/);
   });

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { readSource } from "./source";
 import { bearerMatches, backupMayRunHere, TRIGGER_SECRET_MIN_LENGTH } from "../backup/bearer";
 
 /**
@@ -163,8 +164,7 @@ describe("the event-day trigger door", () => {
   });
 
   it("the workflow prints the HTTP code and whether it ran, never the answer (the Actions log is public)", async () => {
-    const { readFileSync } = await import("node:fs");
-    const yml = readFileSync(".github/workflows/backup-event-day.yml", "utf8");
+    const yml = readSource(".github", "workflows", "backup-event-day.yml");
     expect(yml).not.toMatch(/cat\s+answer\.json/);
     expect(yml).not.toMatch(/\$\(cat /);
     expect(yml).toMatch(/answered \$code/);
