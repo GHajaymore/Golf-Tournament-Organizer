@@ -110,11 +110,11 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     const enter = guestPage.getByRole("button", { name: /Enter as a guest/ });
     await expect(enter).toBeVisible();
     await enter.click();
-    await expect(guestPage.getByLabel("Your name")).toBeVisible();
+    await expect(guestPage.getByTestId("guest-entry").getByLabel("Your name")).toBeVisible();
     await expect(guestPage.getByRole("textbox", { name: /email/i }), "a guest is asked for an email").toHaveCount(0);
-    await guestPage.getByLabel("Your name").fill("Robin Vale");
-    await guestPage.getByLabel("Handicap, if you have one").fill("14.2");
-    await guestPage.getByLabel("Who invited you?").fill("Corin");
+    await guestPage.getByTestId("guest-entry").getByLabel("Your name").fill("Robin Vale");
+    await guestPage.getByTestId("guest-entry").getByLabel("Handicap, if you have one").fill("14.2");
+    await guestPage.getByTestId("guest-entry").getByLabel("Who invited you?").fill("Corin");
     await guestPage.getByRole("button", { name: GUEST_WORDS.askToPlay, exact: true }).click();
     await expect(guestPage.getByTestId("guest-waiting")).toBeVisible({ timeout: 30_000 });
     await expect(guestPage.getByTestId("guest-waiting")).toContainText(eventName);
@@ -159,7 +159,7 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     watchPageErrors(secondPage, errors, "second guest");
     await open(secondPage, `/register/${TOKEN}`);
     await secondPage.getByRole("button", { name: /Enter as a guest/ }).click();
-    await secondPage.getByLabel("Your name").fill("Tamsin Holloway");
+    await secondPage.getByTestId("guest-entry").getByLabel("Your name").fill("Tamsin Holloway");
     await secondPage.getByRole("button", { name: GUEST_WORDS.askToPlay, exact: true }).click();
     await expect(secondPage.getByTestId("guest-waiting")).toBeVisible({ timeout: 30_000 });
     await open(deskPage, `/registration?bust=${Date.now()}`);
