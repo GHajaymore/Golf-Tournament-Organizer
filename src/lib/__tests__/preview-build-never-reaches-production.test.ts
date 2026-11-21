@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { readSource, readVerbatim } from "./source";
 
 /**
@@ -87,7 +89,12 @@ describe("a preview build never reaches production", () => {
 
   it("every script in the vercel-build chain imports it, and none is allowlisted", () => {
     const pkg = JSON.parse(readVerbatim("package.json")) as { scripts: Record<string, string> };
-    const chain = [...(pkg.scripts["vercel-build"] ?? "").matchAll(/node\s+scripts\/(\S+\.mjs)/g)].map((m) => m[1]);
+    const steps = (pkg.scripts["vercel-build"] ?? "").split("&&").map((x) => x.trim());
+    // EVERY step is `node scripts/<file>`: a bare `prisma ...` or `tsx ...` could not be seen below.
+    for (const step of steps) {
+      expect(step, "a vercel-build step that is not node scripts/<file>").toMatch(/^node scripts\/\S+\.mjs$/);
+    }
+    const chain = steps.map((x) => x.replace(/^node scripts\//, ""));
     expect(chain).toContain("pad-migration-names.mjs");
     expect(chain).toContain("deploy-migrations.mjs");
     for (const f of chain) {
@@ -99,12 +106,53 @@ describe("a preview build never reaches production", () => {
   });
 
   it("the shared module swaps in the preview database or refuses, never falls back", () => {
-    const m = src("build-database.mjs");
-    expect(m).toMatch(/VERCEL_ENV\s*===\s*["']preview["']/);
-    expect(m).toMatch(/PREVIEW_DATABASE_URL_UNPOOLED/);
-    expect(m).toMatch(/process\.exit\(1\)/);
-    expect(m).toMatch(/process\.env\.PRISMA_DATABASE_URL\s*=\s*pooled/);
-    expect(m).toMatch(/process\.env\.DATABASE_URL\s*=\s*direct/);
+    const PROD_POOLED = "zz-prod-pooled-placeholder";
+    const PROD_DIRECT = "zz-prod-direct-placeholder";
+    const PREV_POOLED = "zz-preview-pooled-placeholder";
+    const PREV_DIRECT = "zz-preview-direct-placeholder";
+    const moduleUrl = pathToFileURL(join(scriptsDir, "build-database.mjs")).href;
+    const run = (extra: Record<string, string>) => {
+      const env: Record<string, string> = {
+        PRISMA_DATABASE_URL: PROD_POOLED,
+        DATABASE_URL: PROD_DIRECT,
+        ...extra,
+      };
+      const r = spawnSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `await import(${JSON.stringify(moduleUrl)}); console.log(JSON.stringify([process.env.PRISMA_DATABASE_URL, process.env.DATABASE_URL]))`,
+        ],
+        { env, encoding: "utf8" },
+      );
+      return { status: r.status, out: r.stdout.trim() };
+    };
+    const refuses = (extra: Record<string, string>) => {
+      const r = run({ VERCEL_ENV: "preview", ...extra });
+      expect(r.status, JSON.stringify(extra)).toBe(1);
+      expect(r.out).not.toContain(PROD_POOLED);
+      expect(r.out).not.toContain(PROD_DIRECT);
+    };
+    // A preview with no (or half a) preview database refuses.
+    refuses({});
+    refuses({ PREVIEW_DATABASE_URL: PREV_POOLED });
+    refuses({ PREVIEW_DATABASE_URL_UNPOOLED: PREV_DIRECT });
+    refuses({ PREVIEW_DATABASE_URL: "", PREVIEW_DATABASE_URL_UNPOOLED: PREV_DIRECT });
+    // A preview with both swaps BOTH variables Prisma reads; production's never survive.
+    const swapped = run({
+      VERCEL_ENV: "preview",
+      PREVIEW_DATABASE_URL: PREV_POOLED,
+      PREVIEW_DATABASE_URL_UNPOOLED: PREV_DIRECT,
+    });
+    expect(swapped.status).toBe(0);
+    expect(JSON.parse(swapped.out)).toEqual([PREV_POOLED, PREV_DIRECT]);
+    // Anywhere else the caller chose: untouched.
+    for (const extra of [{ VERCEL_ENV: "production" }, { VERCEL_ENV: "development" }, {}]) {
+      const r = run(extra);
+      expect(r.status, JSON.stringify(extra)).toBe(0);
+      expect(JSON.parse(r.out)).toEqual([PROD_POOLED, PROD_DIRECT]);
+    }
   });
 
   it("imports it before the client is created", () => {
