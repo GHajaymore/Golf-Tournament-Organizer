@@ -5,6 +5,9 @@ import { SECURE_COOKIES } from "@/lib/secure-cookies";
 import { hashBrowserValue, newBrowserValue } from "@/lib/domain/email-code-hash";
 import { deviceLabel } from "@/lib/domain/device-words";
 import { isOwner } from "@/lib/owner";
+import { signUnder, verifyUnder } from "@/lib/auth";
+import { clientAddress } from "@/lib/client-address";
+import { clientGuessGate } from "@/lib/rate-limit";
 
 /**
  * THE BROWSERS A PERSON HAS SIGNED IN ON (2026-10-21; Ajay: "go with your
@@ -24,6 +27,8 @@ import { isOwner } from "@/lib/owner";
  */
 
 const DEVICE_COOKIE = "ng_device";
+/** The device cookie is signed under a key of its own (HKDF label off `AUTH_SECRET`), never the shared raw secret. */
+const DEVICE_KEY = "ng_device";
 const DEVICE_COOKIE_SECONDS = 400 * 24 * 60 * 60;
 
 /** This browser's device value, hashed — made (and set) when asked to. */
@@ -40,19 +45,60 @@ async function deviceHashHere(make: boolean): Promise<string | null> {
  */
 export async function deviceValueHere(make: boolean): Promise<string | null> {
   const jar = await cookies();
-  let value = jar.get(DEVICE_COOKIE)?.value;
-  if (!value) {
-    if (!make) return null;
-    value = newBrowserValue();
-    jar.set(DEVICE_COOKIE, value, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: SECURE_COOKIES,
-      path: "/",
-      maxAge: DEVICE_COOKIE_SECONDS,
-    });
+  const held = jar.get(DEVICE_COOKIE)?.value;
+  if (held) return verifyUnder(DEVICE_KEY, held) ?? held; // a signed value gives its raw part; an older unsigned one is kept as it was
+  if (!make) return null;
+  const made = await mintDevice();
+  return made.ok ? made.value : null; // refused: no cookie, no value (a refusal never mints)
+}
+
+export type DeviceMint = { ok: true; value: string } | { ok: false; error: string };
+
+/**
+ * THE ONE MINT (B96). Every signed `ng_device` this app sets comes through here, and every one is COUNTED: the platform
+ * alarm (`guest-mint-alarm`, 300 an hour) counts each, and while it stands each client network is held to
+ * `guest-mint-slow` (twelve per fifteen minutes). A phone mints once, so an outing on one wifi is never refused while the
+ * alarm is quiet. A refusal sets nothing. `no-second-device-mint.test.ts` refuses a second place that signs a device.
+ */
+export async function mintDevice(): Promise<DeviceMint> {
+  const client = (await clientAddress()) ?? "no-client-address";
+  const alarm = await clientGuessGate("guest-mint-alarm", "guest-mint-platform");
+  if (!alarm.decision.allowed) {
+    const slow = await clientGuessGate("guest-mint-slow", client);
+    if (!slow.decision.allowed) return { ok: false, error: slow.decision.message };
   }
+  return { ok: true, value: setSignedDevice(await cookies()) };
+}
+
+type Jar = Awaited<ReturnType<typeof cookies>>;
+
+/** Make a device value, set it SIGNED (B96), and return its raw part. Private: only `mintDevice` calls it. */
+function setSignedDevice(jar: Jar): string {
+  const value = newBrowserValue();
+  jar.set(DEVICE_COOKIE, signUnder(DEVICE_KEY, value), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: SECURE_COOKIES,
+    path: "/",
+    maxAge: DEVICE_COOKIE_SECONDS,
+  });
   return value;
+}
+
+/** A device value as `newBrowserValue` makes it (32 random bytes, base64url). Anything else is not one we set. */
+const DEVICE_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * THIS BROWSER'S DEVICE VALUE FOR THE GUEST DOOR (B96): the raw value only when the cookie carries OUR signature
+ * (an HMAC under the app secret). An unsigned value, a forged one or none is `null` — a new device, which the guest
+ * door counts. Older unsigned cookies stay good for the staff known-device check (`deviceValueHere`) and are not
+ * good here.
+ */
+export async function signedDeviceHere(): Promise<string | null> {
+  const jar = await cookies();
+  const held = jar.get(DEVICE_COOKIE)?.value;
+  const raw = held ? verifyUnder(DEVICE_KEY, held) : null;
+  return raw && DEVICE_SHAPE.test(raw) ? raw : null;
 }
 
 /** Has this person signed in on this browser before? */
@@ -65,7 +111,8 @@ export async function isKnownDevice(userId: string): Promise<boolean> {
 
 /** Remember this browser for this person; answers its description in words. */
 export async function rememberDevice(userId: string): Promise<string> {
-  const hash = (await deviceHashHere(true))!;
+  // A refused mint (the alarm, B96) leaves this browser unremembered: staff are asked for a code next time, never refused now.
+  const hash = await deviceHashHere(true);
   // Words for a person to recognise, and nothing decides on them: a request
   // with no headers to read (a test harness, a server-side call) is described
   // as unrecognised rather than refused.
@@ -77,6 +124,7 @@ export async function rememberDevice(userId: string): Promise<string> {
   }
   const label = deviceLabel(userAgent);
   const now = new Date();
+  if (!hash) return label;
   await prisma.knownDevice.upsert({
     where: { userId_deviceHash: { userId, deviceHash: hash } },
     create: { userId, deviceHash: hash, label },

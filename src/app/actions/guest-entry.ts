@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { clientAddress } from "@/lib/client-address";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { deviceValueHere } from "@/lib/services/known-device";
+import { mintDevice, signedDeviceHere } from "@/lib/services/known-device";
 import { setGuestCookie, holdsLivePassIn } from "@/lib/guest-auth";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
@@ -26,8 +26,7 @@ import { roundCodeLink } from "@/lib/code-format";
  * These are PUBLIC endpoints: every argument is `unknown` and read at the boundary.
  */
 
-/** A device value as `newBrowserValue` makes it (32 random bytes, base64url). Anything else is not a device we set. */
-const DEVICE_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+const NO_CLIENT = "no-client-address";
 
 export type GuestEntryResult =
   | { ok: true; /** Waiting for staff (the only status this door makes). */ status: "pending"; /** The browser's own code, grouped; shown ONCE, held in client state only (C3.3). */ code: string | null; already?: boolean }
@@ -38,9 +37,11 @@ export type GuestEntryResult =
  * arrives holding one and costs the cookieless bucket nothing. A phone that refuses cookies still gets in, counted in
  * `guest-entry-cookieless`. Makes no row.
  */
-export async function startGuestEntry(): Promise<{ ok: boolean }> {
-  await deviceValueHere(true);
-  return { ok: true };
+export async function startGuestEntry(): Promise<{ ok: boolean; error?: string }> {
+  // A browser already holding a device WE signed makes nothing and costs nothing.
+  if (await signedDeviceHere()) return { ok: true };
+  const made = await mintDevice(); // the one counted mint
+  return made.ok ? { ok: true } : { ok: false, error: made.error };
 }
 
 /**
@@ -65,9 +66,8 @@ export async function registerAsGuest(token: unknown, form: unknown, nonce: unkn
   // The same neutral answer for an unknown, rotated or deleted token.
   if (!event) return { ok: false, error: GUEST_WORDS.codeOpensNothing };
 
-  // This browser, as the link's own key hashes it: a device we set (the shape we make), or none.
-  const raw = await deviceValueHere(false);
-  const device = raw && DEVICE_SHAPE.test(raw) ? raw : null;
+  // This browser, as the link's own key hashes it: a device WE signed, or none (an unsigned or forged value is none, B96).
+  const device = await signedDeviceHere();
   const deviceHash = device ? deviceHashOf(device) : "";
   const nonceHash = nonceHashOf(nonce, event.id, deviceHash);
 
@@ -82,15 +82,17 @@ export async function registerAsGuest(token: unknown, form: unknown, nonce: unkn
   // One browser, one guest per event: a browser already holding a live pass here is sent to its Today.
   if (await holdsLivePassIn(event.id)) return { ok: true, status: "pending", code: null, already: true };
 
-  const client = (await clientAddress()) ?? "no-client-address";
+  const client = (await clientAddress()) ?? NO_CLIENT;
   if (device) {
     const perDevice = await checkRateLimit("guest-entry-device", `${deviceHash}|${event.id}`);
     if (!perDevice.allowed) return { ok: false, error: perDevice.message };
   } else {
-    // No valid device: set one for the next request, and count THIS one against its own network + event.
-    await deviceValueHere(true);
+    // No valid device: count THIS request against its own network + event FIRST, and mint only when it is allowed (a
+    // refusal leaves with no cookie), through the one counted mint (B96).
     const cookieless = await checkRateLimit("guest-entry-cookieless", `${client}|${event.id}`);
     if (!cookieless.allowed) return { ok: false, error: cookieless.message };
+    const made = await mintDevice();
+    if (!made.ok) return { ok: false, error: made.error };
   }
 
   // A lapsed club's archive takes nobody new (asked here, as every door into a tournament asks it).

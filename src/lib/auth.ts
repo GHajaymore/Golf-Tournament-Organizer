@@ -87,6 +87,27 @@ export function derivedKey(label: string): Buffer {
   return Buffer.from(hkdfSync("sha256", secret(), "", label, 32));
 }
 
+/**
+ * A value signed under a key of ITS OWN (HKDF label, `derivedKey`), not the raw app secret that `sign` uses for the
+ * session, guest and play cookies. A value signed for one job can then never be replayed as another's, whatever a
+ * caller lets a visitor choose. Same shape as `sign` (`value.mac`), same constant-time check as `verify`.
+ */
+export function signUnder(label: string, value: string): string {
+  const mac = createHmac("sha256", derivedKey(label)).update(value).digest("base64url");
+  return `${value}.${mac}`;
+}
+
+export function verifyUnder(label: string, signed: string | undefined): string | null {
+  if (!signed) return null;
+  const idx = signed.lastIndexOf(".");
+  if (idx < 0) return null;
+  const value = signed.slice(0, idx);
+  const a = Buffer.from(signed.slice(idx + 1));
+  const b = Buffer.from(createHmac("sha256", derivedKey(label)).update(value).digest("base64url"));
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  return value;
+}
+
 export function verify(signed: string | undefined): string | null {
   if (!signed) return null;
   const idx = signed.lastIndexOf(".");

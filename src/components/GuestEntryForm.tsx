@@ -42,8 +42,14 @@ export function GuestEntryForm({ token, clubName }: { token: string; clubName: s
   const show = () =>
     start(async () => {
       // The device cookie goes on BEFORE the submit (D3), so the form's own request arrives holding one.
+      setError("");
       try {
-        await startGuestEntry();
+        const made = await startGuestEntry();
+        if (!made.ok) {
+          // The mint was refused (B96): said here, where the press was, and the form stays shut.
+          setError(made.error ?? W.limit);
+          return;
+        }
       } catch {
         // A phone that refuses cookies is counted in its own bucket; the form still opens.
       }
@@ -73,6 +79,11 @@ export function GuestEntryForm({ token, clubName }: { token: string; clubName: s
 
   return (
     <section aria-label="Enter as a guest" style={{ marginBottom: 18 }} data-testid="guest-entry">
+      {!open && error && (
+        <p role="alert" ref={bringIntoView} className="form-error" style={{ fontSize: 14, margin: "0 0 8px" }}>
+          <Icon name="warning-circle" /> {error}
+        </p>
+      )}
       {!open ? (
         <button
           type="button"
