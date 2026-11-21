@@ -551,6 +551,8 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     const settings = page.locator("form").filter({ has: page.getByLabel("Points to win") });
     const save = settings.getByRole("button", { name: "Save", exact: true });
     await expect(save).toBeDisabled();
+    // The person scrolls to the Save they cannot press; the reason must then be in view WITH it.
+    await save.scrollIntoViewIfNeeded();
     const why = settings.locator("#cup-settings-why");
     await expect(why).toContainText("Locked because");
     await expect(why, "the reason is not on screen beside the shut Save").toBeInViewport();
