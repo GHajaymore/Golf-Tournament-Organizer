@@ -318,7 +318,7 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       path: "/cup",
       scope: "cup",
       eventId: cupEv.id,
-      drawnWithout: /Cup teams/,
+      drawnWithout: /Cup teams · Locked because/,
       heading: /^Team cup$/,
       said: LIVE("change the cup’s teams"),
       stored: async () => (await prisma.group.findUniqueOrThrow({ where: { id: cupTeam.id } })).name,
@@ -328,7 +328,7 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
         await card.getByRole("button", { name: "Save name" }).click();
       },
     });
-    await expect(page.getByRole("region", { name: "Locked" }), "the cup's teams line is not on the banner").toContainText("Cup teams");
+    await expect(page.getByRole("region", { name: "Locked" }), "the cup's teams line is not on the banner").toContainText("Cup teams · Locked because the tournament is live.");
     await context.addCookies([{ name: "ng_active_event", value: sign(ev.id), url: baseURL! }]);
 
     /**
