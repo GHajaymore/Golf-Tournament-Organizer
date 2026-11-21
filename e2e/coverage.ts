@@ -405,6 +405,23 @@ async function noPushOnWebKit(context: BrowserContext): Promise<void> {
   });
 }
 
+/**
+ * CLOSE WHAT A SPEC OPENED, ONE AT A TIME, AND SAY NOTHING IF IT IS ALREADY GONE.
+ *
+ * Chromium's `chrome-headless-shell` has died between two tests (SEGV_MAPERR, cr2=0x1b0) with
+ * `demo-club.spec.ts:81` the victim, running straight after `commentary.spec.ts`, which opens three
+ * contexts with live pages. Memory is not the cause (the job is in the Playwright container with
+ * `--ipc=host`). What a spec can control is how it leaves: each page closed and awaited, then its
+ * context closed and awaited, in turn, never a `Promise.all` of closes racing in one browser process.
+ * `every-context-is-closed.test.ts` refuses a spec that does otherwise.
+ */
+export async function closeAll(...contexts: BrowserContext[]): Promise<void> {
+  for (const context of contexts) {
+    for (const page of context.pages()) await page.close().catch(() => {});
+    await context.close().catch(() => {});
+  }
+}
+
 export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
   // The default context every `page` fixture uses.
   context: async ({ context }, use) => {
@@ -420,6 +437,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
   coverageOfHandMadeContexts: [
     async ({ browser }, use) => {
       const make = browser.newContext.bind(browser);
+      const opened: BrowserContext[] = [];
       browser.newContext = async (...args: Parameters<typeof make>) => {
         // A context a spec makes for itself does not inherit the config's
         // `use`, so the reader's time zone (see playwright.config.ts) is
@@ -430,6 +448,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
         const context = await (zone || lang
           ? make({ ...(zone ? { timezoneId: zone } : {}), ...(lang ? { locale: lang } : {}), ...args[0] })
           : make(...args));
+        opened.push(context);
         recordCoverage(context);
         await watchRefusals(context);
         await watchControls(context);
@@ -439,6 +458,8 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
       };
       await use();
       browser.newContext = make;
+      // A context a spec forgot is closed here, in turn, not left for the browser's own teardown.
+      await closeAll(...opened);
     },
     { scope: "worker", auto: true },
   ],

@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -140,6 +140,6 @@ test("the organizer lets a helper in, makes them a player, lets them back in and
 
     expect(errors, "a screen threw").toEqual([]);
   } finally {
-    await Promise.all([organizer, helper].map((c) => c.close()));
+    await closeAll(organizer, helper);
   }
 });
