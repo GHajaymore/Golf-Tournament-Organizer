@@ -14,11 +14,13 @@ function actionModule() {
 vi.mock("@/app/actions/tournament", actionModule);
 vi.mock("@/app/actions/round-day", actionModule);
 vi.mock("@/app/actions/billing", actionModule);
+vi.mock("@/app/actions/cup", actionModule);
 
 const { RoundDeadlineControl } = await import("@/components/RoundDeadlineControl");
 const { EntryTermsCard } = await import("@/components/EntryTermsCard");
 const { RoundDaySetup } = await import("@/components/RoundDaySetup");
 const { PlanBilling } = await import("@/components/PlanBilling");
+const { CupLineup } = await import("@/components/CupLineup");
 const { ScopeLockBanner, SCOPE_LOCK_REASON_ID, scopeLockBannerDrawn } = await import("@/components/ScopeLockBanner");
 const { locksFor, scopeLockOf } = await import("@/lib/domain/tournament-status");
 const { facts, launched } = await import("@/lib/domain/__tests__/tournament-facts-fixtures");
@@ -209,5 +211,27 @@ describe("the lock banner's words have an address, for the controls the lock shu
       const html = draw(<ScopeLockBanner locks={args[0] as never} correction={(args[1] as never) ?? null} open={args[2]} isAdmin />);
       expect(html.includes(`id="${SCOPE_LOCK_REASON_ID}"`), JSON.stringify(args)).toBe(drawn);
     }
+  });
+});
+
+describe("a shut cup Save says why beside itself (G663-1)", () => {
+  const rounds = scopeLockOf(locksFor(launched(facts())), "rounds")!;
+  const teams = [
+    { id: "a", name: "Oaks", players: [] },
+    { id: "b", name: "Pines", players: [] },
+  ];
+  const cup = (lockWhy: typeof rounds | null) => draw(<CupLineup teams={teams as never} sessions={[]} pointsToWin={0} holder="" locked lockWhy={lockWhy} />);
+
+  it("the greyed Save names a sentence that is in the form, with the machine's words", () => {
+    const html = cup(rounds);
+    const save = controls(html).find((c) => c.tag === "button" && isOff(c.attrs))!;
+    expect(save, "no greyed Save drawn").toBeTruthy();
+    const said = wordsAt(html, attr(save.attrs, "aria-describedby")!);
+    expect(said).toContain(rounds.because);
+  });
+
+  it("CONTROL: with no reason handed over, the Save is not described by anything", () => {
+    const save = controls(cup(null)).find((c) => c.tag === "button" && isOff(c.attrs))!;
+    expect(attr(save.attrs, "aria-describedby")).toBeUndefined();
   });
 });

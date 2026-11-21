@@ -19,6 +19,7 @@ import {
 import { FAMILY_FIXTURES, FAMILIES, facts, launched, playedOut, completed } from "./tournament-facts-fixtures";
 import type { Family, TournamentFacts } from "../tournament-status";
 import { endOfClubDay } from "../club-clock";
+import { teeSheetChangeAllowed, teeSheetChangeFactsOf } from "../tee-sheet-change";
 
 /**
  * THE SCOPED LOCKS, AS AN ACTION AND A BANNER READ THEM (state machine PR 5a, 5b).
@@ -104,6 +105,55 @@ describe("one locked scope, as plain values a screen is handed", () => {
     expect(lock?.by).toBe("completed");
     expect(lock?.wayOut).toEqual({ says: "Reopen it on the dashboard", href: "/dashboard" });
   });
+
+  /**
+   * MONEY SHUTS AT COMPLETION AND NOWHERE ELSE (PR L; Ajay, 19 Nov 2026): what was OFFERED locks, Reopen unlocks it, and
+   * nothing about money locks at launch. Not correctable: a committee correction is the answer to a lock by launch.
+   */
+  it("money is shut by a completed tournament, and only by that, with Reopen the way out — in every family (PR L)", () => {
+    for (const family of FAMILIES) {
+      const base = FAMILY_FIXTURES[family]();
+      for (const [name, f] of [["setting up", base], ["live", launched(base)], ["played out", playedOut(base)]] as const) {
+        expect(scopeLockOf(locksFor(f), "money"), `${family}, ${name}`).toBeNull();
+      }
+      const lock = scopeLockOf(locksFor(completed(base)), "money");
+      expect(lock, family).toMatchObject({ by: "completed", wayOut: { says: "Reopen it on the dashboard", href: "/dashboard" }, correctable: false });
+    }
+  });
+
+  /**
+   * THE TEE SHEET'S BANNER AND ITS REFUSAL CANNOT PART (state machine, phase 2 section 2.3). "A completed tournament
+   * shuts the sheet" is written twice — in `locksOf` (the banner) and in `teeSheetChangeAllowed` (the actions and the
+   * screen's doors) — so this holds one to the other over every family, every status (draft, live, completed), every step of a round
+   * (before the draw, after it, after scores) and every change the sheet takes.
+   */
+  it("locksFor(f).teeSheet.locked equals !teeSheetChangeAllowed(…).ok — every family, status, step and change", () => {
+    let compared = 0;
+    for (const family of FAMILIES) {
+      const base = FAMILY_FIXTURES[family]();
+      for (const status of ["draft", "live", "completed"]) {
+        for (const round of [
+          { teeSheetSaved: null, hasResult: false },
+          { teeSheetSaved: true, hasResult: false },
+          { teeSheetSaved: true, hasResult: true },
+        ]) {
+          const f = { ...base, status, rounds: base.rounds.map((r) => ({ ...r, ...round })) };
+          const banner = locksFor(f).teeSheet.locked;
+          for (const r of f.rounds) {
+            const facts = teeSheetChangeFactsOf(f, r.id)!;
+            for (const ask of [{ kind: "save", publish: true }, { kind: "save", publish: false }, { kind: "publish" }, { kind: "unpublish" }, { kind: "place" }, { kind: "move" }, { kind: "replace" }] as const) {
+              expect(banner, `${family} · ${status} · ${r.id} · ${ask.kind}`).toBe(!teeSheetChangeAllowed(facts, ask).ok);
+              compared++;
+            }
+          }
+        }
+      }
+    }
+    // CONTROL: the sweep compared something, and the two answers are not constant.
+    expect(compared).toBeGreaterThan(500);
+    expect(locksFor({ ...FAMILY_FIXTURES.stroke(), status: "completed" }).teeSheet.locked).toBe(true);
+    expect(locksFor({ ...FAMILY_FIXTURES.stroke(), status: "live" }).teeSheet.locked).toBe(false);
+  });
 });
 
 describe("a refusal says the reason, then the way out with what the press was for — and knows who is reading", () => {
@@ -169,6 +219,10 @@ describe("the committee correction opens one scope (TD Q2, panel 8.1)", () => {
       "Locked because the tournament is completed. Reopen it on the dashboard instead — a committee correction cannot open it.",
     );
     expect(correctionRefusal(locksFor(live), "money")).toBe("That part of setup is not locked, so there is nothing to correct.");
+    // Money shut at completion is Reopen's, never a correction's (Ajay, 19 Nov).
+    expect(correctionRefusal(locksFor(completed(facts())), "money")).toBe(
+      "Locked because the tournament is completed. Reopen it on the dashboard instead — a committee correction cannot open it.",
+    );
   });
 
   it("the reason is 10 to 200 characters — it goes in Recent changes", () => {
@@ -270,7 +324,7 @@ describe("the correction is read off the row only while it stands", () => {
  * other family locked from launch, the way out a committee correction) and 8.1 (completed is
  * locked, the way out Reopen — Rule 20.2e), with the two rules 9b does not touch:
  *
- *   - money is under no lock at any step (it never was; PR L asks Ajay for its rule);
+ *   - money is under no lock until the tournament is completed (Ajay, 19 Nov: what was offered locks at completion, Reopen is the way out; the ledger never locks);
  *   - the tee sheet was never under the launch lock: a completed tournament shuts it, every
  *     family (PR 7c, `teeSheetChangeAllowed`) — a casual round's too, as today;
  *   - a knockout in flights keeps its draw open while live until the first result (J07), so
@@ -284,7 +338,7 @@ type Row = readonly [Cell, Cell, Cell, Cell, Cell, Cell, Cell, Cell, Cell];
 const STEPS = ["setting-up", "live", "play-over", "completed"] as const;
 const ALL_OPEN: Row = ["o", "o", "o", "o", "o", "o", "o", "o", "o"];
 const LIVE_ROW: Row = ["L", "L", "L", "L", "L", "L", "L", "o", "o"];
-const DONE_ROW: Row = ["C", "C", "C", "C", "C", "C", "C", "o", "C"];
+const DONE_ROW: Row = ["C", "C", "C", "C", "C", "C", "C", "C", "C"];
 
 const TABLE_8_2: Record<Family, Record<(typeof STEPS)[number], Row>> = {
   stroke: { "setting-up": ALL_OPEN, live: LIVE_ROW, "play-over": LIVE_ROW, completed: DONE_ROW },
@@ -305,7 +359,7 @@ const TABLE_8_2: Record<Family, Record<(typeof STEPS)[number], Row>> = {
     "setting-up": ALL_OPEN,
     live: ALL_OPEN,
     "play-over": ALL_OPEN,
-    completed: ["o", "o", "o", "o", "o", "o", "o", "o", "C"],
+    completed: ["o", "o", "o", "o", "o", "o", "o", "C", "C"],
   },
 };
 

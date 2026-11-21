@@ -17,6 +17,7 @@ import {
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
+import { bringIntoView } from "@/lib/bring-into-view";
 import FieldInfo from "./FieldInfo";
 import { MoreInfo } from "./MoreInfo";
 
@@ -54,7 +55,14 @@ export function MoneySetup({
   clubName,
   eventEntry = "",
   canEdit = true,
+  locked = false,
 }: {
+  /**
+   * Tournament mode only — the tournament's money mode is shut (the machine's `money` lock: a completed
+   * tournament, drawn by `ScopeLockBanner` on the screen). `setEventMoneyMode` asks it. Who may add a shared cost
+   * (the ledger's) and the club's own default never do.
+   */
+  locked?: boolean;
   /** Which level this instance sets. */
   mode: "tournament" | "organization";
   /** Tournament mode only — this tournament's own choice, "" to follow the club. */
@@ -78,7 +86,8 @@ export function MoneySetup({
   // together and every screen in the console is inside it.
   const profile = useOrgProfile();
   const activeEntry = resolveExpenseEntry({ eventEntry });
-  const locked = !isTournament && !canEdit;
+  const clubLocked = !isTournament && !canEdit;
+  const modeShut = isTournament && locked;
 
   const option = (value: MoneyMode | "", label: string, help: string, checked: boolean) => (
     <label
@@ -91,7 +100,7 @@ export function MoneySetup({
         borderRadius: "var(--radius-md)",
         border: `1px solid ${checked ? "var(--color-accent)" : "var(--color-divider)"}`,
         background: checked ? "color-mix(in srgb, var(--color-accent) 7%, transparent)" : "transparent",
-        cursor: pending || locked ? "default" : "pointer",
+        cursor: pending || clubLocked || modeShut ? "default" : "pointer",
         marginBottom: 6,
       }}
     >
@@ -99,7 +108,7 @@ export function MoneySetup({
         type="radio"
         name={`money-mode-${mode}`}
         checked={checked}
-        disabled={pending || locked}
+        disabled={pending || clubLocked || modeShut}
         onChange={() =>
           run(() => (isTournament ? setEventMoneyMode(value) : setOrgMoneyMode(value)))
         }
@@ -178,7 +187,7 @@ export function MoneySetup({
           </p>
         )}
 
-        {locked && (
+        {clubLocked && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             Only a Commissioner or Admin can change this.
           </p>
@@ -252,7 +261,7 @@ export function MoneySetup({
       )}
 
       {error && (
-        <p className="form-error">
+        <p className="form-error" role="alert" ref={bringIntoView}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
