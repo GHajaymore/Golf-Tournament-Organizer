@@ -240,3 +240,65 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
   }
   expect(errors, errors.join("\n")).toEqual([]);
 });
+
+/**
+ * A KNOCKOUT DATED ONLY BY ITS PLAY-BY DATES IS SCHEDULED (`roundDueDay`, design 2.1). A qualifier and a
+ * knockout: the qualifier has its day, the knockout is dated only through the Bracket's own "Play-by dates"
+ * form. Before that date Rounds & formats says the knockout "has no date" and its step is not done; once the
+ * Final's date is saved the line is gone and the step reads Done. Found by reading code, so it is walked here.
+ * Its own club (`zz-round-due-<project>`), invented names, dropped in a `finally`.
+ */
+// A ROUND's line ("Round 2 has no date, so players cannot see…"), not the launch refusal "This tournament has no dates" (the fixture event has none): that is Tournament details, another question.
+const ROUND_NO_DATE = /has no date(?!s)/;
+test("a knockout dated only by its play-by dates no longer has no date", async ({ page, baseURL }, testInfo) => {
+  const mark = `zz-round-due-${testInfo.project.name}`;
+  const errors: string[] = [];
+  watchPageErrors(page, errors, "secretary");
+  const club = await makeClub(mark);
+  try {
+    const today = dayIn("");
+    const { event } = await makeEvent(club, "Qualifier and Knockout", {
+      status: "draft",
+      stages: [
+        { type: "Stroke Play Round", format: "Stroke Play", scoringBasis: "net", playedOn: addDays(today, 10) },
+        { type: "Bracket Stage", format: "Match Play", scoringBasis: "net" },
+      ],
+      players: 0,
+      event: { shape: "knockout", bracketMode: "single", qualifyMode: "overall", qualifyOverall: 8 },
+    });
+    for (let i = 0; i < 8; i++) {
+      await prisma.player.create({
+        data: { eventId: event.id, name: NAMES[i], email: `${mark}-p${i}@example.invalid`, handicap: 4 + i, seed: i + 1, status: "confirmed" },
+      });
+    }
+    await signIn(page.context(), baseURL!, club, event.id);
+
+    const stopOf = () =>
+      page.getByRole("region", { name: "Where this tournament is" }).locator(".ls-row").filter({ hasText: "Rounds & formats" });
+
+    await test.step("with no date of any kind the knockout has no date, and Rounds & formats is not done", async () => {
+      await open(page, "/stages?view=timeline");
+      await expect(page.getByText(ROUND_NO_DATE).first()).toBeVisible();
+      await open(page, "/dashboard?stepper=1");
+      await expect(stopOf()).not.toHaveAttribute("data-state", "done");
+    });
+
+    await test.step("the Final's play-by date, set on the Bracket, dates it", async () => {
+      await open(page, "/bracket");
+      const form = page.locator("section", { has: page.getByRole("heading", { name: "Play-by dates" }) });
+      await form.getByLabel("Final", { exact: true }).fill(addDays(today, 30));
+      await form.getByRole("button", { name: "Save dates" }).click();
+      await expect(form.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+    });
+
+    await test.step("Rounds & formats no longer says it has no date, and its stop reads Done", async () => {
+      await open(page, "/stages?view=timeline");
+      await expect(page.getByText(ROUND_NO_DATE)).toHaveCount(0);
+      await open(page, "/dashboard?stepper=1");
+      await expect(stopOf()).toHaveAttribute("data-state", "done");
+    });
+  } finally {
+    await dropClub(mark);
+  }
+  expect(errors, errors.join("\n")).toEqual([]);
+});
