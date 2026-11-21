@@ -228,7 +228,7 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     const next = deskPage.getByRole("region", { name: "What's next" });
     const reminder = next.locator('[data-job="guests-today"]').filter({ hasText: eventName });
     await expect(reminder).toContainText("Guests arriving today?");
-    await reminder.getByRole("button", { name: /Reopen entries/ }).click();
+    await reminder.getByRole("link", { name: /Reopen entries/ }).click();
     await expect(deskPage).toHaveURL(/\/registration/, { timeout: 30_000 });
     await desk.close();
 
