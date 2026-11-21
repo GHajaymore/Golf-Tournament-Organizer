@@ -334,6 +334,8 @@ export const FULL_ONLY = [
   "e2e/contest-sponsor.spec.ts",
   "e2e/country-words.spec.ts",
   "e2e/course-cards-and-venues.spec.ts",
+  "e2e/course-lookup-on-event.spec.ts",
+  "e2e/course-lookup-refusals.spec.ts",
   "e2e/dashboard-day.spec.ts",
   "e2e/deleting-for-good.spec.ts",
   "e2e/dialog.spec.ts",

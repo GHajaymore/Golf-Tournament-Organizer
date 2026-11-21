@@ -116,6 +116,7 @@
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",
+    "effect": "^3.22.5",
     "postcss": "^8.5.23",
     "typed-rest-client": {
       "qs": "^6.17.1"

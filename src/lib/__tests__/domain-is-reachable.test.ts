@@ -179,6 +179,10 @@ const KNOWN_DEAD: string[] = [
   // render tests (render.test.tsx, back-nine-hole-numbers.test.tsx) still pin the old full-page card;
   // moving them to the new card and deleting this is the Print kit's slice 2.
   "components/TeeSheetPrint.tsx:TeeSheetPrint",
+  // REDESIGN R1a (21 Nov 2026): the set-up field and its mark rule, built and tested before any screen
+  // mounts them. Each redesigned screen's PR (R4 onward) mounts them and takes these two lines off.
+  "components/setup/SetupField.tsx:SetupField",
+  "lib/domain/setup-field.ts:markOf",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
   "lib/domain/bracket.ts:splitBrackets",

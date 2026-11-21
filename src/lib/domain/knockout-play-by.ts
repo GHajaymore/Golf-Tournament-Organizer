@@ -1,3 +1,4 @@
+import { isKnockoutRound } from "../stage-types";
 import { cleanIsoDate, shortDate } from "./round-dates";
 import { isByeTie } from "./bracket-layout";
 import { winnerOfWords, type BracketMatch, type BracketView } from "./bracket";
@@ -62,6 +63,21 @@ export function cleanPlayBy(input: unknown): { ok: true; json: string; dates: Pl
     }
   }
   return { ok: true, json: Object.keys(dates).length ? JSON.stringify(dates) : "", dates };
+}
+
+/**
+ * WHEN A ROUND IS DUE: the one answer (design 2.1). A knockout is dated by its play-by dates
+ * (`Stage.knockoutPlayBy`), so its due day is the LATEST of them: `cleanPlayBy` keeps an earlier round
+ * from being due after a later one, so that is the last round dated, the final's when it is set. With no
+ * play-by date, or for any other round, it is the round's own `deadline`. Every caller that asks whether
+ * a round has a day passes this, never `deadline` alone (`one-due-day.test.ts`).
+ */
+export function roundDueDay(stage: { type: string; deadline: string; knockoutPlayBy: string | null }): string {
+  if (isKnockoutRound(stage.type)) {
+    const days = Object.values(parsePlayBy(stage.knockoutPlayBy));
+    if (days.length) return days.reduce((a, b) => (b > a ? b : a));
+  }
+  return stage.deadline;
 }
 
 /** Rounds back from the final, for a round of this draw. */

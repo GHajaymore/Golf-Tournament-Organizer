@@ -36,6 +36,42 @@ export function targetOf(url: string): string {
     .replace(/[?&]$/, "");
 }
 
+/**
+ * ONE ADDRESS, HOWEVER IT IS SPELT (backlog B85, from the reviews of #1185).
+ *
+ * The crawl matched a press's navigation to its target by exact string, so a trailing slash, a
+ * reordered query string or a host on the front of it raised a STUCK for a screen that had arrived.
+ * Same address means: same pathname (a trailing slash ignored), the same query parameters as a set
+ * (order ignored, repeated keys counted, Next's `_rsc` ignored), host and fragment disregarded.
+ * A different path, a different value or a missing parameter is a different address, so a press that
+ * went somewhere else is still judged so.
+ */
+export function addressKey(url: string): string {
+  const u = new URL(url, "http://crawl.invalid");
+  const path = u.pathname.replace(/\/+$/, "") || "/";
+  const pairs = [...u.searchParams.entries()]
+    .filter(([k]) => k !== "_rsc")
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+  return `${path}?${pairs.sort().join("&")}`;
+}
+
+export function sameAddress(a: string, b: string): boolean {
+  return addressKey(a) === addressKey(b);
+}
+
+/**
+ * Has the page arrived at one of the addresses its press navigated to? A redirect counts: the redirected
+ * request is itself a navigation the page sends, so its final address is among `targets`.
+ */
+export function arrivedAt(current: string, targets: string[]): boolean {
+  return targets.some((t) => sameAddress(current, t));
+}
+
+/** The navigation targets that are somewhere other than where the press began. */
+export function elsewhere(startUrl: string, targets: string[]): string[] {
+  return targets.filter((t) => !sameAddress(t, startUrl));
+}
+
 export function watchNavigations(page: Pageish) {
   const inFlight = new Set<Req>();
   const seenTargets: string[] = [];
