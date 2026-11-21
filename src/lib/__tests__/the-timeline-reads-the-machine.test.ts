@@ -36,6 +36,17 @@ export const TIMELINE_FILES: readonly string[] = [
 /** The lifecycle stepper (B03) and its stylesheet's component: held to the same wall. */
 export const STEPPER_FILES: readonly string[] = ["src/lib/domain/lifecycle-track.ts", "src/components/LifecycleStepper.tsx"];
 
+/** The round's head and its locked section (R1b): they draw `roundRing`'s answer and never count it. */
+export const RING_FILES: readonly string[] = ["src/components/setup/RoundColumn.tsx", "src/components/setup/LockedOnce.tsx"];
+
+/** What a ring file does that only `round-ring.ts` may: read a round's `.needs`, or write the denominator. */
+export function ringStrays(src: string): string[] {
+  const found: string[] = [];
+  if (/\.needs\b/.test(src)) found.push("(a read of .needs)");
+  if (/\b\d+ of \d+\b|\bof\s*[:=]\s*\d/.test(src)) found.push("(a literal denominator)");
+  return found;
+}
+
 /** What the timeline may never ask for itself: the lifecycle, the pre-launch list, the launch facts. */
 const NOT_THE_MACHINE = [
   // the stored status and its lists
@@ -177,6 +188,24 @@ describe("the Course day timeline reads the machine (PR 5c, J16)", () => {
       .filter(([, s]) => s.length > 0)
       .map(([f, s]) => `${f}: ${s.join(", ")}`);
     expect(found, "read it from tournamentStatus and tournamentJob through lifecycleTrack instead").toEqual([]);
+  });
+
+  it("CONTROL: the matcher sees a second count of a round's needs, and passes the ring's own words", () => {
+    expect(ringStrays(`const open = round.needs.length;`)).toEqual(["(a read of .needs)"]);
+    expect(ringStrays(`const label = "2 of 3 set";`)).toEqual(["(a literal denominator)"]);
+    expect(ringStrays(`const ring = { set: 1, of: 3 };`)).toEqual(["(a literal denominator)"]);
+    expect(ringStrays(`const label = roundRingWords(ring);`)).toEqual([]);
+    expect(ringStrays(`<span>{ring.set} of {ring.of} set</span>`)).toEqual([]);
+  });
+
+  it("the round's head draws the ring and never counts it (R1b): `.needs` and the denominator live in round-ring.ts only", () => {
+    for (const f of RING_FILES) expect(readSource(f).length, `${f} is empty or missing`).toBeGreaterThan(0);
+    const found = RING_FILES.map((f) => [f, ringStrays(readSource(f))] as const)
+      .filter(([, s]) => s.length > 0)
+      .map(([f, s]) => `${f}: ${s.join(", ")}`);
+    expect(found, "draw roundRing(round) and roundRingWords(ring) from domain/round-ring.ts instead").toEqual([]);
+    // The one place that counts is the one place that reads them.
+    expect(readSource("src/lib/domain/round-ring.ts")).toMatch(/\.needs\b/);
   });
 
   it("roundNeeds, the strip's second source, is gone from src", () => {

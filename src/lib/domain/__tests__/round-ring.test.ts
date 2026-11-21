@@ -30,6 +30,8 @@ const VARIANTS: Record<string, (f: TournamentFacts) => TournamentFacts> = {
   "a format its type cannot score": (f) => ({ ...f, rounds: f.rounds.map((r, i) => (i === 0 ? { ...r, scorable: false } : r)) }),
   "no round dated": (f) => ({ ...f, rounds: f.rounds.map((r) => ({ ...r, scheduled: false })) }),
   "no flights made": (f) => ({ ...f, groups: 0 }),
+  // The draw is owed and no flights exist to draw it in: the Flights step holds, not the Rounds step.
+  "no flights and no pairings": (f) => ({ ...f, groups: 0, rounds: f.rounds.map((r) => ({ ...r, matches: 0 })) }),
 };
 
 const STATES: Record<string, (f: TournamentFacts) => TournamentFacts> = {
