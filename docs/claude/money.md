@@ -52,3 +52,5 @@ moto of no gambling"). On every screen, in the guide and in the player's Help, n
 public pages that ads land on. `public-pages-never-say-bet.test.ts` sweeps the whole of `src` for
 the phrases a sentence makes of the word; `bet` as a code NAME (`bet.name`, `renameBet`) is fine.
 
+
+**What money locks, and when** (Ajay, 2026-11-19; state machine PR L): nothing at launch. At COMPLETION what was OFFERED (the prize table, one prize per player, pot and contest definitions, the money mode) locks, and Reopen unlocks it; the LEDGER (who has paid, who is in, who won, the kitty, expenses, settling up, awarding a prize) never locks. Which action is on which side: `docs/claude/lock-scopes.md`, held by `every-lock-scope-is-asked.test.ts`.

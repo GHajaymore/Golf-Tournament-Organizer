@@ -12,6 +12,7 @@ import { isExpenseEntry, resolveExpenseEntry } from "@/lib/domain/expense-entry"
 import { isValidAmount, MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { isIsoDate } from "@/lib/deadline";
 import { logAudit } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
 
 /**
  * Choosing how a tournament handles money, and running the kitty.
@@ -58,6 +59,10 @@ function refresh() {
 export async function setEventMoneyMode(mode: string): Promise<MoneyResult> {
   const who = await requireOrganizer();
   if (!who) return { ok: false, error: "An organizer sets how money is handled." };
+  // The money mode is what was OFFERED: shut at completion, Reopen the way out (PR L).
+  const eventId = who.eventId;
+  const locked = await refuseIfLocked(eventId, "money", "change how money is handled");
+  if (locked) return locked;
   const clean = (mode ?? "").trim();
   if (clean !== "" && !isMoneyMode(clean)) return { ok: false, error: "Unknown money setting." };
 
@@ -157,6 +162,10 @@ export async function setPotEntryMode(
 ): Promise<MoneyResult> {
   const who = await requireOrganizer();
   if (!who) return { ok: false, error: "An organizer sets who is in a pot." };
+  // How a pot is entered is part of its definition: shut at completion (PR L). Who is in it (`setPotExcluded`) is the ledger's.
+  const eventId = who.eventId;
+  const locked = await refuseIfLocked(eventId, "money", "change how a pot is entered");
+  if (locked) return locked;
   if (!isPotEntryMode(mode)) return { ok: false, error: "Unknown entry setting." };
 
   if (potType === "contest") {

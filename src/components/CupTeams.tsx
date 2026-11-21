@@ -5,6 +5,8 @@ import { setFlightCaptain } from "@/app/actions/attendance";
 import { useAction } from "./useAction";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { TEAM_NAME_MAX } from "@/lib/domain/typed-limits";
+import { bringIntoView } from "@/lib/bring-into-view";
+import { ScopeLockMark } from "./ScopeLockBanner";
 
 interface Person {
   id: string;
@@ -27,7 +29,7 @@ interface Team {
  * the Manual rule": a screen about formation rules and flight sizes, for an
  * organizer who wanted to type two names.
  */
-export function CreateCupTeams() {
+export function CreateCupTeams({ locked }: { locked: boolean }) {
   const { pending, error, run } = useAction();
   const [a, setA] = useState("");
   const [b, setB] = useState("");
@@ -46,7 +48,7 @@ export function CreateCupTeams() {
         Name them, then put each player on one. The captains pick the pairs for each session after that.
       </p>
       {error && (
-        <p role="alert" className="form-error" style={{ margin: 0 }}>
+        <p role="alert" className="form-error" style={{ margin: 0 }} ref={bringIntoView}>
           {error}
         </p>
       )}
@@ -61,9 +63,10 @@ export function CreateCupTeams() {
         </div>
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending || !a.trim() || !b.trim()}>
+        <button type="submit" className="btn btn-primary" disabled={pending || locked || !a.trim() || !b.trim()}>
           Make the teams
         </button>
+        {locked && <ScopeLockMark />}
       </div>
     </form>
   );
@@ -74,7 +77,7 @@ export function CreateCupTeams() {
  * they are until that match is removed — moving them would leave a match whose
  * side is on the wrong team.
  */
-export function CupTeams({ teams, unplaced, inLineup }: { teams: [Team, Team]; unplaced: Person[]; inLineup: string[] }) {
+export function CupTeams({ teams, unplaced, inLineup, locked }: { teams: [Team, Team]; unplaced: Person[]; inLineup: string[]; locked: boolean }) {
   const busy = new Set(inLineup);
   return (
     <section aria-labelledby="cup-teams" style={{ marginTop: 8, marginBottom: 16 }}>
@@ -83,7 +86,7 @@ export function CupTeams({ teams, unplaced, inLineup }: { teams: [Team, Team]; u
       </h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
         {teams.map((t) => (
-          <TeamCard key={t.id} team={t} unplaced={unplaced} busy={busy} />
+          <TeamCard key={t.id} team={t} unplaced={unplaced} busy={busy} locked={locked} />
         ))}
       </div>
       <p className="text-muted" style={{ margin: "10px 0 0", fontSize: 14 }}>
@@ -101,14 +104,17 @@ export function CupTeams({ teams, unplaced, inLineup }: { teams: [Team, Team]; u
  * team's "Save name" sits a screen below it, and "The other team already has
  * that name" came up out of sight — the press looked like it did nothing.
  */
-function TeamCard({ team, unplaced, busy }: { team: Team; unplaced: Person[]; busy: Set<string> }) {
-  const { pending, error, run } = useAction();
+function TeamCard({ team, unplaced, busy, locked }: { team: Team; unplaced: Person[]; busy: Set<string>; locked: boolean }) {
+  const { pending: acting, error, run } = useAction();
+  // Who is on which team and what they are called are the cup scope's (the machine's `cup` lock, drawn above by `ScopeLockBanner`);
+  // the captain is the day's work and stays open.
+  const pending = acting || locked;
   const [name, setName] = useState(team.name);
   const renamed = name.trim() !== team.name && name.trim() !== "";
   return (
     <div className="card elev-sm" role="group" aria-label={`Team ${team.name}`} style={{ display: "grid", gap: 10 }}>
       {error && (
-        <p role="alert" className="form-error" style={{ margin: 0 }}>
+        <p role="alert" className="form-error" style={{ margin: 0 }} ref={bringIntoView}>
           {error}
         </p>
       )}
@@ -135,8 +141,9 @@ function TeamCard({ team, unplaced, busy }: { team: Team; unplaced: Person[]; bu
         >
           Save name
         </button>
+        {locked && <ScopeLockMark />}
         {!name.trim() && (
-          <p role="alert" className="form-error" style={{ margin: 0, flexBasis: "100%" }}>
+          <p role="alert" className="form-error" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
             A team needs a name. Type one to save it.
           </p>
         )}
@@ -148,7 +155,7 @@ function TeamCard({ team, unplaced, busy }: { team: Team; unplaced: Person[]; bu
           id={`cup-captain-${team.id}`}
           className="input"
           value={team.captainId}
-          disabled={pending || team.players.length === 0}
+          disabled={acting || team.players.length === 0}
           onChange={(e) => run(() => setFlightCaptain(team.id, e.target.value || null))}
         >
           <option value="">{team.players.length ? "No captain yet" : "Add players first"}</option>
