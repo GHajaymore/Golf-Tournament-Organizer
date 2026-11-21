@@ -1,6 +1,14 @@
 import type { ReactNode } from "react";
 import { roundRingWords, type RoundRing } from "@/lib/domain/round-ring";
-import type { RoundStepView } from "@/lib/domain/timeline-step";
+/**
+ * The shape of `RoundStepView` (timeline-step.ts) that this head draws. Declared here, not imported:
+ * the rounds area's files are imported by nothing outside it (qa-framework). A `RoundStepView` is
+ * assignable to it, so the caller hands the machine's answer straight in.
+ */
+interface RoundChip {
+  chip: string;
+  tone: "accent" | "accent-2" | "neutral";
+}
 
 /**
  * ONE ROUND'S COLUMN, as every redesigned screen draws its head (R1b): the round's name, then either
@@ -13,7 +21,7 @@ import type { RoundStepView } from "@/lib/domain/timeline-step";
  */
 
 /** The chip's tone in tokens; the words are `roundStep`'s, never a second set. */
-const TONE_COLOUR: Record<RoundStepView["tone"], string> = {
+const TONE_COLOUR: Record<RoundChip["tone"], string> = {
   accent: "var(--color-accent)",
   "accent-2": "var(--color-accent-2)",
   neutral: "var(--color-text-muted)",
@@ -22,7 +30,7 @@ const TONE_COLOUR: Record<RoundStepView["tone"], string> = {
 export interface RoundColumnProps {
   label: string;
   /** `courseDay(...).rounds[id]`: the machine's one answer to a round's chip (`roundStep`). */
-  chip: RoundStepView;
+  chip: RoundChip;
   /** `roundRing(round)`; null draws the state instead. */
   ring: RoundRing | null;
   children?: ReactNode;
