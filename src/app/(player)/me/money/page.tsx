@@ -10,6 +10,8 @@ import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { isMatch } from "@/lib/tournament-shape";
 import { SideBetStart } from "@/components/SideBetStart";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { screenLocksFor } from "@/lib/services/tournament-status";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { golfTermsForEvent } from "@/lib/services/organization";
 
@@ -178,18 +180,24 @@ export default async function MoneyPage() {
 
   /** A round with this player's stake in it, still being played. */
   const liveStake = rounds.stake.cents > 0 && rounds.rounds.some((r) => !r.final);
+  // A completed tournament's games are shut (PR L): said where a game would be started, never anywhere else on this screen.
+  const moneyLock = await screenLocksFor(session.eventId, ["money"]);
   const sideBet =
     bettable && field.length > 1 ? (
-      <SideBetStart
-        stageId={bettable.id}
-        field={field}
-        taken={taken}
-        // The draw, so a player picks the people they are walking with rather
-        // than scanning forty names for the three they know — once it has
-        // been published. Before that they get the field, which is what this
-        // screen showed anyway for a round with no sheet at all.
-        groups={publishedSheet?.groups ?? []}
-      />
+      <>
+        <ScopeLockBanner locks={moneyLock.locks} isAdmin={false} />
+        <SideBetStart
+          locked={moneyLock.locks.length > 0}
+          stageId={bettable.id}
+          field={field}
+          taken={taken}
+          // The draw, so a player picks the people they are walking with rather
+          // than scanning forty names for the three they know — once it has
+          // been published. Before that they get the field, which is what this
+          // screen showed anyway for a round with no sheet at all.
+          groups={publishedSheet?.groups ?? []}
+        />
+      </>
     ) : null;
   /* Said ONCE, for the whole screen (2026-09-19). The pots and the settle-up
      each ended with their own version of it, so a player with both read it

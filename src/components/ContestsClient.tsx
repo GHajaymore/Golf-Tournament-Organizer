@@ -21,7 +21,7 @@ import { useMoney } from "@/components/CurrencyProvider";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { useAction } from "./useAction";
+import { useAction, useCaughtUp } from "./useAction";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { moneyBoxRefusal } from "@/lib/domain/money-format";
@@ -142,7 +142,14 @@ export function ContestsClient({
   title,
   departed = [],
   groupKey = "",
+  locked = false,
 }: {
+  /**
+   * The games' definitions are shut (the machine's `money` lock: a completed tournament, drawn by
+   * `ScopeLockBanner` on the screen). Adding or removing a game, its stake and how a pot is entered ask it;
+   * who is in, who has paid and who won never do.
+   */
+  locked?: boolean;
   /**
    * WHOSE GAMES THESE ARE: "" for the field's, or the name of a side bet.
    *
@@ -216,6 +223,9 @@ export function ContestsClient({
 }) {
   const { money, plain, parse } = useMoney();
   const { pending, error, run, startTransition } = useAction();
+  const caughtUp = useCaughtUp();
+  /** What asks the money lock: busy, or the definitions are shut. Entrants, payments and winners ask only `pending`. */
+  const offerBusy = pending || locked;
   /** A stake box's refusal, said beside that row's box. */
   const [stakeSaid, setStakeSaid] = useState<{ kind: string; error: string } | null>(null);
   /** "Start this game" refused, said beside it. */
@@ -285,7 +295,7 @@ export function ContestsClient({
           key={m}
           type="button"
           className={`tag ${mode === m ? "tag-accent" : "tag-neutral"}`}
-          disabled={pending}
+          disabled={offerBusy}
           onClick={() => run(() => setPotEntryMode(potType, potId, m))}
           style={{ cursor: "pointer", border: "none" }}
         >
@@ -330,7 +340,7 @@ export function ContestsClient({
       return;
     }
     startTransition(async () => {
-      const res = await addContest({
+      const res = caughtUp(await addContest({
         kind,
         name: name.trim() || CONTEST_LABEL[kind],
         buyInCents: cents,
@@ -339,7 +349,7 @@ export function ContestsClient({
         // box from a previous long-drive entry would file the poker night on
         // the 7th.
         hole: contestHasHole(kind) ? figureOr(readWhole(hole), 0) : 0,
-      });
+      }));
       if (res.ok) {
         setAdding(false);
         setName("");
@@ -355,7 +365,7 @@ export function ContestsClient({
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <span className="card-title">{title ?? `Side games — ${roundLabel}`}</span>
         {contestsApply && !adding && (
-          <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)} disabled={pending}>
+          <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)} disabled={offerBusy}>
             <Icon name="plus" /> Add a game
           </button>
         )}
@@ -427,7 +437,7 @@ export function ContestsClient({
             <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setAdding(false)}>
               Cancel
             </button>
-            <button type="button" className="btn btn-primary" style={{ flex: 2 }} disabled={pending} onClick={create}>
+            <button type="button" className="btn btn-primary" style={{ flex: 2 }} disabled={offerBusy} onClick={create}>
               Start this game
             </button>
           </div>
@@ -503,7 +513,7 @@ export function ContestsClient({
                     aria-label={`Stake for ${row.label}`}
                     defaultValue={game ? plain(game.buyInCents) : ""}
                     placeholder="0.00"
-                    disabled={pending}
+                    disabled={offerBusy}
                     style={{ width: 82, minHeight: 44, textAlign: "right" }}
                     onKeyDown={leaveOnEnter}
                     onBlur={(e) => {
@@ -530,7 +540,7 @@ export function ContestsClient({
                       setStakeSaid(null);
                       if (game && cents === game.buyInCents) return;
                       startTransition(async () => {
-                        const res = await saveSideGame(stageId, row.kind, cents, groupKey);
+                        const res = caughtUp(await saveSideGame(stageId, row.kind, cents, groupKey));
                         if (!res.ok) setStakeSaid({ kind: row.kind, error: res.error ?? "That stake didn't save." });
                       });
                     }}
@@ -560,7 +570,7 @@ export function ContestsClient({
                     title={`Take ${row.label} off this round`}
                     confirmLabel="Take it off"
                     note="The game goes. Anybody who has paid in has to be taken out of the pot first."
-                    disabled={pending}
+                    disabled={offerBusy}
                     onConfirm={() => run(() => removeSideGame(game.id))}
                   />
                 )}
@@ -842,7 +852,7 @@ export function ContestsClient({
               label="Remove this game"
               title="Remove this game"
               confirmLabel="Remove the game"
-              disabled={pending}
+              disabled={offerBusy}
               onConfirm={() => run(() => removeContest(c.id))}
             />
           </div>
@@ -852,7 +862,7 @@ export function ContestsClient({
       )}
 
       {error && (
-        <p style={{ fontSize: 13, marginTop: 10, color: "var(--color-danger)" }}>
+        <p role="alert" ref={bringIntoView} style={{ fontSize: 13, marginTop: 10, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

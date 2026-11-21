@@ -25,6 +25,7 @@ import { usePrizeMoney } from "./usePrizeMoney";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { useCaughtUp } from "./useAction";
 
 export interface PrizeRow {
   id: string;
@@ -42,8 +43,15 @@ export function PrizesClient({
   flights = [],
   byScore,
   onePrizePerPlayer = false,
+  locked = false,
 }: {
   prizes: PrizeRow[];
+  /**
+   * The prize table is shut (the machine's `money` lock: a completed tournament, drawn above this by
+   * `ScopeLockBanner`). The lines, the one-prize rule and the structures are what was OFFERED and ask it;
+   * AWARDING a prize (the winner) is the ledger's and is never behind it.
+   */
+  locked?: boolean;
   /**
    * The tournament's "One prize per player" (2026-10-21). While it is on, the
    * lines are shown in the order they are AWARDED — gross first — each line
@@ -108,6 +116,9 @@ export function PrizesClient({
   const [amountRefused, setAmountRefused] = useState<{ id: string; error: string } | null>(null);
   const amountBoxRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
+  /** What asks the money lock: busy, or the table is shut. The winner picker asks only `pending`. */
+  const offerBusy = pending || locked;
   const saveStatus = useSaveStatus(pending);
   /**
    * The rule and each line's switch, shown as pressed while the press is on its
@@ -136,14 +147,14 @@ export function PrizesClient({
         <input
           type="checkbox"
           checked={p.counts}
-          disabled={pending}
+          disabled={offerBusy}
           aria-label={`${p.category}: ${COUNTS_LABEL.toLowerCase()}`}
           onChange={(e) => {
             const want = e.target.checked;
             setRowRefused(null);
             startTransition(async () => {
               showCounts({ id: p.id, counts: want });
-              const result = await setPrizeCounts(p.id, want);
+              const result = caughtUp(await setPrizeCounts(p.id, want));
               if (!result.ok) setRowRefused({ prizeId: p.id, text: result.error ?? "That could not be saved." });
             });
           }}
@@ -166,7 +177,7 @@ export function PrizesClient({
         type="number"
         min={0}
         defaultValue={p.amount || ""}
-        disabled={pending}
+        disabled={offerBusy}
         aria-label={`Amount for ${p.category}`}
         style={{ width: asCells ? 100 : 84, textAlign: "right" }}
         onKeyDown={leaveOnEnter}
@@ -188,7 +199,7 @@ export function PrizesClient({
           setAmountRefused(null);
           if (typed !== p.amount) {
             startTransition(async () => {
-              const result = await updatePrize(p.id, { amount: typed });
+              const result = caughtUp(await updatePrize(p.id, { amount: typed }));
               if (!result.ok) setAmountRefused({ id: p.id, error: result.error ?? "That amount didn't save." });
             });
           }
@@ -247,8 +258,18 @@ export function PrizesClient({
       <ConfirmButton
         title="Remove prize"
         confirmLabel="Remove it"
-        disabled={pending}
-        onConfirm={() => startTransition(() => removePrize(p.id))}
+        disabled={offerBusy}
+        onConfirm={() =>
+          startTransition(async () => {
+            setRowRefused(null);
+            // `removePrize` answers nothing when it removed; an answer is a refusal, said on the line.
+            const refused = await removePrize(p.id);
+            if (refused) {
+              caughtUp(refused);
+              setRowRefused({ prizeId: p.id, text: refused.error });
+            }
+          })
+        }
       />
     );
     return asCells ? (
@@ -300,7 +321,7 @@ export function PrizesClient({
       return;
     }
     startTransition(async () => {
-      const result = await addPrize(category, amt, detail);
+      const result = caughtUp(await addPrize(category, amt, detail));
       if (!result.ok) {
         setAddRefused(result.error ?? "That prize wasn't added.");
         return;
@@ -345,12 +366,12 @@ export function PrizesClient({
                 key={s.key}
                 type="button"
                 className="btn"
-                disabled={pending}
+                disabled={offerBusy}
                 title={s.blurb}
                 onClick={() => {
                   setStructureRefused("");
                   startTransition(async () => {
-                    const res = await applyPrizeStructure(s.key);
+                    const res = caughtUp(await applyPrizeStructure(s.key));
                     // "Flight winners" on a field with no flights adds
                     // nothing; it used to say nothing too.
                     if (res && !res.ok) setStructureRefused(res.error ?? "That added nothing.");
@@ -362,7 +383,7 @@ export function PrizesClient({
             ))}
           </div>
           {structureRefused && (
-            <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
+            <p role="alert" ref={bringIntoView} style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {structureRefused}
             </p>
           )}
@@ -404,7 +425,7 @@ export function PrizesClient({
               onKeyDown={(e) => e.key === "Enter" && submit(amountBoxRef.current)}
             />
           </div>
-          <button type="button" className="btn btn-primary" disabled={pending} onClick={() => submit(amountBoxRef.current)}>
+          <button type="button" className="btn btn-primary" disabled={offerBusy} onClick={() => submit(amountBoxRef.current)}>
             <Icon name="plus" /> Add
           </button>
           {addRefused && (
@@ -434,14 +455,14 @@ export function PrizesClient({
             <input
               type="checkbox"
               checked={on}
-              disabled={pending}
+              disabled={offerBusy}
               onChange={(e) => {
                 const want = e.target.checked;
                 setRuleRefused("");
                 setRowRefused(null);
                 startTransition(async () => {
                   showRule(want);
-                  const result = await setOnePrizePerPlayer(want);
+                  const result = caughtUp(await setOnePrizePerPlayer(want));
                   if (!result.ok) setRuleRefused(result.error ?? "That could not be saved.");
                 });
               }}
