@@ -235,9 +235,13 @@ you.").
 - **Limits (D3).** `register-token` (grows with the field), `guest-entry-device` 3 an hour per browser + event,
   `guest-entry-cookieless` 10 an hour per network + event counting ONLY requests with no device cookie (the cookie is set
   by pressing Enter as a guest, before the submit), and the waiting cap `max(24, the field's limit)`. There is NO per-network
-  budget on successful entries (a clubhouse is one address). Residue, stated: `ng_device` is an unsigned random value, so a
-  script that sets a well-formed one of its own per request is not held by the device or cookieless budget; it is held by the
-  token's budget, the cap, the switch and New link, and earns only rows staff remove.
+  budget on successful entries (a clubhouse is one address). **Closed by B96:** the `ng_device` cookie is now SIGNED
+  (`sign`/`verify` in `auth.ts`, under the existing `AUTH_SECRET`; no new secret), and the guest door takes a device only when
+  it carries that signature (`signedDeviceHere`). An unsigned, tampered or missing value is a new device and is counted in
+  `guest-entry-cookieless`. MAKING a cookie (`startGuestEntry`) is counted too: `guest-mint-alarm` (300 an hour across the app)
+  and, while it stands, `guest-mint-slow` (12 per 15 minutes per network), so thirty phones on one wifi still mint. Older
+  unsigned cookies stay good for the staff known-device check and are not good at the guest door (they cost one counted request,
+  then are replaced). Still the rule: held by the token's budget, the cap, the switch and New link.
 - **Approval** (`approveSignup(playerId, figure?)`): a guest is approved AS A GUEST (`upsertMember(…, { guest: true })`),
   counted and placed under `withEventIntakeLock`; where ANY round is scored net the committee's figure ("Handicap for
   today") is required (`figureRefusal`, the same gate Replace uses) and is stored as the entry's index; a gross-only event asks none and stores
