@@ -248,6 +248,8 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
  * Final's date is saved the line is gone and the step reads Done. Found by reading code, so it is walked here.
  * Its own club (`zz-round-due-<project>`), invented names, dropped in a `finally`.
  */
+// A ROUND's line ("Round 2 has no date, so players cannot see…"), not the launch refusal "This tournament has no dates" (the fixture event has none): that is Tournament details, another question.
+const ROUND_NO_DATE = /has no date(?!s)/;
 test("a knockout dated only by its play-by dates no longer has no date", async ({ page, baseURL }, testInfo) => {
   const mark = `zz-round-due-${testInfo.project.name}`;
   const errors: string[] = [];
@@ -276,7 +278,7 @@ test("a knockout dated only by its play-by dates no longer has no date", async (
 
     await test.step("with no date of any kind the knockout has no date, and Rounds & formats is not done", async () => {
       await open(page, "/stages?view=timeline");
-      await expect(page.getByText(/has no date/).first()).toBeVisible();
+      await expect(page.getByText(ROUND_NO_DATE).first()).toBeVisible();
       await open(page, "/dashboard?stepper=1");
       await expect(stopOf()).not.toHaveAttribute("data-state", "done");
     });
@@ -291,7 +293,7 @@ test("a knockout dated only by its play-by dates no longer has no date", async (
 
     await test.step("Rounds & formats no longer says it has no date, and its stop reads Done", async () => {
       await open(page, "/stages?view=timeline");
-      await expect(page.getByText(/has no date/)).toHaveCount(0);
+      await expect(page.getByText(ROUND_NO_DATE)).toHaveCount(0);
       await open(page, "/dashboard?stepper=1");
       await expect(stopOf()).toHaveAttribute("data-state", "done");
     });
