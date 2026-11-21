@@ -142,7 +142,7 @@ export default async function GuideStepsPage() {
   // else sees a change. Asked of `mergesShown` exactly as the layout asks it.
   const asked = await headers();
   const shown = mergesShown(asked.get("x-search") ?? "", { owner: isOwner(session.email) });
-  const steps = guideFor(guideInClubWords(words), [...shown]);
+  const steps = guideFor(guideInClubWords(words), [...shown], words);
 
   return (
     <div style={{ maxWidth: 980 }}>

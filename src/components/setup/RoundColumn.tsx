@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { roundRingWords, type RoundRing } from "@/lib/domain/round-ring";
-import type { StatusRound } from "@/lib/domain/tournament-status";
+import type { RoundStepView } from "@/lib/domain/timeline-step";
 
 /**
  * ONE ROUND'S COLUMN, as every redesigned screen draws its head (R1b): the round's name, then either
@@ -12,21 +12,23 @@ import type { StatusRound } from "@/lib/domain/tournament-status";
  * every flex child has `min-width: 0` so the head wraps at 320px instead of pushing the page wide.
  */
 
-export const ROUND_STATE_WORDS: Record<StatusRound["state"], string> = {
-  "not-started": "Not started",
-  "under-way": "Under way",
-  closed: "Closed",
+/** The chip's tone in tokens; the words are `roundStep`'s, never a second set. */
+const TONE_COLOUR: Record<RoundStepView["tone"], string> = {
+  accent: "var(--color-accent)",
+  "accent-2": "var(--color-accent-2)",
+  neutral: "var(--color-text-muted)",
 };
 
 export interface RoundColumnProps {
   label: string;
-  state: StatusRound["state"];
+  /** `courseDay(...).rounds[id]`: the machine's one answer to a round's chip (`roundStep`). */
+  chip: RoundStepView;
   /** `roundRing(round)`; null draws the state instead. */
   ring: RoundRing | null;
   children?: ReactNode;
 }
 
-export function RoundColumn({ label, state, ring, children }: RoundColumnProps) {
+export function RoundColumn({ label, chip, ring, children }: RoundColumnProps) {
   return (
     <section data-round-column={label} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 8, color: "var(--color-text)" }}>
       <header style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 12px", minWidth: 0 }}>
@@ -48,18 +50,18 @@ export function RoundColumn({ label, state, ring, children }: RoundColumnProps) 
           </span>
         ) : (
           <span
-            data-round-state={state}
+            data-round-state={chip.chip}
             style={{
               minWidth: 0,
               padding: "1px 8px",
               borderRadius: 999,
               border: "1px solid var(--color-divider)",
-              color: "var(--color-text-muted)",
+              color: TONE_COLOUR[chip.tone],
               fontSize: "0.8125rem",
               whiteSpace: "nowrap",
             }}
           >
-            {ROUND_STATE_WORDS[state]}
+            {chip.chip}
           </span>
         )}
       </header>

@@ -79,7 +79,7 @@ describe("where a result jumps to", () => {
     // search for "societies" finds what a British club reads.
     // Since R1b a shown redesign screen's variant is swapped in on top (`guideFor`); the index is
     // built from the very same `steps`, so search finds what the page draws.
-    expect(page).toMatch(/const steps = guideFor\(guideInClubWords\(words\), \[\.\.\.shown\]\);/);
+    expect(page).toMatch(/const steps = guideFor\(guideInClubWords\(words\), \[\.\.\.shown\], words\);/);
     expect(page).toMatch(/<GuideSearch index=\{guideIndex\(steps\)\} \/>/);
   });
 });

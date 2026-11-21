@@ -1,5 +1,6 @@
 import type { ScreenKey } from "@/lib/domain/console-merges";
 import type { GuideSection } from "@/lib/guide-steps";
+import { tableInClubWords, type GolfWords } from "@/lib/domain/golf-terms";
 
 /**
  * THE GUIDE'S REDESIGN VARIANTS (R1b): each redesigned screen's PR adds ONE file beside this one,
@@ -25,10 +26,13 @@ export const REDESIGN_GUIDE: readonly GuideVariant[] = [];
  * The guide as the screens now shown describe themselves. Each shown screen's variant takes the place
  * of the first section it replaces, and the other sections it replaces are dropped; a variant that
  * replaces nothing is added after the last section. Order is the registry's, never the set's.
+ * A variant's words are put in the reading club's golf (`tableInClubWords`) BEFORE they are spliced in,
+ * as the base's were: a `{organizer}` token never reaches a club as braces.
  */
 export function guideFor(
   base: GuideSection[],
   shown: readonly ScreenKey[],
+  words: GolfWords,
   registry: readonly GuideVariant[] = REDESIGN_GUIDE,
 ): GuideSection[] {
   const active = registry.filter((v) => shown.includes(v.screen));
@@ -37,11 +41,12 @@ export function guideFor(
   for (const v of active) {
     const at = out.findIndex((s) => v.replaces.includes(s.id));
     const rest = out.filter((s) => !v.replaces.includes(s.id));
+    const sections = tableInClubWords(v.sections, words);
     if (at === -1) {
-      out = [...rest, ...v.sections];
+      out = [...rest, ...sections];
     } else {
       // `at` is the FIRST replaced section, so every section before it is kept and still sits at 0..at.
-      out = [...rest.slice(0, at), ...v.sections, ...rest.slice(at)];
+      out = [...rest.slice(0, at), ...sections, ...rest.slice(at)];
     }
   }
   return out;

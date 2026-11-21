@@ -44,8 +44,8 @@ const STATES: Record<string, (f: TournamentFacts) => TournamentFacts> = {
  * WHERE THE RULE "A GAP MEANS THE ROUNDS STEP IS NOT DONE" DOES NOT HOLD (found in R1b, reported):
  * a LAUNCHED league whose next week has no day. The Rounds step's `done` for a league is
  * `!holdsNow` and nothing holds once play has begun, so the step is ticked while the ring is 2 of 3
- * (the live dashboard raises it as the next action, "Set Week N's day"). The ring is drawn only on a
- * set-up round's head, so no screen shows the two together; if one ever does, this entry is the reason.
+ * (the live dashboard raises it as the next action, "Set Week N's day"). No screen yet draws the ring beside the Rounds step after launch; the first that does
+ * decides (backlog row), and this entry is the reason.
  */
 const KNOWN_EXCEPTIONS: readonly string[] = ["league/no round dated/launched"];
 const isKnownException = (key: string) => KNOWN_EXCEPTIONS.includes(key);

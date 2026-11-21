@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { GUIDE_STEPS, type GuideSection } from "../guide-steps";
 import { REDESIGN_GUIDE, guideFor, type GuideVariant } from "../guide/redesign";
+import { golfTermsFor, GOLF_REGISTERS } from "../domain/golf-terms";
 import { SCREEN_KEYS, type ScreenKey } from "../domain/console-merges";
 import { guideShapeProblems } from "./guide-word-checks";
 import { readSource } from "./source";
@@ -21,38 +22,52 @@ const variant = (over: Partial<GuideVariant> = {}): GuideVariant => ({
   ...over,
 });
 
+const US = golfTermsFor("us");
+
+describe("a variant's words are the club's words", () => {
+  it("fills {organizer} and every token for each register, before the variant is spliced in", () => {
+    const v = variant({ sections: [section("tokens", "Ask your {organizer} about the {golfGroups}.")] });
+    const uk = guideFor(BASE, [SCREEN], golfTermsFor("uk"), [v]);
+    expect(JSON.stringify(uk)).toContain("Ask your organiser about the societies.");
+    for (const register of GOLF_REGISTERS) {
+      const out = guideFor(BASE, [SCREEN], golfTermsFor(register), [v]);
+      expect(JSON.stringify(out), register).not.toMatch(/\{\w+\}/);
+    }
+  });
+});
+
 describe("the guide with the redesign's registry", () => {
   it("starts empty, so the guide is IDENTICAL to GUIDE_STEPS for every set of shown screens", () => {
     expect(REDESIGN_GUIDE).toEqual([]);
     const sets: ScreenKey[][] = [[], [...SCREEN_KEYS], ...SCREEN_KEYS.map((k) => [k])];
-    for (const shown of sets) expect(guideFor(GUIDE_STEPS, shown)).toEqual(GUIDE_STEPS);
-    expect(guideFor(GUIDE_STEPS, [...SCREEN_KEYS])).toBe(GUIDE_STEPS);
+    for (const shown of sets) expect(guideFor(GUIDE_STEPS, shown, US)).toEqual(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, [...SCREEN_KEYS], US)).toBe(GUIDE_STEPS);
   });
 
   it("a planted variant replaces exactly the sections it names, in place, while its screen is shown", () => {
-    const out = guideFor(BASE, [SCREEN], [variant()]);
+    const out = guideFor(BASE, [SCREEN], US, [variant()]);
     expect(out.map((s) => s.id)).toEqual(["alpha", "newbeta", "delta"]);
   });
 
   it("…and is not drawn while its screen is not shown", () => {
-    expect(guideFor(BASE, [], [variant()])).toEqual(BASE);
-    expect(guideFor(BASE, [OTHER], [variant()])).toEqual(BASE);
+    expect(guideFor(BASE, [], US, [variant()])).toEqual(BASE);
+    expect(guideFor(BASE, [OTHER], US, [variant()])).toEqual(BASE);
   });
 
   it("a variant that replaces nothing is added after the last section", () => {
-    const out = guideFor(BASE, [SCREEN], [variant({ replaces: [] })]);
+    const out = guideFor(BASE, [SCREEN], US, [variant({ replaces: [] })]);
     expect(out.map((s) => s.id)).toEqual(["alpha", "beta", "gamma", "delta", "newbeta"]);
   });
 
   it("two shown screens each swap their own", () => {
     const second = variant({ screen: OTHER, replaces: ["alpha"], sections: [section("newalpha", "x")] });
-    const out = guideFor(BASE, [SCREEN, OTHER], [variant(), second]);
+    const out = guideFor(BASE, [SCREEN, OTHER], US, [variant(), second]);
     expect(out.map((s) => s.id)).toEqual(["newalpha", "newbeta", "delta"]);
   });
 
   it("does not change the base it was handed", () => {
     const before = BASE.map((s) => s.id);
-    guideFor(BASE, [SCREEN], [variant()]);
+    guideFor(BASE, [SCREEN], US, [variant()]);
     expect(BASE.map((s) => s.id)).toEqual(before);
   });
 
@@ -82,7 +97,7 @@ describe("every registered variant (none yet)", () => {
 
   it("reads through the registry from the guide page, and the layout is not edited", () => {
     const page = readSource("src/app/(app)/guide/steps/page.tsx");
-    expect(page).toMatch(/guideFor\(guideInClubWords\(words\), \[\.\.\.shown\]\)/);
+    expect(page).toMatch(/guideFor\(guideInClubWords\(words\), \[\.\.\.shown\], words\)/);
     expect(page).toMatch(/mergesShown\(asked\.get\("x-search"\)/);
   });
 });

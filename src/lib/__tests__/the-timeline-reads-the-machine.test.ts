@@ -44,6 +44,8 @@ export function ringStrays(src: string): string[] {
   const found: string[] = [];
   if (/\.needs\b/.test(src)) found.push("(a read of .needs)");
   if (/\b\d+ of \d+\b|\bof\s*[:=]\s*\d/.test(src)) found.push("(a literal denominator)");
+  // A round's state in words is `roundStep`'s (timeline-step.ts), drawn from `RoundStepView`, never typed again.
+  if (/["'`>]\s*(?:Not started|Under way|In play|Played|Not played|Upcoming|Set up|Closed)\s*["'`<]/.test(src)) found.push("(a round's state words typed again)");
   return found;
 }
 
@@ -194,6 +196,8 @@ describe("the Course day timeline reads the machine (PR 5c, J16)", () => {
     expect(ringStrays(`const open = round.needs.length;`)).toEqual(["(a read of .needs)"]);
     expect(ringStrays(`const label = "2 of 3 set";`)).toEqual(["(a literal denominator)"]);
     expect(ringStrays(`const ring = { set: 1, of: 3 };`)).toEqual(["(a literal denominator)"]);
+    expect(ringStrays(`const w = { "under-way": "Under way" };`)).toEqual(["(a round's state words typed again)"]);
+    expect(ringStrays(`<span>{chip.chip}</span>`)).toEqual([]);
     expect(ringStrays(`const label = roundRingWords(ring);`)).toEqual([]);
     expect(ringStrays(`<span>{ring.set} of {ring.of} set</span>`)).toEqual([]);
   });
