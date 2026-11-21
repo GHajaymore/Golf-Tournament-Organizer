@@ -15,6 +15,7 @@ import { planMatch, casualScoreKeeping, type MatchSetupInput } from "@/lib/domai
 import { expiryFrom } from "@/lib/domain/round-expiry";
 import { generateAccessCode } from "@/lib/codes";
 import { scoringDefaults } from "@/lib/domain/round-scoring";
+import { newEventDefaults } from "@/lib/domain/event-defaults";
 
 /**
  * Create ONE casual round, whole, in one call.
@@ -120,6 +121,7 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
   const event = await prisma.event.create({
     data: {
       organizationId,
+      ...newEventDefaults(),
       name: plan.name,
       dates: "",
       course: "",

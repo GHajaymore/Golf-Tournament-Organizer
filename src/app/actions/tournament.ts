@@ -14,6 +14,7 @@ import {
 import { copiedCalendar } from "@/lib/domain/copy-dates";
 import { organizationAccessFor } from "@/lib/services/org-access";
 import { clubToday } from "@/lib/domain/club-clock";
+import { newEventDefaults } from "@/lib/domain/event-defaults";
 import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -4943,6 +4944,8 @@ export async function cloneEvent(
     () =>
       prisma.event.create({
     data: {
+      // Before `carried`, so the source's own bracket mode still wins.
+      ...newEventDefaults(),
       ...carried,
       // The organizer's number, carried as it was; the cap is applied on read
       // (see `createTournament`), so a copy made on Par still holds ten.
@@ -5435,14 +5438,8 @@ async function createTournament(
       capacity: 0,
       status: "draft",
       shape,
-      /**
-       * ONE BRACKET, which is what a club knockout is (2026-09-28, left to my
-       * recommendation). The schema's "split" divides the qualifiers into a
-       * main draw and a consolation before anybody has played — right for a
-       * society's two-tier day, surprising as the default for a club's
-       * match-play championship. Changeable on Bracket until it is played.
-       */
-      bracketMode: "single",
+      // What a new event starts with (the bracket mode, 28 Sep ruling): `event-defaults.ts`.
+      ...newEventDefaults(),
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
       ...(input.settings ?? {}),
