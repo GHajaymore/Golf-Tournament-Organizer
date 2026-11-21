@@ -59,7 +59,8 @@ function gateOf(h: Pick<Handler, "body" | "src">): Gate | null {
   // A bearer token compared with a secret (the compare may sit in a helper of the same file): the handler
   // reads the header, and the 401 comes after it.
   const header = body.search(/authorization/i);
-  if (header >= 0 && h.src.includes("Bearer ${")) {
+  // `bearerMatches(` is the backup's shared constant-time compare (src/lib/backup/bearer.ts, with its own test): called in the handler, it is the same check.
+  if (header >= 0 && (h.src.includes("Bearer ${") || body.includes("bearerMatches("))) {
     const refuse = body.indexOf("401", header);
     if (refuse >= 0) return { kind: "bearer", at: refuse };
   }
@@ -182,6 +183,12 @@ describe("who may call an API route", () => {
     expect(
       v('export async function GET() {\n  const session = await getSession();\n  if (!session || (session.role !== "admin" && session.role !== "assistant")) {\n    return NextResponse.json({ ok: false }, { status: 401 });\n  }\n  const e = await prisma.event.findUnique({ where: { id: session.eventId } });\n  return NextResponse.json({ e });\n}'),
     ).toBeNull();
+    // the shared constant-time compare, refused with a 401 before any read (the backup routes)
+    expect(v('export async function GET(r: Request) {\n  if (!bearerMatches(r.headers.get("authorization"), process.env.S)) {\n    return Response.json({}, { status: 401 });\n  }\n  return Response.json(await prisma.club.findMany());\n}')).toBeNull();
+    // the same compare called AFTER a read is still refused
+    expect(v('export async function GET(r: Request) {\n  const h = r.headers.get("authorization"); await prisma.club.findMany();\n  if (!bearerMatches(h, process.env.S)) return Response.json({}, { status: 401 });\n}')).toMatch(/before/);
+    // the compare named only in a comment is no gate
+    expect(v("export async function GET() { // bearerMatches( authorization 401\n return Response.json({}); }")).not.toBeNull();
     // a second handler in the same file is judged on its own
     const two = handlersIn(
       "x/route.ts",
