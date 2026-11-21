@@ -153,6 +153,55 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   const errors: string[] = [];
   watchPageErrors(page, errors);
 
+  /**
+   * THE ONE WAY `setCupSettings` IS PRESSED (round G663-1, finding 3): from launch the cup's points to win and holder are
+   * the rounds scope's and Save is shut (walked at the end of this test), so the only browser path that saves them is on a
+   * cup NOT yet launched. The seeded cup is live; it is a draft for this step and back to live after, and the points and
+   * holder are put back to "more than half" and nobody, which the later steps read.
+   */
+  await test.step("before launch the organizer sets points to win and the holder, saves, and it stays saved", async () => {
+    const prisma = new PrismaClient();
+    try {
+      await prisma.event.update({ where: { id: f.eventId }, data: { status: "draft" } });
+      await as(page, baseURL!, "organizer");
+      await open(page, "/cup");
+      const settings = () => page.locator("form").filter({ has: page.getByLabel("Points to win") });
+      const save = () => settings().getByRole("button", { name: "Save", exact: true });
+      await expect(save(), "a cup not yet launched has its Save open").toBeEnabled();
+      await expect(settings().locator("#cup-settings-why")).toHaveCount(0);
+
+      await page.getByLabel("Points to win").fill("4½");
+      await page.getByLabel("Holder (keeps it on a tie)").selectOption({ label: "Blues" });
+      await save().click();
+      // No refusal beside it, and the server has it: the cup is decided at 4½ and the Blues keep it on a tie.
+      await expect(settings().getByRole("alert")).toHaveCount(0);
+      await expect
+        .poll(async () => {
+          const e = await prisma.event.findUnique({ where: { id: f.eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } });
+          return `${e?.cupPointsToWin}|${e?.cupHolderGroupId ? "held" : "nobody"}`;
+        }, { timeout: 20_000 })
+        .toBe("4.5|held");
+
+      // Reloaded, the boxes hold what was saved.
+      await open(page, "/cup");
+      await expect(page.getByLabel("Points to win")).toHaveValue("4.5");
+      await expect(page.getByLabel("Holder (keeps it on a tie)").locator("option:checked")).toHaveText("Blues");
+
+      // Put back for the rest of the cup: empty is "more than half", and nobody holds it.
+      await page.getByLabel("Points to win").fill("");
+      await page.getByLabel("Holder (keeps it on a tie)").selectOption({ label: "Nobody — a tie is shared" });
+      await save().click();
+      await expect
+        .poll(async () => (await prisma.event.findUnique({ where: { id: f.eventId }, select: { cupPointsToWin: true } }))?.cupPointsToWin, { timeout: 20_000 })
+        .toBe(0);
+      await open(page, "/cup");
+      await expect(page.getByLabel("Points to win")).toHaveValue("");
+    } finally {
+      await prisma.event.update({ where: { id: f.eventId }, data: { status: "live" } });
+      await prisma.$disconnect();
+    }
+  });
+
   await test.step("the captains' lineup for Saturday, still a draft", async () => {
     await as(page, baseURL!, "organizer");
     await open(page, "/cup");
