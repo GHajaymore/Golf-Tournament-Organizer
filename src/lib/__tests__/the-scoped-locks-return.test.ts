@@ -54,6 +54,8 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   setMatchTiebreakers: { file: TOURNAMENT, scope: "rounds", what: "change the match tie-breakers" },
   saveEntryTerms: { file: TOURNAMENT, scope: "field", what: "change the entry terms" },
   setRegistrationApproval: { file: TOURNAMENT, scope: "field", what: "change how entries are approved" },
+  // J39/J40 PR 3B: the one tick box on Entries.
+  setGuestEntry: { file: TOURNAMENT, scope: "field", what: "change who can enter" },
   setStageCutScope: { file: TOURNAMENT, scope: "rounds", what: "change the cut" },
   setStageCutTies: { file: TOURNAMENT, scope: "rounds", what: "change the cut" },
   clearRoundScores: { file: TOURNAMENT, scope: "rounds", what: "clear scores" },
@@ -127,8 +129,8 @@ describe("the scoped locks return, never throw", () => {
     });
   }
 
-  // Thirty-six until PR 7b moved six to the rounds rule (allowance, split, basis, format, delete, and holes on 8 Nov); thirty-six again with PR L's six money sites.
-  it("thirty-six sites, and no other lock-asking action in the three files goes unlisted", () => {
+  // Thirty-six until PR 7b moved six to the rounds rule (allowance, split, basis, format, delete, and holes on 8 Nov); thirty-six again with PR L's six money sites, thirty-seven with the guest-entry tick box (#1191).
+  it("thirty-seven sites, and no other lock-asking action in the three files goes unlisted", () => {
     const listed = new Set(Object.keys(SITES));
     for (const file of FILES) {
       for (const part of readSource(file).split(/export async function /).slice(1)) {
@@ -136,7 +138,7 @@ describe("the scoped locks return, never throw", () => {
         if (/refuseIfLocked\(/.test(part)) expect(listed.has(name), `${name} asks a lock and is not pinned here`).toBe(true);
       }
     }
-    expect(listed.size).toBe(36);
+    expect(listed.size).toBe(37);
   });
 
   it("awarding a prize is the ledger's: setPrizeWinner asks no lock, so a completed tournament's winners can still be named (PR L)", () => {
@@ -246,6 +248,7 @@ describe("the screens draw the lock their actions ask", () => {
       "src/components/EntryTermsCard.tsx": ["saveEntryTerms", "setRegistrationApproval"],
       "src/components/ClearScores.tsx": ["clearRoundScores"],
       "src/components/RegistrationClient.tsx": ["setRequirePhone"],
+      "src/components/GuestEntryStaff.tsx": ["setGuestEntry"],
       "src/components/SingleMatchRulePicker.tsx": ["setSingleMatchRule"],
       "src/components/ThirdPlaceControl.tsx": ["setThirdPlace"],
       "src/components/BracketModePicker.tsx": ["setBracketMode"],

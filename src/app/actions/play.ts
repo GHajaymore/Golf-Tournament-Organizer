@@ -143,7 +143,8 @@ export async function claimPlayerSlot(rawCode: unknown, playerId: unknown): Prom
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const found = await lookupEight(code);
-  if (!found) return { ok: false, error: CODE_WORDS.opensNothing };
+  // An entry code has no second step here: it is a refusal like any other code that is not a round's.
+  if (!found || found.kind !== "round") return { ok: false, error: CODE_WORDS.opensNothing };
   const stage = found.stage;
 
   const player = await prisma.player.findFirst({
