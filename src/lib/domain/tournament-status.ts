@@ -284,6 +284,12 @@ export interface StatusRound {
   label: string;
   state: "not-started" | "under-way" | "closed";
   needs: RoundNeed[];
+  /**
+   * The round's OWN settings the machine asks of it (course, format, date): what the needs ring counts
+   * as its denominator (`round-ring.ts`). Named `asked`, not `asks`: `asks` is a question an ACTION puts.
+   * Never holds `draw` or `teeSheet`: they belong to the Tee times stop. Empty for a closed or played round.
+   */
+  asked: RoundNeedKey[];
 }
 
 export interface TournamentStatus {
@@ -496,16 +502,23 @@ function matchNotMade(f: TournamentFacts, family: Family): RoundFacts | null {
 }
 
 /** What each playing round still needs — see `RoundNeed`. */
-function roundNeedsOf(f: TournamentFacts, family: Family, launched: boolean): Map<string, RoundNeed[]> {
-  const out = new Map<string, RoundNeed[]>();
+function roundNeedsOf(
+  f: TournamentFacts,
+  family: Family,
+  launched: boolean,
+): Map<string, { needs: RoundNeed[]; asked: RoundNeedKey[] }> {
+  const out = new Map<string, { needs: RoundNeed[]; asked: RoundNeedKey[] }>();
   const week = family === "league" ? nextUnplayedWeek(f) : null;
   const unmade = matchNotMade(f, family);
   f.rounds.forEach((r, i) => {
     if (!r.playing) return;
     const needs: RoundNeed[] = [];
-    out.set(r.id, needs);
+    const asked: RoundNeedKey[] = [];
+    out.set(r.id, { needs, asked });
     if (r.closed || r.hasResult) return;
     const holds = !launched;
+    // Asked of every open round: where and what. (A missing card fills the course slot.)
+    asked.push("course", "format");
     const card = f.missingCards.find((c) => c.stageId === r.id);
     if (card) {
       needs.push(
@@ -517,6 +530,8 @@ function roundNeedsOf(f: TournamentFacts, family: Family, launched: boolean): Ma
     if (!r.scorable) {
       needs.push({ key: "format", missing: "cannot be scored in the format it is set to", consequence: "its results cannot be worked out", holds, fix: "round" });
     }
+    // When: a league asks only its next unplayed week; any other round only when there is more than one.
+    if (family === "league" ? week?.id === r.id : f.rounds.length > 1) asked.push("date");
     if (!r.scheduled) {
       if (family === "league") {
         // J08: only the next unplayed week needs a day; the later ones are the dialog's one warning.
@@ -1202,7 +1217,10 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
 
   // Once play is over its rounds need nothing: a round never played will not be (completing closes
   // it as not played), so it is not asked for a date or tee times it can no longer use.
-  const needsByRound = step === "play-over" || finished ? new Map<string, RoundNeed[]>() : roundNeedsOf(f, family, launched);
+  const needsByRound =
+    step === "play-over" || finished
+      ? new Map<string, { needs: RoundNeed[]; asked: RoundNeedKey[] }>()
+      : roundNeedsOf(f, family, launched);
 
   const chip =
     step === "setting-up"
@@ -1227,7 +1245,8 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
         id: r.id,
         label: r.label,
         state: r.closed ? "closed" : r.hasResult ? "under-way" : "not-started",
-        needs: needsByRound.get(r.id) ?? [],
+        needs: needsByRound.get(r.id)?.needs ?? [],
+        asked: needsByRound.get(r.id)?.asked ?? [],
       })),
     nextAction,
     locks: locksOf(f, family),

@@ -397,18 +397,13 @@ export function stepperShown(search: string, viewer: { owner: boolean }, deploym
   return new URLSearchParams(search).get(STEPPER_PREVIEW) === "1";
 }
 
-/**
- * A link that KEEPS THE PREVIEW ON: the console's layout is not drawn again as an organizer moves
- * between its screens, but anything that draws it afresh (a reload, a saved form) reads the address,
- * so every link the stepper and the menu draw while previewing carries the query (before a `#place`).
- * Called only while previewing: once the switch is on, links are plain.
+/*
+ * A link that KEEPS THE PREVIEW ON is `consoleUrl(href, "preview")` (`src/lib/console-url.ts`): the
+ * console's layout is not drawn again as an organizer moves between its screens, but anything that
+ * draws it afresh (a reload, a saved form) reads the address, so every link the stepper and the menu
+ * draw while previewing carries the query (before a `#place`). Called only while previewing: once
+ * the switch is on, links are plain. (`keepPreview` was its twin and is gone, R1b.)
  */
-export function keepPreview(href: string): string {
-  const at = href.indexOf("#");
-  const path = at === -1 ? href : href.slice(0, at);
-  const place = at === -1 ? "" : href.slice(at);
-  return `${path}${path.includes("?") ? "&" : "?"}${STEPPER_PREVIEW}=1${place}`;
-}
 
 /**
  * WHERE THE TRACK IS DRAWN IN FULL (the panel, 9 Nov): the dashboard always; Tournament details only
