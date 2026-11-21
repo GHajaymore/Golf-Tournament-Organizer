@@ -69,6 +69,8 @@ async function issueCode(): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = generateAccessCode();
     if ((await prisma.stage.count({ where: { accessCode: code } })) > 0) continue;
+    // Never a string a sign-up code already holds (J39 PR 3B, C1.5).
+    if ((await prisma.event.count({ where: { registrationCode: code } })) > 0) continue;
     return code;
   }
   return "";

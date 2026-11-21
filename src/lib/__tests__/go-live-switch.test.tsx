@@ -391,6 +391,12 @@ describe("the guest player link does not move with the switch", () => {
     expect(ids).toContain("player-links");
     expect(ids.indexOf("player-links")).toBe(ids.indexOf("round-codes") + 1);
   });
+  // J39/J40 PR 3B: the guest door on the sign-up link is outside the hold too, and says so in the list.
+  it("guest entry on the sign-up link is listed as not switched, beside the player link", () => {
+    const ids = NOT_SWITCHED.map((n) => n.id);
+    expect(ids).toContain("guest-entry");
+    expect(ids.indexOf("guest-entry")).toBe(ids.indexOf("player-links") + 1);
+  });
   it("the guest session, the viewer and the link's actions never ask the hold or make a sign-in", () => {
     for (const file of ["src/lib/guest-auth.ts", "src/lib/player-viewer.ts", "src/lib/services/player-link.ts", "src/app/actions/player-link.ts"]) {
       const src = readSource(file);

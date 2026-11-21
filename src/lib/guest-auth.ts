@@ -93,6 +93,18 @@ export const getGuestSession = cache(async (): Promise<GuestSession | null> => {
   return livePass(held.passId, held.version);
 });
 
+/**
+ * DOES THIS BROWSER ALREADY HOLD A LIVE PASS IN THIS EVENT (J39/J40 PR 3B: one browser, one guest per event). Read from
+ * the cookie's own pass and re-checked against the database like every request; it answers a yes or a no and gives
+ * the asking action nothing of the guest's: it is not a guest ACTION and acts as nobody.
+ */
+export async function holdsLivePassIn(eventId: string): Promise<boolean> {
+  const held = readGuestCookieValue(verify(await readCookie(GUEST_COOKIE)));
+  if (!held || guestCookieRefusal(held, new Date())) return false;
+  const pass = await livePass(held.passId, held.version);
+  return !!pass && pass.eventId === eventId;
+}
+
 /** Which way a browser holding both a sign-in and a link chose to look (S4). Null: not chosen. */
 export async function playerViewChosen(): Promise<"guest" | "account" | null> {
   const v = await readCookie(PLAYER_VIEW_COOKIE);

@@ -109,6 +109,35 @@ async function guestEntry(eventId: string, playerId: string) {
   return entry && isGuest(entry) ? entry : null;
 }
 
+/**
+ * THE PASS OF A GUEST WHO ENTERED THEMSELVES (J39/J40 PR 3B), made in the SAME transaction as their entry so there
+ * is never an entry nobody holds a key to, nor a key to nothing. It is bound to its entry here and never re-pointed
+ * (`PlayerPass.playerId` is never updated). The nonce's keyed hash rides with it (C3.5). Returns the code ONCE, for
+ * the answer to the press that made the entry.
+ */
+export async function makePassIn(
+  tx: Prisma.TransactionClient,
+  input: { eventId: string; playerId: string; by: string; entryNote: string; nonceHash: string },
+): Promise<{ passId: string; version: number; code: string }> {
+  const id = newPassId();
+  const code = generateLinkCode();
+  await tx.playerPass.create({
+    data: {
+      id,
+      playerId: input.playerId,
+      eventId: input.eventId,
+      lookup: lookupOf(code),
+      sealed: sealCode(code, id, 1),
+      version: 1,
+      createdBy: input.by,
+      entryNote: input.entryNote,
+      entryNonceHash: input.nonceHash,
+      entryNonceAt: input.nonceHash ? new Date() : null,
+    },
+  });
+  return { passId: id, version: 1, code };
+}
+
 export type ShownPass = { ok: true; code: string } | { ok: false; reason: "not-a-guest" | "turned-off" };
 
 /**

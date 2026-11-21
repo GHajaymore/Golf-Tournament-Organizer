@@ -27,7 +27,7 @@
  * "gross only" (found 14 Nov 2026). The Rules of Handicapping (6.1, 6.2) work a
  * net allowance from an index; with none, the strokes are the Committee's to
  * give (Rules of Golf 3.3b(4)). So, in a round scored net: a guest is taken
- * only with the committee's figure typed (`guestFigureRefusal`), and a member
+ * only with the committee's figure typed (`figureRefusal`), and a member
  * with no index only once they have been given strokes for this round — the
  * rule is `needsCommitteeFigure` (domain/committee-figure.ts), which
  * `candidateWhy` asks, so the list, the server and every other screen that
@@ -38,7 +38,6 @@
  */
 
 import { NO_INDEX, indexFigure } from "./handicap-label";
-import { isNetBasis } from "./match-entry";
 import { needsCommitteeFigure } from "./committee-figure";
 import type { TeeSheet } from "./tee-sheet";
 import type { SlotLocks } from "./tee-sheet-moves";
@@ -118,7 +117,7 @@ export interface ReplaceChoice extends ReplaceCandidate {
 /**
  * A MEMBER WITH NO INDEX, IN A ROUND SCORED NET: listed, not choosable, and told the way on — strokes for
  * this round, given in the band at the top of Rounds & formats (`setRoundHandicapOverride`, the one writer
- * of a round figure). Same family as `guestFigureRefusal`. Once a card is in, the round keeps the handicaps
+ * of a round figure). Same family as `figureRefusal`. Once a card is in, the round keeps the handicaps
  * it has (`FROZEN_HANDICAP_REFUSAL`), so then the way on is somebody else — true until the late figure of
  * lane N's PR B, which retires `NO_FIGURE_CARDS_IN` in the same commit.
  */
@@ -217,8 +216,8 @@ export function pairNameAfter(name: string, before: readonly string[], after: re
  * The handicap a substitute plays off, said for the record and on the confirm: "12.4", "+2.4", the
  * strokes given for this round where there are some ("14 strokes, given for this round" — that, and not
  * the index, is what the round resolves first; never "the committee's" on a screen, the panel's 12.1), or
- * "no index (gross only)", which `candidateWhy` and `guestFigureRefusal` leave reachable only where it is
- * true: a gross round, for a member in no net side game in it (a guest's blank: see `guestFigureRefusal`).
+ * "no index (gross only)", which `candidateWhy` and `figureRefusal` leave reachable only where it is
+ * true: a gross round, for a member in no net side game in it (a guest's blank: see `figureRefusal`).
  * `figure` is `ReplaceWorld.figures[id]`, null for none (a guest has none: they are made by the press).
  */
 export function handicapUsedWords(index: string, figure: number | null): string {
@@ -294,19 +293,7 @@ export function voidedGamesWords(v: { contests: number; sideGames: number; kept:
   return `${[out, kept, skins].filter(Boolean).join(". ")}.`;
 }
 
-/**
- * A GUEST WITH NO FIGURE IS NOT PLAYED OFF NOUGHT. The handicap resolver reads the stored number and not
- * "no index", so a blank guest in a round that uses handicaps would play as a scratch golfer. Until that is
- * fixed at its root, a round scored net (net, both or Stableford — anything but gross, `isNetBasis`) takes a
- * guest only with a figure the committee has given them (the Rules of Handicapping allow one for a
- * non-member). A member with no index is held to the same in `candidateWhy` (`NO_FIGURE`).
- * Gross: a blank is allowed. Returns the refusal, or null.
- */
-export function guestFigureRefusal(scoringBasis: string, guestName: string, hasFigure: boolean): string | null {
-  if (hasFigure || !isNetBasis(scoringBasis)) return null;
-  return `Type the handicap the committee gives ${guestName} — this round is scored net.`;
-}
-
+/** A guest with no figure is not played off nought: the one gate is `figureRefusal` (`committee-figure.ts`). */
 export const REPLACE_GROUPS_NOTE = "The pairings are the draw in this round, so a player can’t be swapped on the sheet. Re-draw, or withdraw the player and add the new one.";
 export const REPLACE_EVERY_ROUND_NOTE = "This pair plays every round, so changing a partner changes every round. Change it on the Teams screen.";
 export const REPLACE_CUP_NOTE = "A team cup session’s lineup is set on the Team cup screen.";

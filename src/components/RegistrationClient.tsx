@@ -45,6 +45,9 @@ import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { SignUpPoster } from "./SignUpPoster";
+import { GuestApprovals, GuestEntrySwitch, type GuestWaitingRow } from "./GuestEntryStaff";
+import { GUEST_WORDS } from "@/lib/domain/guest-entry";
+import { parseDeadlineIso } from "@/lib/deadline";
 import { EntryTermsCard } from "./EntryTermsCard";
 import { MoreInfo } from "./MoreInfo";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
@@ -118,6 +121,12 @@ interface EventInfo {
   requirePhone: boolean;
   /** Opaque token for the public /register/[token] link. Empty until first opened. */
   registrationToken: string;
+  /** J39/J40 PR 3B: guests may enter themselves on the sign-up link (every one waits for a press). */
+  guestEntryOpen?: boolean;
+  /** The closing day in the club's words ("27 Sep"), or "": for the switch's sentence and the poster's warning. */
+  closeWords?: string;
+  /** The event's first day, yyyy-mm-dd, or "": the poster warns when entries close before it. */
+  startOn?: string;
   /** How this tournament writes a date — the deadline reads like the event's own date. */
   locale?: string;
   /**
@@ -139,6 +148,8 @@ export function RegistrationClient({
   confirmed,
   waitlist,
   pendingEntries,
+  guestRows = [],
+  netEvent = false,
   locked,
   fieldLocks = [],
   correction = null,
@@ -201,6 +212,10 @@ export function RegistrationClient({
   waitlist: Signup[];
   /** Self-service entries awaiting the organizer's approval (approve mode). */
   pendingEntries: Signup[];
+  /** Guests who entered themselves and wait for a press (J39/J40 PR 3B), phone-first rows above the pending table. */
+  guestRows?: GuestWaitingRow[];
+  /** Any round of this event is scored net: approval asks the committee's figure ("Handicap for today"). */
+  netEvent?: boolean;
   /** The FIELD's lock (the machine's `locks.field`, PR 5b) — the per-player tees, the entry terms. The field has its own doors below. */
   locked: boolean;
   /** The same lock as the banner draws it, with its reason and way out, and the committee correction open on it, if any. */
@@ -1284,7 +1299,7 @@ export function RegistrationClient({
                     onClick={() => {
                       if (
                         !window.confirm(
-                          "Replace the sign-up link?\n\nThe current link stops working immediately — anyone who already has it, including in an email you sent, will get 'this registration link isn't open'. You'll need to send the new one out.",
+                          `Replace the sign-up link?\n\nThe current link stops working immediately — anyone who already has it, including in an email you sent, will get 'this registration link isn't open'. You'll need to send the new one out.\n\n${GUEST_WORDS.newLinkConfirm}`,
                         )
                       ) {
                         return;
@@ -1306,7 +1321,17 @@ export function RegistrationClient({
                 name={event.name}
                 when={event.dates.trim()}
                 where={[event.course.trim(), event.city.trim()].filter(Boolean).join(", ")}
+                guests={!!event.guestEntryOpen}
+                // A2b: entries close before the first day, so the poster outlives them.
+                closeWarning={
+                  event.closeWords && event.startOn && parseDeadlineIso(event.regDeadline) && parseDeadlineIso(event.regDeadline) < event.startOn
+                    ? GUEST_WORDS.posterWarn(event.closeWords)
+                    : ""
+                }
               />
+            )}
+            {registerUrl && (
+              <GuestEntrySwitch on={!!event.guestEntryOpen} until={event.closeWords ?? ""} locked={locked} />
             )}
 
             {/* Per tournament, on every plan (decisions review A7, 2026-10-21).
@@ -1738,6 +1763,7 @@ export function RegistrationClient({
               </div>
             </div>
           )}
+          <GuestApprovals rows={guestRows} netEvent={netEvent} doors={doors} />
           {pendingEntries.length > 0 && (
             <div className="card elev-sm" style={{ borderColor: "var(--color-accent)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

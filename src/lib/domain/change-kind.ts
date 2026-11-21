@@ -37,6 +37,8 @@ export const FIELD_ACTIONS = [
   "player-link.muted", "player-link.unmuted",
   // PR 3: player link slips printed, and a lost sheet's links replaced in one press.
   "player-link.slips", "player-link.new-for-all",
+  // PR 3B: a guest asked to play on the sign-up link, and the organizer's switch for it.
+  "guest-entry.asked", "guest-entry.switch",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];
