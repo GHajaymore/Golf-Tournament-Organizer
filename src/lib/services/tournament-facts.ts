@@ -11,6 +11,7 @@ import { isUnnamed } from "../domain/tournament-name";
 import { isStablefordRound } from "../domain/week-basis";
 import { storedMatchIsOver } from "../domain/match";
 import { bracketDraws } from "../domain/my-tie";
+import { roundDueDay } from "../domain/knockout-play-by";
 import { isFinished, isLaunched } from "../domain/lifecycle-state";
 import { roundsWithResultsFrom } from "../domain/rounds-with-results";
 import { stepOf, type TournamentStep } from "../domain/tournament-step";
@@ -318,6 +319,7 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
           position: true,
           playedOn: true,
           deadline: true,
+          knockoutPlayBy: true,
           cutEnabled: true,
           teeSheet: true,
           teeSheetPublished: true,
@@ -433,7 +435,7 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
         playing: isPlayingRound(s.type),
         stableford: isStablefordRound(s.scoringBasis, s.format),
         scorable: roundShapeMismatch(s.type, s.format) === null,
-        scheduled: roundIsScheduled(s.playedOn, s.deadline),
+        scheduled: roundIsScheduled(s.playedOn, roundDueDay(s)),
         drawsPairings: generatesPairings(s.type),
         cutFed: s.cutEnabled,
         matches: own.length,
