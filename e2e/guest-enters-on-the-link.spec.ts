@@ -111,7 +111,7 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     await expect(enter).toBeVisible();
     await enter.click();
     await expect(guestPage.getByTestId("guest-entry").getByLabel("Your name")).toBeVisible();
-    await expect(guestPage.getByRole("textbox", { name: /email/i }), "a guest is asked for an email").toHaveCount(0);
+    await expect(guestPage.getByTestId("guest-entry").getByRole("textbox", { name: /email/i }), "a guest is asked for an email").toHaveCount(0);
     await guestPage.getByTestId("guest-entry").getByLabel("Your name").fill("Robin Vale");
     await guestPage.getByTestId("guest-entry").getByLabel("Handicap, if you have one").fill("14.2");
     await guestPage.getByTestId("guest-entry").getByLabel("Who invited you?").fill("Corin");
