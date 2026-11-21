@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { NAME_STATUS_ARGS, pathsFromNameStatus } from "./changed-paths.mjs";
 import { conflictRefusal, stepMessage } from "./train-rules.mjs";
 
 // Who the step commits are by. Said on the command line, never written to any git config.
@@ -27,8 +28,8 @@ export function gitIn(cwd) {
 
 /** The files a head changes against the base (three dots: from where they meet). */
 export function changedFiles(git, base, head) {
-  const r = git("diff", "--name-only", `${base}...${head}`);
-  return r.ok ? r.out.split(/\r?\n/).filter(Boolean) : [];
+  const r = git("diff", ...NAME_STATUS_ARGS, `${base}...${head}`);
+  return r.ok ? pathsFromNameStatus(r.out) : [];
 }
 
 /**

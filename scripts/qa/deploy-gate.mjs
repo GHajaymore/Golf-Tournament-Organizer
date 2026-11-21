@@ -37,6 +37,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
+import { NAME_STATUS_ARGS, pathsFromNameStatus } from "./changed-paths.mjs";
 import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed, nightlyNeeded, retryTransient, verdictCheckPath, verdictJobsForRun, nightliesWorthAsking } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
@@ -110,7 +111,7 @@ function waitingCommitsSince(deployed, sha) {
   const list = gitOut("rev-list", "--reverse", ...(deployed ? [range] : ["-1", sha])).split(/\r?\n/).filter(Boolean);
   return commitsWaiting(
     list,
-    (c) => gitOut("diff-tree", "--no-commit-id", "--name-only", "-r", "-m", c).split(/\r?\n/).filter(Boolean),
+    (c) => pathsFromNameStatus(gitOut("diff-tree", "--no-commit-id", ...NAME_STATUS_ARGS, "-r", "-m", c)),
     (c) => gitOut("log", "-1", "--format=%s", c).trim().slice(0, 80),
   );
 }

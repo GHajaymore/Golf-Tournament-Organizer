@@ -34,6 +34,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { diffPaths, pathsFromStatusLines } from "./changed-paths.mjs";
 
 const args = process.argv.slice(2);
 const value = (name) => (args.find((a) => a.startsWith(`--${name}=`)) ?? "").split("=").slice(1).join("=");
@@ -50,9 +51,9 @@ if (!specs.length) {
     process.exit(2);
   }
   const from = git("merge-base", base, "HEAD").trim() || base;
-  const committed = git("diff", "--name-only", from, "HEAD").split("\n");
+  const committed = diffPaths([from, "HEAD"]);
   // Not yet committed, and not yet tracked: a spec being written is the one most in need of this.
-  const working = git("status", "--short").split("\n").map((l) => l.slice(3).trim().replace(/^"|"$/g, ""));
+  const working = pathsFromStatusLines(git("status", "--short").split("\n").filter(Boolean));
   specs = [...new Set([...committed, ...working])].filter((f) => f.startsWith("e2e/") && f.endsWith(".spec.ts") && existsSync(f)).sort();
 }
 if (!specs.length) {
