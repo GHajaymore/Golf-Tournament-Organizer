@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { readSource, readVerbatim } from "./source";
 import { cleanRoundShas, isCleanVerdictFor, newestRoundVerdict } from "../../../scripts/qa/round-verdict.mjs";
 
 const A = "a".repeat(40);
@@ -53,8 +54,8 @@ describe("a round is clean by its OWN verdict (B99)", () => {
 });
 
 // ONE reader: no other tooling file or workflow may decide "clean" from a run's conclusion.
-const QA = join(__dirname, "../../../scripts/qa");
-const WORKFLOWS = join(__dirname, "../../../.github/workflows");
+const QA = "scripts/qa";
+const WORKFLOWS = ".github/workflows";
 
 /** Lines that read a round run's conclusion as success, or use a *success* glob. */
 function secondReaders(text: string): string[] {
@@ -73,16 +74,16 @@ describe("no second reader of a round's conclusion (B99 sweep)", () => {
 
   it("scripts/qa and the workflows have none", () => {
     const files = [
-      ...readdirSync(QA).filter((f) => f.endsWith(".mjs")).map((f) => join(QA, f)),
-      ...readdirSync(WORKFLOWS).filter((f) => f.endsWith(".yml")).map((f) => join(WORKFLOWS, f)),
+      ...readdirSync(join(process.cwd(), QA)).filter((f) => f.endsWith(".mjs")).map((f) => `${QA}/${f}`),
+      ...readdirSync(join(process.cwd(), WORKFLOWS)).filter((f) => f.endsWith(".yml")).map((f) => `${WORKFLOWS}/${f}`),
     ];
     expect(files.length).toBeGreaterThan(10);
-    const found = files.flatMap((f) => secondReaders(readFileSync(f, "utf8")).map((l) => `${f}: ${l.trim()}`));
+    const found = files.flatMap((f) => secondReaders(readVerbatim(f)).map((l) => `${f}: ${l.trim()}`));
     expect(found).toEqual([]);
   });
 
   it("the train builder reads its clean rounds through the shared helper", () => {
-    const src = readFileSync(join(QA, "train.mjs"), "utf8");
+    const src = readSource(QA, "train.mjs");
     expect(src).toContain("cleanRoundShas(");
     expect(src).toContain("isCleanVerdictFor(");
   });
