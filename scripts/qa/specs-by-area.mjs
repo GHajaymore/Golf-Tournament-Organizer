@@ -306,6 +306,10 @@ export const FULL_ONLY = [
   "e2e/player-link-slips.spec.ts",
   // J39/J40 PR 3B: a guest enters themselves on the one sign-up link and is approved at the desk (registration: who gets in).
   "e2e/guest-enters-on-the-link.spec.ts",
+  // J39/J40 PR 3B: the secretary approves and declines guests (a name clash, auto mode, a gross-only event), and the guest's own
+  // path (the budget, refusals beside the press, a lost answer and Try again) (registration: who gets in).
+  "e2e/guest-entry-approval.spec.ts",
+  "e2e/guest-entry-the-guests-path.spec.ts",
   // One code box (plan row 4c, cut 1): either code in either box, one sentence for every wrong one (access: shared ground).
   "e2e/one-code-box.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",

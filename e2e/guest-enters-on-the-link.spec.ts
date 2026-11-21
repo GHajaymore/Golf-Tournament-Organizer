@@ -142,7 +142,9 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     await expect(row.getByTestId("figure-hint")).toBeVisible();
     await figure.fill("16");
     await row.getByRole("button", { name: "Approve" }).click();
-    await expect(waiting.getByTestId("guest-approved")).toContainText("In the field · no tee time yet");
+    // The press is answered by the row saying so, and then by the page's own refresh taking the confirmed guest off the
+    // waiting list: the sentence may already be gone when read, so the database is what is waited for, and the row's absence.
+    await expect(waiting.getByTestId("guest-waiting-row").filter({ hasText: "Robin Vale" })).toHaveCount(0, { timeout: 20_000 });
     await expect
       .poll(async () => (await prisma.player.findUniqueOrThrow({ where: { id: robin.id } })).status, { timeout: 20_000 })
       .toBe("confirmed");
@@ -182,6 +184,7 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     await box.fill("ZZZZ-ZZZZ");
     await typistPage.getByRole("button", { name: "Open", exact: true }).click();
     await expect(typistPage.locator(ALERT).filter({ hasText: CODE_WORDS.opensNothing })).toBeVisible({ timeout: 20_000 });
+    await expect(typistPage.locator(ALERT).filter({ hasText: CODE_WORDS.opensNothing }), "the refusal is said where the press was, on screen").toBeInViewport();
     await box.fill(printed(code));
     await typistPage.getByRole("button", { name: "Open", exact: true }).click();
     await expect(typistPage).toHaveURL(new RegExp(`/register/${TOKEN}$`), { timeout: 30_000 });
@@ -203,6 +206,7 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     await typistPage.getByLabel("Code from the poster").fill(printed(code));
     await typistPage.getByRole("button", { name: "Open", exact: true }).click();
     await expect(typistPage.locator(ALERT).filter({ hasText: CODE_WORDS.opensNothing })).toBeVisible({ timeout: 20_000 });
+    await expect(typistPage.locator(ALERT).filter({ hasText: CODE_WORDS.opensNothing }), "the refusal is said where the press was, on screen").toBeInViewport();
     // The old link is today's neutral page, and names nobody.
     await open(typistPage, `/register/${TOKEN}`);
     await expect(typistPage.getByRole("heading", { name: "This registration link isn’t open" })).toBeVisible();
@@ -218,6 +222,7 @@ test.describe("a guest enters themselves on the sign-up link", () => {
     await typistPage.getByLabel("Code from the poster").fill(printed(after.registrationCode));
     await typistPage.getByRole("button", { name: "Open", exact: true }).click();
     await expect(typistPage.locator(ALERT).filter({ hasText: CODE_WORDS.opensNothing })).toBeVisible({ timeout: 20_000 });
+    await expect(typistPage.locator(ALERT).filter({ hasText: CODE_WORDS.opensNothing }), "the refusal is said where the press was, on screen").toBeInViewport();
     await expect(typistPage.getByText(eventName)).toHaveCount(0);
     await typist.close();
 

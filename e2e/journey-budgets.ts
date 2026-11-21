@@ -98,4 +98,15 @@ export const JOURNEY_BUDGETS: Record<string, JourneyBudget> = {
     target: { presses: 3, screens: 3, visits: 3, returns: 0, boxes: 0, chars: 0 },
     by: "cut G (on a day of play, Open my card opens the card)",
   },
+  // J7 (J39/J40 PR 3B). A guest enters themselves by the poster's QR: the sign-up link, Enter as a guest, a name, Ask to
+  // play, the waiting screen. The design's figure is "4 presses and about 12 characters" counting the phone's own scan and
+  // open; the counter records those as a note (as J6 does for the player link), so the walk is 2 presses, 1 box and the
+  // 10 characters of a name, over 2 screens (/register/<token> → /me, the waiting card). DESK-COUNTED from the spec, not
+  // yet read off CI's JOURNEY line: the first CI run confirms it, and a mismatch is lowered or raised there, with the
+  // figure, in the same pull request. No seconds ceiling until measured.
+  "guest-enters-by-poster": {
+    ceiling: { presses: 2, screens: 2, visits: 2, returns: 0, boxes: 1, chars: 10 },
+    target: { presses: 2, screens: 2, visits: 2, returns: 0, boxes: 1, chars: 10 },
+    by: "nothing: each press is the job (Enter as a guest, Ask to play); no email, no handicap and no inviter are required",
+  },
 };
