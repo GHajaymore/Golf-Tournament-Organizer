@@ -43,20 +43,19 @@ The line number is as much noise as the component name is in the `Client Manifes
   ran out of room" is the wrong tree, and so is `--disable-dev-shm-usage`: these jobs run
   directly on `ubuntu-latest`, not in a container, where `/dev/shm` is half of RAM.
 
-**Corrected 2026-11-21: that last sentence is out of date.** The jobs have run since 6 Nov inside
+**Corrected 2026-11-21: that last sentence is out of date.** The jobs have run since 9 Nov inside
 Playwright's container with `options: --ipc=host`, so shared memory is already the host's and
 memory/shm is not the cause. The browser (`chrome-headless-shell`, Playwright 1.62.1, signal 11,
 `cr2=0x1b0`) dies BETWEEN tests, and the next `newContext` finds it gone.
 
 **21 Nov 2026 — the same crash in a second place, and a fix to how specs leave.** `demo-club.spec.ts:81`
-("the owner creates the demo club…") failed in about 23 jobs, always at `browser.newContext` in the
+("the owner creates the demo club…") failed with the SEGV line in one confirmed job (PR #1192, job 136762692902: `Received signal 11 SEGV_MAPERR 0000000001b0`), and in one probable job of round G660-1 (job 136671009493, same spec and line, no stderr read), both at `browser.newContext` in the
 `page` fixture, before its body ran. It is the VICTIM: the test before it is `commentary.spec.ts` (three
 contexts with live pages), then a 294 ms `/owner` 404 test. So the first thing tried is how a spec LEAVES
 the browser, not a launch flag: `closeAll(...contexts)` in `e2e/coverage.ts` closes each page and then
 each context, awaited in turn, and replaces every `Promise.all([...].map((c) => c.close()))`; the worker
-also closes any context a spec forgot. `src/lib/__tests__/every-context-is-closed.test.ts` refuses a spec
-that opens a context it never closes, or races its closes. Whether it removes the crash is measured with
-the `repeat-spec` workflow (before and after counts are in the pull request); the `--disable-gpu` A/B and
+also closes any context a spec forgot, at the end of the worker (not after each test). `src/lib/__tests__/every-context-is-closed.test.ts` refuses a spec
+that opens a context it never closes, or races its closes, for the direct form (`const x = await browser.newContext(`) only: it does not follow contexts made by factory helpers, and closes are matched by name per file. The `repeat-spec` workflow does not reproduce the crash (commentary then demo-club, 20 repeats, passed 100/100 on main and on this branch), so the crash has so far been seen only in the full desktop suite. Whether this change removes it is measured by the SEGV count on `demo-club.spec.ts:81` per week, before and after the merge; the `--disable-gpu` A/B and
 a `DEBUG=pw:browser` capture are separate, later changes. When it recurs, read the log with
 `gh api --allow-escape-sequences .../jobs/<id>/logs` (plain `gh api` returns nothing for logs with ANSI
 codes) and name the test BEFORE the victim.
