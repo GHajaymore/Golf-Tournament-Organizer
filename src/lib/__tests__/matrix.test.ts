@@ -101,6 +101,7 @@ import type { TeeSheet } from "@/lib/domain/tee-sheet";
 import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
 import { formatFitsRound } from "@/lib/domain/round-choices";
 import { needsCommitteeFigure } from "@/lib/domain/committee-figure";
+import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
 
 /**
  * The combination sweep.
@@ -1383,6 +1384,39 @@ describe("round handicaps, at every field size and every allowance", () => {
     expect(roundHandicapKey("s1", "p1")).toBe(roundHandicapKey("s1", "p1"));
     expect(roundHandicapKey("s1", "p1")).not.toBe(roundHandicapKey("p1", "s1"));
   });
+});
+
+/**
+ * A GUEST WITH NO FIGURE NEVER SITS IN A NET CELL AT NOUGHT (J39/J40 PR 3B, the Golf Pro's D1; PE review 20 Nov).
+ * Every format × stage type × scoring basis, alone and beside a gross round in the same event: the gate that Replace
+ * and the approval of a self-entered guest share (`figureRefusal`) refuses a guest with no figure exactly when some
+ * round counts strokes (net, both or Stableford, worked from the basis by NAME, not through `isNetBasis`), and never
+ * in a gross-only event. A figure typed is never refused, and the round plays that guest off more than nought.
+ */
+describe("a guest with no figure, at every format, round type and scoring basis (D1)", () => {
+  const BASES = ["gross", "net", "both", "stableford"];
+  const COUNTS_STROKES = new Set(["net", "both", "stableford"]);
+  for (const format of FORMAT_NAMES) {
+    it(`refuses the blank guest exactly where strokes count, in ${format}`, () => {
+      for (const type of STAGE_TYPES) {
+        for (const basis of BASES) {
+          for (const companion of [null, "gross"]) {
+            const bases = companion ? [basis, companion] : [basis];
+            const at = `${format} / ${type} / ${bases.join("+")}`;
+            const refused = figureRefusal(bases, "Wren Calloway", false);
+            expect(refused !== null, at).toBe(bases.some((b) => COUNTS_STROKES.has(b)));
+            // A figure typed (even 0) is never refused.
+            expect(figureRefusal(bases, "Wren Calloway", true), at).toBeNull();
+            if (COUNTS_STROKES.has(basis)) {
+              const allowance = effectiveAllowance(format, 0, type);
+              const playing = playingHandicapInRound({ format, type, scoringBasis: basis, handicapAllowance: 0 }, { override: 18 }, { whole: 0, exact: 0, parStrokes: 0 });
+              expect(playing, `${at}: a given 18 at ${allowance}%`).toBeGreaterThan(0);
+            }
+          }
+        }
+      }
+    });
+  }
 });
 
 /**

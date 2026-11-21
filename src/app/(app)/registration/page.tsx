@@ -25,7 +25,7 @@ import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { awaitingApproval, formatDeadline, parseDeadlineIso } from "@/lib/registration";
 import { isGuest } from "@/lib/domain/entry-standing";
-import { anyRoundNet } from "@/lib/domain/guest-entry";
+import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
 import { isPlayingRound } from "@/lib/stage-types";
 import { indexFigure } from "@/lib/domain/handicap-label";
 import { prisma } from "@/lib/db";
@@ -107,7 +107,8 @@ export default async function RegistrationPage() {
       sameNameAs: same ? same.name : "",
     };
   });
-  const netEvent = anyRoundNet(state.stages.filter((s) => isPlayingRound(s.type)));
+  // Asked of the one gate: a guest with no figure is refused here exactly when a playing round is scored net.
+  const netEvent = figureRefusal(state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.scoringBasis), "the guest", false) !== null;
 
   const eventTees = await teesForEvent(state.event.id);
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);

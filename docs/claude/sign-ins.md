@@ -240,7 +240,7 @@ you.").
   token's budget, the cap, the switch and New link, and earns only rows staff remove.
 - **Approval** (`approveSignup(playerId, figure?)`): a guest is approved AS A GUEST (`upsertMember(…, { guest: true })`),
   counted and placed under `withEventIntakeLock`; where ANY round is scored net the committee's figure ("Handicap for
-  today") is required (`approvalFigureRefusal`) and is stored as the entry's index; a gross-only event asks none and stores
+  today") is required (`figureRefusal`, the same gate Replace uses) and is stored as the entry's index; a gross-only event asks none and stores
   "none". The figure is validated as a payload (`figurePayload`).
 - **The waiting screen** is the layout's waiting card (`GuestWaitingCard`): `router.refresh()` of Today with no argument
   (no new guest action), only while the page is visible (`waiting-refresh.ts`), with **Check now**. The guest's code is held

@@ -136,7 +136,8 @@ import {
   prizeAmountRefusal,
 } from "@/lib/domain/prize-amount";
 import { indexRefusal, indexLabel, indexFigure } from "@/lib/domain/handicap-label";
-import { figurePayload, approvalFigureRefusal, anyRoundNet } from "@/lib/domain/guest-entry";
+import { figurePayload } from "@/lib/domain/guest-entry";
+import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
 import { ensureRegistrationCode, drawRegistrationCode } from "@/lib/services/guest-entry";
 import { formatAccessCode } from "@/lib/code-format";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
@@ -6752,7 +6753,7 @@ export async function approveSignup(playerId: string, figure?: unknown): Promise
   const given = typedFigure.figure;
   if (guest) {
     // ASKED WHENEVER ANY ROUND IS NET; a gross-only event asks none (Golf Pro, 14 Nov, D1). One gate, no silent scratch.
-    const needs = approvalFigureRefusal(anyRoundNet(stages.filter((s) => isPlayingRound(s.type))), player.name, given);
+    const needs = figureRefusal(stages.filter((s) => isPlayingRound(s.type)).map((s) => s.scoringBasis), player.name, given !== null);
     if (needs) return { ok: false, error: needs };
   }
   /**

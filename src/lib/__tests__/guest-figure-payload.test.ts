@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { approvalFigureRefusal, anyRoundNet, cleanGuestRegistration, figurePayload, isGuestNonce, waitingCapFor } from "@/lib/domain/guest-entry";
+import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
+import { cleanGuestRegistration, figurePayload, isGuestNonce, waitingCapFor } from "@/lib/domain/guest-entry";
 
 /**
  * THE GUEST'S FORM AND THE COMMITTEE'S FIGURE ARE VALIDATED AT THE BOUNDARY (J39/J40 PR 3B; Security Lead C1.8, C1.1).
@@ -61,10 +62,8 @@ describe("the retry's nonce, the waiting cap and the figure gate", () => {
     expect(waitingCapFor(144)).toBe(144);
   });
   it("a net round asks the committee's figure; a gross-only event asks none", () => {
-    expect(anyRoundNet([{ scoringBasis: "gross" }, { scoringBasis: "net" }])).toBe(true);
-    expect(anyRoundNet([{ scoringBasis: "gross" }])).toBe(false);
-    expect(approvalFigureRefusal(true, "Robin", null)).toMatch(/Type the handicap the committee gives Robin first/);
-    expect(approvalFigureRefusal(true, "Robin", 0)).toBeNull();
-    expect(approvalFigureRefusal(false, "Robin", null)).toBeNull();
+    expect(figureRefusal(["gross", "net"], "Robin", false)).toMatch(/Type the handicap the committee gives Robin/);
+    expect(figureRefusal(["gross"], "Robin", false)).toBeNull();
+    expect(figureRefusal(["gross", "net"], "Robin", true)).toBeNull();
   });
 });

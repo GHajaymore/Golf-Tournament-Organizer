@@ -43,6 +43,8 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 import { createSession } from "@/lib/auth";
 import { registerAsGuest } from "@/app/actions/guest-entry";
 import { approveSignup } from "@/app/actions/tournament";
+import { roundHandicapsFor } from "@/lib/services/round-handicap";
+import { resolveRoundHandicap } from "@/lib/domain/round-handicap";
 import { arrive, deviceValue, dropClub, makeClub, newNonce, randomAddress, type Club } from "./guest-entry-fixture";
 
 const prisma = new PrismaClient();
@@ -50,6 +52,7 @@ const MARK = "zz-guest-entry-approve";
 let net: Club;
 let gross: Club;
 let tiny: Club;
+let rated: Club;
 
 async function ask(club: Club, name: string, handicap = ""): Promise<string> {
   arrive(jar, head, { address: randomAddress(), device: deviceValue() });
@@ -65,14 +68,23 @@ const asStaff = async (club: Club) => {
 
 describe("a self-entered guest is approved as a guest", () => {
   beforeAll(async () => {
-    for (const s of ["-net", "-gross", "-tiny"]) await dropClub(prisma, `${MARK}${s}`);
+    for (const s of ["-net", "-gross", "-tiny", "-rated"]) await dropClub(prisma, `${MARK}${s}`);
     net = await makeClub(prisma, `${MARK}-net`, { scoringBasis: "net" });
     gross = await makeClub(prisma, `${MARK}-gross`, { scoringBasis: "gross" });
     tiny = await makeClub(prisma, `${MARK}-tiny`, { scoringBasis: "gross", capacity: 1 });
+    rated = await makeClub(prisma, `${MARK}-rated`, { scoringBasis: "net" });
+    // Rated tees whose course rating is NOT their par: slope 130, rating 71.8, par 72 (the fixture's one tee).
+    const course = await prisma.course.create({
+      data: { organizationId: rated.orgId, name: `${MARK} Larkfield`, pars: JSON.stringify(new Array(18).fill(4)), yards: JSON.stringify(new Array(18).fill(380)), strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)) },
+      select: { id: true },
+    });
+    const tee = await prisma.tee.create({ data: { courseId: course.id, name: "White", courseRating: 71.8, slopeRating: 130, par: 72 }, select: { id: true } });
+    await prisma.event.update({ where: { id: rated.eventId }, data: { courseId: course.id, defaultTeeId: tee.id } });
+    await prisma.stage.updateMany({ where: { eventId: rated.eventId }, data: { courseId: course.id, teeId: tee.id } });
   });
   afterAll(async () => {
     try {
-      for (const s of ["-net", "-gross", "-tiny"]) await dropClub(prisma, `${MARK}${s}`);
+      for (const s of ["-net", "-gross", "-tiny", "-rated"]) await dropClub(prisma, `${MARK}${s}`);
     } finally {
       await prisma.$disconnect();
     }
@@ -115,11 +127,35 @@ describe("a self-entered guest is approved as a guest", () => {
     await asStaff(net);
     const refused = await approveSignup(id);
     expect(refused.ok).toBe(false);
-    expect(refused.error).toMatch(/Type the handicap the committee gives Tamsin Holloway first/);
+    expect(refused.error).toMatch(/Type the handicap the committee gives Tamsin Holloway/);
     expect(await prisma.player.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "pending", memberId: null });
     // Typed: stored as an index, to a decimal, never read as strokes.
     expect(await approveSignup(id, 18.4)).toEqual({ ok: true });
     expect(await prisma.player.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "confirmed", handicap: 18.4, handicapSource: "manual" });
+  });
+
+  it("the committee's figure reaches the handicap resolution like any player's: the allowance is taken of the EXACT course handicap", async () => {
+    /**
+     * Worked from the Rules of Handicapping by hand, with decimal indexes (a route the code does not take):
+     *   Course Handicap (exact) = Index x Slope / 113 + (Course Rating - Par) = 18.0 x 130 / 113 + (71.8 - 72)
+     *                           = 2340 / 113 - 0.2 = 20.70796 - 0.2 = 20.50796   (a Course Handicap of 21 on the card)
+     *   Playing Handicap        = allowance x EXACT Course Handicap, rounded ONCE, .5 up (6.2a): 95% of a stroke play
+     *                             net round: 0.95 x 20.50796 = 19.4826, so 19.
+     *   Taking the allowance of the ROUNDED 21 instead would give 0.95 x 21 = 19.95 = 20: the one-stroke error this
+     *   figure is chosen to expose. Par difference: the round's one tee is the lowest par in the field, so none.
+     */
+    const id = await ask(rated, "Maelor Quince", "9");
+    await asStaff(rated);
+    expect(await approveSignup(id, 18.0)).toEqual({ ok: true });
+    const stage = await prisma.stage.findFirstOrThrow({ where: { eventId: rated.eventId }, select: { id: true } });
+    const row = (await roundHandicapsFor(rated.eventId, stage.id)).find((r) => r.playerId === id);
+    expect(row, "the approved guest is in the round's field").toBeDefined();
+    const resolved = resolveRoundHandicap({ member: row!.member, memberExact: row!.exact });
+    expect(row!.exact).toBeCloseTo(20.50796, 4);
+    expect(resolved.exact).toBeCloseTo(20.50796, 4);
+    expect(row!.handicap).toBe(21);
+    expect(row!.allowance).toBe(95);
+    expect(row!.playing).toBe(19);
   });
 
   it("in a gross-only event no figure is asked: approved with none, never a scratch golfer", async () => {

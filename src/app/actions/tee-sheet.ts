@@ -35,7 +35,7 @@ import {
   REPLACE_EVERY_ROUND_NOTE,
   REPLACE_GROUPS_NOTE,
   replaceAuditLine,
-  guestFigureRefusal,
+  figureRefusal,
   replaceRefusal,
   swapPairMember,
   voidedGamesWords,
@@ -499,7 +499,7 @@ class ReplaceRefused extends Error {
  * week the absentee is WITHDRAWN in the same transaction (`withdrawEntry`, the one keep path the Withdraw
  * press uses, never deleting), so the field holds the substitute and not both.
  *
- * A GUEST WITH NO FIGURE is refused in a round scored net (`guestFigureRefusal`): the handicap resolver reads
+ * A GUEST WITH NO FIGURE is refused in a round scored net (`figureRefusal`): the handicap resolver reads
  * the stored number, not "no index", and would play them off nought. So is a MEMBER WITH NO INDEX, unless the
  * committee has given them strokes for this round (`candidateWhy`). The guest's roster row is made inside the
  * transaction, and "has this group started" is read again inside it, so a refusal leaves nothing behind.
@@ -576,7 +576,7 @@ export async function replaceInTeeSheet(
     const clash = await prisma.player.findFirst({ where: { eventId: session.eventId, name: { equals: name, mode: "insensitive" } }, select: { name: true } });
     if (clash) return { ok: false, error: `${clash.name} is already in this tournament. Choose them from the list.` };
     const index = typed.kind === "index" ? typed.value : null;
-    const needsFigure = guestFigureRefusal(stage.scoringBasis, name, index !== null);
+    const needsFigure = figureRefusal([stage.scoringBasis], name, index !== null);
     if (needsFigure) return { ok: false, error: needsFigure };
     guestToMake = { name, index };
     sub = { id: "", name, index: index === null ? NO_INDEX : indexFigure(index), figure: null };

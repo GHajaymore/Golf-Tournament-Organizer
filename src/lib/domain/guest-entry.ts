@@ -9,7 +9,6 @@
  */
 import { readHandicapIndex } from "./handicap-label";
 import { PERSON_NAME_MAX } from "./typed-limits";
-import { isNetBasis } from "./match-entry";
 
 /** The note under "Who invited you?" is staff's to read, never shown to anybody else. */
 export const INVITER_MAX = 80;
@@ -39,15 +38,12 @@ export const GUEST_WORDS = {
   figureRange: "A handicap index runs from +10 to 54. Leave it empty if you don't have one.",
   badNote: `Keep that to ${INVITER_MAX} characters or fewer.`,
   noSend: "Couldn't send. Try again.",
-  /** A dead pass, shown to that browser only (C3.4): declined, removed or any other way out. */
-  dead: "The organizer hasn't confirmed this entry. Please see them at the desk.",
   /** A failed typed code in any box (C1.10): no kind, no reason. */
   codeOpensNothing: "That code doesn't open anything. Check it on your card or poster, or see the organizer at the desk.",
   noSignal: "No signal just now. We'll keep trying.",
   checkNow: "Check now",
   tryAgain: "Try again",
   askToPlay: "Ask to play",
-  hasLive: "You've already asked to play in this event on this phone.",
   /** The member form's one line (N4): costs no press, never says "guest". */
   notAMember: (club: string, organizer: string) => `Not a member of ${club}? Ask the ${organizer}: they can add you.`,
   enterAsGuest: (club: string) => `Not a member of ${club}?`,
@@ -67,7 +63,6 @@ export const GUEST_WORDS = {
   lastChecked: (time: string) => `Last checked ${time}`,
   saveCode: "Save this code. It is how you get back in:",
   keepToYourself: "Keep it to yourself.",
-  approved: "You're in. Your tee time will show here.",
   // Staff
   switchLabel: "Let guests enter themselves",
   switchHint: (until: string) =>
@@ -139,18 +134,3 @@ export function figurePayload(v: unknown): { ok: true; figure: number | null } |
   if (v < -10 || v > 54) return { ok: false, error: GUEST_WORDS.figureRange };
   return { ok: true, figure: Math.round(v * 10) / 10 };
 }
-
-/**
- * IS ANY ROUND OF THE EVENT SCORED NET: the question approval asks (Golf Pro, 14 Nov, D1). The guest cannot be
- * approved into such an event with no figure; in a gross-only event no figure is asked. Never a silent scratch.
- */
-export function anyRoundNet(stages: ReadonlyArray<{ scoringBasis: string }>): boolean {
-  return stages.some((s) => isNetBasis(s.scoringBasis));
-}
-
-/** Why this guest cannot be approved yet, or null: the one gate for "nobody without a figure enters a net round". */
-export function approvalFigureRefusal(netEvent: boolean, guestName: string, figure: number | null): string | null {
-  if (!netEvent || figure !== null) return null;
-  return `Type the handicap the committee gives ${guestName} first: a round of this event is scored net.`;
-}
-
