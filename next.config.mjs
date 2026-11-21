@@ -146,7 +146,7 @@ const nextConfig = {
    * types (walked 2026-09-28). Temporary rather than permanent, so the day a
    * dedicated sign-in page exists nothing is cached against it.
    *
-   * `/register` is matched EXACTLY — `/register/<token>` is a tournament's
+   * `/register` is NO LONGER redirected (J39 PR 3B): it is the box a poster's code is typed into. `/register/<token>` is a tournament's
    * public entry form and must never be caught by this.
    */
   async redirects() {
@@ -156,7 +156,6 @@ const nextConfig = {
       { source: "/sign-in", destination: "/#signin", permanent: false },
       { source: "/signup", destination: "/#signup", permanent: false },
       { source: "/sign-up", destination: "/#signup", permanent: false },
-      { source: "/register", destination: "/#signup", permanent: false },
     ];
   },
 

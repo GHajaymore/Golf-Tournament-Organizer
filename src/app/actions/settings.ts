@@ -134,6 +134,8 @@ export async function regenerateRoundCode(stageId: string): Promise<SettingsResu
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = generateAccessCode();
     if ((await prisma.stage.count({ where: { accessCode: code } })) > 0) continue;
+    // Never a string a sign-up code already holds (J39 PR 3B, C1.5).
+    if ((await prisma.event.count({ where: { registrationCode: code } })) > 0) continue;
     await prisma.stage.update({ where: { id: stageId }, data: { accessCode: code } });
     await refresh();
     return { ok: true };

@@ -16,6 +16,7 @@ import { type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { groupsOfRound, withBorrowedTeeTimes, type PlayGroup } from "@/lib/domain/play-groups";
 import { roundTeeSheet, otherRoundsTeeGroups } from "@/lib/services/group-keeping";
 import { passForCode, recordOpen } from "@/lib/services/player-link";
+import { entryLinkIsOpen } from "@/lib/services/registration";
 import { choosePlayerViewCookie, setGuestCookie } from "@/lib/guest-auth";
 import { deviceValueHere } from "@/lib/services/known-device";
 import { logAudit } from "@/lib/services/action-shared";
@@ -70,7 +71,7 @@ export interface RedeemedRound {
 export type OpenedCode =
   | { ok: true; kind: "round"; code: string; round: RedeemedRound }
   | { ok: true; kind: "player-link"; href: "/me" }
-  /** J39 PR 3B: an entry code opens its event's form, `/register/<token>`. Not answered yet. */
+  /** J39 PR 3B: an entry code opens its event's sign-up page, `/register/<token>`: the address only, never a name. */
   | { ok: true; kind: "entry"; href: string }
   | { ok: false; error: string };
 
@@ -140,12 +141,35 @@ export async function guessGate(
  */
 export async function lookupEight(code: string) {
   if (!looksLikeAccessCode(code)) return null;
-  const stage = await prisma.stage.findFirst({
-    where: { accessCode: code },
-    include: { event: true },
-  });
+  const [stage, entry] = await Promise.all([
+    prisma.stage.findFirst({ where: { accessCode: code }, include: { event: true } }),
+    // The sign-up link's typed form (J39/J40 PR 3B). A partial unique index keeps it unique among events; the
+    // shape guard above is what keeps this from matching every event that has none.
+    prisma.event.findFirst({ where: { registrationCode: code }, select: { id: true, registrationToken: true } }),
+  ]);
+  // A string in BOTH tables fails closed (C1.5): minting checks both, so this is a fault, said once.
+  if (stage && entry) {
+    console.error("[door] an 8-character string matched both a round and an entry; refused");
+    return null;
+  }
+  if (entry) return entry.registrationToken ? { kind: "entry" as const, event: { id: entry.id, registrationToken: entry.registrationToken } } : null;
   if (!stage || !usesAccessCodes(settingsOf(stage.event))) return null;
   return { kind: "round" as const, stage };
+}
+
+/**
+ * AN ENTRY CODE OPENS THE SIGN-UP PAGE, NEVER A NAME (C4.4). The openness check runs BEFORE any token leaves the
+ * server: a real code at an event whose entries have closed is the same refusal as an unknown one, counted the same
+ * and given nothing back (C1.3). Only a lookup that OPENS the page gives its attempt back. The answer is the page's
+ * address and nothing else (no name, no event fields); the press that asked sends the browser there.
+ */
+async function openEntry(
+  event: { id: string; registrationToken: string },
+  gate: { opened: () => Promise<void> },
+): Promise<OpenedCode> {
+  if (!(await entryLinkIsOpen(event.id))) return { ok: false, error: CODE_WORDS.opensNothing };
+  await gate.opened();
+  return { ok: true, kind: "entry", href: `/register/${event.registrationToken}` };
 }
 
 /** THE ONE DOOR. Both arguments required: `client` is `await clientAddress()` (null where none can be read). */
@@ -166,6 +190,12 @@ async function openEight(code: string, client: string | null): Promise<OpenedCod
 
   const found = await lookupEight(code);
   if (!found) return { ok: false, error: CODE_WORDS.opensNothing };
+  if (found.kind === "entry") {
+    const entry = await openEntry(found.event, gate);
+    // A page that opened clears the per-code count, as a round's does: a whole field types the one real code.
+    if (entry.ok) await clearRateLimit("round-code", code);
+    return entry;
+  }
   const stage = found.stage;
 
   const players = await prisma.player.findMany({

@@ -40,6 +40,12 @@ const LINK_FILES = [
   "src/app/actions/code-box.ts",
   "src/lib/domain/code-shape.ts",
   "src/components/PlayClient.tsx",
+  // PR 3B: a guest who entered themselves is handed their own code once, and the waiting screen shows it.
+  "src/app/actions/guest-entry.ts",
+  "src/lib/services/guest-entry.ts",
+  "src/components/GuestEntryForm.tsx",
+  "src/components/GuestWaitingCard.tsx",
+  "src/lib/guest-code-memory.ts",
 ];
 
 /** Each call's own argument list, from its opening bracket to the one that closes it. */
@@ -127,7 +133,8 @@ describe("S2: the limit is the client's, never the code's", () => {
     // Every per-code call in the door is the round code's.
     const all = DOOR.match(/\b(check|clear)RateLimit\(/g)?.length ?? 0;
     const eights = EIGHT.match(/\b(check|clear)RateLimit\(/g)?.length ?? 0;
-    expect(eights).toBe(2);
+    // The check, and the two clears: a round that opened and an entry page that opened (J39 PR 3B).
+    expect(eights).toBe(3);
     expect(all).toBe(eights);
   });
   it("counts the client before the lookup, and gives back only on a found pass", () => {

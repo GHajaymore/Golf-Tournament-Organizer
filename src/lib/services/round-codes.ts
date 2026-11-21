@@ -66,6 +66,8 @@ export async function ensureRoundCodes(eventId: string): Promise<void> {
       const code = generateAccessCode();
       const taken = await prisma.stage.count({ where: { accessCode: code } });
       if (taken > 0) continue;
+      // An 8-character string is one door or the other, never both (J39 PR 3B, C1.5): a sign-up code holds it too.
+      if ((await prisma.event.count({ where: { registrationCode: code } })) > 0) continue;
       try {
         await prisma.stage.update({ where: { id: stage.id }, data: { accessCode: code } });
         break;

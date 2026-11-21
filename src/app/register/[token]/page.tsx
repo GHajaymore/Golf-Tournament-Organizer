@@ -1,4 +1,6 @@
-import { openRegistrationView, registrationPrefillFor } from "@/lib/services/registration";
+import { closedRegistrationFor, openRegistrationView, registrationPrefillFor } from "@/lib/services/registration";
+import { GuestEntryForm } from "@/components/GuestEntryForm";
+import { GUEST_WORDS } from "@/lib/domain/guest-entry";
 import { getSession } from "@/lib/auth";
 import { OrgBrand } from "@/components/OrgBrand";
 import { RegisterClient } from "@/components/RegisterClient";
@@ -50,9 +52,28 @@ function NotOpen() {
           <h1 style={{ fontSize: 19, margin: 0, fontFamily: "var(--font-heading)" }}>
             This registration link isn&rsquo;t open
           </h1>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 14, margin: 0 }}>
             It may not have opened yet, or registration has closed. Check with whoever shared it.
           </p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * A REAL TOKEN WHOSE ENTRIES HAVE CLOSED (J39/J40 PR 3B, C4.1): the event's name and the day, and a way on. Nothing else:
+ * no venue, dates, count, organizer, brand or form. The tab title stays "Registration" (above).
+ */
+function ClosedFor({ eventName, day, organizer }: { eventName: string; day: string; organizer: string }) {
+  return (
+    <main style={pageStyle}>
+      <div style={{ maxWidth: 440, margin: "0 auto", paddingTop: "12vh", textAlign: "center" }}>
+        <div className="card elev-sm" style={{ alignItems: "center", gap: 8 }}>
+          <Icon name="lock-simple" style={{ fontSize: 26, color: "var(--color-neutral-500)" }} />
+          <h1 style={{ fontSize: 19, margin: 0, fontFamily: "var(--font-heading)" }} data-testid="entries-closed">
+            {GUEST_WORDS.closedOn(eventName, day, organizer)}
+          </h1>
         </div>
       </div>
     </main>
@@ -62,7 +83,10 @@ function NotOpen() {
 export default async function PublicRegisterPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const view = await openRegistrationView(token);
-  if (!view) return <NotOpen />;
+  if (!view) {
+    const closed = await closedRegistrationFor(token);
+    return closed ? <ClosedFor {...closed} /> : <NotOpen />;
+  }
 
   // If someone's signed in (an organizer testing, or a member who already has an
   // account), fill the form from what we know of them by email — one-tap
@@ -89,6 +113,9 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
           )}
         </div>
 
+        {/* The guest button is FIRST, above the member form and its email field (N6). */}
+        {view.guestEntry && <GuestEntryForm token={view.token} clubName={view.clubName} />}
+
         <RegisterClient
           token={view.token}
           eventName={view.eventName}
@@ -103,6 +130,11 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
           signedIn={!!session}
           organizer={view.organizer}
         />
+
+        {/* One line, guests on or off, no press and no screen (N4); it never says the word guest. */}
+        <p className="text-muted" style={{ fontSize: 14, marginTop: 14, textAlign: "center" }} data-testid="not-a-member">
+          {GUEST_WORDS.notAMember(view.clubName || "this club", view.organizer)}
+        </p>
 
         {/* The one place a member of the public hands us their own details, so
             it is the one place the notice has to be — not buried in a footer. */}

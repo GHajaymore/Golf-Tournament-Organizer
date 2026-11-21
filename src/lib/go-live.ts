@@ -572,6 +572,11 @@ export const NOT_SWITCHED: readonly NotSwitched[] = [
     why: "Never held, like round codes: a guest needs no email and no account, so their tee time, card and board open before launch, as Ajay ruled on 7 Nov. It opens one entry in one event and is never a sign-in.",
   },
   {
+    id: "guest-entry",
+    what: "Guest entry on a tournament's sign-up link, and the code under its poster",
+    why: "Never held, like links and round codes: it makes no account and no session, only a waiting entry the organizer must approve, and it is on only where the organizer ticked it.",
+  },
+  {
     id: "entry-windows",
     what: "“Opens soon” on a tournament's entries",
     why: "A tournament's own entry window, set by its organizer.",
