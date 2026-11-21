@@ -415,7 +415,7 @@ async function complaints(page: Page, c: Control): Promise<string[]> {
  * card counts only if it sits in no card of its own (the foot of a long
  * form) or in one that contains the control.
  */
-async function saveFor(page: Page, c: Control): Promise<{ how: "save" | "form" | "locked" | "none"; label: string }> {
+async function saveFor(page: Page, c: Control): Promise<{ how: "save" | "form" | "locked" | "none"; label: string; why?: string }> {
   const selector = c.kind === "select" ? "select" : c.kind === "radio" ? 'input[type="radio"]' : 'input[type="checkbox"]';
   const index = c.kind === "radio" ? c.radios[0] : c.nth;
   return page.evaluate(
@@ -441,7 +441,13 @@ async function saveFor(page: Page, c: Control): Promise<{ how: "save" | "form" |
       // Enabled or not: an Add button waiting on a name is still the form's.
       if (send) return { how: "form" as const, label: tidy(send) };
       const shut = inBox.find((b) => b.disabled && (SAVE.test(tidy(b)) || /^saved$/i.test(tidy(b))));
-      if (shut) return { how: "locked" as const, label: tidy(shut) };
+      if (shut) {
+        // A reason the screen draws BESIDE the shut button (named by it, or marked `data-lock-why` in its own box) is an answer.
+        const named = (shut.getAttribute("aria-describedby") ?? "").split(" ").map((id) => document.getElementById(id)).find((el) => el && tidy(el));
+        const beside = named ?? box?.querySelector("[data-lock-why]");
+        const why = beside && (beside as HTMLElement).offsetParent !== null ? tidy(beside) : "";
+        return { how: "locked" as const, label: tidy(shut), why };
+      }
 
       // Further out: the next Save down the page that is not another card's.
       const after = [...scope.querySelectorAll<HTMLButtonElement>("button")].filter(
@@ -528,6 +534,7 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
         // nothing said, is a control that does nothing.
         const after = await page.locator("main").innerText().catch(() => "");
         const said = after.split("\n").map((l) => l.trim()).find((l) => l && !textBefore.includes(l) && /lock|can.t be changed|read.only|finished|completed/i.test(l));
+        if (save.why) return { outcome: "blocked", note: save.why.slice(0, 140) };
         return said ? { outcome: "blocked", note: said.slice(0, 140) } : { outcome: "silent", note: `its "${save.label}" button is disabled and nothing says why` };
       }
     }

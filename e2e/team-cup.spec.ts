@@ -541,6 +541,23 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   });
 
   /**
+   * A SHUT SAVE SAYS WHY, WHERE THE PERSON IS (round G663-1, the crawl's "SILENT" finding): points to win and the holder
+   * are the rounds scope's, shut from launch. The Save beside them is greyed and the reason sits in the same form, on
+   * screen, with the way out; the control's own description names it.
+   */
+  await test.step("a launched cup's points and holder are shut, and the screen says why beside Save", async () => {
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
+    const settings = page.locator("form").filter({ has: page.getByLabel("Points to win") });
+    const save = settings.getByRole("button", { name: "Save", exact: true });
+    await expect(save).toBeDisabled();
+    const why = settings.locator("#cup-settings-why");
+    await expect(why).toContainText("Locked because");
+    await expect(why, "the reason is not on screen beside the shut Save").toBeInViewport();
+    await expect(save).toHaveAccessibleDescription(/Locked because/);
+  });
+
+  /**
    * A TEAM IS RENAMED (`renameCupTeam`, never pressed by a test until
    * 2026-10-20) — refused, in words beside the box, when it would give both
    * teams one name; then saved, and the board names the winner by it.

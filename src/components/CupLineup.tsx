@@ -6,7 +6,9 @@ import { useAction } from "./useAction";
 import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
 import { ConfirmButton } from "./ConfirmButton";
 import { bringIntoView } from "@/lib/bring-into-view";
+import Link from "next/link";
 import { ScopeLockMark } from "./ScopeLockBanner";
+import { SCOPE_WORDS, type ScopeLock } from "@/lib/domain/tournament-status";
 
 type Run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => void;
 
@@ -56,6 +58,7 @@ export function CupLineup({
   pointsToWin,
   holder,
   locked,
+  lockWhy,
 }: {
   teams: [Team, Team];
   sessions: Session[];
@@ -65,6 +68,8 @@ export function CupLineup({
    * work and are never behind it.
    */
   locked: boolean;
+  /** The machine's reason for that lock, said beside Save (a greyed Save with no words stops the person). */
+  lockWhy: ScopeLock | null;
   pointsToWin: number;
   holder: string;
 }) {
@@ -77,7 +82,7 @@ export function CupLineup({
           {error}
         </p>
       )}
-      <CupSettings teams={teams} pointsToWin={pointsToWin} holder={holder} locked={locked} pending={pending} run={run} />
+      <CupSettings teams={teams} pointsToWin={pointsToWin} holder={holder} locked={locked} lockWhy={lockWhy} pending={pending} run={run} />
       {sessions.map((s) => (
         <SessionLineup key={s.id} session={s} teams={teams} pending={pending} run={run} />
       ))}
@@ -90,6 +95,7 @@ function CupSettings({
   pointsToWin,
   holder,
   locked,
+  lockWhy,
   pending,
   run,
 }: {
@@ -97,6 +103,7 @@ function CupSettings({
   pointsToWin: number;
   holder: string;
   locked: boolean;
+  lockWhy: ScopeLock | null;
   pending: boolean;
   run: Run;
 }) {
@@ -147,10 +154,24 @@ function CupSettings({
           ))}
         </select>
       </label>
-      <button type="submit" className="btn btn-secondary" disabled={pending || locked}>
+      <button type="submit" className="btn btn-secondary" disabled={pending || locked} aria-describedby={locked && lockWhy ? "cup-settings-why" : undefined}>
         Save
       </button>
       {locked && <ScopeLockMark />}
+      {locked && lockWhy && (
+        // THE REASON, WHERE THE PERSON IS (G663-1): Save is greyed and the banner may be off the screen. The machine's
+        // own words and way out, beside the control, named by Save's aria-describedby.
+        <p id="cup-settings-why" data-lock-why style={{ margin: 0, flexBasis: "100%", fontSize: 14, lineHeight: 1.5 }}>
+          <b>{SCOPE_WORDS[lockWhy.scope]}</b> · {lockWhy.because}{" "}
+          {lockWhy.correctable ? (
+            <span className="text-muted">The Organizer can make a committee correction, above.</span>
+          ) : (
+            <Link href={lockWhy.wayOut.href} style={{ color: "var(--color-accent-200)", fontWeight: 600 }}>
+              {lockWhy.wayOut.says}
+            </Link>
+          )}
+        </p>
+      )}
       {said && (
         <p role="alert" className="form-error" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
           {said}

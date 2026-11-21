@@ -9,6 +9,7 @@ import { CupTeams, CreateCupTeams } from "@/components/CupTeams";
 import { CupOtherPoints } from "@/components/CupOtherPoints";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screenLocksFor } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 
 export const metadata = screenMetadata("/cup");
 
@@ -99,7 +100,7 @@ export default async function CupPage() {
               </Link>
             )}
           </p>
-          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsLocked={teamsLocked} settingsLocked={settingsLocked} />}
+          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
         </>
       )}
     </>
@@ -111,7 +112,19 @@ async function flightCount(eventId: string): Promise<number> {
   return prisma.group.count({ where: { eventId, stageId: null, isCarrier: false } });
 }
 
-async function StaffLineup({ eventId, board, teamsLocked, settingsLocked }: { eventId: string; board: CupBoard; teamsLocked: boolean; settingsLocked: boolean }) {
+async function StaffLineup({
+  eventId,
+  board,
+  teamsLocked,
+  settingsLocked,
+  settingsLock,
+}: {
+  eventId: string;
+  board: CupBoard;
+  teamsLocked: boolean;
+  settingsLocked: boolean;
+  settingsLock: ScopeLock | null;
+}) {
   const [event, players, unplaced, captains] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
     prisma.player.findMany({
@@ -158,6 +171,7 @@ async function StaffLineup({ eventId, board, teamsLocked, settingsLocked }: { ev
         pointsToWin={event?.cupPointsToWin ?? 0}
         holder={event?.cupHolderGroupId ?? ""}
         locked={settingsLocked}
+        lockWhy={settingsLock}
         sessions={board.sessions.map((s) => ({
           id: s.id,
           name: s.name,
