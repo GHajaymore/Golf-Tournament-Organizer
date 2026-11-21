@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { NAV, navForRole, primaryTabs, type NavSection } from "../nav";
 import { activeEntryKey, everyEntry, lifecycleNav, EVENT_SCOPE, UNPLACED_SECTION } from "../nav-lifecycle";
-import { keepPreview, lifecycleTrack, type LifecycleTrack } from "../domain/lifecycle-track";
+import { lifecycleTrack, type LifecycleTrack } from "../domain/lifecycle-track";
 import { tournamentJob } from "../domain/needs-you-now";
 import { tournamentStatus, type Family, type TournamentFacts } from "../domain/tournament-status";
 import { FAMILIES, FAMILY_FIXTURES, completed, launched, playedOut } from "../domain/__tests__/tournament-facts-fixtures";
@@ -475,10 +475,3 @@ describe("the redesign's screens in the menu", () => {
   });
 });
 
-describe("the preview stays on as an organizer moves", () => {
-  it("every link carries the stepper's query, before a place on the screen", () => {
-    expect(keepPreview("/dashboard")).toBe("/dashboard?stepper=1");
-    expect(keepPreview("/stages?round=r1")).toBe("/stages?round=r1&stepper=1");
-    expect(keepPreview("/event#courses")).toBe("/event?stepper=1#courses");
-  });
-});

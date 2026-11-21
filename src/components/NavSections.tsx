@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { NavItem, NavSection } from "@/lib/nav";
 import { activeEntryKey } from "@/lib/nav-lifecycle";
-import { STATE_WORD, keepPreview } from "@/lib/domain/lifecycle-track";
+import { STATE_WORD } from "@/lib/domain/lifecycle-track";
+import { consoleUrl } from "@/lib/console-url";
 import { Icon } from "./Icon";
 
 /**
@@ -47,7 +48,7 @@ export function NavSections({
   const link = (it: NavItem, beneath: boolean) => (
     <Link
       key={it.key}
-      href={preview ? keepPreview(it.href) : it.href}
+      href={preview ? consoleUrl(it.href, "preview") : it.href}
       className="side-link"
       aria-current={here === it.key ? "page" : undefined}
       onClick={onNavigate}
