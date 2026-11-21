@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, sessionOf, addDays, dayIn, centre } from "./rounds-fixture";
 import { expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
@@ -193,7 +193,7 @@ test("a row A045 moved keeps what members saw, launches like any other, and is n
 
     expect(errors, "a screen threw").toEqual([]);
   } finally {
-    await Promise.all([memberCtx, secretaryCtx, visitorCtx].map((c) => c.close().catch(() => {})));
+    await closeAll(memberCtx, secretaryCtx, visitorCtx);
     await dropClub(mark);
   }
 });

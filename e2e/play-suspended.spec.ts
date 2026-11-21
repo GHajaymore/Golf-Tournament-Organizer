@@ -1,4 +1,4 @@
-import { test, expect } from "./coverage";
+import { test, expect, closeAll } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -142,7 +142,7 @@ test("the secretary suspends play; an open phone, a phone opened later and the p
 
     expect(errors, "a screen threw while play was suspended or resumed").toEqual([]);
   } finally {
-    await Promise.all([organizer, member, latecomer, family].map((c) => c.close()));
+    await closeAll(organizer, member, latecomer, family);
   }
 });
 
@@ -308,7 +308,7 @@ test("the organizer on a phone suspends play from the tee sheet in two presses, 
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
     await playOn();
-    await Promise.all([organizer, member].map((c) => c.close()));
+    await closeAll(organizer, member);
   }
 });
 
@@ -446,7 +446,7 @@ test("a second staff device sees a suspension and a resume after moving by the m
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
     await playOn();
-    await Promise.all([a, b].map((c) => c.close()));
+    await closeAll(a, b);
   }
 });
 

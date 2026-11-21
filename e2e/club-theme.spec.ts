@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -131,6 +131,6 @@ test("the club's look, changed twice, is worn the same by the console, the publi
 
     expect(errors, "a screen threw").toEqual([]);
   } finally {
-    await Promise.all([organizer, member, anybody].map((c) => c.close()));
+    await closeAll(organizer, member, anybody);
   }
 });

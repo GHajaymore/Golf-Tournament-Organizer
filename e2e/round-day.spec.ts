@@ -1,4 +1,4 @@
-import { test, expect } from "./coverage";
+import { test, expect, closeAll } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -152,6 +152,6 @@ test("the committee sets the pins and the time allowed, and a player's card show
 
     expect(errors, "a screen threw while the round day was set").toEqual([]);
   } finally {
-    await Promise.all([organizer, member].map((c) => c.close()));
+    await closeAll(organizer, member);
   }
 });
