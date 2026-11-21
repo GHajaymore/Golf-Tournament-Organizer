@@ -273,7 +273,8 @@ test("every offer-side control on a completed tournament is refused in words; th
       on: mine,
       path: "/me/money",
       heading: /^Money$/,
-      said: DONE("change a skins game"),
+      // A member cannot reopen, so the app's words name who can: "Ask the Organizer to reopen it".
+      said: DONE("change a skins game").replace("Reopen it", "Ask the Organizer to reopen it"),
       reopenOnBanner: false,
       press: async (p) => {
         // The game starter sits under the screen's one extender.
