@@ -4,32 +4,39 @@ import { readSource } from "./source";
 
 /**
  * B100: on WebKit a service worker makes fetches itself, so a Playwright
- * `page.route` / `context.route` stub never answers. A spec that stubs requests
- * must block service workers (`serviceWorkers: "block"` on its context or in
- * `test.use`). Trap and rule: docs/claude/e2e-traps.md.
+ * `page.route` / `context.route` stub never answers. A file under e2e that stubs
+ * requests must block service workers (`serviceWorkers: "block"` on its context or
+ * in `test.use`). Trap and rule: docs/claude/e2e-traps.md.
  */
 
+// `.route(`, a chained `\n  .route(`, `routeFromHAR(`, `routeWebSocket(`.
+const STUB = /\.\s*route(?:FromHAR|WebSocket)?\s*\(/;
+
 function stubsWithoutBlocking(src: string): boolean {
-  const stubs = /\b[A-Za-z_$][\w$]*\.route\(/.test(src);
   const blocks = /serviceWorkers\s*:\s*["']block["']/.test(src);
-  return stubs && !blocks;
+  return STUB.test(src) && !blocks;
 }
 
-const specs = readdirSync("e2e", { recursive: true })
+// Every .ts under e2e: specs and helpers alike.
+const files = readdirSync("e2e", { recursive: true })
   .map(String)
-  .filter((f) => f.replace(/\\/g, "/").endsWith(".spec.ts"));
+  .filter((f) => f.replace(/\\/g, "/").endsWith(".ts"));
 
-describe("a spec that stubs requests blocks service workers", () => {
-  it("CONTROL: the guard sees the specs, and sees an offending one", () => {
-    expect(specs.length).toBeGreaterThan(50);
+describe("a file that stubs requests blocks service workers", () => {
+  it("CONTROL: the guard sees the files, and sees an offending one", () => {
+    expect(files.length).toBeGreaterThan(50);
+    expect(files.some((f) => f.replace(/\\/g, "/").endsWith(".spec.ts"))).toBe(true);
     expect(stubsWithoutBlocking('await page.route("**/x", (r) => r.abort());')).toBe(true);
     expect(stubsWithoutBlocking('await context.route("**/x", (r) => r.abort());')).toBe(true);
+    expect(stubsWithoutBlocking('await page\n  .route("**/x", (r) => r.abort());')).toBe(true);
+    expect(stubsWithoutBlocking('await page.routeFromHAR("x.har");')).toBe(true);
+    expect(stubsWithoutBlocking('await page.routeWebSocket("**/ws", () => {});')).toBe(true);
     expect(stubsWithoutBlocking('test.use({ serviceWorkers: "block" });\nawait page.route("**/x", (r) => r.abort());')).toBe(false);
     expect(stubsWithoutBlocking("await page.goto('/');")).toBe(false);
   });
 
-  it("no spec calls .route( without serviceWorkers: 'block'", () => {
-    const offenders = specs.filter((f) => stubsWithoutBlocking(readSource("e2e", f)));
+  it("no e2e file calls .route( without serviceWorkers: 'block'", () => {
+    const offenders = files.filter((f) => stubsWithoutBlocking(readSource("e2e", f)));
     expect(offenders, `no service worker blocked in: ${offenders.join(", ")}`).toEqual([]);
   });
 });
