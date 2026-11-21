@@ -198,7 +198,15 @@ describe("the key as it arrives from an environment variable", () => {
   it("refuses a key that is not RSA, or too small", () => {
     const ec = generateKeyPairSync("ec", { namedCurve: "P-256" }).publicKey.export({ type: "spki", format: "pem" }).toString();
     expect(() => readPublicKey(ec)).toThrow(/RSA/);
-    const small = generateKeyPairSync("rsa", { modulusLength: 1024 }).publicKey.export({ type: "spki", format: "pem" }).toString();
+    // A 1024-bit PUBLIC key written out, not generated here: nothing in the suite makes a weak key (CodeQL "weak cryptographic key").
+    const small = [
+      "-----BEGIN PUBLIC KEY-----",
+      "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCxkA213Li1wmwt+0T3nD955odB",
+      "sxxE/yuTyi8Q2R7Q3ac3St2Dkj7zYxx0fja7tA/q20QVEVflFyyI0Wufz6Z7cfut",
+      "5fF9CRdS1j6fNf8UTPVjqAmh21Dzo8h6ZvkZ86029JnGxF13LsIUksD49XzTajTZ",
+      "J345ERCwutaZyDn+/wIDAQAB",
+      "-----END PUBLIC KEY-----",
+    ].join("\n");
     expect(() => readPublicKey(small)).toThrow(/2048/);
   });
 });
