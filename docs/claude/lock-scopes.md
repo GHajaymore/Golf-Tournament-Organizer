@@ -38,7 +38,8 @@ only records money and never moves it (hard rule 7).
 | offer | `setEventMoneyMode`, `setPotEntryMode` | the money mode, how a pot is entered |
 | ledger (no lock) | `setPrizeWinner` | awarding a prize is done once the result is final |
 | ledger | `setContestEntrants`, `requestContestEntry`, `confirmContestEntry`, `setContestWinners` | who is in, who has paid, who won |
-| ledger | `setSkinsEntrants`, `requestSkinsEntry`, `confirmSkinsEntry` | the same, for skins |
+| both | `setSkinsEntrants` | changing the entrants of a pot that exists is the ledger's; starting a pot by naming its entrants is the offer's (asks `money` only when no pot exists) |
+| ledger | `requestSkinsEntry`, `confirmSkinsEntry` | the same, for skins |
 | ledger | `setSideGameEntrants`, `requestSideGameEntry`, `confirmSideGameEntry`, `setPotExcluded` | the same, for side games |
 | ledger | `addFundLine`, `removeFundLine` | the kitty |
 | ledger | `addExpense`, `updateExpense`, `removeExpense`, `recordSettlement`, `removeSettlement` | expenses and settling up |

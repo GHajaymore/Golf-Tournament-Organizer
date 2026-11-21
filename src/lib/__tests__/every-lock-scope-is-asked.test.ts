@@ -138,7 +138,6 @@ const OPEN: Record<string, { file: string; why: string }> = {
   requestContestEntry: { file: "contests.ts", why: "a player asks to be in, an intention not a definition" },
   confirmContestEntry: { file: "contests.ts", why: "who has paid is settled after the result" },
   setContestSponsor: { file: "contests.ts", why: "a thank-you on the board, never money" },
-  setSkinsEntrants: { file: "skins.ts", why: "who is in a pot is the ledger's" },
   requestSkinsEntry: { file: "skins.ts", why: "a player asks to be in, an intention not a definition" },
   confirmSkinsEntry: { file: "skins.ts", why: "who has paid is settled after the result" },
   setSideGameEntrants: { file: "side-games.ts", why: "who is in a pot is the ledger's" },
@@ -178,8 +177,21 @@ describe("money and the cup: which side each action is on (PR L)", () => {
     });
   }
 
+  /**
+   * BOTH SIDES IN ONE ACTION: `setSkinsEntrants` upserts its pot, so naming entrants for a pot that is not there STARTS it
+   * (the offer's, shut at completion) while changing the entrants of a pot that is there is the ledger's and stays open.
+   * It asks `money` only when no pot exists, and before the upsert.
+   */
+  it("setSkinsEntrants asks money only when no pot exists yet, and before it creates one", () => {
+    const b = body("skins.ts", "setSkinsEntrants");
+    const m = b.match(/const existing = await prisma\.skinsPot\.findUnique\([\s\S]*?\);\s*if \(!existing\) \{\s*const locked = await refuseIfLocked\(eventId, "money", "start a skins game"\);\s*if \(locked\) return locked;\s*\}/);
+    expect(m, "setSkinsEntrants does not ask money for a pot that does not exist").not.toBeNull();
+    expect(b.indexOf("refuseIfLocked("), "asked after the upsert").toBeLessThan(b.indexOf("skinsPot.upsert("));
+    expect(b.match(/refuseIfLocked\(/g)?.length).toBe(1);
+  });
+
   it("every exported action of the money and cup files is classified, once", () => {
-    const classified = new Set([...ASKS.map((s) => s.name), ...Object.keys(OPEN)]);
+    const classified = new Set([...ASKS.map((s) => s.name), "setSkinsEntrants", ...Object.keys(OPEN)]);
     const missing: string[] = [];
     for (const f of CLASSIFIED_FILES) for (const n of exportsOf(f)) if (!classified.has(n)) missing.push(`${f}: ${n}`);
     expect(missing, "an action in a money or cup file with no side: add it to ASKS or OPEN with its reason").toEqual([]);

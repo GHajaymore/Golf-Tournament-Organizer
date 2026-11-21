@@ -31,7 +31,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addPrize, updatePrize, removePrize, applyPrizeStructure, setOnePrizePerPlayer, setPrizeCounts, setPrizeWinner } from "@/app/actions/tournament";
 import { addContest, removeContest, setContestWinners, setContestEntrants } from "@/app/actions/contests";
-import { saveSkinsPot, removeSkinsPot } from "@/app/actions/skins";
+import { saveSkinsPot, removeSkinsPot, setSkinsEntrants } from "@/app/actions/skins";
 import { saveSideGame, removeSideGame } from "@/app/actions/side-games";
 import { setEventMoneyMode, setPotEntryMode, addFundLine } from "@/app/actions/money-setup";
 import { PRIZE_STRUCTURES } from "@/lib/domain/prize-structures";
@@ -162,6 +162,17 @@ describe("money's offer side shuts at completion, and the ledger does not (PR L)
     expect(await setContestWinners(contestId, [playerId])).toMatchObject({ ok: true });
     expect(await addFundLine({ direction: "in", description: `${TAG} entry fees`, amount: "25" })).toEqual({ ok: true });
     expect(await prisma.tournamentFund.count({ where: { eventId } })).toBe(1);
+  });
+
+  it("completed: naming entrants for a pot that is not there would START it, so it is refused; for a pot that is there it still saves", async () => {
+    const pots = () => prisma.skinsPot.count({ where: { eventId } });
+    const before = await pots();
+    const started = await setSkinsEntrants(stageId, false, "full", [playerId], "");
+    expect(started).toMatchObject({ ok: false, error: DONE("start a skins game"), lock: { scope: "money", by: "completed" } });
+    expect(await pots(), "a pot was created on a completed tournament").toBe(before);
+    expect(await setSkinsEntrants(stageId, true, "full", [playerId], "")).toEqual({ ok: true });
+    expect(await prisma.skinsEntry.count({ where: { pot: { eventId }, playerId } })).toBe(1);
+    expect(await pots()).toBe(before);
   });
 
   it("Reopen unlocks the offer side again", async () => {

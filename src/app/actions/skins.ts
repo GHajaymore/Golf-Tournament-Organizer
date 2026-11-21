@@ -306,6 +306,16 @@ export async function setSkinsEntrants(
     }
   }
 
+  // Naming entrants for a pot that does not exist STARTS it: that is the offer's (shut at completion, PR L). Changing the
+  // entrants of a pot that is there is the ledger's and stays open.
+  const existing = await prisma.skinsPot.findUnique({
+    where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey: key } },
+    select: { id: true },
+  });
+  if (!existing) {
+    const locked = await refuseIfLocked(eventId, "money", "start a skins game");
+    if (locked) return locked;
+  }
   const pot = await prisma.skinsPot.upsert({
     where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey: key } },
     create: { eventId, stageId, net, scope, groupKey: key },
