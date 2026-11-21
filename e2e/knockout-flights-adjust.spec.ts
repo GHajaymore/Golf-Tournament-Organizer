@@ -176,7 +176,7 @@ test("a reseed after a result is recorded is refused beside the press, and the o
   await prisma.bracketWinner.create({ data: { eventId: ids.event, key: "winners-0-1", winnerId: ids.players.Briar, result: "2&1" } });
 
   await top.getByRole("button", { name: "Seed Cedar Marsh higher" }).click();
-  const refused = page.getByText("This knockout has results, so its flights are fixed. Clear the results to change them.");
+  const refused = page.getByText("Locked because this knockout has results. Clear the results on the Bracket to change the flights.");
   await expect(refused, "the refusal was not said").toBeVisible({ timeout: 20_000 });
   await expect(refused, "the refusal is not on screen where the seed was pressed").toBeInViewport();
   expect(await storedFlights(), "a refused reseed changed the draw").toEqual([
