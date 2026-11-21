@@ -7,6 +7,9 @@ import { CupScoreboard } from "@/components/CupScoreboard";
 import { CupLineup } from "@/components/CupLineup";
 import { CupTeams, CreateCupTeams } from "@/components/CupTeams";
 import { CupOtherPoints } from "@/components/CupOtherPoints";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { screenLocksFor } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 
 export const metadata = screenMetadata("/cup");
 
@@ -25,6 +28,14 @@ export default async function CupPage() {
   // Staff see the draft lineups they are building; everyone else the cup as
   // announced — the same board the players and the public link read.
   const result = await cupBoard(session.eventId, { staff: isStaff });
+  /**
+   * WHAT THE MACHINE LOCKS HERE (PR L): the teams are the `cup` scope (making them, a team's name, who is on it) and the
+   * points to win and the holder are the `rounds` scope — the two `actions/cup.ts` asks. The lineup, the captain and the
+   * points are the day's work and are never behind either.
+   */
+  const locks = isStaff ? await screenLocksFor(session.eventId, ["cup", "rounds"]) : { locks: [], correction: null };
+  const teamsLocked = locks.locks.some((l) => l.scope === "cup");
+  const settingsLocked = locks.locks.some((l) => l.scope === "rounds");
 
   return (
     <>
@@ -36,9 +47,11 @@ export default async function CupPage() {
         </p>
       </div>
 
+      {isStaff && <ScopeLockBanner locks={locks.locks} correction={locks.correction} isAdmin={session.viewRole === "admin"} />}
+
       {!result.ok && result.reason === "teams" && isStaff && (await flightCount(session.eventId)) === 0 ? (
         // No flights at all: make the two teams right here, by name.
-        <CreateCupTeams />
+        <CreateCupTeams locked={teamsLocked} />
       ) : !result.ok ? (
         <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
           {result.reason === "teams" ? (
@@ -87,7 +100,7 @@ export default async function CupPage() {
               </Link>
             )}
           </p>
-          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} />}
+          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
         </>
       )}
     </>
@@ -99,7 +112,19 @@ async function flightCount(eventId: string): Promise<number> {
   return prisma.group.count({ where: { eventId, stageId: null, isCarrier: false } });
 }
 
-async function StaffLineup({ eventId, board }: { eventId: string; board: CupBoard }) {
+async function StaffLineup({
+  eventId,
+  board,
+  teamsLocked,
+  settingsLocked,
+  settingsLock,
+}: {
+  eventId: string;
+  board: CupBoard;
+  teamsLocked: boolean;
+  settingsLocked: boolean;
+  settingsLock: ScopeLock | null;
+}) {
   const [event, players, unplaced, captains] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
     prisma.player.findMany({
@@ -132,6 +157,7 @@ async function StaffLineup({ eventId, board }: { eventId: string; board: CupBoar
       ]}
       unplaced={unplaced}
       inLineup={board.sessions.flatMap((s) => s.matches.flatMap((m) => m.playerIds))}
+      locked={teamsLocked}
     />
     <section aria-labelledby="lineups" style={{ marginTop: 8 }}>
       <h2 id="lineups" className="card-title" style={{ fontSize: 18, margin: "0 0 10px" }}>
@@ -144,6 +170,8 @@ async function StaffLineup({ eventId, board }: { eventId: string; board: CupBoar
         ]}
         pointsToWin={event?.cupPointsToWin ?? 0}
         holder={event?.cupHolderGroupId ?? ""}
+        locked={settingsLocked}
+        lockWhy={settingsLock}
         sessions={board.sessions.map((s) => ({
           id: s.id,
           name: s.name,

@@ -2,6 +2,8 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedCup, teardownCup, PARS, CUP_EVENT } from "./cup-fixture.mjs";
 import { pressRadio } from "./press-radio";
+import { PrismaClient } from "@prisma/client";
+import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
 
 /**
  * A TEAM CUP, PLAYED BY ITS PLAYERS — the Ryder Cup shape a golf trip runs,
@@ -150,6 +152,55 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   test.setTimeout(480_000);
   const errors: string[] = [];
   watchPageErrors(page, errors);
+
+  /**
+   * THE ONE WAY `setCupSettings` IS PRESSED (round G663-1, finding 3): from launch the cup's points to win and holder are
+   * the rounds scope's and Save is shut (walked at the end of this test), so the only browser path that saves them is on a
+   * cup NOT yet launched. The seeded cup is live; it is a draft for this step and back to live after, and the points and
+   * holder are put back to "more than half" and nobody, which the later steps read.
+   */
+  await test.step("before launch the organizer sets points to win and the holder, saves, and it stays saved", async () => {
+    const prisma = new PrismaClient();
+    try {
+      await prisma.event.update({ where: { id: f.eventId }, data: { status: "draft" } });
+      await as(page, baseURL!, "organizer");
+      await open(page, "/cup");
+      const settings = () => page.locator("form").filter({ has: page.getByLabel("Points to win") });
+      const save = () => settings().getByRole("button", { name: "Save", exact: true });
+      await expect(save(), "a cup not yet launched has its Save open").toBeEnabled();
+      await expect(settings().locator("#cup-settings-why")).toHaveCount(0);
+
+      await page.getByLabel("Points to win").fill("4½");
+      await page.getByLabel("Holder (keeps it on a tie)").selectOption({ label: "Blues" });
+      await save().click();
+      // No refusal beside it, and the server has it: the cup is decided at 4½ and the Blues keep it on a tie.
+      await expect(settings().getByRole("alert")).toHaveCount(0);
+      await expect
+        .poll(async () => {
+          const e = await prisma.event.findUnique({ where: { id: f.eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } });
+          return `${e?.cupPointsToWin}|${e?.cupHolderGroupId ? "held" : "nobody"}`;
+        }, { timeout: 20_000 })
+        .toBe("4.5|held");
+
+      // Reloaded, the boxes hold what was saved.
+      await open(page, "/cup");
+      await expect(page.getByLabel("Points to win")).toHaveValue("4.5");
+      await expect(page.getByLabel("Holder (keeps it on a tie)").locator("option:checked")).toHaveText("Blues");
+
+      // Put back for the rest of the cup: empty is "more than half", and nobody holds it.
+      await page.getByLabel("Points to win").fill("");
+      await page.getByLabel("Holder (keeps it on a tie)").selectOption({ label: "Nobody — a tie is shared" });
+      await save().click();
+      await expect
+        .poll(async () => (await prisma.event.findUnique({ where: { id: f.eventId }, select: { cupPointsToWin: true } }))?.cupPointsToWin, { timeout: 20_000 })
+        .toBe(0);
+      await open(page, "/cup");
+      await expect(page.getByLabel("Points to win")).toHaveValue("");
+    } finally {
+      await prisma.event.update({ where: { id: f.eventId }, data: { status: "live" } });
+      await prisma.$disconnect();
+    }
+  });
 
   await test.step("the captains' lineup for Saturday, still a draft", async () => {
     await as(page, baseURL!, "organizer");
@@ -539,13 +590,40 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   });
 
   /**
+   * A SHUT SAVE SAYS WHY, WHERE THE PERSON IS (round G663-1, the crawl's "SILENT" finding): points to win and the holder
+   * are the rounds scope's, shut from launch. The Save beside them is greyed and the reason sits in the same form, on
+   * screen, with the way out; the control's own description names it.
+   */
+  await test.step("a launched cup's points and holder are shut, and the screen says why beside Save", async () => {
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
+    const settings = page.locator("form").filter({ has: page.getByLabel("Points to win") });
+    const save = settings.getByRole("button", { name: "Save", exact: true });
+    await expect(save).toBeDisabled();
+    // The person scrolls to the Save they cannot press; the reason must then be in view WITH it.
+    await save.scrollIntoViewIfNeeded();
+    const why = settings.locator("#cup-settings-why");
+    await expect(why).toContainText("Locked because");
+    await expect(why, "the reason is not on screen beside the shut Save").toBeInViewport();
+    await expect(save).toHaveAccessibleDescription(/Locked because/);
+  });
+
+  /**
    * A TEAM IS RENAMED (`renameCupTeam`, never pressed by a test until
    * 2026-10-20) — refused, in words beside the box, when it would give both
    * teams one name; then saved, and the board names the winner by it.
    */
   await test.step("the organizer renames a team, and the board calls the winners by it", async () => {
     await as(page, baseURL!, "organizer");
-    await open(page, "/cup");
+    // The cup is live, and a team's name is the cup scope's (PR L): locked by launch, opened for this one step by a
+    // committee correction on the cup, closed again below. The lineup and the points beside it never needed one.
+    const prisma = new PrismaClient();
+    try {
+      await openCorrectionFor(prisma, f.eventId, "cup");
+      await open(page, "/cup");
+    } finally {
+      await prisma.$disconnect();
+    }
     const whites = page.getByRole("group", { name: "Team Whites" });
     await whites.getByLabel("Team name").fill("Blues");
     await whites.getByRole("button", { name: "Save name" }).click();
@@ -555,6 +633,12 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await whites.getByLabel("Team name").fill("White Knights");
     await whites.getByRole("button", { name: "Save name" }).click();
     await expect(page.getByRole("group", { name: "Team White Knights" })).toBeVisible({ timeout: 20_000 });
+    const closer = new PrismaClient();
+    try {
+      await endCorrectionFor(closer, f.eventId);
+    } finally {
+      await closer.$disconnect();
+    }
 
     await page.context().clearCookies();
     await open(page, `/live/${f.shareToken}`);
