@@ -43,7 +43,7 @@ export function SetupField({ label, mark, children, dflt, isDefault, onChange, o
     background: "none",
     border: "none",
     padding: 0,
-    color: "var(--color-accent)",
+    color: "var(--color-accent-200)",
     font: "inherit",
     textDecoration: "underline",
     cursor: "pointer",
