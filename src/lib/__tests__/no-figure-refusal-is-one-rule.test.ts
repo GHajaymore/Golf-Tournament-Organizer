@@ -6,7 +6,7 @@ import { readSource } from "./source";
 /**
  * "NOBODY WITHOUT A FIGURE ENTERS A NET ROUND" HAS ONE GATE (J39/J40 PR 3B, PE review of 20 Nov).
  *
- * `figureRefusal(scoringBases, name, hasFigure)` in `domain/tee-sheet-replace.ts` is the gate for Replace's guest
+ * `figureRefusal(scoringBases, name, hasFigure)` in `domain/committee-figure.ts` is the gate for Replace's guest
  * branch and for approving a self-entered guest. A second copy was written once (`approvalFigureRefusal` over
  * `anyRoundNet`); this sweep refuses another:
  *   1. the sentence "the committee gives" is code in `figureRefusal` and in the hint beside Replace's box and the guide's prose only;
@@ -14,7 +14,7 @@ import { readSource } from "./source";
  * The control plants each shape and a clean line; a sweep that finds nothing proves nothing until it finds something.
  */
 
-const GATE = "src/lib/domain/tee-sheet-replace.ts";
+const GATE = "src/lib/domain/committee-figure.ts";
 const SENTENCE_OK = new Set([GATE, "src/components/ReplacePlayer.tsx", "src/lib/guide-steps.ts"]);
 const SENTENCE = /handicap the committee gives/;
 const ANY_NET = /\.some\([^\n]*isNetBasis|isNetBasis[^\n]*\.some\(|function anyRoundNet|anyRoundNet\s*\(/;

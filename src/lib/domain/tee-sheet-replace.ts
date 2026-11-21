@@ -38,7 +38,6 @@
  */
 
 import { NO_INDEX, indexFigure } from "./handicap-label";
-import { isNetBasis } from "./match-entry";
 import { needsCommitteeFigure } from "./committee-figure";
 import type { TeeSheet } from "./tee-sheet";
 import type { SlotLocks } from "./tee-sheet-moves";
@@ -294,21 +293,7 @@ export function voidedGamesWords(v: { contests: number; sideGames: number; kept:
   return `${[out, kept, skins].filter(Boolean).join(". ")}.`;
 }
 
-/**
- * A GUEST WITH NO FIGURE IS NOT PLAYED OFF NOUGHT. The handicap resolver reads the stored number and not
- * "no index", so a blank guest in a round that uses handicaps would play as a scratch golfer. Until that is
- * fixed at its root, a round scored net (net, both or Stableford — anything but gross, `isNetBasis`) takes a
- * guest only with a figure the committee has given them (the Rules of Handicapping allow one for a
- * non-member). A member with no index is held to the same in `candidateWhy` (`NO_FIGURE`).
- * Gross: a blank is allowed. Takes the scoring bases of every round the guest would play (Replace: the one round; approval of a
- * self-entered guest: every playing round of the event), so ONE gate answers "nobody without a figure enters a net round".
- * Returns the refusal, or null.
- */
-export function figureRefusal(scoringBases: readonly string[], guestName: string, hasFigure: boolean): string | null {
-  if (hasFigure || !scoringBases.some((b) => isNetBasis(b))) return null;
-  return `Type the handicap the committee gives ${guestName} — this round is scored net.`;
-}
-
+/** A guest with no figure is not played off nought: the one gate is `figureRefusal` (`committee-figure.ts`). */
 export const REPLACE_GROUPS_NOTE = "The pairings are the draw in this round, so a player can’t be swapped on the sheet. Re-draw, or withdraw the player and add the new one.";
 export const REPLACE_EVERY_ROUND_NOTE = "This pair plays every round, so changing a partner changes every round. Change it on the Teams screen.";
 export const REPLACE_CUP_NOTE = "A team cup session’s lineup is set on the Team cup screen.";

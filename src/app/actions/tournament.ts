@@ -137,7 +137,7 @@ import {
 } from "@/lib/domain/prize-amount";
 import { indexRefusal, indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { figurePayload } from "@/lib/domain/guest-entry";
-import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
+import { figureRefusal } from "@/lib/domain/committee-figure";
 import { ensureRegistrationCode, drawRegistrationCode } from "@/lib/services/guest-entry";
 import { formatAccessCode } from "@/lib/code-format";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";

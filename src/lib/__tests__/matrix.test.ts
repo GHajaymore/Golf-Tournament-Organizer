@@ -101,7 +101,7 @@ import type { TeeSheet } from "@/lib/domain/tee-sheet";
 import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
 import { formatFitsRound } from "@/lib/domain/round-choices";
 import { needsCommitteeFigure } from "@/lib/domain/committee-figure";
-import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
+import { figureRefusal } from "@/lib/domain/committee-figure";
 
 /**
  * The combination sweep.

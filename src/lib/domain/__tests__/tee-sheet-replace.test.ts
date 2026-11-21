@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { STAND_IN_MARK } from "../attendance";
+import { figureRefusal } from "../committee-figure";
 import {
   applyReplace,
   candidateWhy,
   clubTimeWords,
-  figureRefusal,
   handicapUsedWords,
   NO_FIGURE,
   NO_FIGURE_CARDS_IN,

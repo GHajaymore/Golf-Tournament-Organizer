@@ -35,11 +35,11 @@ import {
   REPLACE_EVERY_ROUND_NOTE,
   REPLACE_GROUPS_NOTE,
   replaceAuditLine,
-  figureRefusal,
   replaceRefusal,
   swapPairMember,
   voidedGamesWords,
 } from "@/lib/domain/tee-sheet-replace";
+import { figureRefusal } from "@/lib/domain/committee-figure";
 import { replaceWorldFor, sidesHavePlay, voidSideEntries, type RoundSide } from "@/lib/services/tee-sheet-replace";
 import { settingsOf } from "@/lib/services/tournament";
 import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";

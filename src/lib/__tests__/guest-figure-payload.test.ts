@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
+import { figureRefusal } from "@/lib/domain/committee-figure";
 import { cleanGuestRegistration, figurePayload, isGuestNonce, waitingCapFor } from "@/lib/domain/guest-entry";
 
 /**

@@ -3,10 +3,10 @@ import { useMemo, useState, useTransition } from "react";
 import { replaceInTeeSheet } from "@/app/actions/tee-sheet";
 import { NO_INDEX, readHandicapIndex, indexFigure } from "@/lib/domain/handicap-label";
 import { isNetBasis } from "@/lib/domain/match-entry";
+import { figureRefusal } from "@/lib/domain/committee-figure";
 import {
   REPLACE_REASONS,
   REPLACE_REASON_WORDS,
-  figureRefusal,
   replaceCandidates,
   replaceWillSay,
   type ReplaceCandidate,

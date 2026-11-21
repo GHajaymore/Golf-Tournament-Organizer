@@ -25,7 +25,7 @@ import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { awaitingApproval, formatDeadline, parseDeadlineIso } from "@/lib/registration";
 import { isGuest } from "@/lib/domain/entry-standing";
-import { figureRefusal } from "@/lib/domain/tee-sheet-replace";
+import { figureRefusal } from "@/lib/domain/committee-figure";
 import { isPlayingRound } from "@/lib/stage-types";
 import { indexFigure } from "@/lib/domain/handicap-label";
 import { prisma } from "@/lib/db";
