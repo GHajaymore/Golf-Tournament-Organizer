@@ -74,6 +74,14 @@ Added after the move (the list above is the original, kept whole by `claude-md-i
   files decide nothing about the step; **D** a stored status compared by hand with "draft" or "live",
   three named files with exact counts, capped at three. Each class has a planted control.
 
+**`required-is-what-launch-refuses.test.ts` (R1a): A "REQUIRED BEFORE LAUNCH" MARK IS WHAT LAUNCH REFUSES.**
+`SETUP_FIELDS` (`src/lib/domain/setup-field.ts`) names each set-up field's holder in `tournamentStatus`, and `markOf`
+is the one rule for its mark; `SetupField` draws only that. The test walks every `FAMILY_FIXTURES` family through
+ten opening moves and asserts, both ways: every step and round need that `holds` is marked on some field; no field
+is marked unless its holder holds (a two-round medal's undated Round 2, `holds: false`, is never required);
+whenever a set-up tournament's launch is refused, some field is required. Where a screen implies "required" and
+the machine does not hold, the test says so: list it for the Technical Director, never invent a holder.
+
 **WHEN A CORRECT CHANGE MAKES AN EXISTING GUARD FAIL, READ THE GUARD BEFORE UPDATING IT.** A guard
 that goes red on a change you have already proven right was asserting something false, and the
 reflex — "update the test to match" — launders the old assertion into the new one. Three of these
