@@ -236,7 +236,9 @@ you.").
   `guest-entry-cookieless` 10 an hour per network + event counting ONLY requests with no device cookie (the cookie is set
   by pressing Enter as a guest, before the submit), and the waiting cap `max(24, the field's limit)`. There is NO per-network
   budget on successful entries (a clubhouse is one address). **Closed by B96:** the `ng_device` cookie is now SIGNED
-  (`sign`/`verify` in `auth.ts`, under the existing `AUTH_SECRET`; no new secret), and the guest door takes a device only when
+  (`signUnder`/`verifyUnder` in `auth.ts`, under a key of its own derived from `AUTH_SECRET` by the label `ng_device`; no new
+  secret), and EVERY mint goes through ONE counted function, `mintDevice` (the code door's and the staff sign-in's too; a
+  refused mint sets nothing; `a-device-cookie-has-one-counted-mint.test.ts` refuses a second place that signs one), and the guest door takes a device only when
   it carries that signature (`signedDeviceHere`). An unsigned, tampered or missing value is a new device and is counted in
   `guest-entry-cookieless`. MAKING a cookie (`startGuestEntry`) is counted too: `guest-mint-alarm` (300 an hour across the app)
   and, while it stands, `guest-mint-slow` (12 per 15 minutes per network), so thirty phones on one wifi still mint. Older
