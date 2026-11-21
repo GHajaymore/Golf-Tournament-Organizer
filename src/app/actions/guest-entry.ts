@@ -2,8 +2,8 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { clientAddress } from "@/lib/client-address";
-import { checkRateLimit, clientGuessGate } from "@/lib/rate-limit";
-import { mintSignedDevice, signedDeviceHere } from "@/lib/services/known-device";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { mintDevice, signedDeviceHere } from "@/lib/services/known-device";
 import { setGuestCookie, holdsLivePassIn } from "@/lib/guest-auth";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
@@ -28,19 +28,6 @@ import { roundCodeLink } from "@/lib/code-format";
 
 const NO_CLIENT = "no-client-address";
 
-/**
- * MAKING A DEVICE COOKIE COSTS A TURN (B96). The platform alarm (`guest-mint-alarm`, 300 an hour) counts every mint; while
- * it stands each client network is held to `guest-mint-slow` (twelve per fifteen minutes). A phone mints once, so a whole
- * outing on one wifi is never refused while it is quiet. Null when the mint may go ahead, else the one limit sentence.
- */
-async function mintRefusal(): Promise<string | null> {
-  const client = (await clientAddress()) ?? NO_CLIENT;
-  const alarm = await clientGuessGate("guest-mint-alarm", "guest-mint-platform");
-  if (alarm.decision.allowed) return null;
-  const slow = await clientGuessGate("guest-mint-slow", client);
-  return slow.decision.allowed ? null : slow.decision.message;
-}
-
 export type GuestEntryResult =
   | { ok: true; /** Waiting for staff (the only status this door makes). */ status: "pending"; /** The browser's own code, grouped; shown ONCE, held in client state only (C3.3). */ code: string | null; already?: boolean }
   | { ok: false; error: string };
@@ -53,10 +40,8 @@ export type GuestEntryResult =
 export async function startGuestEntry(): Promise<{ ok: boolean; error?: string }> {
   // A browser already holding a device WE signed makes nothing and costs nothing.
   if (await signedDeviceHere()) return { ok: true };
-  const refused = await mintRefusal();
-  if (refused) return { ok: false, error: refused };
-  await mintSignedDevice();
-  return { ok: true };
+  const made = await mintDevice(); // the one counted mint
+  return made.ok ? { ok: true } : { ok: false, error: made.error };
 }
 
 /**
@@ -102,10 +87,12 @@ export async function registerAsGuest(token: unknown, form: unknown, nonce: unkn
     const perDevice = await checkRateLimit("guest-entry-device", `${deviceHash}|${event.id}`);
     if (!perDevice.allowed) return { ok: false, error: perDevice.message };
   } else {
-    // No valid device: set one for the next request, and count THIS one against its own network + event.
-    await mintSignedDevice();
+    // No valid device: count THIS request against its own network + event FIRST, and mint only when it is allowed (a
+    // refusal leaves with no cookie), through the one counted mint (B96).
     const cookieless = await checkRateLimit("guest-entry-cookieless", `${client}|${event.id}`);
     if (!cookieless.allowed) return { ok: false, error: cookieless.message };
+    const made = await mintDevice();
+    if (!made.ok) return { ok: false, error: made.error };
   }
 
   // A lapsed club's archive takes nobody new (asked here, as every door into a tournament asks it).

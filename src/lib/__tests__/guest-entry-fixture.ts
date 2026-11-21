@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { generateShareToken } from "@/lib/codes";
-import { sign } from "@/lib/auth";
+import { signUnder } from "@/lib/auth";
 
 /**
  * THE FIXTURE OF THE GUEST SELF-ENTRY AUDIT TESTS (J39/J40 PR 3B). Not a test: the club, the event with its sign-up link,
@@ -82,5 +82,5 @@ export function arrive(jar: Map<string, string>, head: Map<string, string>, opts
   jar.clear();
   head.set("x-forwarded-for", opts.address);
   // The device cookie as the app sets it: SIGNED (B96). a test of a forged one sets the jar's value itself afterwards.
-  if (opts.device !== false) jar.set("ng_device", sign(typeof opts.device === "string" ? opts.device : deviceValue()));
+  if (opts.device !== false) jar.set("ng_device", signUnder("ng_device", typeof opts.device === "string" ? opts.device : deviceValue()));
 }

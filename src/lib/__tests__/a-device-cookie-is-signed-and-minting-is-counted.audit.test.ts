@@ -39,7 +39,9 @@ import { registerAsGuest, startGuestEntry } from "@/app/actions/guest-entry";
 import { GUEST_WORDS } from "@/lib/domain/guest-entry";
 import { clientKeyFor } from "@/lib/rate-limit";
 import { RATE_LIMITS, windowFor } from "@/lib/domain/rate-limit";
-import { verify } from "@/lib/auth";
+import { signUnder, verifyUnder, sign } from "@/lib/auth";
+import { openAnyCode } from "@/lib/services/code-door";
+import { signedDeviceHere } from "@/lib/services/known-device";
 import { arrive, deviceValue, dropClub, makeClub, newNonce, randomAddress, type Club } from "./guest-entry-fixture";
 
 const prisma = new PrismaClient();
@@ -80,13 +82,66 @@ describe("the device cookie is signed and making one is counted", () => {
       jar.set("ng_device", deviceValue()); // unsigned, as a script sends it
       const r = await enter(`Forged ${i + 1} Marlow`);
       expect(r.ok, `forged ${i + 1}: ${r.ok ? "" : r.error}`).toBe(true);
-      expect(verify(jar.get("ng_device"))).not.toBeNull(); // answered with a cookie WE signed
+      expect(verifyUnder("ng_device", jar.get("ng_device"))).not.toBeNull(); // answered with a cookie WE signed
     }
     const before = await players();
     arrive(jar, head, { address, device: false });
     jar.set("ng_device", deviceValue());
     expect(await enter("Forged Eleven Marlow")).toEqual({ ok: false, error: GUEST_WORDS.limit });
     expect(await players()).toBe(before);
+    // F1: the REFUSED request leaves with no signed device (a refusal never mints).
+    expect(verifyUnder("ng_device", jar.get("ng_device"))).toBeNull();
+  });
+
+  it("a value signed under the app secret itself (not the device's own key) is not a device", async () => {
+    arrive(jar, head, { address: randomAddress(), device: false });
+    jar.set("ng_device", sign(deviceValue()));
+    expect(await signedDeviceHere()).toBeNull();
+    jar.set("ng_device", signUnder("ng_device", deviceValue()));
+    expect(await signedDeviceHere()).not.toBeNull();
+  });
+
+  it("a refused cookieless request is the same whether it came first or last: ten more from one address never leave a signed device", async () => {
+    const address = randomAddress();
+    for (let i = 0; i < 10; i += 1) {
+      arrive(jar, head, { address, device: false });
+      await enter(`Cookieless ${i + 1} Pell`);
+    }
+    for (let i = 0; i < 3; i += 1) {
+      arrive(jar, head, { address, device: false });
+      expect(await enter(`Cookieless Over ${i + 1} Pell`)).toEqual({ ok: false, error: GUEST_WORDS.limit });
+      expect(jar.get("ng_device"), `refused ${i + 1} must hold no cookie`).toBeUndefined();
+    }
+  });
+
+  it("the code door mints a device only through the count: an open with no cookie is counted, and refused when the alarm and the slow bucket say so (F2)", async () => {
+    await lowerTheAlarm();
+    arrive(jar, head, { address: randomAddress() });
+    const made = await enter("Door Holder Lindqvist");
+    expect(made.ok && made.code).toBeTruthy();
+    const code = made.ok ? (made.code as string) : "";
+    const count = async () => (await prisma.rateLimitHit.findUnique({ where: { key: alarmKey() } }))?.count ?? 0;
+
+    // Quiet alarm: a cookieless open mints, and the mint is counted.
+    const quiet = randomAddress();
+    arrive(jar, head, { address: quiet, device: false });
+    const before = await count();
+    const opened = await openAnyCode(code, quiet);
+    expect(opened.ok, opened.ok ? "" : opened.error).toBe(true);
+    expect(verifyUnder("ng_device", jar.get("ng_device"))).not.toBeNull();
+    expect(await count()).toBe(before + 1);
+
+    // Alarm standing, this network's twelve spent: the open still works, and no cookie is minted.
+    await standTheAlarm();
+    const busy = randomAddress();
+    for (let i = 0; i < 12; i += 1) {
+      arrive(jar, head, { address: busy, device: false });
+      expect((await startGuestEntry()).ok, `mint ${i + 1}`).toBe(true);
+    }
+    arrive(jar, head, { address: busy, device: false });
+    await openAnyCode(code, busy);
+    expect(jar.get("ng_device")).toBeUndefined();
+    await lowerTheAlarm();
   });
 
   it("a value whose signature was altered is counted the same way", async () => {
@@ -117,7 +172,7 @@ describe("the device cookie is signed and making one is counted", () => {
     for (let i = 0; i < 30; i += 1) {
       arrive(jar, head, { address, device: false });
       expect(await startGuestEntry(), `phone ${i + 1}`).toEqual({ ok: true });
-      expect(verify(jar.get("ng_device"))).not.toBeNull();
+      expect(verifyUnder("ng_device", jar.get("ng_device"))).not.toBeNull();
     }
   });
 
