@@ -31,6 +31,6 @@ describe("the crawl and the round picker", () => {
     const spec = readSource("e2e/every-control.spec.ts");
     const branch = spec.slice(spec.indexOf("if (goes) {"), spec.indexOf("if (picker) return"));
     expect(branch).not.toMatch(/outcome: "view"/);
-    expect(spec).toMatch(/page\.url\(\) !== startUrl && fired\.length === 0\) return \{ outcome: "view"/);
+    expect(spec).toMatch(/!sameAddress\(page\.url\(\), startUrl\) && fired\.length === 0\) return \{ outcome: "view"/);
   });
 });
