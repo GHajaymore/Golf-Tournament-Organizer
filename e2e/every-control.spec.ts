@@ -92,7 +92,7 @@ const OUT = join(process.cwd(), ".e2e", "every-control");
 const LOG = join(OUT, "ledger.tsv");
 
 test.beforeAll(async () => {
-  test.skip(!FULL, "the full crawl runs in a round: set E2E_EVERYTHING=1");
+  if (!FULL) return; // the crawls skip themselves; the control at the foot needs no club
   club = await seed();
   mkdirSync(OUT, { recursive: true });
   writeFileSync(LOG, "outcome\ttournament\tscreen\tkind\tcontrol\tchoice\tnote\n");
@@ -442,10 +442,15 @@ async function saveFor(page: Page, c: Control): Promise<{ how: "save" | "form" |
       if (send) return { how: "form" as const, label: tidy(send) };
       const shut = inBox.find((b) => b.disabled && (SAVE.test(tidy(b)) || /^saved$/i.test(tidy(b))));
       if (shut) {
-        // A reason the screen draws BESIDE the shut button (named by it, or marked `data-lock-why` in its own box) is an answer.
-        const named = (shut.getAttribute("aria-describedby") ?? "").split(" ").map((id) => document.getElementById(id)).find((el) => el && tidy(el));
-        const beside = named ?? box?.querySelector("[data-lock-why]");
-        const why = beside && (beside as HTMLElement).offsetParent !== null ? tidy(beside) : "";
+        // A reason the screen draws BESIDE the shut button is an answer: named by it (`aria-describedby`) or marked
+        // `data-lock-why`, and either way INSIDE the button's own box, with words, and on screen. A hint elsewhere on
+        // the page, an empty or hidden line, does not answer: the press is still silent.
+        const shown = (el: Element | null | undefined): el is HTMLElement =>
+          !!el && !!box && box.contains(el) && (el as HTMLElement).offsetParent !== null && tidy(el) !== "";
+        const named = (shut.getAttribute("aria-describedby") ?? "").split(" ").filter(Boolean).map((id) => document.getElementById(id)).find(shown);
+        const marked = box ? [...box.querySelectorAll("[data-lock-why]")].find(shown) : undefined;
+        const beside = named ?? marked;
+        const why = beside ? tidy(beside) : "";
         return { how: "locked" as const, label: tidy(shut), why };
       }
 
@@ -713,6 +718,7 @@ async function crawl(page: Page, context: BrowserContext, baseURL: string, run: 
 }
 
 test("every dropdown, choice and tick-box on every console screen keeps what is chosen", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(!FULL, "the full crawl runs in a round: set E2E_EVERYTHING=1");
   test.skip(testInfo.project.name !== "desktop", "the console's controls are operated at the desktop width");
   test.skip(IN_PARTS && CRAWL_PART === 0, "the console crawl is another part of this round");
   test.setTimeout(6 * 60 * 60 * 1000);
@@ -729,7 +735,36 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
  * choice made is a choice kept, on every tournament the member can open.
  */
 test("every dropdown, choice and tick-box on every player screen keeps what is chosen", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(!FULL, "the full crawl runs in a round: set E2E_EVERYTHING=1");
   test.skip(testInfo.project.name !== "phone", "the player's controls are operated at a phone's width");
   test.setTimeout(2 * 60 * 60 * 1000);
   await crawl(page, context, baseURL!, { who: "member", session: club.player.session, screens: playerScreens(), atLeast: 0 });
+});
+
+/**
+ * CONTROL: the crawl's reading of a shut Save. A reason answers only when it is linked or marked, inside the same
+ * form, with words, and shown. Anything else must stay SILENT (`why` empty), or the crawl would stop reporting a
+ * locked Save that says nothing. Mutation: drop `box.contains(el)` or the `offsetParent` test from `shown` in
+ * `saveFor` and the outside and hidden forms go red; drop the text test and the empty form goes red.
+ * No fixture: a small page of its own, and `saveFor` is pointed at each form's own dropdown.
+ */
+test("a shut Save is answered only by a reason that is linked, in its form, worded and shown", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "the page is the same at every width");
+  await page.setContent(`<!doctype html><html><body><main>
+    <p id="far">Counts are final once the round is played.</p>
+    <form><select><option>a</option><option>b</option></select><button disabled aria-describedby="r-ok">Save lineup</button><p id="r-ok">Locked: the cup has begun.</p></form>
+    <form><select><option>a</option><option>b</option></select><button disabled>Save lineup</button></form>
+    <form><select><option>a</option><option>b</option></select><button disabled aria-describedby="r-hidden">Save lineup</button><p id="r-hidden" style="display:none">Locked: the cup has begun.</p></form>
+    <form><select><option>a</option><option>b</option></select><button disabled aria-describedby="r-empty">Save lineup</button><p id="r-empty"> </p></form>
+    <form><select><option>a</option><option>b</option></select><button disabled aria-describedby="far">Save lineup</button></form>
+  </main></body></html>`);
+  const control = (nth: number): Control => ({ kind: "select", nth, group: "", radios: [], label: "", choices: [], choiceLabels: [], current: "", disabled: false, tab: "" });
+  const ok = await saveFor(page, control(0));
+  expect(ok.how).toBe("locked");
+  expect(ok.why, "a linked, shown reason inside the form answers").toBe("Locked: the cup has begun.");
+  for (const [nth, name] of [[1, "no reason"], [2, "a hidden reason"], [3, "an empty reason"], [4, "a reason outside the form"]] as const) {
+    const silent = await saveFor(page, control(nth));
+    expect(silent.how, name).toBe("locked");
+    expect(silent.why, `${name} stays silent`).toBe("");
+  }
 });
