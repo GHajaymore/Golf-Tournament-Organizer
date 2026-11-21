@@ -361,7 +361,7 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       const made = await prisma.prize.create({ data: { eventId: ev.id, position: 99, category: prizeName, amount: 0 } });
       await open("/prizes");
       const winner = (await prisma.player.findFirstOrThrow({ where: { eventId: ev.id, status: "confirmed" }, orderBy: { name: "asc" } })).id;
-      await page.getByLabel(`Winner of ${prizeName}`).selectOption(winner);
+      await page.getByLabel(`Winner of ${prizeName}`).locator("visible=true").selectOption(winner);
       await expect
         .poll(async () => (await prisma.prize.findUniqueOrThrow({ where: { id: made.id } })).winnerId, { message: "Money · awarding a prize was refused on a completed tournament" })
         .toBe(winner);
