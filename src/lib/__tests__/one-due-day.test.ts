@@ -62,12 +62,31 @@ describe("one due day", () => {
     expect(bad).toEqual([]);
   });
 
+  it("a screen that counts rounds as undated by playedOn alone also asks roundDueDay (the stages notice did not)", () => {
+    const bad: string[] = [];
+    for (const file of sourceFiles(join(process.cwd(), "src"))) {
+      const rel = file.slice(process.cwd().length + 1);
+      // round-dates.ts holds the planner that gives undated rounds a day: it is handed id and playedOn only.
+      if (rel.endsWith(join("domain", "round-dates.ts"))) continue;
+      const src = readSource(rel);
+      if (undatedByPlayedOnAlone(src) && !src.includes("roundDueDay(")) bad.push(rel);
+    }
+    expect(bad).toEqual([]);
+    expect(undatedByPlayedOnAlone("rounds.filter((s) => !cleanIsoDate(s.playedOn)).length")).toBe(true);
+    expect(undatedByPlayedOnAlone("const d = cleanIsoDate(s.playedOn)")).toBe(false);
+  });
+
   it("control: the old spelling is caught", () => {
     const planted = readPlanted("const s = roundIsScheduled(r.playedOn, r.deadline);");
     expect(scheduledCalls(planted).map((c) => c.second.startsWith("roundDueDay("))).toEqual([false]);
     expect(scheduledCalls("roundIsScheduled(s.playedOn, roundDueDay(s))").map((c) => c.second.startsWith("roundDueDay("))).toEqual([true]);
   });
 });
+
+/** `!cleanIsoDate(x.playedOn)`: a round called undated for want of a played-on day. */
+export function undatedByPlayedOnAlone(src: string): boolean {
+  return /!\s*cleanIsoDate\([^)]*playedOn/.test(src);
+}
 
 function readPlanted(s: string): string {
   return s;
