@@ -310,6 +310,8 @@ export const FULL_ONLY = [
   // path (the budget, refusals beside the press, a lost answer and Try again) (registration: who gets in).
   "e2e/guest-entry-approval.spec.ts",
   "e2e/guest-entry-the-guests-path.spec.ts",
+  // B96: a guest whose device mint is refused (alarm standing, the network's twelve spent) is told in words beside the button (registration: who gets in).
+  "e2e/guest-mint-refused.spec.ts",
   // One code box (plan row 4c, cut 1): either code in either box, one sentence for every wrong one (access: shared ground).
   "e2e/one-code-box.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",

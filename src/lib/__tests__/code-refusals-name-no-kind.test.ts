@@ -18,7 +18,7 @@ import { readSource } from "./source";
 export const namesAKind = (s: string) => /\b(link|round|entry|poster|player) (code )?attempts?\b|\bnot a (round|link|entry)\b/i.test(s);
 
 const SHARED_BOX_KINDS: RateLimitKind[] = ["round-code", "round-code-client", "player-link-client", "player-link-alarm", "player-link-slow", "eight-char-alarm", "eight-char-slow"];
-const GUEST_KINDS: RateLimitKind[] = ["guest-entry-device", "guest-entry-cookieless"];
+const GUEST_KINDS: RateLimitKind[] = ["guest-entry-device", "guest-entry-cookieless", "guest-mint-alarm", "guest-mint-slow"];
 
 describe("a refused code names no kind", () => {
   it("CONTROL: the sweep sees a sentence that names a kind, and passes a neutral one", () => {
