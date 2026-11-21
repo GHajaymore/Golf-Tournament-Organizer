@@ -15,6 +15,7 @@ Ajay, 14 Nov 2026: "I am keep telling to simplify the things while setting up or
 | J4b | `player-member-signed-out` | The app's link on a new browser → log in → Today → card → hole 1 → Board |
 | J5 | `player-card-18` | A realistic 88 on one bar of signal (saves held 2 s), certified, then the final standing; 0 choosers |
 | J6 | `player-guest` | The personal player link → Open my card → Today → card → hole 1 → Board |
+| J7 | `guest-enters-by-poster` | The poster's QR (the sign-up link) → Enter as a guest → a name → Ask to play → the waiting screen. 2 presses, 10 characters; the design's "4 presses" counts the phone's own scan and open, which the counter records as a note (`e2e/guest-entry-the-guests-path.spec.ts`). Desk-counted until the first CI `JOURNEY` line confirms it |
 
 **Event-first (Cut A, Ajay 15 Nov 2026).** No journey asks for the members list before the first event. A club is asked for it at the draw (the Tee sheet, when nobody has entered and the club's list is empty: Import members, or Add a player) and offered it on Entries ("Import members", in the "Add from the club roster" card). Whatever is added there lands on Members, so nothing is typed twice. A change that puts a members step back before the first event fails J1 and J2 over their ceilings.
 

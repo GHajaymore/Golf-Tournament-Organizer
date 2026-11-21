@@ -76,6 +76,7 @@ with the landing preview. Every other live word is the one the page already had.
 | `interest-offer` | The 25% offer for somebody who joins after launch | Its terms are for clubs that join before launch, so live /interest makes no offer. **Open question for Ajay.** |
 | `round-codes` | /play, round codes, every public board | Never held. |
 | `player-links` | A guest's personal player link at /p (J39/J40) | Never held, like round codes (Ajay, 7 Nov): one guest entry in one event, never a sign-in. `guest-auth.ts` does not ask the hold. |
+| `guest-entry` | Guest entry on a tournament's sign-up link, and the code under its poster (J39/J40 PR 3B) | Never held, like links and round codes: it makes no account and no session, only a WAITING entry the organizer approves. `actions/guest-entry.ts` never calls `createSession`, `syncPlayerAccount`, `sendRegistrationEmail` or the hold (`the-guest-door-makes-no-sign-in.test.ts`). |
 | `entry-windows` | "Opens soon" on a tournament's entries | A tournament's own entry window. |
 | `contact-address` | /faq's "our contact address opens soon" | About mail (`CONTACT_EMAIL_LIVE`), not launch. |
 | `sitemap` | /interest in the sitemap and robots.txt | The page answers in both states, so an old post or ad still lands somewhere true. |

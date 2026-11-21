@@ -304,6 +304,14 @@ export const FULL_ONLY = [
   "e2e/a-guest-in-messages.spec.ts",
   // J39/J40 PR 3: player link slips printed at the desk, reprinted new, replaced after a lost sheet (access: shared ground).
   "e2e/player-link-slips.spec.ts",
+  // J39/J40 PR 3B: a guest enters themselves on the one sign-up link and is approved at the desk (registration: who gets in).
+  "e2e/guest-enters-on-the-link.spec.ts",
+  // J39/J40 PR 3B: the secretary approves and declines guests (a name clash, auto mode, a gross-only event), and the guest's own
+  // path (the budget, refusals beside the press, a lost answer and Try again) (registration: who gets in).
+  "e2e/guest-entry-approval.spec.ts",
+  "e2e/guest-entry-the-guests-path.spec.ts",
+  // B96: a guest whose device mint is refused (alarm standing, the network's twelve spent) is told in words beside the button (registration: who gets in).
+  "e2e/guest-mint-refused.spec.ts",
   // One code box (plan row 4c, cut 1): either code in either box, one sentence for every wrong one (access: shared ground).
   "e2e/one-code-box.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
@@ -330,11 +338,14 @@ export const FULL_ONLY = [
   "e2e/club-theme.spec.ts",
   "e2e/code-event-no-mobile.spec.ts",
   "e2e/commentary.spec.ts",
+  // State machine PR L (B95): every offer-side money control (skins, side games, contests, money mode, a player's side game) refused in words once completed; the ledger still works; Reopen gives it back.
+  "e2e/completed-offers-refuse-in-words.spec.ts",
   "e2e/completing-asks-about-unplayed-rounds.spec.ts",
   "e2e/contest-sponsor.spec.ts",
   "e2e/country-words.spec.ts",
   "e2e/course-cards-and-venues.spec.ts",
   "e2e/course-lookup-on-event.spec.ts",
+  "e2e/course-lookup-refusals.spec.ts",
   "e2e/dashboard-day.spec.ts",
   "e2e/deleting-for-good.spec.ts",
   "e2e/dialog.spec.ts",

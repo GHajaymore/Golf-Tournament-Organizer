@@ -147,10 +147,11 @@ export interface SetupRound {
  * database. It is one line, and a one-line rule with no test is how the
  * deadline half quietly stops counting.
  */
-export function roundIsScheduled(playedOn: string, deadline: string): boolean {
-  // Trimmed, because both columns default to "" and a stored space is not a
+export function roundIsScheduled(playedOn: string, dueDay: string): boolean {
+  // `dueDay` is `roundDueDay(stage)` (`knockout-play-by.ts`): a knockout's latest play-by day, else
+  // its deadline. Trimmed, because both columns default to "" and a stored space is not a
   // day. Same reading as `named`, `dated` and `venued`.
-  return !!playedOn.trim() || !!deadline.trim();
+  return !!playedOn.trim() || !!dueDay.trim();
 }
 
 export interface SetupFacts {

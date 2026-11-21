@@ -77,6 +77,11 @@ file that is function or core. A commit that rewords the guide or recolours the 
 same fingerprint, so the count on it stands. Any change to a function or core file is a different
 app, and its count starts at nothing.
 
+**A rename touches two paths.** Every planner reads a diff through `scripts/qa/changed-paths.mjs`
+(`--name-status -M`), which names a moved file's old path as well as its new one: a file moved out
+of `src/app/` into `docs/` is still an app change. A second hand-rolled `--name-only` diff in
+`scripts/qa` is refused by `changed-paths-one-reader.test.ts`.
+
 ## What a round is
 
 `npm run qa:round -- --list` prints it from the source. Each layer says who it stands for, what is
@@ -359,6 +364,10 @@ says "finished" only when the Verdict job finished with every planned part done,
 re-ask" when GitHub would not answer (and then reads the run's public page), and the Verdict job
 posts the verdict on the commit it tested as the `round-verdict` status, so one read of a commit
 answers "what did the round say". The ruleset does not require that status.
+**A round is clean by that verdict, never by its workflow run's conclusion** (a run can conclude
+success with a NOT CLEAN or missing verdict): `scripts/qa/round-verdict.mjs` is the one reader, it
+counts a verdict only on the exact commit it was posted on, and
+`round-verdict-is-the-only-reader.test.ts` refuses a second one (B99).
 
 **A round the machine did not finish is re-run, not read.** When a verdict is INCOMPLETE, the
 **Round waiter** workflow re-runs its failed jobs — exactly the parts the machine stopped — up to
@@ -691,6 +700,7 @@ A change is not finished until the tests know about it. What to add, by what was
 | A way of putting somebody in the field, or a question asked of who an entry is (member or guest) | A spec in the **registration** area of `specs-by-area.mjs` that presses it as the organizer and reads `Player.standing` back. The two since 2026-11-07: `e2e/add-a-member-or-guest.spec.ts` (Add: a guest, a member without an email, a member with one) and `e2e/import-marks-member-or-guest.spec.ts` (the CSV preview and import, row by row). The roster rows behind them are held against real rows by `member-or-guest-is-stored.audit.test.ts`, where a guest with a member's name is never matched onto the member. |
 | Something a guest's player link may do (J39/J40) | Its action on `GUEST_ACTIONS` (`domain/player-link.ts`; `a-guest-acts-only-through-its-list.test.ts` is red until it is), an abuse case in `a-guest-reaches-only-its-entry.audit.test.ts` (another entry's, event's and club's ids refused), and the step pressed by the guest in `e2e/a-guest-takes-full-part.spec.ts`, reached through `/p` and never a hand-made cookie. |
 | A code a player types (a round code, a guest's player link code; after J39 PR 3B an entry code) | It goes through the one door, `openAnyCode` (`services/code-door.ts`), never a lookup of its own (`one-door-for-a-typed-code.test.ts` is red until it does); a shape in `codeShapeOf` with its row in `code-shape.test.ts`; a case in `one-code-door.audit.test.ts`; and a cell in `e2e/one-code-box.spec.ts` typed at each box. |
+| A guest entering themselves on the sign-up link (J39/J40 PR 3B) | The press in `e2e/guest-enters-on-the-link.spec.ts` (the box ticked, the poster's code, Enter as a guest, the waiting screen, Approve with the figure, Decline, the typed code, New link, a closed link, the morning line); `e2e/guest-entry-approval.spec.ts` (a guest with a member's name: Approve: a different person and Decline: already entered; auto mode still waits; a gross-only event asks no figure) and `e2e/guest-entry-the-guests-path.spec.ts` (journey `guest-enters-by-poster`'s two presses; an empty name and a bad handicap refused in view; a lost answer, Try again, one entry); the Security Lead's conditions each by its file (`entry-code-is-redeemed-in-one-place`, `entry-code-failures-cost-the-same`, `registration-code-lifecycle`, `a-whole-field-enters-on-one-network`, `a-self-entered-guest-is-approved-as-a-guest`, `new-link-rotates-the-code`, `a-retry-returns-the-same-entry`, `a-typed-code-never-names-an-event`, `a-waiting-guest-is-never-public` (audit), `the-guest-door-makes-no-sign-in`, `entry-code-lookup-has-one-caller`, `code-refusals-name-no-kind`, `guest-figure-payload`, `waiting-refresh`, `a-code-box-routes-by-shape` (unit)), each with a break-it seen red. |
 | A guest in messages or notices (J39/J40 PR 2) | The press in `e2e/a-guest-in-messages.spec.ts` (the round post marked Guest, Message the organizer, Mute, the notices toggle asked of the server), with the browser's push machinery stubbed in the page and never in the app; the abuse cases in `a-guest-is-messaged-by-key.audit.test.ts`; a send in `a-guest-push-dies-with-its-link.audit.test.ts` or `round-moved-tells-the-field.audit.test.ts`, through the real `sendPushTo` with `web-push` stubbed. A who-key is never taken from a caller (`a-who-key-never-comes-from-the-caller.test.ts`). |
 | A screen or component that belongs to one area | Its path in that area's `paths` in `specs-by-area.mjs`, so a change to it gets a targeted round; until then its changes get full rounds. |
 | A layer, or a change to when one runs | Its `when` in `layersFor`, and the table in "Rounds, nights and weeks" — and the panel's say, recorded beside `docs/testing-panel-2026-10-23.md`. |

@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -194,6 +194,6 @@ test("an entry the committee must accept is asked, accepted and declined, and th
 
     expect(errors, "a screen threw").toEqual([]);
   } finally {
-    await Promise.all([first, other, organizer].map((x) => x.close()));
+    await closeAll(first, other, organizer);
   }
 });

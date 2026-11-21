@@ -135,7 +135,11 @@ import {
   PRIZE_DETAIL_MAX,
   prizeAmountRefusal,
 } from "@/lib/domain/prize-amount";
-import { indexRefusal, indexLabel } from "@/lib/domain/handicap-label";
+import { indexRefusal, indexLabel, indexFigure } from "@/lib/domain/handicap-label";
+import { figurePayload } from "@/lib/domain/guest-entry";
+import { figureRefusal } from "@/lib/domain/committee-figure";
+import { ensureRegistrationCode, drawRegistrationCode } from "@/lib/services/guest-entry";
+import { formatAccessCode } from "@/lib/code-format";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
@@ -5999,6 +6003,9 @@ export async function endCorrection(): Promise<{ ok: boolean; error?: string }> 
  */
 export async function addPrize(category: string, amount: number, detail = ""): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  // The prize table is what was OFFERED: shut at completion, Reopen the way out (PR L). Awarding it is not (`setPrizeWinner`).
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   // REFUSED IN WORDS (the text-box crawl, 2026-10-21): a blank name returned
   // nothing, and the screen pressing Add said nothing; an impossible amount
   // was stored as no prize. See `prize-amount.ts`.
@@ -6033,6 +6040,8 @@ export async function updatePrize(
   data: { category?: string; detail?: string; amount?: number },
 ): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   const patch: { category?: string; detail?: string; amount?: number } = {};
   if (data.category !== undefined) {
     const category = String(data.category).trim();
@@ -6167,6 +6176,8 @@ async function prizeWinnerNames(tx: PrizeTx, eventId: string, ids: string[]): Pr
  */
 export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the one-prize rule");
+  if (locked) return locked;
   const want = on === true;
   const outcome = await prisma.$transaction(async (tx) => {
     await lockEventForPrizes(tx, eventId);
@@ -6194,6 +6205,8 @@ export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; 
  */
 export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the one-prize rule");
+  if (locked) return locked;
   const want = counts === true;
   const outcome = await prisma.$transaction(async (tx) => {
     await lockEventForPrizes(tx, eventId);
@@ -6229,6 +6242,8 @@ export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<
 
 export async function removePrize(prizeId: string) {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   // Read before it goes, or the line says nothing but an id nobody can look up.
   const gone = await prisma.prize.findFirst({
     where: { id: prizeId, eventId },
@@ -6256,6 +6271,8 @@ export async function removePrize(prizeId: string) {
  */
 export async function applyPrizeStructure(key: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "money", "change the prizes");
+  if (locked) return locked;
   // An unknown structure is refused by name, not treated as one with no lines.
   if (!prizeStructure(key)) return { ok: false, error: "That isn't one of the prize structures." };
   // Real flights only — a carrier is a structural row, not a division a prize
@@ -6372,9 +6389,9 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
 
 /**
  * WHAT EVERY ONE OF THE FLIGHT ACTIONS ASKS NEXT, in one place — after its own
- * first line has asked for the primary organizer: a tournament that is not
- * finished, the arrangement set to flights, and no result yet recorded in any
- * flight. The last is the Rules' own line — the draw is fixed once play in it
+ * first line has asked for the primary organizer: the arrangement set to flights
+ * and the machine's `draw` lock open (`refuseIfLocked`: not completed, no result
+ * yet recorded in any flight). The lock is the Rules' own line — the draw is fixed once play in it
  * has begun (Committee Procedures 5F(1)) — and it is asked HERE rather than by
  * each action, which is how one of five would come to forget it.
  *
@@ -6391,18 +6408,17 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
  */
 async function flightsOpenForChange(eventId: string): Promise<
   | { ok: true; eventId: string; state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>; stored: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; lock?: ScopeLock }
 > {
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true, bracketDraw: true, status: true } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true, bracketDraw: true } });
   if (!event || event.bracketMode !== "flights") {
     return { ok: false, error: "This knockout is not arranged in flights. Choose \"Several flights\" first." };
   }
-  if (isFinished(event.status)) {
-    return { ok: false, error: "This tournament is completed, so its flights are as they finished. Reopen it to change them." };
-  }
-  if ((await prisma.bracketWinner.count({ where: { eventId } })) > 0) {
-    return { ok: false, error: "This knockout has results, so its flights are fixed. Clear the results to change them." };
-  }
+  // WHEN the draw may change is the machine's `draw` lock (completed, or the knockout has results), asked here like
+  // every other scope, so the Bracket's banner and this refusal are one answer. What stays here is not a lock: that
+  // the tournament is in flights at all, and the state the actions read.
+  const locked = await refuseIfLocked(eventId, "draw", "change the flights");
+  if (locked) return locked;
   const state = await loadEventState(eventId);
   if (!state) return { ok: false, error: "This tournament could not be read." };
   return { ok: true, eventId, state, stored: event.bracketDraw };
@@ -6723,35 +6739,116 @@ export async function setRegistrationApproval(mode: string): Promise<{ ok: boole
  * on anything that isn't actually pending, so this can only ever move an entry
  * forward.
  */
-export async function approveSignup(playerId: string): Promise<{ ok: boolean; error?: string }> {
+export async function approveSignup(playerId: string, figure?: unknown): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
   if (typeof playerId !== "string" || !playerId) return { ok: false, error: "Entry not found." };
+  // The committee's figure, validated at the boundary (C1.8): a finite number in the handicap range, or absent.
+  const typedFigure = figurePayload(figure);
+  if (!typedFigure.ok) return { ok: false, error: typedFigure.error };
   // A late entry by another door: the one field rule, returned (it threw "Configuration is locked").
   const refused = await fieldRefusal(eventId, "approve");
   if (refused) return { ok: false, error: refused };
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Entry not found." };
   if (player.status !== "pending") return { ok: true };
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { capacity: true, playerCountMode: true, manualPlayerCount: true, organizationId: true },
-  });
-  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
+  const [event, stages] = await Promise.all([
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { capacity: true, playerCountMode: true, manualPlayerCount: true, organizationId: true },
+    }),
+    prisma.stage.findMany({ where: { eventId }, select: { type: true, scoringBasis: true } }),
+  ]);
   // The field's own limit under the plan's cap — see `fieldLimitFor`.
   const capacity = event ? await fieldLimitFor(event) : 0;
-  const status = placementOnApproval(capacity, confirmedCount);
-  await prisma.player.update({ where: { id: playerId }, data: { status } });
+  // A GUEST who entered themselves is approved AS A GUEST, never as a member (J39/J40 PR 3B, C1.8).
+  const guest = isGuest(player);
+  const given = typedFigure.figure;
+  if (guest) {
+    // ASKED WHENEVER ANY ROUND IS NET; a gross-only event asks none (Golf Pro, 14 Nov, D1). One gate, no silent scratch.
+    const needs = figureRefusal(stages.filter((s) => isPlayingRound(s.type)).map((s) => s.scoringBasis), player.name, given !== null);
+    if (needs) return { ok: false, error: needs };
+  }
+  /**
+   * COUNTED AND PLACED UNDER THE EVENT'S INTAKE LOCK (C1.8). Counting outside it let two approvals racing for the last
+   * place both read the same count and both confirm. The roster row (a guest's own, matching nobody: `guest: true`)
+   * is written on the same transaction.
+   */
+  const placed = await withEventIntakeLock(eventId, async (tx) => {
+    const fresh = await tx.player.findFirst({ where: { id: playerId, eventId }, select: { status: true, name: true } });
+    if (!fresh || fresh.status !== "pending") return null;
+    const confirmedCount = await tx.player.count({ where: { eventId, status: "confirmed" } });
+    const status = placementOnApproval(capacity, confirmedCount);
+    if (!guest) {
+      await tx.player.update({ where: { id: playerId }, data: { status } });
+      return { status };
+    }
+    const memberId = event?.organizationId
+      ? await upsertMember(
+          event.organizationId,
+          { name: player.name, guest: true, handicap: given ?? undefined, handicapSource: given === null ? "none" : "manual" },
+          "staff",
+          tx,
+        )
+      : null;
+    await tx.player.update({
+      where: { id: playerId },
+      data: {
+        status,
+        memberId,
+        handicap: given ?? 0,
+        handicapSource: given === null ? "none" : "manual",
+        gender: await memberGender(memberId, tx),
+      },
+    });
+    return { status };
+  });
+  if (!placed) return { ok: true };
+  const status = placed.status;
   // On the record beside the entry itself — see FIELD_ACTIONS.
+  const declared = player.handicapSource === "none" ? "none" : indexFigure(player.handicap);
+  const gave = given === null ? "none" : indexFigure(given);
   await logAudit(
     eventId,
     "approved",
-    status === "confirmed"
+    (status === "confirmed"
       ? `${player.name}'s entry was approved.`
-      : `${player.name}'s entry was approved; the field is full, so they are on the waiting list.`,
+      : `${player.name}'s entry was approved; the field is full, so they are on the waiting list.`) +
+      (guest ? ` Guest handicap: declared ${declared}, committee gave ${gave}.` : ""),
   );
   await refresh();
   return { ok: true };
 }
+
+/**
+ * LET GUESTS ENTER THEMSELVES (J39/J40 PR 3B, A2): the one tick box on Entries. Off by default; every entry made
+ * through it WAITS for a staff press, whatever the approval mode. Turning it on makes the sign-up code if there is
+ * none (lazy, by this press, only while a link exists: C1.4). Turning it OFF removes the guest button and
+ * `registerAsGuest` only: it does NOT end the code, which still opens the email-proved member form.
+ */
+export async function setGuestEntry(open: unknown): Promise<{ ok: boolean; error?: string }> {
+  if (typeof open !== "boolean") return { ok: false, error: "That was not a clear on or off. Reload the page and try again." };
+  const eventId = await requireStaffEvent();
+  const locked = await refuseIfLocked(eventId, "field", "change who can enter");
+  if (locked) return locked;
+  await prisma.event.update({ where: { id: eventId }, data: { guestEntryOpen: open } });
+  if (open) await ensureRegistrationCode(eventId);
+  await logAudit(eventId, "guest-entry.switch", open ? "Guests may now enter themselves on the sign-up link." : "Guests can no longer enter themselves on the sign-up link.");
+  await refresh();
+  return { ok: true };
+}
+
+/**
+ * THE CODE UNDER THE POSTER'S QR (A2): made on this press if there is none (lazy, C1.4). Answered to the press only
+ * and never rendered into a page at load. It is shared by design (printed on the poster), so it is shown to staff.
+ */
+export async function showRegistrationCode(): Promise<{ ok: boolean; code?: string; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const code = await ensureRegistrationCode(eventId);
+  if (!code) return { ok: false, error: "There's no sign-up link yet. Open entries to make one." };
+  return { ok: true, code: formatAccessCode(code) };
+}
+
+
 
 /** Whether a round's cut is taken across the field or within each flight. */
 // RETURNED, NEVER THROWN (PR 5b): these two answered `void`, so the lock could only throw.
@@ -7805,7 +7902,7 @@ export async function rotatePublicToken(
   const session = await getSession();
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { shareToken: true, registrationToken: true },
+    select: { shareToken: true, registrationToken: true, registrationCode: true },
   });
   if (!event) return { ok: false, error: "Event not found." };
 
@@ -7822,7 +7919,15 @@ export async function rotatePublicToken(
     if (!event.registrationToken) {
       return { ok: false, error: "There's no sign-up link yet — open registration to create one." };
     }
-    await prisma.event.update({ where: { id: eventId }, data: { registrationToken: token } });
+    /**
+     * ONE WRITE FOR THE LINK AND ITS CODE (C2.1). The code is the link's typed form, so it rotates with it: the old
+     * poster stops, and a partial rotation (new token, old code) cannot exist. Where the event has no code yet none is
+     * made (it is made lazily, by a staff press). Every pass and every waiting entry is untouched (C2.3).
+     */
+    await prisma.event.update({
+      where: { id: eventId },
+      data: { registrationToken: token, ...(event.registrationCode ? { registrationCode: await drawRegistrationCode() } : {}) },
+    });
     await logAudit(
       eventId,
       "rotate-registration-token",

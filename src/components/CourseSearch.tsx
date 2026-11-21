@@ -7,6 +7,7 @@ import {
   type DirectorySearchHit,
 } from "@/app/actions/courses";
 import { DIRECTORY_ATTRIBUTION } from "@/lib/domain/course-directory";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { Icon } from "./Icon";
 
 /**
@@ -214,7 +215,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       </div>
 
       {error && (
-        <p style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
+        <p role="alert" ref={bringIntoView} style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -242,7 +243,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         // and typing LESS is the recovery. Telling somebody to check their
         // spelling would be true and useless; naming the trick is not.
         // to stop trying.
-        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p role="alert" ref={bringIntoView} className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           Nothing matching that. Try fewer letters — &ldquo;heathe&rdquo; finds Heatherwoode — or the
           town it is in. Or paste your card below; it takes about twenty seconds.{lookupNotice ? ` ${lookupNotice}` : ""}
           {askedMore !== query.trim() && (

@@ -26,6 +26,11 @@ const ABOUT: Record<RateLimitKind, RegExp> = {
   "eight-char-alarm": /code attempts/i,
   "eight-char-slow": /code attempts/i,
   "link-slips": /printed slips/i,
+  // J39 PR 3B: the guest branch's ONE limit sentence, which names no kind and ends in a way on.
+  "guest-entry-device": /see the organizer at the desk/i,
+  "guest-entry-cookieless": /see the organizer at the desk/i,
+  "guest-mint-alarm": /see the organizer at the desk/i,
+  "guest-mint-slow": /see the organizer at the desk/i,
   "discount-check": /discount code/i,
   "register-token": /entry form/i,
   "register-email": /registration/i,

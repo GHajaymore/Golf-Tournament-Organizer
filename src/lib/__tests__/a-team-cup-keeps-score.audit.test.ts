@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { openCorrectionOn } from "./correction-fixture";
 
 /**
  * THE TEAM CUP (2026-09-28), driven through the real actions and read back
@@ -207,6 +208,12 @@ describe("the score", () => {
     const fb = await prisma.match.findFirstOrThrow({ where: { stageId: f.fourball } });
     await prisma.match.update({ where: { id: fb.id }, data: { holes: holes("H".repeat(18)) } });
     await announce(f.singles, f.fourball);
+    // The holder is how the cup is DECIDED, so on a launched cup it is the rounds' (PR L; TD Q5): refused in words with the
+    // committee correction as the way out, and saved once the Organizer has opened the rounds for one.
+    const shut = await setCupSettings(0, f.usa);
+    expect(shut).toMatchObject({ ok: false, lock: { scope: "rounds", by: "launch" } });
+    expect(shut.error).toBe("Locked because the tournament is live. Make a committee correction to change how the cup is decided.");
+    await openCorrectionOn(prisma, f.eventId, "rounds");
     expect((await setCupSettings(0, "not-a-team")).ok).toBe(false);
     expect(await setCupSettings(0, f.usa)).toEqual({ ok: true });
     expect((await board(f.eventId)).verdict).toEqual({ kind: "retained", by: "B" });

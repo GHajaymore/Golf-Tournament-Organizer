@@ -26,6 +26,7 @@
 import { spawnSync } from "node:child_process";
 import { TIERS, ARITHMETIC_KEEPS_THREE_ROUNDS, roundPlan, targetLine, tierOf } from "./layers.mjs";
 import { appId, changedBetween } from "./app-id.mjs";
+import { pathsFromStatusLines } from "./changed-paths.mjs";
 
 const args = process.argv.slice(2);
 const json = args.includes("--json");
@@ -40,7 +41,7 @@ const from = spawnSync("git", ["merge-base", base, "HEAD"], { encoding: "utf8" }
 // Files git does not track yet are named at the end and not judged: add them, and they are.
 const status = spawnSync("git", ["status", "--short"], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
 const untracked = status.filter((l) => l.startsWith("??")).map((l) => l.slice(3).replace(/^"|"$/g, ""));
-const uncommitted = status.filter((l) => !l.startsWith("??")).map((l) => l.slice(3).replace(/^"|"$/g, ""));
+const uncommitted = pathsFromStatusLines(status.filter((l) => !l.startsWith("??")));
 // `--files=a,b,…` plans those paths instead of the diff: a dry run of the planner ("what would this change get?").
 const given = (args.find((a) => a.startsWith("--files=")) ?? "").slice("--files=".length);
 const seen = given ? new Map(given.split(",").filter(Boolean).map((p) => [p, tierOf(p)])) : new Map(changedBetween(from).map((c) => [c.path, c.tier]));

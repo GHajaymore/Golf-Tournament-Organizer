@@ -8,6 +8,8 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { SideBetStart } from "@/components/SideBetStart";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { screenLocksFor } from "@/lib/services/tournament-status";
 import { RoundPicker } from "@/components/RoundPicker";
 import { isMatch } from "@/lib/tournament-shape";
 import { casualMoney, moneyWaitsFor } from "@/lib/services/casual-round";
@@ -47,6 +49,12 @@ export default async function GroupGamesPage({
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const params = await searchParams;
+  /**
+   * THE MONEY LOCK (PR L): once the tournament is completed the games' definitions — a pot, a side game, its stake —
+   * are shut, and Reopen is the way out. Who is in, who has paid and who won are the ledger's and never are.
+   */
+  const moneyLock = await screenLocksFor(session.eventId, ["money"]);
+  const moneyLocked = moneyLock.locks.length > 0;
 
   const weeks = playingStages(state.stages);
   // `boardStage`, the same default as `/prizes` and the player's `/me/money`.
@@ -326,6 +334,7 @@ export default async function GroupGamesPage({
 
   return (
     <>
+      <ScopeLockBanner locks={moneyLock.locks} correction={moneyLock.correction} isAdmin={session.viewRole === "admin"} />
       <div className="page-head">
         <h1 className="page-title">{casual ? "Money game" : "Side games"}</h1>
         {/* Two screens' worth of wording, because they are two situations.
@@ -452,7 +461,7 @@ export default async function GroupGamesPage({
       {/* The whole round's pot. Everyone playing is in it. Once it is a game
           being played — otherwise it is under "Add a game" below. */}
       {roundPot && week && potOn && (
-        <SkinsPotClient
+        <SkinsPotClient locked={moneyLocked}
           rounds={rounds}
           activeStageId={week.id}
           view={roundPot}
@@ -463,7 +472,7 @@ export default async function GroupGamesPage({
 
       {pots.map(({ group, key, view }) =>
         view ? (
-          <SkinsPotClient
+          <SkinsPotClient locked={moneyLocked}
             key={key}
             rounds={rounds}
             activeStageId={week!.id}
@@ -478,7 +487,7 @@ export default async function GroupGamesPage({
           purpose: a closest-to-the-pin is a thing a club puts on for a field,
           and this screen belongs to the people playing. */}
       {casual && week && sideOn && (
-        <ContestsClient
+        <ContestsClient locked={moneyLocked}
           roundLabel="this round"
           stageId={week.id}
           contests={[]}
@@ -499,7 +508,7 @@ export default async function GroupGamesPage({
       {/* The bets that cross fourballs, after the fourballs' own. */}
       {adHoc.map(({ name, key, view }) =>
         view ? (
-          <SkinsPotClient
+          <SkinsPotClient locked={moneyLocked}
             key={key}
             rounds={rounds}
             activeStageId={week!.id}
@@ -515,7 +524,7 @@ export default async function GroupGamesPage({
           menu of everything else that could be. */}
       {week &&
         namedBets.map((bet) => (
-          <ContestsClient
+          <ContestsClient locked={moneyLocked}
             key={`named-${bet.name}`}
             roundLabel={bet.name}
             title={`${bet.name} — side game`}
@@ -549,9 +558,9 @@ export default async function GroupGamesPage({
             <Icon name="plus" aria-hidden /> Add a game
           </summary>
           {roundPot && !potOn && (
-            <SkinsPotClient rounds={rounds} activeStageId={week.id} view={roundPot} groupKey="" groupLabel="Everyone in this round" />
+            <SkinsPotClient locked={moneyLocked} rounds={rounds} activeStageId={week.id} view={roundPot} groupKey="" groupLabel="Everyone in this round" />
           )}
-          <ContestsClient
+          <ContestsClient locked={moneyLocked}
             roundLabel="this round"
             stageId={week.id}
             contests={[]}
@@ -563,7 +572,7 @@ export default async function GroupGamesPage({
             rows="off"
             title="More games, settled by the scores"
           />
-          <SideBetStart
+          <SideBetStart locked={moneyLocked}
             stageId={week.id}
             field={fieldForBets}
             groups={sheet?.groups ?? []}
@@ -577,7 +586,7 @@ export default async function GroupGamesPage({
       )}
 
       {!casual && week && !noPerPlayerPot && (
-        <SideBetStart
+        <SideBetStart locked={moneyLocked}
           stageId={week.id}
           field={fieldForBets}
           groups={sheet?.groups ?? []}

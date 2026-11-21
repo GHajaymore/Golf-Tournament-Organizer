@@ -12,6 +12,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { diffPaths } from "./changed-paths.mjs";
 import { tierOf } from "./layers.mjs";
 
 const lsTree = (ref) => spawnSync("git", ["ls-tree", "-r", ref], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout;
@@ -30,6 +31,5 @@ export function appId(ref = "HEAD") {
 
 /** Every path that differs between two commits, with the tier each belongs to. */
 export function changedBetween(from, to = "HEAD") {
-  const out = spawnSync("git", ["diff", "--name-only", from, to], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout;
-  return out.split("\n").filter(Boolean).map((path) => ({ path, tier: tierOf(path) }));
+  return diffPaths([from, to]).map((path) => ({ path, tier: tierOf(path) }));
 }

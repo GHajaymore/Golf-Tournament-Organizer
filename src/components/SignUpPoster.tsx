@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 import { qrModules, qrPath, type QrEncoder } from "@/lib/qr";
 import { QrLogoMark } from "./QrLogoMark";
+import { showRegistrationCode } from "@/app/actions/tournament";
+import { GUEST_WORDS } from "@/lib/domain/guest-entry";
 
 /**
  * "SCAN TO SIGN UP" — A POSTER FOR THE TOURNAMENT'S SIGN-UP LINK (2026-10-17).
@@ -16,8 +18,26 @@ import { QrLogoMark } from "./QrLogoMark";
  * The QR is drawn as `RoundSigns` draws it (`qr.ts`, the encoder loaded only
  * when the poster is opened). Black on white, for the printer.
  */
-export function SignUpPoster({ url, name, when, where }: { url: string; name: string; when: string; where: string }) {
+export function SignUpPoster({
+  url,
+  name,
+  when,
+  where,
+  guests = false,
+  closeWarning = "",
+}: {
+  url: string;
+  name: string;
+  when: string;
+  where: string;
+  /** Guest entry is switched on: the poster says guests need no email. */
+  guests?: boolean;
+  /** Entries close before the event's first day: said before the poster is printed (A2b); "" for none. */
+  closeWarning?: string;
+}) {
   const [open, setOpen] = useState(false);
+  // The short, typed form of the link, printed under the QR. Made by this press if there is none (lazy, C1.4).
+  const [code, setCode] = useState<string | null>(null);
   const [encode, setEncode] = useState<QrEncoder | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -28,7 +48,15 @@ export function SignUpPoster({ url, name, when, where }: { url: string; name: st
       .catch(() => setFailed(true));
   }, [open, encode]);
 
+  useEffect(() => {
+    if (!open || code) return;
+    showRegistrationCode()
+      .then((r) => setCode(r.ok && r.code ? r.code : null))
+      .catch(() => setCode(null));
+  }, [open, code]);
+
   const short = url.replace(/^https?:\/\//, "");
+  const host = short.split("/")[0];
   const drawn = encode ? qrPath(qrModules(encode, url, { logo: true }), 4, { logo: true }) : null;
 
   return (
@@ -49,6 +77,11 @@ export function SignUpPoster({ url, name, when, where }: { url: string; name: st
           </button>
         )}
       </div>
+      {open && closeWarning && (
+        <p style={{ fontSize: 14, margin: 0 }} data-testid="poster-warning">
+          <Icon name="warning-circle" /> {closeWarning}
+        </p>
+      )}
       {open && failed && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> The QR code could not be drawn. Check your connection and open it again.
@@ -91,7 +124,13 @@ export function SignUpPoster({ url, name, when, where }: { url: string; name: st
                   </svg>
                 </a>
                 <div className="sp-scan">Scan to sign up</div>
+                {guests && <div className="sp-line">{GUEST_WORDS.posterGuests}</div>}
                 <div className="sp-url">No camera? Go to {short}</div>
+                {code && (
+                  <div className="sp-url" data-testid="poster-code">
+                    Or go to {host}/register and type <strong style={{ fontSize: 22, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>{code}</strong>
+                  </div>
+                )}
               </section>
             )}
           </div>

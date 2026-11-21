@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -232,6 +232,6 @@ test("the secretary adds somebody to the club, changes their role, removes them,
     expect(errors, "a screen threw").toEqual([]);
   } finally {
     await prisma.organizationMember.deleteMany({ where: { userId: person.id } });
-    await Promise.all([organizer, theirs].map((c) => c.close()));
+    await closeAll(organizer, theirs);
   }
 });
