@@ -5,8 +5,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
-import { isHeadToHead, isPlayingRound, hasKnockoutStage, isKnockoutRound } from "@/lib/stage-types";
-import { roundDueDay } from "@/lib/domain/knockout-play-by";
+import { isHeadToHead, isPlayingRound, hasKnockoutStage } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
 import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
 import { playersNeedingFigure } from "@/lib/services/committee-figure";
@@ -121,8 +120,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
   // For "date the season": playing rounds, and how many of them have no day.
   const playingRounds = playingStages(state.stages);
   const playingCount = playingRounds.length;
-  // A knockout dated by its play-by dates is dated (`roundDueDay`): this notice said "1 round has no date" over one.
-  const seasonUndated = playingRounds.filter((s) => !cleanIsoDate(s.playedOn) && !(isKnockoutRound(s.type) && cleanIsoDate(roundDueDay(s)))).length;
+  const seasonUndated = playingRounds.filter((s) => !cleanIsoDate(s.playedOn)).length;
   /**
    * Whether the event's Scoring can rank what these rounds produce.
    *
