@@ -10,7 +10,7 @@ import { readSource } from "./source";
  * `actions/cup.ts` asked only who the caller was, and a completed tournament's prize table could be edited. A banner
  * that says "Locked" over a control that still writes is worse than no banner. This sweep is what would have caught
  * both: each of `LOCK_SCOPES` has at least one action that asks it (`refuseIfLocked`) or a rule that is the scope's
- * own (`teeSheetChangeAllowed`, `flightsOpenForChange`), and a scope added tomorrow with no asker is red the day it lands.
+ * own (`teeSheetChangeAllowed`), and a scope added tomorrow with no asker is red the day it lands.
  *
  * It also holds the money rule Ajay ruled on 19 Nov 2026 to the files: what was OFFERED (the prize table, one prize per
  * player, a pot's and a contest's definition, the money mode) asks `money` and is shut at completion with Reopen the way
@@ -35,17 +35,24 @@ export function scopesAsked(srcs: Record<string, string>): Set<string> {
  * is in and what must be there, so a rule deleted from its action is red.
  *   teeSheet: `teeSheetVerdictFor` is `teeSheetChangeAllowed` for a round (its twin in `locksOf` is held to it in
  *             `scoped-locks.test.ts`, over every step).
- *   draw:     `flightsOpenForChange` is the draw lock's own spelling (completed, or the knockout has results); the
- *             machine's `locks.draw` is drawn by the Bracket screen. A hand-written twin, not a call of the machine.
+ * (`draw` was here until PR L2: `flightsOpenForChange` now asks `refuseIfLocked(eventId, "draw", …)` like the rest.)
  */
 const RULES: Record<string, { file: string; pattern: RegExp; what: string }> = {
   teeSheet: { file: "tee-sheet.ts", pattern: /teeSheetVerdictFor\(/, what: "the one tee-sheet rule" },
-  draw: {
-    file: "tournament.ts",
-    pattern: /async function flightsOpenForChange[\s\S]*?isFinished\(event\.status\)[\s\S]*?bracketWinner\.count/,
-    what: "the knockout's draw rule: completed, or results",
-  },
 };
+
+/**
+ * THE DRAW SCOPE IS ASKED BY `refuseIfLocked` LIKE THE REST (PR L2). `flightsOpenForChange` was a hand-spelled twin
+ * (completed, or `bracketWinner.count`), a second copy of a lock rule and a second reading of "has results". It now
+ * keeps its own precondition (arranged in flights) and asks the machine; every flight action asks it.
+ */
+const FLIGHT_ACTIONS = ["divideIntoFlights", "clearFlights", "moveFlightPlayer", "reseedFlight", "renameFlight"];
+export function drawGate(src: string): string {
+  const at = src.indexOf("async function flightsOpenForChange(");
+  if (at === -1) return "";
+  const end = src.indexOf("function flightEntrants(", at);
+  return src.slice(at, end === -1 ? undefined : end);
+}
 
 /** The scopes nothing asks, given the sources and the rule table. */
 export function unasked(srcs: Record<string, string>, scopes: readonly string[], rules = RULES): string[] {
@@ -82,6 +89,27 @@ describe("every lock scope is asked by something", () => {
       expect(r.pattern.test(sources[r.file] ?? ""), `${scope}: ${r.what} is not in ${r.file}`).toBe(true);
       expect(scopesAsked(sources).has(scope), `${scope} is asked by refuseIfLocked now: drop its rule from this table`).toBe(false);
     }
+  });
+
+  it("the draw scope is asked through refuseIfLocked, by the one gate every flight action calls, with no hand-written lock rule beside it", () => {
+    const gate = drawGate(sources["tournament.ts"]);
+    expect(gate.length, "flightsOpenForChange is not in tournament.ts").toBeGreaterThan(200);
+    expect(gate).toMatch(/const locked = await refuseIfLocked\(eventId, "draw", "[^"]+"\);\s*if \(locked\) return locked;/);
+    expect(gate, "a hand-written copy of the draw rule is back").not.toMatch(/isFinished\(|bracketWinner\.count|status === "completed"/);
+    for (const a of FLIGHT_ACTIONS) {
+      expect(body("tournament.ts", a), `${a} does not ask the draw gate`).toMatch(/const open = await flightsOpenForChange\(eventId\);\s*if \(!open\.ok\) return open;/);
+    }
+    expect(scopesAsked(sources).has("draw")).toBe(true);
+  });
+
+  it("CONTROL: the draw sweep goes red when the gate stops asking the machine, and when a hand-written rule returns", () => {
+    const src = sources["tournament.ts"];
+    const without = src.replace(/refuseIfLocked\(eventId, "draw"/, "noop(eventId, 'x'");
+    expect(without).not.toBe(src);
+    expect(drawGate(without)).not.toMatch(/refuseIfLocked\(eventId, "draw"/);
+    expect(unasked({ ...sources, "tournament.ts": without }, ["draw"])).toEqual(["draw"]);
+    const twin = src.replace(/const locked = await refuseIfLocked\(eventId, "draw"/, "if (isFinished(event.status)) return { ok: false, error: 'x' };\n  const locked = await refuseIfLocked(eventId, \"draw\"");
+    expect(drawGate(twin)).toMatch(/isFinished\(/);
   });
 
   it("the scope this PR added the asker to is red without it (cup and money, the two that nothing asked)", () => {
@@ -238,7 +266,7 @@ describe("the screens hand their controls the lock the actions ask (PR L)", () =
   });
 
   it("a refusal is said where the press was: role=alert, brought into view (rule 3)", () => {
-    for (const f of ["CupTeams", "CupLineup", "PrizesClient", "ContestsClient", "SkinsPotClient", "SideBetStart", "MoneySetup"]) {
+    for (const f of ["CupTeams", "CupLineup", "PrizesClient", "ContestsClient", "SkinsPotClient", "SideBetStart", "MoneySetup", "BracketFlights"]) {
       const src = readSource("src", "components", `${f}.tsx`);
       const alerts = src.match(/<p\b[^>]*role="alert"[^>]*>/g) ?? [];
       expect(alerts.length, `${f} says no refusal`).toBeGreaterThan(0);

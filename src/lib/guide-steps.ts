@@ -613,7 +613,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Choose **How** the field is divided — **By handicap** (lowest in the Championship flight), **By the flights you already have**, **Evenly, at random**, or **By qualifying score** once a qualifying round has been played.",
           "Choose **Into** what shape. Each shape says how many byes it costs and one is marked Suggested; **Your own sizes** takes any numbers that add up to the field (16, 16, 12). Then [[Divide the field]].",
           "Until the first result is recorded you can move a player to another flight, put a late entrant in one, reseed or rename a flight, or start again. Dividing is the draw, not setup, so it stays open after launch — which is when a qualifying round is played.",
-          "Once any flight has a result the flights are fixed, and a banner at the top of the Bracket says so — **The draw · Locked because this knockout has results.** — with its way out: clear the results on the Bracket. A player who withdraws stays in the draw and their opponent goes through by walkover. There is no play-off for third in flights: each flight's beaten semi-finalists share third.",
+          "Once any flight has a result the flights are fixed, and a banner at the top of the Bracket says so — **The draw · Locked because this knockout has results.** — with its way out: clear the results on the Bracket. A press made on a screen drawn before the first result is refused in those same words, under the button, and nothing changes. A player who withdraws stays in the draw and their opponent goes through by walkover. There is no play-off for third in flights: each flight's beaten semi-finalists share third.",
         ],
       },
       { kind: "h", text: "Team cup" },

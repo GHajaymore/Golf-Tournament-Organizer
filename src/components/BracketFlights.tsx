@@ -135,9 +135,13 @@ export function BracketFlights({
           </p>
         </div>
 
-        {readOnly || finished ? (
+        {readOnly || finished || fixed ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            {finished ? "This tournament is completed and its field was never divided." : "The organizer has not divided the field yet."}
+            {finished
+              ? "This tournament is completed and its field was never divided."
+              : fixed
+                ? "Results are in, so the field can no longer be divided."
+                : "The organizer has not divided the field yet."}
           </p>
         ) : fieldSize < 2 ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>A knockout needs at least two players in the field.</p>
@@ -199,7 +203,7 @@ export function BracketFlights({
               </fieldset>
             )}
 
-            {error && <p className="form-error">{error}</p>}
+            {error && <p className="form-error" role="alert" ref={bringIntoView}>{error}</p>}
             <div>
               <button
                 type="button"
@@ -278,7 +282,7 @@ export function BracketFlights({
           the opponent goes through by walkover.
         </p>
       )}
-      {error && errorAt === null && <p className="form-error" role="alert">{error}</p>}
+      {error && errorAt === null && <p className="form-error" role="alert" ref={bringIntoView}>{error}</p>}
 
       {canChange && (
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
