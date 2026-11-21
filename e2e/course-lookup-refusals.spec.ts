@@ -25,7 +25,8 @@ const WORD: Record<string, string> = { desktop: "Quillmoor", phone: "Brackenfell
 const MISSING: Record<string, string> = { desktop: "Zxqvbnm", phone: "Qwjkxzt" };
 
 test.describe.configure({ timeout: 180_000 });
-test.use({ actionTimeout: 15_000 });
+// WebKit: a page.route does not see a request the service worker makes, so the stub never answered (G660-1).
+test.use({ actionTimeout: 15_000, serviceWorkers: "block" });
 test.afterAll(async () => {
   await prisma.$disconnect();
 });
