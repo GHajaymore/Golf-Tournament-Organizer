@@ -26,6 +26,7 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { roundPlan } from "./layers.mjs";
+import { cleanRoundShas, isCleanVerdictFor, newestRoundVerdict } from "./round-verdict.mjs";
 import { buildTrain, changedFiles, gitIn } from "./train-git.mjs";
 import {
   gateFound,
@@ -91,8 +92,8 @@ const contains = (ancestor, sha) => git("merge-base", "--is-ancestor", ancestor,
 
 /** `round-verdict` on a commit (posted by round.yml's Verdict job), newest first. */
 function verdictOn(sha) {
-  const all = jsonLines(gh(["api", `repos/${REPO}/commits/${sha}/statuses?per_page=100`, "--jq", '.[] | select(.context=="round-verdict") | {state, description, target_url}']));
-  return all[0] ?? null;
+  const all = jsonLines(gh(["api", `repos/${REPO}/commits/${sha}/statuses?per_page=100`, "--jq", ".[] | {context, state, description, target_url}"]));
+  return newestRoundVerdict(all, sha);
 }
 
 /** The first-parent commits from a tip, newest first, as parseSteps reads them. */
@@ -123,7 +124,7 @@ function cleanTrainsNow() {
   const out = [];
   for (const line of ls.out.split(/\r?\n/).filter(Boolean)) {
     const [tip, ref] = line.split(/\s+/);
-    if (!TRAIN_REF.test(ref) || verdictOn(tip)?.state !== "success") continue;
+    if (!TRAIN_REF.test(ref) || !isCleanVerdictFor(verdictOn(tip), tip)) continue;
     if (!git("fetch", "-q", "origin", ref).ok) continue;
     const read = parseSteps(commitsFrom(tip));
     if (!read.problems.length) out.push({ train: read.train, steps: read.steps });
@@ -189,7 +190,8 @@ if (command === "build") {
     ...roundsProblems({
       running: runs.filter((r) => r.status !== "completed").map((r) => ({ branch: r.headBranch, sha: r.headSha })),
       open,
-      cleanShas: runs.filter((r) => String(r.headBranch ?? "").startsWith("round/") && r.conclusion === "success").map((r) => r.headSha),
+      // The round's own verdict on that commit, never the run's conclusion (round-verdict.mjs).
+      cleanShas: cleanRoundShas(runs.filter((r) => String(r.headBranch ?? "").startsWith("round/")).map((r) => r.headSha), verdictOn),
       memberHeads: members.map((m) => m.head),
       members: prs,
       cleanTrains,

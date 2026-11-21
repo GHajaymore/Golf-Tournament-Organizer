@@ -364,6 +364,10 @@ says "finished" only when the Verdict job finished with every planned part done,
 re-ask" when GitHub would not answer (and then reads the run's public page), and the Verdict job
 posts the verdict on the commit it tested as the `round-verdict` status, so one read of a commit
 answers "what did the round say". The ruleset does not require that status.
+**A round is clean by that verdict, never by its workflow run's conclusion** (a run can conclude
+success with a NOT CLEAN or missing verdict): `scripts/qa/round-verdict.mjs` is the one reader, it
+counts a verdict only on the exact commit it was posted on, and
+`round-verdict-is-the-only-reader.test.ts` refuses a second one (B99).
 
 **A round the machine did not finish is re-run, not read.** When a verdict is INCOMPLETE, the
 **Round waiter** workflow re-runs its failed jobs — exactly the parts the machine stopped — up to
