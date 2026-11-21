@@ -47,7 +47,7 @@ const MARGINS = ["3&2", "1 up", "2&1", "W/O", "4&3", "19th"];
 const nameOf = (i: number) => `${FIRST[i % FIRST.length]} ${LAST[Math.floor(i / FIRST.length) % LAST.length]}`;
 
 test.describe.configure({ timeout: 300_000 });
-test.use({ actionTimeout: 20_000 });
+test.use({ actionTimeout: 20_000, serviceWorkers: "block" });
 test.afterAll(async () => {
   await prisma.$disconnect();
 });

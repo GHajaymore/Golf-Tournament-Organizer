@@ -22,7 +22,7 @@ import { whereTheyPart } from "./page-errors";
  *
  * Signed out, on /faq: a page with no fixture and no data that changes.
  */
-test.use({ storageState: { cookies: [], origins: [] } });
+test.use({ storageState: { cookies: [], origins: [] }, serviceWorkers: "block" });
 
 const REMOVED = '<span class="label">Questions</span>';
 

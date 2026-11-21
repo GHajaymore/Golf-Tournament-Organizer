@@ -47,7 +47,7 @@ const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "
 const { stageId, playerId } = data.partialCard;
 const prisma = new PrismaClient();
 
-test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });
+test.use({ storageState: join(process.cwd(), ".e2e", "player.json"), serviceWorkers: "block" });
 test.describe.configure({ mode: "serial" });
 
 const stored = async () => {

@@ -94,6 +94,7 @@ async function onServer(name: string): Promise<(number | null)[]> {
 async function phone(browser: Browser, baseURL: string | undefined, use: { viewport?: { width: number; height: number } | null; userAgent?: string }, javaScriptEnabled = true) {
   return browser.newContext({
     baseURL,
+    serviceWorkers: "block",
     storageState: { cookies: [], origins: [] },
     viewport: use.viewport ?? { width: 393, height: 851 },
     userAgent: use.userAgent,

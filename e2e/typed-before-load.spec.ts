@@ -42,7 +42,7 @@ test.describe("typed while the page was still loading", () => {
   });
 
   test("a round code is taken, and Continue wakes up", async ({ browser, baseURL }) => {
-    const ctx = await browser.newContext({ baseURL, viewport: { width: 393, height: 727 } });
+    const ctx = await browser.newContext({ baseURL, viewport: { width: 393, height: 727 }, serviceWorkers: "block" });
     const page = await ctx.newPage();
     try {
       await onASlowConnection(page);
@@ -72,7 +72,7 @@ test.describe("typed while the page was still loading", () => {
   });
 
   test("a name and an address on the sign-up form are taken", async ({ browser, baseURL }) => {
-    const ctx = await browser.newContext({ baseURL, viewport: { width: 393, height: 727 } });
+    const ctx = await browser.newContext({ baseURL, viewport: { width: 393, height: 727 }, serviceWorkers: "block" });
     const page = await ctx.newPage();
     try {
       await onASlowConnection(page);
@@ -103,7 +103,7 @@ test.describe("typed while the page was still loading", () => {
   });
 
   test("CONTROL: a box nobody touched is left exactly as the page drew it", async ({ browser, baseURL }) => {
-    const ctx = await browser.newContext({ baseURL, viewport: { width: 393, height: 727 } });
+    const ctx = await browser.newContext({ baseURL, viewport: { width: 393, height: 727 }, serviceWorkers: "block" });
     const page = await ctx.newPage();
     try {
       await onASlowConnection(page, 1500);
