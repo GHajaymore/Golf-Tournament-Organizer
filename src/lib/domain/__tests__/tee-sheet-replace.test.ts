@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { STAND_IN_MARK } from "../attendance";
+import { figureRefusal } from "../committee-figure";
 import {
   applyReplace,
   candidateWhy,
   clubTimeWords,
-  guestFigureRefusal,
   handicapUsedWords,
   NO_FIGURE,
   NO_FIGURE_CARDS_IN,
@@ -280,11 +280,11 @@ describe("the words", () => {
   });
 
   it("a guest with no figure is refused in a round scored net, allowed in a gross one", () => {
-    expect(guestFigureRefusal("net", "Rob Hale", false)).toBe("Type the handicap the committee gives Rob Hale — this round is scored net.");
-    expect(guestFigureRefusal("both", "Rob Hale", false)).not.toBeNull();
-    expect(guestFigureRefusal("stableford", "Rob Hale", false)).not.toBeNull();
-    expect(guestFigureRefusal("gross", "Rob Hale", false)).toBeNull();
-    expect(guestFigureRefusal("net", "Rob Hale", true)).toBeNull();
+    expect(figureRefusal(["net"], "Rob Hale", false)).toBe("Type the handicap the committee gives Rob Hale — this round is scored net.");
+    expect(figureRefusal(["both"], "Rob Hale", false)).not.toBeNull();
+    expect(figureRefusal(["stableford"], "Rob Hale", false)).not.toBeNull();
+    expect(figureRefusal(["gross"], "Rob Hale", false)).toBeNull();
+    expect(figureRefusal(["net"], "Rob Hale", true)).toBeNull();
   });
 
   it("nothing voided says nothing; a one-round tournament leaves the round out", () => {

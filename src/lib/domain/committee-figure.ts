@@ -353,3 +353,18 @@ export function correctionAuditLine(args: { name: string; round: string; from: n
   const from = args.from === null ? "nothing frozen" : `${args.from}`;
   return `Strokes corrected for ${args.name} (no handicap index) in ${args.round}: ${from} to ${args.to}, the committee's figure. Reason: ${args.reason}`;
 }
+
+/**
+ * A GUEST WITH NO FIGURE IS NOT PLAYED OFF NOUGHT. The handicap resolver reads the stored number and not
+ * "no index", so a blank guest in a round that uses handicaps would play as a scratch golfer. Until that is
+ * fixed at its root, a round scored net (net, both or Stableford — anything but gross, `isNetBasis`) takes a
+ * guest only with a figure the committee has given them (the Rules of Handicapping allow one for a
+ * non-member). A member with no index is held to the same in `candidateWhy` (`NO_FIGURE`).
+ * Gross: a blank is allowed. Takes the scoring bases of every round the guest would play (Replace: the one round; approval of a
+ * self-entered guest: every playing round of the event), so ONE gate answers "nobody without a figure enters a net round".
+ * Returns the refusal, or null.
+ */
+export function figureRefusal(scoringBases: readonly string[], guestName: string, hasFigure: boolean): string | null {
+  if (hasFigure || !scoringBases.some((b) => isNetBasis(b))) return null;
+  return `Type the handicap the committee gives ${guestName} — this round is scored net.`;
+}

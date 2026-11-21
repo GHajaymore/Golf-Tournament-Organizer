@@ -1,4 +1,5 @@
 import type { ReviewQueue } from "./review-queue";
+import { GUEST_WORDS } from "./guest-entry";
 import type { TournamentStatus, WayOut } from "./tournament-status";
 import { addDays, shortDate } from "./round-dates";
 import { CORRECT_STROKES, GIVE_STROKES, NEEDS_STROKES_ANCHOR, scratchJobSaid, strokesJobSaid } from "./committee-figure";
@@ -167,6 +168,12 @@ export interface TournamentJobFacts {
    * (`scoredAsScratch`): a staff correction, not a Give. Absent or null is nobody.
    */
   scratch?: { roundId: string; round: string; count: number } | null;
+  /**
+   * THE MORNING REMINDER (J39/J40 PR 3B, N3): guests may enter themselves, entries are NOT open, and today is a day of
+   * play at the club. `closedDay` is the closing day (`yyyy-mm-dd`), "" where the organizer closed entries by hand.
+   * Computed in `services/whats-next.ts`; this module only words and orders it. Absent or null is nothing to say.
+   */
+  guestMorning?: { closedDay: string } | null;
 }
 
 /**
@@ -177,6 +184,7 @@ export interface TournamentJobFacts {
  */
 export type ClubJobKey =
   | "entries"
+  | "guests-today"
   | "strokes"
   | "settle"
   | "tee-sheet"
@@ -217,6 +225,8 @@ export function jobHref(j: Pick<ClubJob, "href" | "roundId" | "hash">): string {
  */
 const JOB_ORDER: Record<ClubJobKey, number> = {
   entries: 0,
+  // The morning reminder follows the entries line: both are about who is in the field today.
+  "guests-today": 0.5,
   // Launch before strokes (the Tournament Director, 16 Nov): giving strokes does not hold a launch —
   // the launch dialog lists it as still open, to do after — and under Rule 3.3b(4) the Committee's
   // deadline for a player's handicap is the round's first card, so a strokes line is due on its
@@ -327,6 +337,11 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
   const jobs: ClubJob[] = [];
   {
     const base = { eventId: t.eventId, eventName: t.name };
+
+    if (t.guestMorning) {
+      const said = t.guestMorning.closedDay ? GUEST_WORDS.morningLine(day(t.guestMorning.closedDay)) : "Entries are closed. Guests arriving today?";
+      jobs.push({ ...base, key: "guests-today", text: said, href: "/registration", action: GUEST_WORDS.morningAction, due: today });
+    }
 
     if (t.awaitingApproval > 0) {
       const waiting = n(t.awaitingApproval, "entry awaiting approval", "entries awaiting approval");

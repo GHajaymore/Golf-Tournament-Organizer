@@ -3,10 +3,10 @@ import { useMemo, useState, useTransition } from "react";
 import { replaceInTeeSheet } from "@/app/actions/tee-sheet";
 import { NO_INDEX, readHandicapIndex, indexFigure } from "@/lib/domain/handicap-label";
 import { isNetBasis } from "@/lib/domain/match-entry";
+import { figureRefusal } from "@/lib/domain/committee-figure";
 import {
   REPLACE_REASONS,
   REPLACE_REASON_WORDS,
-  guestFigureRefusal,
   replaceCandidates,
   replaceWillSay,
   type ReplaceCandidate,
@@ -74,8 +74,8 @@ export function ReplacePlayer({
   const typed = readHandicapIndex(guestIndex);
   const guestIndexWords = typed.kind === "index" ? indexFigure(typed.value) : NO_INDEX;
   const guestBad = guest && (typed.kind === "unreadable" || typed.kind === "out-of-range");
-  // In a round scored net a guest needs a figure (`guestFigureRefusal`): never played off nought.
-  const needsFigure = guest && !!guestFigureRefusal(scoringBasis, guestName.trim() || "the guest", typed.kind === "index");
+  // In a round scored net a guest needs a figure (`figureRefusal`): never played off nought.
+  const needsFigure = guest && !!figureRefusal([scoringBasis], guestName.trim() || "the guest", typed.kind === "index");
   const ready = !pending && (guest ? guestName.trim().length > 0 && !guestBad && !needsFigure : !!member);
   const subName = guest ? guestName.trim() : member?.name ?? "";
   const subIndex = guest ? guestIndexWords : member?.index ?? "";
