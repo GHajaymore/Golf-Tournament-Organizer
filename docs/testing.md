@@ -77,6 +77,11 @@ file that is function or core. A commit that rewords the guide or recolours the 
 same fingerprint, so the count on it stands. Any change to a function or core file is a different
 app, and its count starts at nothing.
 
+**A rename touches two paths.** Every planner reads a diff through `scripts/qa/changed-paths.mjs`
+(`--name-status -M`), which names a moved file's old path as well as its new one: a file moved out
+of `src/app/` into `docs/` is still an app change. A second hand-rolled `--name-only` diff in
+`scripts/qa` is refused by `changed-paths-one-reader.test.ts`.
+
 ## What a round is
 
 `npm run qa:round -- --list` prints it from the source. Each layer says who it stands for, what is
