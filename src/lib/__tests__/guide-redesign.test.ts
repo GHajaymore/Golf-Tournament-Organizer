@@ -37,15 +37,28 @@ describe("a variant's words are the club's words", () => {
 });
 
 describe("the guide with the redesign's registry", () => {
-  it("the guide is IDENTICAL to GUIDE_STEPS for every set of shown screens that holds no variant's screen", () => {
-    // Each redesigned screen's PR adds a variant; the guide changes only while that screen is shown.
-    const withVariant = new Set<ScreenKey>(REDESIGN_GUIDE.map((v) => v.screen));
-    const sets: ScreenKey[][] = [[], [...SCREEN_KEYS], ...SCREEN_KEYS.map((k) => [k])].filter((s) => !s.some((k) => withVariant.has(k)));
-    expect(sets.length).toBeGreaterThan(5);
+  it("is IDENTICAL to GUIDE_STEPS for every set of shown screens that holds no registered screen", () => {
+    const registered = new Set(REDESIGN_GUIDE.map((v) => v.screen));
+    const others = SCREEN_KEYS.filter((k) => !registered.has(k));
+    expect(others.length, "every screen is registered: this test would pass on nothing").toBeGreaterThan(0);
+    const sets: ScreenKey[][] = [[], [...others], ...others.map((k) => [k])];
     for (const shown of sets) expect(guideFor(GUIDE_STEPS, shown, US)).toEqual(GUIDE_STEPS);
-    expect(guideFor(GUIDE_STEPS, [], US)).toBe(GUIDE_STEPS);
-    // And it differs while a variant's screen is shown (the control: the registry is read at all).
-    for (const v of REDESIGN_GUIDE) expect(guideFor(GUIDE_STEPS, [v.screen], US)).not.toEqual(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, [...others], US)).toBe(GUIDE_STEPS);
+  });
+
+  it("draws a registered screen's variant only while that screen is shown (R2: courses)", () => {
+    const courses = guideFor(GUIDE_STEPS, ["courses"], US);
+    expect(courses.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "clubcourses"]);
+    // Today's guide is not edited: every base section is still there, untouched.
+    expect(courses.slice(0, GUIDE_STEPS.length)).toEqual(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, ["event"], US)).toEqual(GUIDE_STEPS);
+  });
+
+  it("draws the rounds variant in place of the rounds section, ids unchanged, while rounds is shown (R4)", () => {
+    const rounds = guideFor(GUIDE_STEPS, ["rounds"], US);
+    expect(rounds.map((s) => s.id)).toEqual(GUIDE_STEPS.map((s) => s.id));
+    expect(rounds).not.toEqual(GUIDE_STEPS);
+    expect(rounds.find((s) => s.id === "rounds")).not.toEqual(GUIDE_STEPS.find((s) => s.id === "rounds"));
   });
 
   it("a planted variant replaces exactly the sections it names, in place, while its screen is shown", () => {
@@ -82,7 +95,7 @@ describe("the guide with the redesign's registry", () => {
   });
 });
 
-describe("every registered variant (none yet)", () => {
+describe("every registered variant", () => {
   const ids = new Set(GUIDE_STEPS.map((s) => s.id));
   it("replaces ids that exist, and none is replaced by two screens", () => {
     const claimed = new Map<string, ScreenKey>();
