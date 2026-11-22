@@ -176,6 +176,23 @@ the carried fields, so the source's own mode wins (`a-new-event-starts-single.au
 does, so "which screens does this request show" has one answer per page. The control plants a page
 that calls it directly and expects the refusal.
 
+## A server file never calls a client export, anywhere in src (G1, 23 Nov 2026)
+
+`server-never-calls-a-client-export.test.ts` sweeps every `.ts` and `.tsx` under `src/` (tests excluded), not
+only pages and components, and refuses a value import from a `"use client"` module unless the client module
+DECLARES the name as a component (`function Name(` or `const Name = (`). A lowercase helper, a constant, or a
+PascalCase object is refused. Controls: the R9a shape, a planted `src/lib/services/x.ts`, and a PascalCase
+constant. A rule both sides need goes in a module with no directive (`scope-lock-rules.ts`).
+
+## A `@redesign` block presses something that writes, and looks again (G1, 23 Nov 2026)
+
+`redesign-specs-press.test.ts` reads every `test.describe("@redesign…")` in `e2e/*.spec.ts` through `readSource`
+and refuses a block with no write press (`.click(`, `.fill(`, `.check(`, `.selectOption(`, `.press(`, not on a link or a
+fold opener) or with no `reload()` / `goto(` after the first one. The blocks that fail today (all nine of R2's and
+R9a's) are named in a dated `KNOWN_READ_ONLY` and placed with the QA Director; the list can only shrink. A floor on
+the number of blocks found stops a broken reader passing on none. Controls: a planted read-only block, a press with no
+look afterwards, a press only in a comment.
+
 ## Moved from CLAUDE.md (20 Nov 2026): The guard hook
 
 **Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
