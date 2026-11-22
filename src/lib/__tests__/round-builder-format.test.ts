@@ -84,11 +84,11 @@ describe("pressing through the kinds leaves the select on a valid format", () =>
 
 describe("the builder uses it everywhere the format is shown or sent", () => {
   it("pickType holds no copy of the fit rule, and Choose… is offered only before a kind", () => {
-    const s = readSource("src/components/StagesClient.tsx");
+    const s = readSource("src/components/rounds/AddRoundPanel.tsx");
     expect(s).toContain("setBulkFormat((cur) => addFormatFor(t, cur))");
     expect(s).toContain('{!newType && <option value="">Choose…</option>}');
   });
-  const src = readSource("src/components/StagesClient.tsx");
+  const src = readSource("src/components/rounds/AddRoundPanel.tsx");
   it("the select, the Add button and the server call read the asked-for format, not the held one", () => {
     expect(src).toContain("const addFormat = addFormatFor(newType, bulkFormat)");
     expect(src).toContain("value={addFormat}");

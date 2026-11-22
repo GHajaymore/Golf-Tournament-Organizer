@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { pressRadio } from "./press-radio";
+import { makeClub as ssMakeClub, dropClub as ssDropClub, makeEvent as ssMakeEvent, signIn as ssSignIn } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * WHO KEEPS THE CARD, AND WHO CHECKS IT — chosen per round on Rounds & formats
@@ -172,4 +174,39 @@ test("the organizer says who keeps score on a round, and a late switch to one sc
   });
 
   expect(errors).toEqual([]);
+});
+
+// R4: the Scoring tile on the redesigned screen, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("the event's scoring is said once above the rounds, and a round's own keeping is under More", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-sss-redesign-${testInfo.project.name}`;
+    const club = await ssMakeClub(mark);
+    try {
+      const { event } = await ssMakeEvent(club, "Scoring Medal", { stages: [{}, {}], event: { playerAccess: "both", scoreEntryBy: "players" } });
+      await ssSignIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      await expect(screen.scoringTile()).toContainText("Can players enter scores?");
+      await expect(screen.scoringTile()).toContainText("Who keeps the card");
+      await expect(page.locator("[data-scoring-tile]"), "the tile is drawn once, not once a round").toHaveCount(1);
+      await screen.openMore("Round 1");
+      const customize = screen.column("Round 1").getByRole("button", { name: "Customize who keeps score" });
+      await expect(customize).toBeVisible();
+
+      // PRESSED, as the organizer would: choose Organizer only on Round 1, see it stored, and see the tile's line change.
+      const stageId = (await prisma.stage.findFirstOrThrow({ where: { eventId: event.id, position: 0 } })).id;
+      const keeping = async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stageId } })).scoreKeeping;
+      expect(await keeping(), "the round already keeps its own rule").not.toBe("organizer");
+      const lineBefore = await screen.scoringTile().innerText();
+      await customize.click();
+      await screen.column("Round 1").getByRole("radio", { name: "Organizer only (paper cards)" }).click();
+      await expect.poll(keeping, { timeout: 15_000, message: "who keeps the card was not saved" }).toBe("organizer");
+      await expect.poll(async () => screen.scoringTile().innerText(), { message: "the Scoring tile's line did not change" }).not.toBe(lineBefore);
+    } finally {
+      await ssDropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

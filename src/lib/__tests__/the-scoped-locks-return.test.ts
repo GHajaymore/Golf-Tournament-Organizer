@@ -240,7 +240,12 @@ describe("the screens draw the lock their actions ask", () => {
     expect(focus).toMatch(/new MutationObserver\(/);
     // A bespoke body wraps its await; none calls a lock-refusing action bare.
     const BESPOKE: Record<string, string[]> = {
-      "src/components/StagesClient.tsx": ["generateNextRound", "setStageCarry", "setStageFormat", "setStageHoles", "setStageScoringBasis", "setStageMatchKeptBy", "removeStage", "setStageScoreInput"],
+      "src/components/StagesClient.tsx": ["setStageFormat", "setStageHoles", "setStageScoringBasis"],
+      "src/components/rounds/use-round-ctx.tsx": ["setStageFormat", "setStageHoles", "setStageScoringBasis", "setStageMatchKeptBy"],
+      "src/components/rounds/DrawRound.tsx": ["generateNextRound"],
+      "src/components/rounds/NextRoundTransition.tsx": ["setStageCarry"],
+      "src/components/rounds/RemoveWarning.tsx": ["removeStage"],
+      "src/components/rounds/RoundDeleteButton.tsx": ["removeStage"],
       "src/components/EventSetupClient.tsx": ["saveEvent", "applyManualCount"],
       "src/components/GroupingControls.tsx": ["regenGroups"],
       "src/components/CutControl.tsx": ["setStageCut", "setStageCutScope", "setStageCutTies"],

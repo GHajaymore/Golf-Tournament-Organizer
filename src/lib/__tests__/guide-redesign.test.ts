@@ -57,6 +57,13 @@ describe("the guide with the redesign's registry", () => {
     expect(guideFor(GUIDE_STEPS, ["event"], US)).toEqual(GUIDE_STEPS);
   });
 
+  it("draws the rounds variant in place of the rounds section, ids unchanged, while rounds is shown (R4)", () => {
+    const rounds = guideFor(GUIDE_STEPS, ["rounds"], US);
+    expect(rounds.map((s) => s.id)).toEqual(GUIDE_STEPS.map((s) => s.id));
+    expect(rounds).not.toEqual(GUIDE_STEPS);
+    expect(rounds.find((s) => s.id === "rounds")).not.toEqual(GUIDE_STEPS.find((s) => s.id === "rounds"));
+  });
+
   it("a planted variant replaces exactly the sections it names, in place, while its screen is shown", () => {
     const out = guideFor(BASE, [SCREEN], US, [variant()]);
     expect(out.map((s) => s.id)).toEqual(["alpha", "newbeta", "delta"]);

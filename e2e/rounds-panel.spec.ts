@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, centre, returnCard, saidBeside } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * ROUNDS & FORMATS AS A TIMELINE (`?view=timeline`, behind its switch, 2026-10-30).
@@ -233,4 +234,33 @@ test("deleting a round with a card in it is refused in the panel, and the refusa
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R4: the same job through the redesigned screen, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("deleting a round with a card in it is refused beside Delete, and nothing is deleted", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `${markFor(testInfo.project.name)}-rdel`;
+    const club = await makeClub(mark);
+    try {
+      const { event, stages, players } = await makeEvent(club, "Autumn Medal", { stages: [{}, {}, {}], players: 4 });
+      const [r1] = stages;
+      await returnCard(event.id, r1.id, players[0].id);
+      await signIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      const column = screen.column("Round 1");
+      const del = column.getByRole("button", { name: "Delete Round 1", exact: true });
+      await centre(del);
+      await del.click();
+      const said = column.getByRole("alert").filter({ hasText: "Round 1 has scores. Clear them on Score entry first." });
+      await saidBeside(said, del, "deleting a round holding a card, on the redesigned screen");
+      expect(await prisma.stage.count({ where: { id: r1.id } }), "the refused delete deleted the round").toBe(1);
+      expect(await prisma.scorecard.count({ where: { stageId: r1.id } }), "the refused delete deleted the card").toBe(1);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

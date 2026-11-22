@@ -78,6 +78,8 @@ function callers(locked: Map<string, string>): Map<string, string[]> {
  * with the reason. A reason must be a FACT about where the file renders.
  */
 const EXEMPT: Record<string, string> = {
+  "src/components/rounds/RoundScoreInput.tsx":
+    "`writeScoreInput` is a pass-through to the one action; its two callers hold the lock: the round card reads `SetupLocked` in `use-round-ctx.tsx` (the radios are `disabled={pending || locked}`), and `RoundTeamScoring` takes `locked` as a prop",
   // Renders only for a casual round, which never locks: the machine's family rule
   // (`setupLockedByLaunch`, proposal 8.2) — asserted below. Until state machine PR 9b
   // it was the blanket flag `createMatch` wrote; that flag is not read any more.
@@ -100,7 +102,7 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
       expect(locked.has(a), `${a} should refuse a locked tournament`).toBe(true);
     }
     for (const f of [
-      "src/components/StagesClient.tsx",
+      "src/components/rounds/use-round-ctx.tsx",
       "src/components/TeamsClient.tsx",
       "src/components/BracketModePicker.tsx",
       "src/components/EventSetupClient.tsx",

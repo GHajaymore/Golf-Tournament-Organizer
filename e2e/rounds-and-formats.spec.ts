@@ -18,6 +18,7 @@ import {
   NAMES,
   CARD_PARS,
 } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * ROUNDS & FORMATS, SET UP AS A SECRETARY SETS IT UP — and each setting read
@@ -551,4 +552,32 @@ test("choosing Which nine keeps the tees the round was given on Score entry", as
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R4: the same job through the redesigned screen (`consoleUrl("/stages", "build")`), deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("a round's format and holes are changed on its column and kept", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("redesign-format", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      const { event, stages } = await makeEvent(club, "Spring Medal", { stages: [{}, {}] });
+      await signIn(context, baseURL!, club, event.id);
+      const stored = async () => prisma.stage.findUniqueOrThrow({ where: { id: stages[0].id } });
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      await expect(screen.formatSelect("Round 1")).toHaveValue("Stroke Play");
+      await screen.formatSelect("Round 1").selectOption("Stableford");
+      await expect.poll(async () => (await stored()).format, { message: "the format chosen was not stored" }).toBe("Stableford");
+      await pick(screen.holesGroup("Round 1"), "9");
+      await expect.poll(async () => (await stored()).holes, { message: "nine holes was not stored" }).toBe(9);
+      await screen.open();
+      await expect(screen.formatSelect("Round 1"), "the format did not survive a reload").toHaveValue("Stableford");
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

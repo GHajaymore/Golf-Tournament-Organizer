@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, CARD_PARS, dayIn, addDays } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * ROUNDS & FORMATS, STEP 2 — "COURSE DAY" (`?view=timeline`, behind its switch; Ajay, 2 Nov).
@@ -180,4 +181,60 @@ test("the timeline guides: the next thing first with its consequence, opened in 
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R4: the same job through the redesigned screen, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("a round with no day reads one setting short, and dating it closes the gap", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `${markFor(testInfo.project.name)}-ring`;
+    const club = await makeClub(mark);
+    try {
+      const today = dayIn("");
+      const { event, stages } = await makeEvent(club, "Autumn Meeting", {
+        stages: [{ playedOn: addDays(today, 7) }, { playedOn: addDays(today, 14) }, {}],
+        players: 8,
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      const set = async (round: string) => {
+        const words = await screen.column(round).locator("[data-round-ring]").innerText();
+        return Number(words.match(/^(\d+) of \d+ set$/)?.[1] ?? Number.NaN);
+      };
+      await screen.open();
+      expect(await set("Round 3"), "the undated round is not short of its day").toBeLessThan(await set("Round 1"));
+      await screen.dayInput("Round 3").fill(addDays(today, 21));
+      await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, { message: "the day was not stored" }).toBe(addDays(today, 21));
+      await screen.open();
+      expect(await set("Round 3"), "dating the round did not close the gap").toBe(await set("Round 1"));
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("Use the default on an undated round's Day stores the day the app proposed", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `${markFor(testInfo.project.name)}-dflt`;
+    const club = await makeClub(mark);
+    try {
+      const today = dayIn("");
+      // Three rounds over a two-day event: a round a day, and the days run out, so Round 3 proposes the LAST day.
+      const first = addDays(today, 7);
+      const last = addDays(today, 8);
+      const { event, stages } = await makeEvent(club, "Two Day Meeting", { stages: [{}, {}, {}], players: 4, event: { startOn: first, endOn: last } });
+      await signIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      expect((await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, "the proposal was stored before anybody pressed it").toBe("");
+      await screen.column("Round 3").getByRole("button", { name: `Use the default (${last})` }).click();
+      await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, { message: "Use the default stored no day" }).toBe(last);
+      await expect(screen.dayInput("Round 3")).toHaveValue(last);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
