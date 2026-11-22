@@ -167,6 +167,15 @@ through `eventBase(`, which spreads `newEventDefaults()` itself, so the sweep ac
 spreads `eventBase(` and a second test pins that `eventBase` does. A copy spreads the defaults BEFORE
 the carried fields, so the source's own mode wins (`a-new-event-starts-single.audit.test.ts`).
 
+## Who may ask which redesigned screens a request shows (22 Nov 2026)
+
+`console-merges.test.ts` refuses any file under `src/` (tests excluded, through `readSource`) that calls
+`mergesShown(` other than its definition, `src/app/(app)/layout.tsx` and
+`src/lib/services/screens-shown.ts`. A page that varies by a redesigned screen calls
+`screensShownFor(session)`, which reads the request's `x-search` and the viewer exactly as the layout
+does, so "which screens does this request show" has one answer per page. The control plants a page
+that calls it directly and expects the refusal.
+
 ## Moved from CLAUDE.md (20 Nov 2026): The guard hook
 
 **Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
