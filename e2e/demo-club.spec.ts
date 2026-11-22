@@ -76,6 +76,11 @@ test("somebody who is not the owner finds no demo button, and builds nothing", a
   const res = await page.goto(`/owner?tab=content&bust=${Date.now()}`);
   expect(res?.status(), "the owner console answered somebody else").toBe(404);
   expect(await demoClubs()).toHaveLength(0);
+  // LEAVE THE PAGE BEFORE THE CONTEXT GOES (B104). This test lasts ~250 ms and the next newContext has
+  // died in the browser (SEGV_MAPERR) in all three crashes seen, each straight after this test: the 404
+  // page was still streaming when its context was closed. Let it finish, then unload it.
+  await page.waitForLoadState("networkidle", { timeout: 10_000 });
+  await page.goto("about:blank");
 });
 
 test("the owner creates the demo club, then refreshes it: one club, the same two boards", async ({ page, baseURL }) => {
