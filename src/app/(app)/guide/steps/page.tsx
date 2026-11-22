@@ -1,7 +1,5 @@
 import { Fragment } from "react";
-import { headers } from "next/headers";
-import { mergesShown } from "@/lib/domain/console-merges";
-import { isOwner } from "@/lib/owner";
+import { screensShownFor } from "@/lib/services/screens-shown";
 import { guideFor } from "@/lib/guide/redesign";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
@@ -139,9 +137,8 @@ export default async function GuideStepsPage() {
   // In this club's golf: "golf groups" or "societies", "organizer" or "organiser".
   const words = await golfTermsForEvent(session.eventId);
   // A redesigned screen's own words replace today's only while that screen is shown (R1b): nobody
-  // else sees a change. Asked of `mergesShown` exactly as the layout asks it.
-  const asked = await headers();
-  const shown = mergesShown(asked.get("x-search") ?? "", { owner: isOwner(session.email) });
+  // else sees a change. Asked once, by `screensShownFor`.
+  const shown = await screensShownFor(session);
   const steps = guideFor(guideInClubWords(words), [...shown], words);
 
   return (

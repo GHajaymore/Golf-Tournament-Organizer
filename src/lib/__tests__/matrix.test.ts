@@ -2176,7 +2176,7 @@ describe("a nine-hole round keeps the committee's tees when its nine changes, on
  * EVERY TOURNAMENT SETTING, AGAINST EVERY OTHER ONE.
  *
  * Seven independent choices a club makes — who sees the board, which tees,
- * who enters scores, when, who approves, who attests, how players get in —
+ * who keeps the card, when, who approves, who attests, how players get in —
  * and until now the sweep touched none of them. They were each tested alone,
  * which is exactly the shape the 2026-08-12 audit warned about: ~80 defects
  * against 1400 passing tests, almost none in a function that was individually

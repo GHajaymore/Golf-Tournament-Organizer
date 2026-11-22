@@ -8,7 +8,7 @@ import { entryRefusalFor, playerEntryRefusal, playersMayEnter, ORGANIZER_KEEPS_T
 /**
  * EVERY SCORE GATE ASKS THE ROUND (2026-11-04, sprint 2 part B).
  *
- * "Who enters scores" is now per round: "Organizer only (paper cards)" on one
+ * "Who keeps the card" is now per round: "Organizer only (paper cards)" on one
  * round refuses players there, while the tournament's own "staff" setting
  * still refuses them everywhere. `canEnterScores(settings, "player")` asks the
  * TOURNAMENT and never the round, so a door still asking it lets a player

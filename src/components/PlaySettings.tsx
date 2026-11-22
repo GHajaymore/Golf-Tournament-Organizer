@@ -468,7 +468,7 @@ export function PlaySettings({
       />
 
       <Choice
-        label="Who enters scores"
+        label="Can players enter scores?"
         hint="organizers and assistants can always enter and correct scores"
         value={form.scoreEntryBy}
         options={SCORE_ENTRY_BY}

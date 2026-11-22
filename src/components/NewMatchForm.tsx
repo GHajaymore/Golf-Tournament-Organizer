@@ -211,7 +211,7 @@ export function NewMatchForm({
   const [holes, setHoles] = useState(18);
   const [nine, setNine] = useState("front");
   const [useHandicaps, setUseHandicaps] = useState(false);
-  /** Who enters scores: one phone for the group (the default), or each player their own. */
+  /** Who keeps the card: one phone for the group (the default), or each player their own. */
   const [keeping, setKeeping] = useState<"group" | "each">("group");
   /** Says who has an empty handicap box — on a net round they play off scratch. */
   const scratchByDefault = scratchNote(playersOnScratchByDefault(players));
@@ -589,14 +589,14 @@ export function NewMatchForm({
         )}
       </div>
 
-      {/* WHO ENTERS SCORES, ONE LINE (2026-11-05). A new round keeps the group's
+      {/* WHO KEEPS THE CARD, ONE LINE (2026-11-05). A new round keeps the group's
           card on one phone (`scoringDefaults`), and two friends on two phones had no
           way to say they each keep their own — the second phone was told the
           first was keeping it. One line, the same two pills as the line above,
           one phone first because that is the default. Not a section: the casual
           round stays one screen. */}
       <div className="field">
-        <span className="field-caption" id={`${fid}-keeping`}>Who enters scores?</span>
+        <span className="field-caption" id={`${fid}-keeping`}>Who keeps the card?</span>
         <div role="group" aria-labelledby={`${fid}-keeping`} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
           {CASUAL_KEEPING.map((k) => (
             <button key={k.key} type="button" {...pill(keeping === k.key)} onClick={() => setKeeping(k.key)}>

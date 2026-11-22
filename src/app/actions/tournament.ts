@@ -2518,7 +2518,7 @@ export async function setStageMatchKeptBy(stageId: string, kept: string): Promis
 
 /**
  * WHO KEEPS THE ROUND'S CARD, AND WHO CHECKS IT (2026-11-04, sprint 2 part B)
- * — "Who enters scores" and "End-of-round check" on the round's card.
+ * — "Who keeps the card" and "End-of-round check" on the round's card.
  *
  * Staff only. NOT behind the setup lock, unlike the round's format and
  * scoring: this changes who may PRESS, never what a score means, and the
@@ -2567,7 +2567,7 @@ export async function setStageScoring(
   await logAudit(
     eventId,
     "round.scoring",
-    `${await roundWordsFor(eventId, stage.id)}: ${[keeping ? `who enters scores ${keeping}` : "", check ? `end-of-round check ${check}` : ""].filter(Boolean).join(", ")}`,
+    `${await roundWordsFor(eventId, stage.id)}: ${[keeping ? `who keeps the card ${keeping}` : "", check ? `end-of-round check ${check}` : ""].filter(Boolean).join(", ")}`,
   );
   await refresh();
   return { ok: true };
@@ -4585,6 +4585,9 @@ export async function setKnockoutPlayBy(stageId: string, dates: Record<string, s
   if (typeof stageId !== "string") return { ok: false, error: "That round isn't a knockout in this tournament." };
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, type: true } });
   if (!stage || !isKnockoutRound(stage.type)) return { ok: false, error: "That round isn't a knockout in this tournament." };
+  // A day like the round's own: open while it runs, refused once the event is completed.
+  const dayRefused = await roundRefusal(eventId, stageId, { kind: "day" });
+  if (dayRefused) return { ok: false, error: dayRefused };
   const clean = cleanPlayBy(dates);
   if (!clean.ok) return { ok: false, error: clean.error };
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { knockoutPlayBy: clean.json } });

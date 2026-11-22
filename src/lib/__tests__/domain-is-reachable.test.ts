@@ -185,6 +185,8 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/setup-field.ts:markOf",
   // REDESIGN R1b (21 Nov 2026): the needs ring and the two kit components, built and tested before any
   // screen mounts them. R4 (the first screen to draw a round's head) mounts them and takes these three off.
+  // REDESIGN R4b-1 (22 Nov 2026): the display twin of the score gate, built before any screen prints it. R4 mounts it and takes this line off.
+  "lib/domain/round-scoring.ts:keepingShown",
   "lib/domain/round-ring.ts:roundRing",
   "components/setup/RoundColumn.tsx:RoundColumn",
   "components/setup/LockedOnce.tsx:LockedOnce",
