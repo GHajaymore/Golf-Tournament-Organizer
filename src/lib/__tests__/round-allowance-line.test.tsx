@@ -6,6 +6,7 @@ import { individualAllowanceFor, roundTakesAllowance } from "../round-allowance"
 import { allowanceSaid } from "../domain/allowance-words";
 import { tournamentTerms } from "../rules";
 import { readSource } from "./source";
+import { roundsScreenSource } from "./rounds-source";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -182,7 +183,7 @@ describe("what the line says", () => {
 
   it("the Rounds screen draws it from the rule, and only where the rule gives one", () => {
     expect(readSource("src/app/(app)/stages/page.tsx")).toContain("allowance: individualAllowanceFor(s),");
-    const screen = readSource("src/components/StagesClient.tsx");
+    const screen = roundsScreenSource();
     expect(screen).toContain("{stage.allowance && (");
     // Shut by the rounds rule's door, not the setup lock (J12, PR 7b), and the door's sentence said with it.
     expect(screen).toContain('<RoundAllowance stageId={stage.id} info={stage.allowance} locked={shut("allowance")} door={doors?.allowance ?? null} />');

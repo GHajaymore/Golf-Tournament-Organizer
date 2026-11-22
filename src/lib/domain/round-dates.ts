@@ -231,3 +231,37 @@ export function datedSaid(count: number, firstDay: string): string {
 export function dueBeforePlayed(deadline: string, playedOn: string): boolean {
   return isIsoDate(deadline) && isIsoDate(playedOn) && deadline < playedOn;
 }
+
+/**
+ * THE DAYS A NEW EVENT'S ROUNDS START ON (R4): round 1 is the first day, then a round a day, and when the days run out the
+ * rest are played on the last one (three rounds over a two-day event: day 1, day 2, day 2). With no first day there is no
+ * proposal. `everyDays` is a league's "how often" (7 for weekly): round i is then i x everyDays after the first day, and the
+ * event's last day does not cap it, because a season is longer than its entry window. The app PROPOSES these (the Default
+ * mark on Rounds & formats); a day is only stored when it is written at create or add, never at read.
+ */
+export function defaultRoundDays(startOn: string | null | undefined, endOn: string | null | undefined, rounds: number, everyDays = 0): IsoDate[] {
+  const start = cleanIsoDate(startOn);
+  const n = Math.max(0, Math.round(rounds));
+  if (!start || n === 0) return [];
+  if (everyDays > 0) return roundDates(start, n, everyDays);
+  const end = cleanIsoDate(endOn);
+  const span = end ? Math.max(0, daysBetween(start, end) ?? 0) : 0;
+  const out: IsoDate[] = [];
+  for (let i = 0; i < n; i += 1) out.push(addDays(start, Math.min(i, span)));
+  return out;
+}
+
+/**
+ * THE DAYS THE ROUNDS SCREEN PROPOSES (R4): `defaultRoundDays`, told whether the event is a weekly league. A league is made
+ * with its `endOn` at the entry window's last day, so it must be asked for a round a WEEK apart, or week 2 is proposed as the
+ * next day and "Use the default" writes it. Pure on calendar days: it is handed the event's days and reads no clock, so the
+ * club's zone and the hour cannot move it (`docs/claude/club-clock.md`).
+ */
+export function proposedRoundDays(startOn: string | null | undefined, endOn: string | null | undefined, rounds: number, weekly: boolean): IsoDate[] {
+  return defaultRoundDays(startOn, endOn, rounds, weekly ? 7 : 0);
+}
+
+/** The words beside a proposed day (the Default mark and the field's citation): ONE place, said the league's way for a league. */
+export function proposedDayWords(weekly: boolean): string {
+  return weekly ? "The league's first week, one round a week" : "The event's first day, one round a day";
+}

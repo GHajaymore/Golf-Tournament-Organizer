@@ -14,10 +14,19 @@ import { playersAnswer, resolveAttendance, tracksPerRound, type AttendanceMode }
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
+import type { ComponentProps } from "react";
 import { StagesClient } from "@/components/StagesClient";
+import { RoundsScreen } from "@/components/rounds/RoundsScreen";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { relocate } from "@/lib/domain/console-merges";
+import { roundRing, type RoundRing } from "@/lib/domain/round-ring";
+import { markOf, type Mark } from "@/lib/domain/setup-field";
+import { inheritedRoundTee } from "@/lib/domain/inherited-tee";
+import { allowanceSource } from "@/lib/round-allowance";
+import { roundLabel } from "@/lib/domain/round-label";
 import { SeasonDates } from "@/components/SeasonDates";
 import { SetupNotices } from "@/components/SetupNotices";
-import { cleanIsoDate, datedSaid } from "@/lib/domain/round-dates";
+import { cleanIsoDate, datedSaid, proposedDayWords, proposedRoundDays } from "@/lib/domain/round-dates";
 import { formatDay } from "@/lib/domain/locale";
 import { formattingForEvent } from "@/lib/services/organization";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
@@ -404,6 +413,61 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
    */
   const courseDay = timeline && told ? courseDayOf(told.status) : null;
 
+  /**
+   * THE REDESIGNED ROUNDS & FORMATS (R4), drawn only while its key is shown (`screensShownFor`; "building", so only a
+   * `?stepper=1&build=1` preview off production). Everything it draws that is a machine answer is read here, once, and
+   * handed down: the chip (`courseDayOf`), the ring (`roundRing`), the mark (`markOf`), the proposed day, the allowance's
+   * citation, the inherited tee, and where a draw goes when Tee times & draw is shown (`relocate`). The screen computes none.
+   */
+  const shown = await screensShownFor(session);
+  const newScreen = shown.has("rounds") && told !== null;
+  const screenExtras = newScreen && told
+    ? (() => {
+        const status = told.status;
+        const playingNow = playingStages(state.stages);
+        const weekly = status.family === "league";
+        const proposed = proposedRoundDays(state.event.startOn, state.event.endOn, playingNow.length, weekly);
+        const dayWords = proposedDayWords(weekly);
+        const defaultDays: Record<string, string> = {};
+        const dayMarks: Record<string, Mark | null> = {};
+        const inheritedTees: Record<string, string> = {};
+        const allowanceSources: Record<string, string> = {};
+        const drawHref: Record<string, string> = {};
+        playingNow.forEach((s, i) => {
+          const day = proposed[i] ?? "";
+          defaultDays[s.id] = day;
+          dayMarks[s.id] = markOf("roundDate", status, cleanIsoDate(s.playedOn ?? ""), day ? { value: day, source: dayWords } : null);
+          const before = playingNow.slice(0, i).map((r) => ({ id: r.id, courseId: r.courseId ?? state.event.courseId ?? null }));
+          const from = inheritedRoundTee(before, s.courseId ?? state.event.courseId ?? null);
+          if (from) inheritedTees[s.id] = roundLabel(state.stages, from.id);
+          allowanceSources[s.id] = allowanceSource(s.format, s.type);
+        });
+        for (const s of state.stages) {
+          drawHref[s.id] = relocate({ href: "/stages", job: "draw", roundId: s.id, role: session.viewRole }, shown);
+        }
+        const rings: Record<string, RoundRing | null> = {};
+        for (const r of status.rounds) rings[r.id] = roundRing(r);
+        return {
+          chips: courseDayOf(status).rounds,
+          rings,
+          dayMarks,
+          defaultDays,
+          dayWords,
+          allowanceSources,
+          inheritedTees,
+          eventScoring: { scoreEntryBy: settingsOf(state.event).scoreEntryBy as string },
+          lock: {
+            locks: rounds.locks,
+            correction: rounds.correction,
+            isAdmin: session.viewRole === "admin",
+            open: rounds.locks.some((l) => l.by === "launch") ? ROUNDS_UNDER_WAY : null,
+          },
+          shown: [...shown],
+          drawHref,
+        };
+      })()
+    : null;
+
   // The words above the rounds, the same on either screen.
   const subtitle =
     state.confirmed.length > 0 ? (
@@ -458,14 +522,17 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         {subtitle}
       </div>
       )}
-      <ScopeLockBanner
-        locks={rounds.locks}
-        correction={rounds.correction}
-        isAdmin={session.viewRole === "admin"}
-        // Locked by launch, the rounds rule still leaves a round's format, allowance, tees, day and
-        // delete open until it has scores (J12, PR 7b) — said first, so the lock's line is not read as all.
-        open={rounds.locks.some((l) => l.by === "launch") ? ROUNDS_UNDER_WAY : null}
-      />
+      {/* The redesigned screen draws the banner once itself (`LockedOnce`). */}
+      {!screenExtras && (
+        <ScopeLockBanner
+          locks={rounds.locks}
+          correction={rounds.correction}
+          isAdmin={session.viewRole === "admin"}
+          // Locked by launch, the rounds rule still leaves a round's format, allowance, tees, day and
+          // delete open until it has scores (J12, PR 7b) — said first, so the lock's line is not read as all.
+          open={rounds.locks.some((l) => l.by === "launch") ? ROUNDS_UNDER_WAY : null}
+        />
+      )}
       {/* A way IN to the builder rather than an alternative to it — whatever
           it proposes lands as ordinary rounds on the cards below, editable
           like any other. That is why it sits above them.
@@ -589,6 +656,8 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
             })),
         ]}
       />
+      {(() => {
+        const roundsEl = (
       <StagesClient
         stages={stages}
         // The redesign's preview, off unless asked for (2026-10-30; go/no-go Tue 17 Nov).
@@ -655,6 +724,12 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         flightCount={state.groups.length}
         confirmedCount={state.confirmed.length}
       />
+        );
+        // The same facts, drawn by the redesigned screen while its key is shown; otherwise today's screen, unchanged.
+        // A JSX element's `props` is `any`; typing it ONCE here makes tsc check RoundsScreen's props against StagesClient's.
+        const roundsProps: ComponentProps<typeof StagesClient> = roundsEl.props;
+        return screenExtras ? <RoundsScreen {...roundsProps} {...screenExtras} /> : <StagesClient {...roundsProps} />;
+      })()}
       {/* The other half of the placement decision above: offered after the
           rounds once there are rounds, so it stays available without leading. */}
       {!locked && stages.length > 0 && describeTournament}

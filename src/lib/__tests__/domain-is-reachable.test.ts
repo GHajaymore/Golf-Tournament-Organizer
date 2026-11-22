@@ -179,15 +179,8 @@ const KNOWN_DEAD: string[] = [
   // render tests (render.test.tsx, back-nine-hole-numbers.test.tsx) still pin the old full-page card;
   // moving them to the new card and deleting this is the Print kit's slice 2.
   "components/TeeSheetPrint.tsx:TeeSheetPrint",
-  // REDESIGN R1a (21 Nov 2026): the set-up field and its mark rule, built and tested before any screen
-  // mounts them. Each redesigned screen's PR (R4 onward) mounts them and takes these two lines off.
-  "components/setup/SetupField.tsx:SetupField",
-  "lib/domain/setup-field.ts:markOf",
-  // REDESIGN R1b (21 Nov 2026): the needs ring and the two kit components, built and tested before any
-  // screen mounts them. R4 (the first screen to draw a round's head) mounts them and takes these three off.
-  // REDESIGN R4b-1 (22 Nov 2026): the display twin of the score gate, built before any screen prints it. R4 mounts it and takes this line off.
-  "lib/domain/round-scoring.ts:keepingShown",
-  "lib/domain/round-ring.ts:roundRing",
+  // REDESIGN R4 (22 Nov 2026) mounted the kit R1a/R1b built (SetupField, markOf, RoundColumn, LockedOnce, roundRing) and R4b-1's keepingShown
+  // on the redesigned Rounds & formats, so those lines left this list.
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
   "lib/domain/bracket.ts:splitBrackets",

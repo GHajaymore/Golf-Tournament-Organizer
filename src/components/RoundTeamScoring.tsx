@@ -12,7 +12,7 @@ import {
   type TeamResult,
 } from "@/app/actions/teams";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
-import { setStageScoreInput } from "@/app/actions/tournament";
+import { writeScoreInput } from "@/components/rounds/RoundScoreInput";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
@@ -203,11 +203,11 @@ export function RoundTeamScoring({
               value={info.entryMode}
               onChange={(e) => {
                 setErrorKind(null);
-                // `setStageScoreInput` either writes the value or discards one
+                // `writeScoreInput` either writes the value or discards one
                 // the format does not offer, and the refresh brings back
                 // whichever it settled on; it answers only when the rounds are
                 // locked (PR 5b), which `run` says and catches up.
-                run(async () => (await setStageScoreInput(stageId, e.target.value)) ?? { ok: true });
+                run(async () => (await writeScoreInput(stageId, e.target.value)) ?? { ok: true });
               }}
             >
               {info.entryChoices.map((key: TeamEntryMode) => (

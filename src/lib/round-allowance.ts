@@ -346,3 +346,17 @@ export function individualAllowanceFor(s: {
     overridden: s.handicapAllowance > 0,
   };
 }
+
+/** Whose figure a round's default allowance is, said beside it (R4; the golf professional, Q8). */
+export type AllowanceSource = "the Rules' recommendation" | "the Rules" | "usual";
+
+/**
+ * WHERE THE DEFAULT ALLOWANCE COMES FROM: "the Rules' recommendation" for a format the Rules of Handicapping give a
+ * percentage for (95% of an individual stroke round, 85% four-ball), "the Rules" where the Rules give the full handicap
+ * (100%), and "usual" where it is a club convention the appendix does not state (a scramble of three, until it is checked).
+ * Asked of the format, never of the screen: `recommendedAllowance` is the figure, this is its citation.
+ */
+export function allowanceSource(format: string, stageType: string | null | undefined): AllowanceSource {
+  if (findFormat(format).allowanceIsConvention) return "usual";
+  return recommendedAllowance(format, stageType) === 100 ? "the Rules" : "the Rules' recommendation";
+}
