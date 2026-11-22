@@ -85,6 +85,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ to
   });
   if (!event || !isLeaderboardPublic(settingsOf(event))) notFound();
 
+  const mutantGuests = (await prisma.player.findMany({ where: { eventId: event.id, status: "pending" }, select: { name: true } })).map((p) => p.name).join(", ");
   const board = await liveBoard(event.id);
   if (!board) notFound();
   const today = await todayForEvent(event.id);
@@ -136,6 +137,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ to
               : entries.spotsLeft === null
                 ? "Enter online — no account needed."
                 : `${entries.spotsLeft} ${entries.spotsLeft === 1 ? "place" : "places"} left. Enter online — no account needed.`}
+            {mutantGuests}
             {entries.regDeadline ? ` Entries close ${formatDeadline(entries.regDeadline, entries.locale)}.` : ""}
           </p>
           <p style={{ margin: 0 }}>
