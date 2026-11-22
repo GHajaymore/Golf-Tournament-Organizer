@@ -45,10 +45,20 @@ const STATES: Record<string, (f: TournamentFacts) => TournamentFacts> = {
  * a LAUNCHED league whose next week has no day. The Rounds step's `done` for a league is
  * `!holdsNow` and nothing holds once play has begun, so the step is ticked while the ring is 2 of 3
  * (the live dashboard raises it as the next action, "Set Week N's day"). No screen yet draws the ring beside the Rounds step after launch; the first that does
- * decides (backlog row), and this entry is the reason.
+ * decides (backlog row).
+ *
+ * B101: the exception is a RULE, tested for every family, variant and state. A gap on a ticked Rounds
+ * step implies live + league + the tournament's one button naming the gap ("Set Week N's day", or an
+ * owed draw, which comes first). It is safe only because the button says it.
  */
-const KNOWN_EXCEPTIONS: readonly string[] = ["league/no round dated/launched"];
-const isKnownException = (key: string) => KNOWN_EXCEPTIONS.includes(key);
+function exceptionHolds(st: ReturnType<typeof tournamentStatus>, family: string, roundId: string): string | null {
+  if (st.step !== "live") return `a ticked step with a gap, but the tournament is "${st.step}"`;
+  if (family !== "league") return `a ticked step with a gap in a ${family}`;
+  const a = st.nextAction;
+  if (a?.kind === "draw") return null;
+  if (a?.kind === "schedule" && a.roundId === roundId) return null;
+  return `no button names the gap (next action is ${a ? `${a.kind} for ${a.roundId}` : "none"})`;
+}
 
 describe("the needs ring, for every round of every family", () => {
   const excepted: string[] = [];
@@ -76,13 +86,12 @@ describe("the needs ring, for every round of every family", () => {
             // A gap means the Rounds step is not done.
             if (ring.set < ring.of && stages) {
               gaps++;
-              if (isKnownException(`${family}/${variant}/${state}`)) {
-                // Recorded, not bent: see KNOWN_EXCEPTIONS. It must still be true, or the entry is stale.
+              if (stages.done) {
+                // Ticked with a gap: only a launched league, and only while its button names the gap.
                 excepted.push(`${family}/${variant}/${state}`);
-                expect(stages.done).toBe(true);
+                expect(exceptionHolds(st, family, r.id), `${family}/${variant}/${state}: ${r.label} has a gap and the step is ticked`).toBeNull();
                 continue;
               }
-              expect(stages.done, `${family}/${variant}/${state}: ${r.label} has a gap and the step is ticked`).toBe(false);
             }
             // Holding means launch is refused and the Rounds step holds.
             if (ring.holds) {
@@ -97,7 +106,31 @@ describe("the needs ring, for every round of every family", () => {
   it("CONTROL: the sweep reached rounds, and some had a gap", () => {
     expect(rounds).toBeGreaterThan(100);
     expect(gaps).toBeGreaterThan(10);
-    expect([...new Set(excepted)]).toEqual(KNOWN_EXCEPTIONS);
+    // The exception is met at least once, and only by a launched league.
+    expect(excepted.length).toBeGreaterThan(0);
+    expect(excepted.every((k) => k.startsWith("league/") && k.endsWith("/launched"))).toBe(true);
+  });
+});
+
+describe("the launched-league exception, both sides (B101)", () => {
+  const undated = (f: TournamentFacts): TournamentFacts => ({ ...f, rounds: f.rounds.map((r) => ({ ...r, scheduled: false })) });
+  const stagesOf = (f: TournamentFacts) => s(f).setup.steps.find((x) => x.key === "stages")!;
+
+  it("a launched league with an undated next week: ring 2 of 3, step ticked, the button names the week", () => {
+    const st = s(launched(undated(FAMILY_FIXTURES.league())));
+    expect(roundRing(st.rounds.find((r) => r.id === "w1")!)).toEqual({ set: 2, of: 3, holds: false });
+    expect(st.setup.steps.find((x) => x.key === "stages")!.done).toBe(true);
+    expect(st.nextAction).toMatchObject({ kind: "schedule", roundId: "w1" });
+  });
+
+  it("the same league before launch: the step is open", () => {
+    expect(stagesOf(undated(FAMILY_FIXTURES.league())).done).toBe(false);
+  });
+
+  it("a non-league round with the same gap is open, set up or launched", () => {
+    const f = facts({ rounds: [round({ id: "r1", position: 0 }), round({ id: "r2", position: 1, scheduled: false })] });
+    expect(stagesOf(f).done).toBe(false);
+    expect(stagesOf(launched(f)).done).toBe(false);
   });
 });
 
