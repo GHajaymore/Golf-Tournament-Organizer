@@ -32,3 +32,13 @@ export function eventWords(kind: string, register: GolfRegister): EventWords {
     resultHeading: `${word} result`,
   };
 }
+
+/**
+ * The word over the lifecycle menu's four stops: whose sections these are (Ajay's 14 Nov heading, phase 1 §1.1).
+ *
+ * It is the same in every kind and every register, on purpose: it names the MENU'S owner (the event that is
+ * open), not the event's kind, so it is a constant and not a field of `eventWords`: `lifecycleNav` knows no kind.
+ * The club's own section keeps the club's word ("Club", "Society", "League"), and the two never read alike
+ * (`the-scope-word.test.ts`).
+ */
+export const EVENT_SCOPE_WORD = "This event";
