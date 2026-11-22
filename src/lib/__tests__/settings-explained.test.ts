@@ -69,7 +69,10 @@ describe("every setting explains itself", () => {
        */
       const help = (settings as Record<string, unknown>)[helpKey];
       if (!help) return;
-      const ui = readSource("src/components/PlaySettings.tsx");
+      // The controls were lifted out of PlaySettings (R3-1): the card and the files it mounts them from.
+      const ui = ["PlaySettings.tsx", "players/EntriesHowIn.tsx", "event/EventTees.tsx", "event/BoardVisibility.tsx"]
+        .map((f) => readSource(`src/components/${f}`))
+        .join(" ");
       // `help={X_HELP}`, not merely the name appearing somewhere. The first
       // version looked for the name and an IMPORT satisfied it — so deleting
       // the one line that put the text on screen left the guard green. A

@@ -39,7 +39,7 @@ describe("the unsaved dates say they are unsaved", () => {
   it("does not tell a newcomer their dates save on their own", () => {
     // Found the same walk: "Dates save on their own" beside a Save button,
     // read as automatic — the date was lost on leaving the screen.
-    const src = readSource("src/components/EventSetupClient.tsx");
+    const src = readSource("src/components/event/EventWhen.tsx");
     const at = src.indexOf('"Save dates"');
     const note = src.slice(at, at + 1200);
     expect(note).toMatch(/Not saved yet/);

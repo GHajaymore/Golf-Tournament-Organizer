@@ -49,8 +49,8 @@ const PINNED: [label: string, file: string][] = [
   ["Complete tournament", "src/lib/domain/tournament-status.ts"],
   // The Print kit (2026-10-23) and its doors.
   ["Reprint these", "src/components/print/PrintKitClient.tsx"],
-  ["Print the signs", "src/components/PlaySettings.tsx"],
-  ["Share", "src/components/PlaySettings.tsx"],
+  ["Print the signs", "src/components/event/RoundCodes.tsx"],
+  ["Share", "src/components/event/RoundCodes.tsx"],
   ["Print…", "src/components/teetimes/PrintDoor.tsx"],
   ["Print…", "src/app/(app)/cup/page.tsx"],
   // Member or guest (the no-email player identity, PR 1): the CSV preview's buttons.

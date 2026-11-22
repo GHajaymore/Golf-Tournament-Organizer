@@ -383,6 +383,9 @@ export default async function EventPage({
           }))}
           defaultTeeId={e.defaultTeeId}
           teesDoor={teesDoor}
+          howInHere
+          shareHere
+          teesHere
         />
       </SettingsSectionAnchor>
 
