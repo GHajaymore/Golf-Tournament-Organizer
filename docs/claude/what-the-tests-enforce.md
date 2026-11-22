@@ -157,6 +157,16 @@ prose behind as dangling text, and three files stop parsing. And `git checkout -
 restores far more than the experiment — it discards every other uncommitted change in the
 directory, which on 2026-09-05 cost a day's worth of conversions that had to be redone.
 
+## A new event says what it starts with (21 Nov 2026)
+
+`every-event-create-says-its-defaults.test.ts` reads every `.event.create(` in `src/` (balanced
+parentheses, through `readSource`, tests excluded) and refuses one whose body does not spread
+`newEventDefaults()` (`src/lib/domain/event-defaults.ts`). The column default of `Event.bracketMode`
+is the legacy "split"; a new row's value is `"single"`. The demo club writes both its tournaments
+through `eventBase(`, which spreads `newEventDefaults()` itself, so the sweep accepts a create that
+spreads `eventBase(` and a second test pins that `eventBase` does. A copy spreads the defaults BEFORE
+the carried fields, so the source's own mode wins (`a-new-event-starts-single.audit.test.ts`).
+
 ## Moved from CLAUDE.md (20 Nov 2026): The guard hook
 
 **Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before

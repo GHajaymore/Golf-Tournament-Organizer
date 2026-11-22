@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readSource } from "./source";
 import { GUIDE_STEPS } from "../guide-steps";
+import { guideLabelsOf, guideShapeProblems } from "./guide-word-checks";
 
 /**
  * The step-by-step guide names buttons. A guide that names a button the app no
@@ -76,23 +77,8 @@ const PINNED: [label: string, file: string][] = [
   ["Print the new slips", "src/lib/domain/player-link-slips.ts"],
 ];
 
-/** Every [[label]] the guide uses, flattened. */
-function guideLabels(): Set<string> {
-  const all = new Set<string>();
-  const scan = (s: string) => {
-    for (const m of s.matchAll(/\[\[([^\]]+)\]\]/g)) all.add(m[1]);
-  };
-  for (const section of GUIDE_STEPS) {
-    for (const b of section.blocks) {
-      if ("text" in b) scan(b.text);
-      if ("items" in b) for (const it of b.items) scan(typeof it === "string" ? it : JSON.stringify(it));
-    }
-  }
-  return all;
-}
-
 describe("the step-by-step guide names buttons the app really has", () => {
-  const labels = guideLabels();
+  const labels = guideLabelsOf(GUIDE_STEPS);
 
   for (const [label, file] of PINNED) {
     it(`"${label}" is in the guide and on its screen`, () => {
@@ -109,11 +95,7 @@ describe("the step-by-step guide names buttons the app really has", () => {
 
   it("has every part the contents promise, with an id and blocks", () => {
     expect(GUIDE_STEPS.length).toBeGreaterThanOrEqual(10);
-    for (const s of GUIDE_STEPS) {
-      expect(s.id).toMatch(/^[a-z]+$/);
-      expect(s.blocks.length, s.id).toBeGreaterThan(0);
-    }
-    expect(new Set(GUIDE_STEPS.map((s) => s.id)).size).toBe(GUIDE_STEPS.length);
+    expect(guideShapeProblems(GUIDE_STEPS)).toEqual([]);
   });
 });
 
