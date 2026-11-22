@@ -66,7 +66,7 @@ function valueNames(clause: string): Array<{ name: string; isDefault: boolean }>
  */
 function isDeclaredComponent(clientSrc: string, name: string): boolean {
   if (!/^[A-Z][a-z0-9]/.test(name) || /^[A-Z0-9_]+$/.test(name)) return false;
-  const n = name.replace(/[$]/g, "\\$&");
+  const n = name.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
   return new RegExp(`\\bfunction\\s+${n}\\s*[(<]|\\bconst\\s+${n}\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:\\(|memo\\(|forwardRef\\()`).test(stripComments(clientSrc));
 }
 
