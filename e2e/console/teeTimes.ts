@@ -1,3 +1,4 @@
+import { expect } from "@playwright/test";
 import type { Browser, Locator, Page, TestInfo } from "@playwright/test";
 import { openScreen, SCREENS_BUILT } from "./index";
 import { prisma, makeClub, dropClub, makeEvent, signIn, addDays, dayIn, type Club } from "../rounds-fixture";
@@ -26,6 +27,14 @@ export class TeeTimesPage {
   /** One section by its anchor. */
   section(key: DrawSectionName): Locator {
     return this.page.locator(`[data-draw-section="${key}"]`);
+  }
+
+  /** Open a section a phone has folded (a person taps its line); one already open is left alone. Returns the section. */
+  async openSection(key: DrawSectionName): Promise<Locator> {
+    const line = this.sectionLine(key);
+    if ((await line.getAttribute("aria-expanded")) === "false") await line.click();
+    await expect(line).toHaveAttribute("aria-expanded", "true");
+    return this.section(key);
   }
 
   /** A section's folded line (the button that opens or folds it). */

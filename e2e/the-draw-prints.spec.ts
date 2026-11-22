@@ -163,7 +163,7 @@ test.describe("@redesign the print door on Tee times & draw", () => {
     test.setTimeout(120_000);
     await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
       await screen.open(day.round1);
-      const door = screen.section("paper").getByRole("link", { name: /Print/ });
+      const door = (await screen.openSection("paper")).getByRole("link", { name: /Print/ });
       await expect(door).toBeVisible();
       await expect(door).toHaveAttribute("href", new RegExp(`/print\\?round=${day.round1}&docs=cards`));
     });

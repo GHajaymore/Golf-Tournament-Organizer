@@ -248,7 +248,7 @@ test.describe("@redesign the draw on Tee times & draw", () => {
     test.setTimeout(120_000);
     await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
       await screen.open(day.round1);
-      const card = screen.section("teeTimes").locator('section[aria-label="Put in a group"]');
+      const card = (await screen.openSection("teeTimes")).locator('section[aria-label="Put in a group"]');
       await expect(card).toContainText("Not in a group yet (1)");
       const choose = card.getByLabel(`Group for ${day.unplaced.name}`);
       // Group 1 holds four (read from the fixture): only Group 2 is offered.

@@ -249,7 +249,7 @@ test.describe("@redesign the round's handicaps on Tee times & draw", () => {
     test.setTimeout(120_000);
     await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
       await screen.open(day.round1);
-      const who = screen.section("whoIn");
+      const who = await screen.openSection("whoIn");
       await who.getByRole("button", { name: "Change a player's handicap" }).click();
       await expect(who.getByLabel(`Change ${day.placed[0].name}'s handicap`)).toBeVisible();
     });

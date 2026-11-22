@@ -177,7 +177,8 @@ test.describe("@redesign the round day on Tee times & draw", () => {
     await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
       await screen.open(day.round1);
       await expect(screen.sectionLine("onTheDay")).toContainText("Pins and pace");
-      await expect(screen.section("onTheDay").getByText("Time allowed")).toBeVisible();
+      const onTheDay = await screen.openSection("onTheDay");
+      await expect(onTheDay.getByText("Time allowed", { exact: true })).toBeVisible();
     });
   });
 });
