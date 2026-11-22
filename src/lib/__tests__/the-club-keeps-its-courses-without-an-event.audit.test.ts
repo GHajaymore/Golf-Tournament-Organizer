@@ -389,20 +389,34 @@ describe("the two directory doors stay 'themselves'; a no-event secretary's impo
   });
 
   it("a no-event admin's import is in the CLUB, and their organizations are unchanged", async () => {
-    const catalog = await prisma.courseCatalog.findFirst({ select: { id: true } });
-    if (!catalog) return; // a database with no catalogue: the source cell above still holds the shape
-    session = asNoEvent(users.adminA);
-    const orgsBefore = await prisma.organizationMember.count({ where: { userId: f.adminA } });
-    const clubsBefore = await prisma.organization.count({ where: { members: { some: { userId: f.adminA } } } });
-    const r = await actions.importCourseFromDirectory(catalog.id);
-    if (r.courseId) {
-      const row = await prisma.course.findUnique({ where: { id: r.courseId }, select: { organizationId: true } });
+    // Its OWN catalogue row (CI's database holds none). A cell that returns
+    // when there is nothing to press passes on nothing.
+    const dirId = `${MARK}-dir-${process.pid}`;
+    await prisma.courseCatalog.create({
+      data: {
+        id: dirId, name: `${MARK} Directory Links`, city: "Nowhere",
+        par: PARS.reduce((a, b) => a + b, 0),
+        pars: JSON.stringify(PARS), yards: JSON.stringify(YARDS), strokeIndex: JSON.stringify(SI),
+      },
+    });
+    try {
+      expect(await prisma.courseCatalog.count({ where: { id: dirId } })).toBe(1);
+      session = asNoEvent(users.adminA);
+      const orgsBefore = await prisma.organizationMember.count({ where: { userId: f.adminA } });
+      const clubsBefore = await prisma.organization.count({ where: { members: { some: { userId: f.adminA } } } });
+      const r = await actions.importCourseFromDirectory(dirId);
+      expect(r.ok, JSON.stringify(r)).toBe(true);
+      expect(r.courseId).toBeTruthy();
+      const row = await prisma.course.findUnique({ where: { id: r.courseId as string }, select: { organizationId: true } });
       expect(row?.organizationId).toBe(f.A);
       // Created by this press, so it goes by this id.
-      await prisma.course.deleteMany({ where: { id: r.courseId, organizationId: f.A } });
+      await prisma.tee.deleteMany({ where: { courseId: r.courseId as string } });
+      await prisma.course.deleteMany({ where: { id: r.courseId as string, organizationId: f.A } });
+      expect(await prisma.organizationMember.count({ where: { userId: f.adminA } })).toBe(orgsBefore);
+      expect(await prisma.organization.count({ where: { members: { some: { userId: f.adminA } } } })).toBe(clubsBefore);
+    } finally {
+      await prisma.courseCatalog.deleteMany({ where: { id: dirId } });
     }
-    expect(await prisma.organizationMember.count({ where: { userId: f.adminA } })).toBe(orgsBefore);
-    expect(await prisma.organization.count({ where: { members: { some: { userId: f.adminA } } } })).toBe(clubsBefore);
   });
 });
 
