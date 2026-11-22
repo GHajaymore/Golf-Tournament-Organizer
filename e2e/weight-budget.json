@@ -67,44 +67,44 @@
  },
  "linux": {
   "the front door": {
-   "document": 80896,
-   "script": 192512,
-   "style": 159744,
-   "other": 1634304,
-   "total": 2068480,
-   "requests": 54
+   "document": 153600,
+   "script": 152576,
+   "style": 9216,
+   "other": 1630208,
+   "total": 1944576,
+   "requests": 41
   },
   "the public board": {
-   "document": 33792,
-   "script": 147456,
-   "style": 12288,
+   "document": 50176,
+   "script": 146432,
+   "style": 9216,
    "other": 107520,
-   "total": 300032,
+   "total": 312320,
    "requests": 19
   },
   "a player's Today": {
-   "document": 41984,
-   "script": 184320,
-   "style": 13312,
-   "other": 137216,
-   "total": 376832,
-   "requests": 33
+   "document": 58368,
+   "script": 154624,
+   "style": 10240,
+   "other": 136192,
+   "total": 359424,
+   "requests": 22
   },
   "a player's card": {
-   "document": 37888,
-   "script": 209920,
-   "style": 12288,
+   "document": 54272,
+   "script": 191488,
+   "style": 9216,
    "other": 107520,
-   "total": 367616,
-   "requests": 36
+   "total": 361472,
+   "requests": 29
   },
   "a player's board": {
-   "document": 38912,
-   "script": 180224,
-   "style": 12288,
+   "document": 54272,
+   "script": 145408,
+   "style": 9216,
    "other": 107520,
-   "total": 337920,
-   "requests": 29
+   "total": 316416,
+   "requests": 19
   },
   "the organizer's dashboard": {
    "document": 48128,
@@ -115,20 +115,20 @@
    "requests": 37
   },
   "score entry": {
-   "document": 43008,
-   "script": 269312,
-   "style": 14336,
-   "other": 108544,
-   "total": 434176,
-   "requests": 44
+   "document": 56320,
+   "script": 242688,
+   "style": 9216,
+   "other": 109568,
+   "total": 416768,
+   "requests": 38
   },
   "the leaderboard": {
-   "document": 39936,
-   "script": 211968,
-   "style": 14336,
-   "other": 108544,
-   "total": 374784,
-   "requests": 38
+   "document": 53248,
+   "script": 182272,
+   "style": 9216,
+   "other": 107520,
+   "total": 352256,
+   "requests": 29
   }
  }
 }
