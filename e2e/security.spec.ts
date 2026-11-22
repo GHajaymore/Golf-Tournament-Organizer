@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { test, expect } from "./coverage";
-import { consoleScreens, playerScreens } from "./routes";
+import { consoleScreens, playerScreens, switchedOffScreens } from "./routes";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
@@ -144,7 +144,7 @@ test("every answer is sent in the envelope that protects it, and the server does
 test("signed out, no screen of the app opens — and nothing of a club comes back instead", async ({ playwright, baseURL }, testInfo) => {
   onlyDesktop(testInfo.project.name);
   const anon = await playwright.request.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
-  const screens = [...consoleScreens(), ...playerScreens(), "/account", "/choose", "/owner"];
+  const screens = [...consoleScreens(), ...switchedOffScreens(), ...playerScreens(), "/account", "/choose", "/owner"];
   const faults: string[] = [];
   let sentAway = 0;
   for (const path of screens) {

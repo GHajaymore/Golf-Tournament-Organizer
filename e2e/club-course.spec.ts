@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { openCourses } from "./console/courses";
 
 /**
  * A CLUB TYPES ITS OWN COURSE: THE CARD, THE TEES AND THEIR RATINGS.
@@ -141,6 +142,47 @@ const unnamed = (within: Locator) =>
       .filter((el) => !((el as HTMLInputElement).labels?.length || el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || el.closest("[role=radiogroup][aria-labelledby]")))
       .map((el) => `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""} in "${(el.closest("tr, .field")?.textContent ?? "").trim().slice(0, 24)}"`),
   );
+
+/**
+ * THE CLUB'S COURSES SCREEN (R2, the redesign), at its building address, through its page object
+ * (`e2e/console/courses.ts`): the same card typed in, checked and removed, and no tick to use a course
+ * for a tournament, because the club's screen picks no event's course. The test below is not edited;
+ * this half goes with it at R17.
+ */
+test.describe("@redesign", () => {
+  const REDESIGNED = `${MARK} Linksfield Redesigned`;
+  const storedHere = () => prisma.course.findFirst({ where: { organizationId: clubId, name: REDESIGNED } });
+
+  test("a club's course is added, checked and removed on the Courses screen, which draws no tick to use it for a tournament", async ({ page }) => {
+    test.setTimeout(180_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    let courses = await openCourses(page);
+    await expect(courses.getByRole("checkbox"), "the club's screen draws a tick to use a course for a tournament").toHaveCount(0);
+    await expect(courses.locator("tbody tr").filter({ hasText: PLAYED }).first(), "the fixture's course is not listed").toBeVisible();
+
+    await courses.getByRole("button", { name: "Add a course" }).click();
+    await box(courses, "Course name").fill(REDESIGNED);
+    await box(courses, "City").fill("Linksfield");
+    await box(courses, /^Paste the card/).fill(CARD);
+    await expect(courses.getByText(/^\s*Read 18 pars and 18 stroke indexes and 18 lengths in yards\./), "a whole card is not said to have been read").toBeVisible();
+    await courses.getByRole("button", { name: "Add course" }).click();
+    await expect.poll(async () => (await storedHere())?.id ?? "", { timeout: 20_000, message: "the course was not stored" }).not.toBe("");
+    expect(JSON.parse((await storedHere())!.pars), "the pars stored are not the pars pasted").toEqual(PARS);
+
+    const listed = () => courses.locator("tbody tr").filter({ hasText: REDESIGNED }).first();
+    await expect(listed(), "the new course is not in the list").toBeVisible({ timeout: 20_000 });
+    await listed().getByRole("button", { name: "Verify card" }).click();
+    await expect.poll(async () => !!(await storedHere())?.verifiedAt, { timeout: 20_000, message: "checking the card was not stored" }).toBe(true);
+
+    courses = await openCourses(page);
+    await listed().getByRole("button", { name: "Remove", exact: true }).click();
+    expect(await storedHere(), "one press removed a course without asking").not.toBeNull();
+    await listed().getByRole("button", { name: "Remove the course" }).click();
+    await expect.poll(storedHere, { timeout: 20_000, message: "the course was not removed" }).toBeNull();
+    expect(errors, "a screen threw").toEqual([]);
+  });
+});
 
 test("a club's own course is typed in, checked, given rated tees, used and removed — and a card with scores on it is asked about before it changes", async ({ page }) => {
   test.setTimeout(240_000);

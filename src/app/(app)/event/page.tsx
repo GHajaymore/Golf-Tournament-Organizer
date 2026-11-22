@@ -10,7 +10,7 @@ import { hasKnockoutStage, isPlayingRound } from "@/lib/stage-types";
 import { PlaySettings } from "@/components/PlaySettings";
 import { teesForEvent } from "@/lib/services/handicaps";
 import { CourseLibrary } from "@/components/CourseLibrary";
-import { clubCourses } from "@/lib/services/courses";
+import { courseLibraryFor } from "@/lib/services/course-library-view";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
@@ -23,7 +23,6 @@ import { MoreInfo } from "@/components/MoreInfo";
 import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
 import { statusChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
-import { entitlementForEvent } from "@/lib/services/entitlements";
 import { soleVenueCourse } from "@/lib/services/course-resolution";
 import { fieldCapFor } from "@/lib/services/limits";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
@@ -70,13 +69,12 @@ export default async function EventPage({
    * for it buys the other eleven their parallelism on every request that is
    * actually served.
    */
-  const [state, flow, eventTees, params, scanPlan, strandedCount, teesDoor] = await Promise.all([
+  const [state, flow, eventTees, params, strandedCount, teesDoor] = await Promise.all([
     loadEventState(session.eventId),
     // The rail, as the state machine draws it (PR 3).
     setupRailFor(session.eventId),
     teesForEvent(session.eventId),
     searchParams,
-    entitlementForEvent(session.eventId, "cardScan"),
     /**
      * Entrants with no email address, so the sign-in control can say what
      * turning Round Codes off would cost BEFORE the dropdown is touched.
@@ -121,11 +119,12 @@ export default async function EventPage({
    * And the second wave: the two that genuinely need an answer from the
    * first — both of them the club's id.
    */
-  const [courses, org] = await Promise.all([
-    // The club's own courses. The setup picker used to read a bundled list of
-    // four invented layouts, so it offered courses nobody plays and scored
-    // against cards that do not exist.
-    clubCourses(e.organizationId, e.id),
+  const [library, org] = await Promise.all([
+    // The club's own courses, its home course, the card-reading entitlement and the `?course=` check, read
+    // in the one place the club's Courses screen reads them (R2). The setup picker used to read a bundled
+    // list of four invented layouts, so it offered courses nobody plays and scored against cards that do
+    // not exist.
+    courseLibraryFor(e.organizationId, e.id, params.course ?? ""),
     prisma.organization.findUnique({
       where: { id: e.organizationId },
       // `kind` so the branding nudge calls the outfit by its own name — a
@@ -142,7 +141,7 @@ export default async function EventPage({
       },
     }),
   ]);
-  const homeCourseId = org?.defaultCourseId ?? null;
+  const { courses, homeCourseId, cardScanAvailable, openCourseId } = library;
 
   /**
    * How this tournament writes its dates: its own answer, then the club's,
@@ -150,12 +149,6 @@ export default async function EventPage({
    * halves of one screen cannot disagree about it.
    */
   const fmt = formattingFor(org, e);
-
-  // Checked against the club's own courses rather than trusted: this arrives
-  // off the query string, and opening an editor for a row that is not theirs
-  // would be the screen contradicting every action behind it.
-  const requestedCourse = params.course ?? "";
-  const openCourseId = courses.some((c) => c.id === requestedCourse) ? requestedCourse : null;
 
 
   /**
@@ -340,7 +333,9 @@ export default async function EventPage({
           canEdit={session.viewRole === "admin"}
           // Resolved here rather than in the component: a locked feature has
           // to be visible before somebody photographs a card and uploads it.
-          cardScanAvailable={scanPlan.allowed}
+          cardScanAvailable={cardScanAvailable}
+          // Tournament details picks THIS event's courses; the club's own Courses screen does not.
+          eventPick
           homeCourse={homeCourseId}
           // Checked against the club's own courses rather than trusted: this
           // arrives off the query string, and opening an editor for a row that

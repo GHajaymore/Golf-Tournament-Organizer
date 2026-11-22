@@ -37,11 +37,21 @@ describe("a variant's words are the club's words", () => {
 });
 
 describe("the guide with the redesign's registry", () => {
-  it("starts empty, so the guide is IDENTICAL to GUIDE_STEPS for every set of shown screens", () => {
-    expect(REDESIGN_GUIDE).toEqual([]);
-    const sets: ScreenKey[][] = [[], [...SCREEN_KEYS], ...SCREEN_KEYS.map((k) => [k])];
+  it("is IDENTICAL to GUIDE_STEPS for every set of shown screens that holds no registered screen", () => {
+    const registered = new Set(REDESIGN_GUIDE.map((v) => v.screen));
+    const others = SCREEN_KEYS.filter((k) => !registered.has(k));
+    expect(others.length, "every screen is registered: this test would pass on nothing").toBeGreaterThan(0);
+    const sets: ScreenKey[][] = [[], [...others], ...others.map((k) => [k])];
     for (const shown of sets) expect(guideFor(GUIDE_STEPS, shown, US)).toEqual(GUIDE_STEPS);
-    expect(guideFor(GUIDE_STEPS, [...SCREEN_KEYS], US)).toBe(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, [...others], US)).toBe(GUIDE_STEPS);
+  });
+
+  it("draws a registered screen's variant only while that screen is shown (R2: courses)", () => {
+    const courses = guideFor(GUIDE_STEPS, ["courses"], US);
+    expect(courses.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "clubcourses"]);
+    // Today's guide is not edited: every base section is still there, untouched.
+    expect(courses.slice(0, GUIDE_STEPS.length)).toEqual(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, ["event"], US)).toEqual(GUIDE_STEPS);
   });
 
   it("a planted variant replaces exactly the sections it names, in place, while its screen is shown", () => {
@@ -78,7 +88,7 @@ describe("the guide with the redesign's registry", () => {
   });
 });
 
-describe("every registered variant (none yet)", () => {
+describe("every registered variant", () => {
   const ids = new Set(GUIDE_STEPS.map((s) => s.id));
   it("replaces ids that exist, and none is replaced by two screens", () => {
     const claimed = new Map<string, ScreenKey>();

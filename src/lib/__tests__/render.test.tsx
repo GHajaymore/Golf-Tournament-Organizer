@@ -1877,9 +1877,23 @@ describe("course library", () => {
     // Was a row of buttons for four invented courses. Pasting the real card
     // off the club website is the same number of clicks and is the actual
     // course.
-    const html = render(<CourseLibrary courses={[]} canEdit />);
+    const html = render(<CourseLibrary eventPick courses={[]} canEdit />);
     expect(html).toContain("Paste a card");
     expect(html).not.toContain("Ridgeline");
+  });
+
+  it("picks THIS EVENT's courses only where it is told to (R2: the club's own Courses screen picks none)", () => {
+    // Tournament details ticks which courses this tournament is played on; the club's Courses screen may
+    // have no tournament at all, and picking one is that tournament's job.
+    const picking = render(<CourseLibrary eventPick canEdit courses={[{ ...course, inEvent: true }]} />);
+    expect(picking).toContain("Use Bushwood");
+    expect(picking).toContain("Where this tournament is played.");
+    const club = render(<CourseLibrary eventPick={false} canEdit courses={[{ ...course, inEvent: true }]} />);
+    expect(club, "the club's screen draws a tick for an event's course").not.toContain("Use Bushwood");
+    expect(club).not.toContain("Where this tournament is played.");
+    // The rest of the library is the same: the course, its card and its tees are all still there.
+    expect(club).toContain("Bushwood");
+    expect(club).toContain("Add a course");
   });
 
   it("names the prize list, which another card points at by name", async () => {
@@ -2048,7 +2062,7 @@ describe("course library", () => {
     // wrong stroke index is invisible in play — it just sends handicap shots
     // to the wrong holes, every round, for as long as the course is listed.
     const unverified = render(
-      <CourseLibrary canEdit courses={[{ ...course, verified: false, sourceUrl: "https://zz.invalid/card" }]} />,
+      <CourseLibrary eventPick canEdit courses={[{ ...course, verified: false, sourceUrl: "https://zz.invalid/card" }]} />,
     );
     expect(unverified).toContain("stroke index");
     expect(unverified).toContain("wrong holes");
@@ -2057,7 +2071,7 @@ describe("course library", () => {
     expect(unverified).toContain("imported from https://zz.invalid/card");
 
     // Nothing to warn about when every card has been checked.
-    const verified = render(<CourseLibrary canEdit courses={[course]} />);
+    const verified = render(<CourseLibrary eventPick canEdit courses={[course]} />);
     expect(verified).not.toContain("wrong holes");
   });
 
@@ -2065,14 +2079,14 @@ describe("course library", () => {
     // It was an icon with no name at all: decorative markup, and the only text
     // — who checked it — in a `title` a screen reader may never announce.
     const html = render(
-      <CourseLibrary canEdit courses={[{ ...course, verified: true, verifiedBy: "zz-Ann Reyes" }]} />,
+      <CourseLibrary eventPick canEdit courses={[{ ...course, verified: true, verifiedBy: "zz-Ann Reyes" }]} />,
     );
     expect(html).toContain('aria-label="Card checked by zz-Ann Reyes"');
   });
 
   it("renders a course with its tees and marks the club's home course", () => {
     const html = render(
-      <CourseLibrary courses={[course]} canEdit homeCourse="Bushwood" />,
+      <CourseLibrary eventPick courses={[course]} canEdit homeCourse="Bushwood" />,
     );
     expect(html).toContain("Bushwood");
     expect(html).toContain("Blue");
@@ -2080,7 +2094,7 @@ describe("course library", () => {
 
   it("renders a course with no holes entered yet", () => {
     const html = render(
-      <CourseLibrary courses={[{ ...course, pars: [], yards: [], strokeIndex: [], tees: [] }]}
+      <CourseLibrary eventPick courses={[{ ...course, pars: [], yards: [], strokeIndex: [], tees: [] }]}
         canEdit={false} />,
     );
     expect(html).toContain("Bushwood");
@@ -3042,7 +3056,7 @@ describe("course card verification", () => {
     // name and its tees and nothing else. It used to print "72" — the sum of
     // the placeholder the service falls back to — presented as this course's
     // par, which is the exact mistake deleting the bundled courses was for.
-    const html = render(<CourseLibrary courses={[{ ...course, verified: false, hasCard: false }]} canEdit />);
+    const html = render(<CourseLibrary eventPick courses={[{ ...course, verified: false, hasCard: false }]} canEdit />);
     expect(html).toContain("No card yet");
     expect(html).not.toContain(">72<");
   });
@@ -3052,7 +3066,7 @@ describe("course card verification", () => {
     // "correct this card" arrives looking at the boxes rather than at a table
     // they have to find their course in again.
     const html = render(
-      <CourseLibrary courses={[{ ...course, verified: false }]} canEdit openCourseId="c1" />,
+      <CourseLibrary eventPick courses={[{ ...course, verified: false }]} canEdit openCourseId="c1" />,
     );
     expect(html).toContain("Save course");
   });
@@ -3062,7 +3076,7 @@ describe("course card verification", () => {
     // stays editable. Loading that INTO the editor would present invented
     // numbers as this course's card and invite somebody to save them.
     const html = render(
-      <CourseLibrary
+      <CourseLibrary eventPick
         courses={[{ ...course, verified: false, hasCard: false }]}
         canEdit
         openCourseId="c1"
@@ -3077,7 +3091,7 @@ describe("course card verification", () => {
     // a card for a venue that already exists. Fifty-four boxes when a
     // twenty-second paste exists a button away is a bad handoff.
     const html = render(
-      <CourseLibrary courses={[{ ...course, verified: false }]} canEdit openCourseId="c1" />,
+      <CourseLibrary eventPick courses={[{ ...course, verified: false }]} canEdit openCourseId="c1" />,
     );
     expect(html).toContain("Paste the card");
   });
@@ -3088,7 +3102,7 @@ describe("course card verification", () => {
       verified: false,
       sourceUrl: "https://api.opengolfapi.org/api/v1/courses/abc123",
     };
-    const html = render(<CourseLibrary courses={[fromDirectory]} canEdit />);
+    const html = render(<CourseLibrary eventPick courses={[fromDirectory]} canEdit />);
     expect(html).toContain("Check source");
     // And says what it does on the page rather than in a tooltip — an
     // organizer will not press something that might rewrite a card they
@@ -3099,26 +3113,26 @@ describe("course card verification", () => {
   it("does not offer it for a card typed in by hand", () => {
     // There is nothing to check it against, and a database arguing with a
     // card the club typed is not a feature.
-    const html = render(<CourseLibrary courses={[{ ...course, verified: false }]} canEdit />);
+    const html = render(<CourseLibrary eventPick courses={[{ ...course, verified: false }]} canEdit />);
     expect(html).not.toContain("Check source");
   });
 
   it("marks an unchecked card on the row", () => {
     // The thing that can be wrong — the stroke index — is invisible in play.
     // It just sends handicap shots to the wrong holes, quietly, forever.
-    const html = render(<CourseLibrary courses={[{ ...course, verified: false }]} canEdit />);
+    const html = render(<CourseLibrary eventPick courses={[{ ...course, verified: false }]} canEdit />);
     expect(html).toContain("Unverified");
     expect(html).toContain("Verify card");
   });
 
   it("offers to un-verify one that was checked", () => {
-    const html = render(<CourseLibrary courses={[{ ...course, verified: true }]} canEdit />);
+    const html = render(<CourseLibrary eventPick courses={[{ ...course, verified: true }]} canEdit />);
     expect(html).not.toContain("Unverified");
     expect(html).toContain("Unverify");
   });
 
   it("shows neither control to someone who cannot edit", () => {
-    const html = render(<CourseLibrary courses={[{ ...course, verified: false }]} canEdit={false} />);
+    const html = render(<CourseLibrary eventPick courses={[{ ...course, verified: false }]} canEdit={false} />);
     expect(html).not.toContain("Verify card");
   });
 });
