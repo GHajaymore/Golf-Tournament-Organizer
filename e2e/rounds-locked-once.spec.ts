@@ -75,13 +75,15 @@ test("a launched league's undated week: the dashboard's button lands on its colu
   const club = await makeClub(mark);
   try {
     const week1 = dayIn("");
-    const { event, stages } = await makeEvent(club, "Autumn League", {
+    const { event, stages, players } = await makeEvent(club, "Autumn League", {
       status: "live",
       // A league by its kind (`playKind`), three weekly rounds, only the first dated: the others are dated as the season goes.
       event: { playKind: "league", dates: "Autumn league", startOn: week1, endOn: week1 },
       stages: [{ playedOn: week1 }, {}, {}],
       players: 4,
     });
+    // Week 1 has been played (a card is in), so the next unplayed week is week 2, which is undated: the button's week.
+    await returnCard(event.id, stages[0].id, players[0].id);
     await signIn(context, baseURL!, club, event.id);
     const statusCard = page.locator(".card").filter({ has: page.locator(".card-kicker", { hasText: "Tournament status" }) });
     const setRound2 = statusCard.getByRole("link", { name: "Set Round 2’s day" });

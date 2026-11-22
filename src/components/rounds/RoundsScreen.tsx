@@ -227,7 +227,7 @@ function RoundView({
                 </SetupField>
               )}
               <SetupField label="Format" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
-                <RoundFormatControl ctx={ctx} />
+                <RoundFormatControl ctx={ctx} removeWarningHere={false} />
               </SetupField>
               <SetupField label="Holes" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
                 <RoundHolesControl ctx={ctx} />

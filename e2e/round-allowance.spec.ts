@@ -411,7 +411,7 @@ test.describe("@redesign", () => {
       const column = screen.column("Round 1");
       const line = column.locator("p", { hasText: /^Handicap allowance/ });
       await expect(line, "the column does not say its allowance under More").toBeVisible();
-      const changeButton = () => column.locator("div", { has: line }).last().getByRole("button", { name: "Change", exact: true });
+      const changeButton = () => column.locator("div").filter({ has: page.locator("p", { hasText: /^Handicap allowance/ }) }).last().getByRole("button", { name: "Change", exact: true });
       await changeButton().click();
       await column.getByLabel("Handicap allowance percent").fill("90");
       await column.getByRole("button", { name: "Save", exact: true }).click();

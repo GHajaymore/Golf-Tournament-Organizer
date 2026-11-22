@@ -8,7 +8,7 @@ import { BASIS_OPTIONS, WELL_KNOWN_FORMATS } from "@/components/rounds/shared";
 import { RemoveWarning } from "./RemoveWarning";
 import type { RoundCtx } from "./use-round-ctx";
 
-export function RoundFormatControl({ ctx }: { ctx: RoundCtx }) {
+export function RoundFormatControl({ ctx, removeWarningHere = true }: { ctx: RoundCtx; /** False where the screen says the refusal beside Delete itself (the redesigned Rounds screen): once, not twice. */ removeWarningHere?: boolean }) {
   const { stage, allStages, venues, asPanel, format, setFormatInfoOpen, formatSaid, doors, shut, rescore, pending, confirmRescore, cancelRescore, commitFormat, activeFormat, shapeProblem, activePending } = ctx;
   return (
     <>
@@ -153,7 +153,7 @@ export function RoundFormatControl({ ctx }: { ctx: RoundCtx }) {
 
           {/* Today's screen: under the Format box, as it always was. The timeline's panel says it
               beside its Delete button instead (`removeWarning`, below). */}
-          {!asPanel && <RemoveWarning ctx={ctx} />}
+          {!asPanel && removeWarningHere && <RemoveWarning ctx={ctx} />}
           {activePending && (
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
               This round is set to {activePending.name}, which can be configured but not yet
