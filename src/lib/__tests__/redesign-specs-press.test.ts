@@ -19,24 +19,50 @@ import { readSource, stripComments } from "./source";
  */
 
 /**
- * Blocks found on 23 Nov 2026, when this guard was written, that do not press-then-look: all nine of R2's and R9a's.
- * Each is `file :: describe title`. They are PLACED WITH THE QA DIRECTOR (to be ported to a press that reloads, or
- * accepted with a reason); a screen's PR that adds a block must not add to this list. Empty is the goal, and the
- * test below refuses a name that now passes or no longer exists, so the list can only shrink.
+ * Blocks that do not press-then-look, 23 Nov 2026: nine of R2's and R9a's, and six of R4's (#1218, which merges
+ * before this PR; its blocks are listed now so main stays green when it does). Each is `file :: describe title`.
+ * OWNER: QA Director with the Test Engineer; backlog item "G1b": give every listed block a press-then-reload and
+ * empty this list, test-only, before the R2, R4 and R9a switch-on flips. A screen's PR that adds a block must not
+ * add to this list: the list is CAPPED at KNOWN_READ_ONLY_CAP below and may only shrink; the test refuses a name
+ * that now passes or no longer exists.
  *   "no press that writes": the block reads the screen (R9a's day-of, round-day, replace and print blocks);
  *   "never looks again": the press is proved from the database (poll) or by re-opening through a helper, not by a
- *   reload or goto (R2's two course blocks, R9a's draw, moves and handicap blocks).
+ *   reload or goto (R2's two course blocks, R9a's draw, moves and handicap blocks, R4's six).
+ * The rule is per describe BLOCK, not per test: a block whose one test presses and reloads passes though its
+ * other tests only read. Two blocks with one title in one file would share an entry.
  */
 export const KNOWN_READ_ONLY: readonly string[] = [
   "club-course.spec.ts :: @redesign",
   "course-cards-and-venues.spec.ts :: @redesign",
   "day-of-tee-sheet.spec.ts :: @redesign a late entry on Tee times & draw",
+  "organizer-rounds-screen.spec.ts :: @redesign",
   "organizer-teesheet.spec.ts :: @redesign the draw on Tee times & draw",
+  "round-allowance.spec.ts :: @redesign",
   "round-day.spec.ts :: @redesign the round day on Tee times & draw",
   "round-handicap.spec.ts :: @redesign the round's handicaps on Tee times & draw",
+  "rounds-and-formats.spec.ts :: @redesign",
+  "rounds-panel.spec.ts :: @redesign",
+  "rounds-timeline.spec.ts :: @redesign",
+  "stages-scoring-setup.spec.ts :: @redesign",
   "tee-sheet-moves.spec.ts :: @redesign moving a player on Tee times & draw",
   "tee-sheet-replace.spec.ts :: @redesign replacing a player on Tee times & draw",
   "the-draw-prints.spec.ts :: @redesign the print door on Tee times & draw",
+];
+
+/** The list's size today (15, dated 23 Nov 2026, owner G1b). NEVER RAISE: it may only shrink, and lowering this as entries go is the point. */
+export const KNOWN_READ_ONLY_CAP = 15;
+
+/**
+ * R4's six, which are not on this branch until it is rebased onto main after #1218 merges. Until then the
+ * "names exist" test skips them; at that rebase DELETE this constant and raise MIN_BLOCKS to 15.
+ */
+const AWAITING_R4: readonly string[] = [
+  "organizer-rounds-screen.spec.ts :: @redesign",
+  "round-allowance.spec.ts :: @redesign",
+  "rounds-and-formats.spec.ts :: @redesign",
+  "rounds-panel.spec.ts :: @redesign",
+  "rounds-timeline.spec.ts :: @redesign",
+  "stages-scoring-setup.spec.ts :: @redesign",
 ];
 
 /** The least number of `@redesign` blocks there are today (the brief asked 20; main holds 9 until R4, R3 and R6 merge). Raise it as screens land, never lower it. */
@@ -107,9 +133,14 @@ describe("every @redesign block presses something that writes, and looks again",
     expect(bad).toEqual([]);
   });
 
+  it("KNOWN_READ_ONLY is capped: it may only shrink, never grow", () => {
+    expect(KNOWN_READ_ONLY.length, "never raise KNOWN_READ_ONLY_CAP; give the new block a press and a reload instead").toBeLessThanOrEqual(KNOWN_READ_ONLY_CAP);
+  });
+
   it("KNOWN_READ_ONLY names only blocks that exist and are still read-only", () => {
     const names = new Map(blocks.map((b) => [nameOf(b), b]));
     for (const k of KNOWN_READ_ONLY) {
+      if (!names.has(k) && AWAITING_R4.includes(k)) continue;
       expect(names.has(k), `${k} is not a @redesign block any more: take it off the list`).toBe(true);
       expect(pressProblem(names.get(k)!.body), `${k} now presses: take it off the list`).not.toBeNull();
     }
