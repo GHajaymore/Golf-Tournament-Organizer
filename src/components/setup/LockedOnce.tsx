@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ScopeLockBanner, scopeLockBannerDrawn } from "@/components/ScopeLockBanner";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { scopeLockBannerDrawn } from "@/components/scope-lock-rules";
 import type { CorrectionFacts, ScopeLock } from "@/lib/domain/tournament-status";
 
 /**

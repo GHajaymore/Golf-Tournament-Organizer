@@ -4,6 +4,7 @@ import { SCOPE_WORDS, wayOutIsOrganizers, type CorrectionFacts, type LockScope, 
 import { CorrectionButton, CorrectionOpenLine } from "./CommitteeCorrection";
 import { Icon } from "./Icon";
 import { SCOPE_LOCK_BANNER_ID } from "./scope-lock-focus";
+import { SCOPE_LOCK_REASON_ID, bannerName, scopeLockBannerDrawn } from "./scope-lock-rules";
 
 /**
  * WHAT IS LOCKED ON THIS SCREEN, AND WHY (state machine PR 5a; UI/UX, panel 8.3 Q3).
@@ -34,33 +35,6 @@ import { SCOPE_LOCK_BANNER_ID } from "./scope-lock-focus";
  * The id lives in `scope-lock-focus.ts`, with that move.
  */
 export { SCOPE_LOCK_BANNER_ID };
-
-/**
- * THE BANNER'S WORDS, FOR A CONTROL IT SHUTS (console sweep, J51). The reason is
- * said once, here; a control greyed by one of this screen's locks points at it
- * with `aria-describedby={SCOPE_LOCK_REASON_ID}`, so a screen reader hears the
- * reason on the control and the sweep's rule 2 is met by markup, not by distance.
- * The words only: the correction button beside them is not part of the reason.
- * Point at it only where the banner is drawn (`scopeLockBannerDrawn`): an id
- * that names nothing describes nothing.
- */
-export const SCOPE_LOCK_REASON_ID = "scope-lock-banner-reason";
-
-/** Whether `ScopeLockBanner` draws anything for these props: the one answer, asked by the banner itself. */
-export function scopeLockBannerDrawn(locks: readonly unknown[], correction: unknown, open: readonly string[] | null | undefined): boolean {
-  return locks.length > 0 || !!correction || !!open;
-}
-
-/**
- * THE BANNER IS NAMED FOR WHAT IT SAYS. A screen reader announces the region's
- * name before its words, so a banner whose only line is "Open for a correction"
- * must not be announced as "Locked" (round G567-2 found the screen drawn open
- * and named locked). Any lock line on the screen makes it "Locked".
- */
-export function bannerName(lockLines: number, correctionOpen: boolean): "Locked" | "Open for a correction" | "Under way" {
-  if (lockLines > 0) return "Locked";
-  return correctionOpen ? "Open for a correction" : "Under way";
-}
 
 export function ScopeLockBanner({
   locks,
