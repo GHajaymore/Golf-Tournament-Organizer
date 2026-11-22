@@ -3,22 +3,17 @@ import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useId, useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
-import { playKindsFor } from "@/lib/domain/play-kind";
-import { eventWords } from "@/lib/domain/event-words";
-import { useGolfRegister } from "@/components/GolfTermsProvider";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
-import { CoursePicker } from "@/components/CoursePicker";
-import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
-import { MoreInfo } from "./MoreInfo";
+import { EventWhat } from "./event/EventWhat";
+import { EventWhen } from "./event/EventWhen";
+import { EventWhere, type CourseOption } from "./event/EventWhere";
 import { useCaughtUp } from "./useAction";
 import { StickySave } from "./StickySave";
 import { TournamentJourney, type JourneyPhase } from "./TournamentJourney";
 import { overallResultLabel } from "@/lib/domain/overall-result";
-import { TITLE_MAX } from "@/lib/domain/typed-limits";
 import { bringIntoView } from "@/lib/bring-into-view";
-import { useGolfTerms } from "./GolfTermsProvider";
 
 interface EventForm {
   name: string;
@@ -44,15 +39,6 @@ interface EventForm {
   capacity: number;
   playerCountMode: string;
   manualPlayerCount: number;
-}
-
-interface CourseOption {
-  id: string;
-  name: string;
-  city: string;
-  address: string;
-  /** What the picker says about this course's card once chosen. */
-  cardNote?: PickedCardNote | null;
 }
 
 /**
@@ -157,10 +143,6 @@ export function EventSetupClient({
   journey?: JourneyPhase;
 }) {
   const [f, setF] = useState<EventForm>(initial);
-  // The club's golf words — "a league or golf group", "a league or society".
-  const golfWords = useGolfTerms();
-  const register = useGolfRegister();
-  const words = eventWords(f.playKind, register);
   // Captions below are real <label>s for their controls (a screen reader said
   // an unnamed "edit text" for the name, dates, course and deadline).
   const fid = useId();
@@ -216,8 +198,6 @@ export function EventSetupClient({
     f.startOn !== savedDates.startOn ||
     f.endOn !== savedDates.endOn ||
     f.datesTentative !== savedDates.datesTentative;
-  const [zip, setZip] = useState("");
-  const [zipMsg, setZipMsg] = useState("Enter a US zip to fill in the city/state.");
 
   const set = <K extends keyof EventForm>(k: K, v: EventForm[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -297,81 +277,6 @@ export function EventSetupClient({
     }
   };
 
-  const lookupZip = async () => {
-    const z = zip.trim();
-    if (!/^\d{5}$/.test(z)) {
-      if (z) setZipMsg("Enter a 5-digit US zip code.");
-      return;
-    }
-    setZipMsg("Looking up…");
-    try {
-      const res = await fetch(`https://api.zippopotam.us/us/${z}`);
-      if (!res.ok) {
-        setZipMsg("Zip not found — enter the city/address manually.");
-        return;
-      }
-      const data = (await res.json()) as {
-        places?: Array<{ "place name": string; "state abbreviation": string }>;
-      };
-      const place = data.places?.[0];
-      if (place) {
-        const city = place["place name"];
-        const state = place["state abbreviation"];
-        setF((prev) => ({
-          ...prev,
-          city,
-          address: prev.address.trim() ? prev.address : `${city}, ${state} ${z}`,
-        }));
-        setZipMsg(`Found ${city}, ${state}. Add the street address if needed.`);
-      }
-    } catch {
-      setZipMsg("Lookup unavailable — enter the city/address manually.");
-    }
-  };
-
-  const [locating, setLocating] = useState(false);
-  const useMyLocation = () => {
-    if (!("geolocation" in navigator)) {
-      setZipMsg("Location isn't available in this browser — enter a zip instead.");
-      return;
-    }
-    setLocating(true);
-    setZipMsg("Finding your location…");
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const res = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
-          );
-          const data = (await res.json()) as { city?: string; locality?: string; principalSubdivisionCode?: string; postcode?: string };
-          const city = data.city || data.locality || "";
-          const state = (data.principalSubdivisionCode || "").split("-").pop() || "";
-          if (city) {
-            setF((prev) => ({
-              ...prev,
-              city,
-              address: prev.address.trim() ? prev.address : `${city}, ${state}`.trim(),
-            }));
-            setZipMsg(`Found ${city}${state ? `, ${state}` : ""}. Add the street address if needed.`);
-            if (data.postcode) setZip(data.postcode);
-          } else {
-            setZipMsg("Couldn't determine your city — enter it manually.");
-          }
-        } catch {
-          setZipMsg("Location lookup failed — enter the city/address manually.");
-        } finally {
-          setLocating(false);
-        }
-      },
-      () => {
-        setZipMsg("Location access denied — enter a zip instead.");
-        setLocating(false);
-      },
-      { timeout: 8000 },
-    );
-  };
-
   /**
    * MORE PEOPLE CONFIRMED THAN THE FIELD HOLDS, said on the screen that sets
    * the number.
@@ -429,122 +334,37 @@ export function EventSetupClient({
     <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 12 }}>
         <span className="card-kicker">Tournament identity</span>
-        <div className="field">
-          <label htmlFor={`${fid}-name`}>
-            Tournament name{" "}
-            {!f.name.trim() && <span style={{ color: "var(--color-accent-200)" }}>· required to launch</span>}
-          </label>
-          <input
-            id={`${fid}-name`}
-            className="input"
-            value={f.name}
-            maxLength={TITLE_MAX}
-            onChange={(e) => set("name", e.target.value)}
-            placeholder="Name your tournament"
-            style={!f.name.trim() ? { borderColor: "var(--color-accent)" } : undefined}
-          />
-        </div>
-        {/* WHAT THIS ONE IS CALLED. A club runs a championship in June, a
-            charity scramble in July and a roll-up on Tuesdays — one word for
-            all three is wrong however carefully it is chosen, so the
-            tournament says which it is and the screens use that word.
-            Copy only: nothing scores differently. */}
-        <div className="field">
-          <label htmlFor="play-kind">What kind is this?</label>
-          <select
-            id="play-kind"
-            className="input"
-            value={f.playKind}
-            onChange={(e) => set("playKind", e.target.value)}
-            style={{ minHeight: 46 }}
-          >
-            {playKindsFor(register, f.playKind).map((k) => (
-              <option key={k.key} value={k.key}>
-                {k.label}
-              </option>
-            ))}
-          </select>
-          {/* One line, the rest an ⓘ away (Ajay, 2026-10-05). */}
-          <MoreInfo short={<>Members see &ldquo;this {words.kindLower}&rdquo;.</>} style={{ marginTop: 6 }}>
-            Members see this word: &ldquo;this {words.kindLower}&rdquo;, and the results card
-            reads &ldquo;{words.resultHeading}&rdquo;. It changes nothing about how the golf is
-            scored.
-          </MoreInfo>
-        </div>
-        <div className="pair-grid">
-          <div className="field">
-            <label htmlFor={`${fid}-start`}>
-              {words.kind} dates{" "}
-              {!f.dates.trim() && <span style={{ color: "var(--color-accent-200)" }}>· required to launch</span>}
-            </label>
-            {/* `minWidth: 0` on the inputs, not just `flex: 1`.
-                A native date input's intrinsic minimum is its own chrome — the
-                spinners and separators the browser draws — and a flex item
-                will not shrink below that unless it is told it may. Two of
-                them plus a dash could not fit a 320px screen, so the row ran
-                off the edge even after the field above it learned to stack. */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input id={`${fid}-start`} aria-label="Tournament dates, first day" className="input" type="date" value={startDate} onChange={(e) => onStartDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
-              <span className="text-muted">–</span>
-              <input aria-label="Tournament dates, last day" className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
-            </div>
-            {f.dates && <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>{f.dates}</p>}
-            {/* TENTATIVE IS A REAL ANSWER (2026-09-19). A club fixes its
-                calendar months before it fixes a tee time, and the app had one
-                word for both — so a member booking a holiday around a date the
-                committee had not agreed had no way to know. Launching now
-                requires dates; this is how a club gives them honestly before
-                they are settled. */}
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, minHeight: 44 }}>
-              <input
-                type="checkbox"
-                checked={f.datesTentative}
-                onChange={(e) => set("datesTentative", e.target.checked)}
-              />
-              These dates are tentative
-            </label>
-            {/* ITS OWN SAVE, because the dates outlive the setup lock.
-                A tentative date becomes a fixed one weeks later, by which time
-                the tournament is live and `saveEvent` refuses every field on
-                this screen. Confirming a date would then have meant unlocking
-                a tournament that is being played, which is how a flag nobody
-                can clear gets shipped. `setTournamentDates` is not behind the
-                lock, for the reason written beside it. */}
-            {datesDirty && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={datesPending}
-                  onClick={() =>
-                    startDatesTransition(async () => {
-                      await setTournamentDates(f.startOn, f.endOn, f.datesTentative, f.dates);
-                      setSavedDates({ startOn: f.startOn, endOn: f.endOn, datesTentative: f.datesTentative });
-                      setSavedSnapshot((prev) => ({
-                        ...prev,
-                        startOn: f.startOn,
-                        endOn: f.endOn,
-                        dates: f.dates,
-                        datesTentative: f.datesTentative,
-                      }));
-                    })
-                  }
-                >
-                  <Icon name="check" /> {datesPending ? "Saving…" : "Save dates"}
-                </button>
-                {/* SAYS THEY ARE NOT SAVED, because they are not. This read
-                    "Dates save on their own, so they can be changed after
-                    launch" — meaning their own BUTTON — which a newcomer read as
-                    "saved automatically", left the screen, and lost the date.
-                    Found 2026-09-26 setting up a Stableford from scratch. The
-                    line shows only while the dates differ from what is stored. */}
-                <span className="text-muted" style={{ fontSize: 13 }}>
-                  Not saved yet. Dates have their own Save, so they can still be changed after launch.
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
+        <EventWhat
+          name={f.name}
+          playKind={f.playKind}
+          onName={(v) => set("name", v)}
+          onPlayKind={(v) => set("playKind", v)}
+        />
+        <EventWhen
+          playKind={f.playKind}
+          label={f.dates}
+          startOn={startDate}
+          endOn={endDate}
+          tentative={f.datesTentative}
+          dirty={datesDirty}
+          saving={datesPending}
+          onStart={onStartDate}
+          onEnd={onEndDate}
+          onTentative={(v) => set("datesTentative", v)}
+          onSaveDates={() =>
+            startDatesTransition(async () => {
+              await setTournamentDates(f.startOn, f.endOn, f.datesTentative, f.dates);
+              setSavedDates({ startOn: f.startOn, endOn: f.endOn, datesTentative: f.datesTentative });
+              setSavedSnapshot((prev) => ({
+                ...prev,
+                startOn: f.startOn,
+                endOn: f.endOn,
+                dates: f.dates,
+                datesTentative: f.datesTentative,
+              }));
+            })
+          }
+        />
 
         {/* Neither of the two questions below is IDENTITY, and both used to sit
             under that heading — "Scoring" beside the dates, and "How do people
@@ -639,85 +459,25 @@ export function EventSetupClient({
             Dropping a column is a migration; this change is about what the
             screen asks. */}
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Venue</span>
-        <div className="field">
-          <CoursePicker
-            label="Golf course"
-            /**
-             * Keyed by NAME here, and only here.
-             *
-             * The Event stores its venue as a course name plus its own
-             * hole-by-hole card, which predates the Course library and is what
-             * `resolveCourse` matches on. Every other screen picks by id. That
-             * split is a data-model question, not a control question, and
-             * quietly changing what this writes would have re-pointed the venue
-             * of every existing tournament. So the CONTROL is now the same one
-             * used everywhere — it narrows, it shows the town — while what it
-             * saves is untouched.
-             */
-            options={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, cardNote: c.cardNote }))}
-            value={courseSelect}
-            onChange={onSelectCourse}
-            onBusyChange={setCourseAdding}
-            noneLabel="— Select a course —"
-            searchDirectory
-            // A society playing somewhere new every month should not have to
-            // go and add the course somewhere else first, then come back.
-            onEnterNew={(name) => {
-              setCourseSelect("__other");
-              setF((prev) => ({ ...prev, course: name, courseId: "", courseMode: "fixed" }));
-            }}
-            extras={[
-              { id: "__other", label: "Other (enter manually)" },
-              { id: "__open", label: "No fixed course — players choose" },
-            ]}
-          />
-          {courseSelect === "__open" && (
-            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
-              For a league or {golfWords.golfGroup} where each pairing arranges its own venue.
-              Nothing is set here; whoever enters a card names the course they
-              played, and it is saved to the club&rsquo;s list for next time.
-            </p>
-          )}
-        </div>
-
-        {courseSelect === "__other" && (
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-            <div className="field">
-              <label htmlFor={`${fid}-course`}>Course name</label>
-              <input id={`${fid}-course`} className="input" value={f.course} onChange={(e) => set("course", e.target.value)} placeholder="e.g. Maketewah Country Club" />
-            </div>
-            <div className="field">
-              <label htmlFor={`${fid}-zip`}>Zip code</label>
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  id={`${fid}-zip`}
-                  className="input"
-                  value={zip}
-                  onChange={(e) => setZip(e.target.value)}
-                  onBlur={lookupZip}
-                  placeholder="45202"
-                  inputMode="numeric"
-                  style={{ flex: 1 }}
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-icon"
-                  disabled={locating}
-                  onClick={useMyLocation}
-                  title="Use my current location"
-                >
-                  <Icon name={locating ? "ph ph-spinner-gap" : "ph ph-navigation-arrow"} />
-                </button>
-              </div>
-            </div>
-            <p className="text-muted" style={{ fontSize: 13, margin: "-6px 0 0", gridColumn: "1 / -1" }}>{zipMsg}</p>
-          </div>
-        )}
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
-          <div className="field"><label htmlFor={`${fid}-city`}>City</label><input id={`${fid}-city`} className="input" value={f.city} onChange={(e) => set("city", e.target.value)} placeholder="City" /></div>
-          <div className="field"><label htmlFor={`${fid}-address`}>Address</label><input id={`${fid}-address`} className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
-        </div>
+        <EventWhere
+          courses={courses}
+          courseSelect={courseSelect}
+          course={f.course}
+          city={f.city}
+          address={f.address}
+          onSelectCourse={onSelectCourse}
+          onBusyChange={setCourseAdding}
+          onEnterNew={(name) => {
+            setCourseSelect("__other");
+            setF((prev) => ({ ...prev, course: name, courseId: "", courseMode: "fixed" }));
+          }}
+          onCourseName={(v) => set("course", v)}
+          onCity={(v) => set("city", v)}
+          onAddress={(v) => set("address", v)}
+          onPlaceFound={(city, addressIfEmpty) =>
+            setF((prev) => ({ ...prev, city, address: prev.address.trim() ? prev.address : addressIfEmpty }))
+          }
+        />
 
         {/* THE ENTRY TERMS LIVE ON ENTRIES (the entries cleanup, 2026-11-05).
             When entries open and close, how many places, and approval were set
