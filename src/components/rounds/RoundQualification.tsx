@@ -2,6 +2,7 @@
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
 import { QualControl } from "@/components/QualControl";
+import { isKnockoutRound } from "@/lib/stage-types";
 import { SectionLabel } from "@/components/rounds/shared";
 import type { RoundCtx } from "./use-round-ctx";
 
@@ -45,5 +46,5 @@ export function RoundQualification({ ctx }: { ctx: RoundCtx }) {
 /** Whether RoundQualification has anything to say: asked by the caller that puts it among children counted by `SettingsGroup`. */
 export function roundQualificationShown(ctx: RoundCtx): boolean {
   const { stage } = ctx;
-  return !!(stage.type === "Bracket Stage");
+  return isKnockoutRound(stage.type);
 }

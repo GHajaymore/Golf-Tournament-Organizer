@@ -1,5 +1,6 @@
 "use client";
 import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
+import { isKnockoutRound } from "@/lib/stage-types";
 import type { RoundCtx } from "./use-round-ctx";
 
 export function RoundThirdPlace({ ctx }: { ctx: RoundCtx }) {
@@ -28,5 +29,5 @@ export function RoundThirdPlace({ ctx }: { ctx: RoundCtx }) {
 /** Whether RoundThirdPlace has anything to say: asked by the caller that puts it among children counted by `SettingsGroup`. */
 export function roundThirdPlaceShown(ctx: RoundCtx): boolean {
   const { stage, thirdPlace } = ctx;
-  return !!(stage.type === "Bracket Stage" && thirdPlace);
+  return !!(isKnockoutRound(stage.type) && thirdPlace);
 }

@@ -403,6 +403,24 @@ test.describe("@redesign", () => {
       await screen.open();
       await expect(screen.column("Round 1")).toContainText("Allowance 95%, from the Rules' recommendation");
       expect(await raPrisma.stage.count({ where: { eventId: event.id, handicapAllowance: { gt: 0 } } }), "the default was stored as if it were a choice").toBe(0);
+
+      // PRESSED, as the organizer would: change it on the column (under More), see it stored, then put the default back.
+      const stageId = (await raPrisma.stage.findFirstOrThrow({ where: { eventId: event.id, position: 0 } })).id;
+      const storedNow = async () => (await raPrisma.stage.findUniqueOrThrow({ where: { id: stageId } })).handicapAllowance;
+      await screen.openMore("Round 1");
+      const column = screen.column("Round 1");
+      const line = column.locator("p", { hasText: /^Handicap allowance/ });
+      await expect(line, "the column does not say its allowance under More").toBeVisible();
+      const changeButton = () => column.locator("div", { has: line }).last().getByRole("button", { name: "Change", exact: true });
+      await changeButton().click();
+      await column.getByLabel("Handicap allowance percent").fill("90");
+      await column.getByRole("button", { name: "Save", exact: true }).click();
+      await expect.poll(storedNow, { message: "90% was not stored" }).toBe(90);
+      await expect(line).toContainText("90%");
+      await changeButton().click();
+      await column.getByRole("button", { name: "Back to 95%", exact: true }).click();
+      await expect.poll(storedNow, { message: "Back to 95% did not clear the committee's figure" }).toBe(0);
+      await expect(line).toContainText("the recommended allowance for this format");
     } finally {
       await raDropClub(mark);
     }

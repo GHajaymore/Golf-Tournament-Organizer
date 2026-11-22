@@ -14,7 +14,7 @@ export const ROUNDS_GUIDE: GuideVariant = {
       title: "Rounds and formats",
       blocks: [
         { kind: "where", text: "Set up → Rounds & formats" },
-        { kind: "p", text: "Each round is one column with the same rows in the same order: **Day**, **Course** (only when the event has more than one course), **Format**, **Holes** and **Handicap**. A round that is still being set up shows how many of its settings are in place (“2 of 3 set”); a round that has begun shows its state instead." },
+        { kind: "p", text: "Each round is one column with the same rows in the same order: **Day**, **Course** (only when the event has more than one course, or the round is nine holes, where the tee is chosen), **Format**, **Holes** and **Handicap**. A round that is still being set up shows how many of its settings are in place (“2 of 3 set”); a round that has begun shows its state instead." },
         { kind: "h", text: "The event's scoring, once" },
         { kind: "p", text: "The **Scoring** card above the rounds says whether players may enter their own scores and who keeps the card in each round. The answer to **Can players enter scores?** is the event's: when players may not, the committee keeps every card, whatever a round says. **Change** opens Players & scoring on Event." },
         { kind: "h", text: "Add a round" },

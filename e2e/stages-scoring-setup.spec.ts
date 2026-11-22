@@ -184,7 +184,7 @@ test.describe("@redesign", () => {
     const mark = `zz-sss-redesign-${testInfo.project.name}`;
     const club = await ssMakeClub(mark);
     try {
-      const { event } = await ssMakeEvent(club, "Scoring Medal", { stages: [{}, {}] });
+      const { event } = await ssMakeEvent(club, "Scoring Medal", { stages: [{}, {}], event: { playerAccess: "both", scoreEntryBy: "players" } });
       await ssSignIn(context, baseURL!, club, event.id);
       const screen = new RoundsScreen(page);
       await screen.open();
@@ -192,7 +192,18 @@ test.describe("@redesign", () => {
       await expect(screen.scoringTile()).toContainText("Who keeps the card");
       await expect(page.locator("[data-scoring-tile]"), "the tile is drawn once, not once a round").toHaveCount(1);
       await screen.openMore("Round 1");
-      await expect(screen.column("Round 1").getByRole("button", { name: "Customize who keeps score" })).toBeVisible();
+      const customize = screen.column("Round 1").getByRole("button", { name: "Customize who keeps score" });
+      await expect(customize).toBeVisible();
+
+      // PRESSED, as the organizer would: choose Organizer only on Round 1, see it stored, and see the tile's line change.
+      const stageId = (await prisma.stage.findFirstOrThrow({ where: { eventId: event.id, position: 0 } })).id;
+      const keeping = async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stageId } })).scoreKeeping;
+      expect(await keeping(), "the round already keeps its own rule").not.toBe("organizer");
+      const lineBefore = await screen.scoringTile().innerText();
+      await customize.click();
+      await screen.column("Round 1").getByRole("radio", { name: "Organizer only (paper cards)" }).click();
+      await expect.poll(keeping, { timeout: 15_000, message: "who keeps the card was not saved" }).toBe("organizer");
+      await expect.poll(async () => screen.scoringTile().innerText(), { message: "the Scoring tile's line did not change" }).not.toBe(lineBefore);
     } finally {
       await ssDropClub(mark);
     }

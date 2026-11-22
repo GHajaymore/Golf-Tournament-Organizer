@@ -213,4 +213,28 @@ test.describe("@redesign", () => {
     }
     expect(errors, errors.join("\n")).toEqual([]);
   });
+
+  test("Use the default on an undated round's Day stores the day the app proposed", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `${markFor(testInfo.project.name)}-dflt`;
+    const club = await makeClub(mark);
+    try {
+      const today = dayIn("");
+      // Three rounds over a two-day event: a round a day, and the days run out, so Round 3 proposes the LAST day.
+      const first = addDays(today, 7);
+      const last = addDays(today, 8);
+      const { event, stages } = await makeEvent(club, "Two Day Meeting", { stages: [{}, {}, {}], players: 4, event: { startOn: first, endOn: last } });
+      await signIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      expect((await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, "the proposal was stored before anybody pressed it").toBe("");
+      await screen.column("Round 3").getByRole("button", { name: `Use the default (${last})` }).click();
+      await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, { message: "Use the default stored no day" }).toBe(last);
+      await expect(screen.dayInput("Round 3")).toHaveValue(last);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
