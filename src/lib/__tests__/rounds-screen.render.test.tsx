@@ -50,6 +50,7 @@ const screen = (over: Partial<RoundsScreenProps> = {}): RoundsScreenProps => ({
   rings: { r1: { set: 3, of: 3, holds: false }, r2: { set: 2, of: 3, holds: true } },
   dayMarks: { r1: null, r2: null },
   defaultDays: { r1: "2026-10-12", r2: "2026-10-13" },
+  dayWords: "The event's first day, one round a day",
   allowanceSources: { r1: "the Rules' recommendation", r2: "the Rules' recommendation" },
   inheritedTees: {},
   eventScoring: { scoreEntryBy: "staff" },

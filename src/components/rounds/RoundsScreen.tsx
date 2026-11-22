@@ -53,6 +53,8 @@ export interface RoundsScreenExtras {
   dayMarks: Record<string, Mark | null>;
   /** The day the app proposes for each round (`defaultRoundDays`), "" when it proposes none. */
   defaultDays: Record<string, string>;
+  /** The words that cite the proposed day (`proposedDayWords`): said once by the page, for a league or not. */
+  dayWords: string;
   /** The citation of each round's default allowance (`allowanceSource`); absent where the round has none. */
   allowanceSources: Record<string, string>;
   /** "Round 1" where this round plays a course an earlier round plays (`inheritedRoundTee`). */
@@ -210,7 +212,7 @@ function RoundView({
                 <SetupField
                   label="Day"
                   mark={extras.dayMarks[stage.id] ?? null}
-                  dflt={defaultDay ? { value: defaultDay, source: "The event's first day, one round a day" } : null}
+                  dflt={defaultDay ? { value: defaultDay, source: extras.dayWords } : null}
                   isDefault={defaultDay !== "" && playedOn === defaultDay}
                   onChange={null}
                   onUseDefault={defaultDay && !dayShut ? () => commitPlayedOn(defaultDay) : null}
@@ -256,9 +258,12 @@ function RoundView({
           {!shown.has("teeTimes") ? (
             !completed && <RoundHandicapsBlock ctx={ctx} />
           ) : (
-            stage.handicaps.length > 0 && (
+            stage.handicaps.some((h) => h.override !== null) && (
               <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
-                {stage.handicaps.filter((h) => h.override !== null).length} handicap(s) set for this round, on Tee times &amp; draw.
+                {(() => {
+                  const set = stage.handicaps.filter((h) => h.override !== null).length;
+                  return set === 1 ? "1 handicap is set for this round, on Tee times & draw." : `${set} handicaps are set for this round, on Tee times & draw.`;
+                })()}
               </p>
             )
           )}

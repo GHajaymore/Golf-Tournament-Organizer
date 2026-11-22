@@ -250,3 +250,18 @@ export function defaultRoundDays(startOn: string | null | undefined, endOn: stri
   for (let i = 0; i < n; i += 1) out.push(addDays(start, Math.min(i, span)));
   return out;
 }
+
+/**
+ * THE DAYS THE ROUNDS SCREEN PROPOSES (R4): `defaultRoundDays`, told whether the event is a weekly league. A league is made
+ * with its `endOn` at the entry window's last day, so it must be asked for a round a WEEK apart, or week 2 is proposed as the
+ * next day and "Use the default" writes it. Pure on calendar days: it is handed the event's days and reads no clock, so the
+ * club's zone and the hour cannot move it (`docs/claude/club-clock.md`).
+ */
+export function proposedRoundDays(startOn: string | null | undefined, endOn: string | null | undefined, rounds: number, weekly: boolean): IsoDate[] {
+  return defaultRoundDays(startOn, endOn, rounds, weekly ? 7 : 0);
+}
+
+/** The words beside a proposed day (the Default mark and the field's citation): ONE place, said the league's way for a league. */
+export function proposedDayWords(weekly: boolean): string {
+  return weekly ? "The league's first week, one round a week" : "The event's first day, one round a day";
+}

@@ -4,9 +4,10 @@ import type { RoundCtx } from "./use-round-ctx";
 
 export function RoundThirdPlace({ ctx }: { ctx: RoundCtx }) {
   const { stage, thirdPlace, locked } = ctx;
+  // The one condition is `roundThirdPlaceShown`'s; `thirdPlace` is only narrowed here for the type.
   return (
     <>
-{stage.type === "Bracket Stage" && thirdPlace && (
+{roundThirdPlaceShown(ctx) && thirdPlace && (
           <div>
 
             <ThirdPlaceControl

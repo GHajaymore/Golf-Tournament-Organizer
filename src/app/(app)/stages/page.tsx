@@ -14,6 +14,7 @@ import { playersAnswer, resolveAttendance, tracksPerRound, type AttendanceMode }
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
+import type { ComponentProps } from "react";
 import { StagesClient } from "@/components/StagesClient";
 import { RoundsScreen } from "@/components/rounds/RoundsScreen";
 import { screensShownFor } from "@/lib/services/screens-shown";
@@ -25,7 +26,7 @@ import { allowanceSource } from "@/lib/round-allowance";
 import { roundLabel } from "@/lib/domain/round-label";
 import { SeasonDates } from "@/components/SeasonDates";
 import { SetupNotices } from "@/components/SetupNotices";
-import { cleanIsoDate, datedSaid, defaultRoundDays } from "@/lib/domain/round-dates";
+import { cleanIsoDate, datedSaid, proposedDayWords, proposedRoundDays } from "@/lib/domain/round-dates";
 import { formatDay } from "@/lib/domain/locale";
 import { formattingForEvent } from "@/lib/services/organization";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
@@ -424,7 +425,9 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     ? (() => {
         const status = told.status;
         const playingNow = playingStages(state.stages);
-        const proposed = defaultRoundDays(state.event.startOn, state.event.endOn, playingNow.length);
+        const weekly = status.family === "league";
+        const proposed = proposedRoundDays(state.event.startOn, state.event.endOn, playingNow.length, weekly);
+        const dayWords = proposedDayWords(weekly);
         const defaultDays: Record<string, string> = {};
         const dayMarks: Record<string, Mark | null> = {};
         const inheritedTees: Record<string, string> = {};
@@ -433,7 +436,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         playingNow.forEach((s, i) => {
           const day = proposed[i] ?? "";
           defaultDays[s.id] = day;
-          dayMarks[s.id] = markOf("roundDate", status, cleanIsoDate(s.playedOn ?? ""), day ? { value: day, source: "The event's first day, one round a day" } : null);
+          dayMarks[s.id] = markOf("roundDate", status, cleanIsoDate(s.playedOn ?? ""), day ? { value: day, source: dayWords } : null);
           const before = playingNow.slice(0, i).map((r) => ({ id: r.id, courseId: r.courseId ?? state.event.courseId ?? null }));
           const from = inheritedRoundTee(before, s.courseId ?? state.event.courseId ?? null);
           if (from) inheritedTees[s.id] = roundLabel(state.stages, from.id);
@@ -449,6 +452,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
           rings,
           dayMarks,
           defaultDays,
+          dayWords,
           allowanceSources,
           inheritedTees,
           eventScoring: { scoreEntryBy: settingsOf(state.event).scoreEntryBy as string },
@@ -722,7 +726,9 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
       />
         );
         // The same facts, drawn by the redesigned screen while its key is shown; otherwise today's screen, unchanged.
-        return screenExtras ? <RoundsScreen {...roundsEl.props} {...screenExtras} /> : roundsEl;
+        // A JSX element's `props` is `any`; typing it ONCE here makes tsc check RoundsScreen's props against StagesClient's.
+        const roundsProps: ComponentProps<typeof StagesClient> = roundsEl.props;
+        return screenExtras ? <RoundsScreen {...roundsProps} {...screenExtras} /> : <StagesClient {...roundsProps} />;
       })()}
       {/* The other half of the placement decision above: offered after the
           rounds once there are rounds, so it stays available without leading. */}

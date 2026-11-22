@@ -19,7 +19,7 @@ export function RoundQualification({ ctx }: { ctx: RoundCtx }) {
             field in the draw. Offering "Top 2 per flight" here was offering a
             setting that — before 2026-09-26 — silently left half a club's
             entrants out of its knockout. */}
-        {stage.type === "Bracket Stage" && (
+        {roundQualificationShown(ctx) && (
           allStages.findIndex((s) => s.id === stage.id) === 0 ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5, maxWidth: "62ch" }}>
             This bracket is the first round, so everyone in the field goes into the draw, seeded in order —
