@@ -225,7 +225,7 @@ describe("the decided menu", () => {
       ["Set up", ["Event details", "Rounds & formats", "Players", "Prizes & side games"]],
       ["Tee times", ["Tee times & draw"]],
       ["Play", ["Score entry", "Leaderboard"]],
-      ["Results", ["Results", "Money & payouts"]],
+      ["Results", ["Results", "Winners & money"]],
       ["Club", ["Events", "Members", "Courses", "Seasons & honours", "Club settings"]],
       ["Help", ["Guide & rules", "My round"]],
     ]);
@@ -239,7 +239,7 @@ describe("the decided menu", () => {
       // Setup's one order (`SETUP_ORDER`): the field, then its sides, then its flights.
       Players: ["Entries /registration", "Teams & pairs /teams", "Flights /grouping"],
       "Tee times & draw": ["Print kit /print", "Bracket /bracket", "Team cup /cup", "This week /week"],
-      "Money & payouts": ["Side games /group-games"],
+      "Winners & money": ["Side games /group-games"],
       Members: ["Member history /member"],
       "Club settings": ["Staff & helpers /access"],
       "Guide & rules": ["How TourneyHQ works /guide", "Rules reference /rules"],
@@ -296,7 +296,7 @@ describe("the redesign's screens in the menu", () => {
     lifecycleNav(flat, medal, { merges: shown, role, moves });
   /** Presses from an open menu to reach `href`: 1 when an entry (or one beneath) opens it. */
   const presses = (menu: readonly NavSection[], href: string) => (everyEntry(menu).some((i) => path(i.href) === path(href)) ? 1 : Infinity);
-  /** Where a flat entry's door leads with these screens shown (the menu's Money & payouts is Prizes' payout). */
+  /** Where a flat entry's door leads with these screens shown (the menu's Winners & money is Prizes' payout). */
   /** The screens a flat menu gives this person: no door moves into a room withheld from them. */
   const screensOf = (flat: readonly NavSection[]) => new Set(flat.flatMap((s) => s.items.map((i) => i.key)));
   const leadsTo = (role: Role, shown: ReadonlySet<ScreenKey>, moves: readonly Move[] | undefined, screens: ReadonlySet<string>) => (h: string) => [
@@ -411,7 +411,7 @@ describe("the redesign's screens in the menu", () => {
       "Guide & rules": ["How TourneyHQ works /guide", "Rules reference /rules"],
     });
     const at = (label: string) => everyEntry(menu).find((i) => i.label === label)?.href;
-    expect(at("Money & payouts")).toBe("/money");
+    expect(at("Winners & money")).toBe("/money");
     expect(at("Prizes & side games")).toBe("/prizes");
     expect(at("Courses")).toBe("/courses");
     expect(at("Tee times & draw")).toBe("/foursomes");
@@ -468,7 +468,7 @@ describe("the redesign's screens in the menu", () => {
     expect(everyEntry(menu).some((i) => i.key === "week")).toBe(false);
     expect(longer("player", flat, menu, ALL_SCREENS, moves)).toEqual([]);
     // An organizer's week retired into Winners & money, while no entry of THIS table opens that room
-    // (its Money & payouts row is left out): the check names the door.
+    // (its Winners & money row is left out): the check names the door.
     const admin = navForRole("admin", undefined, { isLeague: true });
     const toMoney: Move[] = [{ from: "/week", roles: ["admin"], homes: { "read-the-week": "money" }, room: "money", to: () => "/money" }];
     expect(longer("admin", admin, merged("admin", admin, toMoney), ALL_SCREENS, toMoney)).toEqual(["/week"]);
