@@ -9,7 +9,7 @@ import { OrgBrand, type Brand } from "./OrgBrand";
 import { LOGO_SIZE } from "./Logo";
 import { Icon } from "./Icon";
 import { NavSections } from "./NavSections";
-import { keepPreview } from "@/lib/domain/lifecycle-track";
+import { consoleUrl } from "@/lib/console-url";
 import { roleName } from "@/lib/roles";
 
 type Role = "admin" | "assistant" | "player";
@@ -47,7 +47,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
         {tabs.map((t) => (
           <Link
             key={t.key}
-            href={preview ? keepPreview(t.href) : t.href}
+            href={preview ? consoleUrl(t.href, "preview") : t.href}
             className="m-tab"
             aria-current={pathname === t.href ? "page" : undefined}
           >
