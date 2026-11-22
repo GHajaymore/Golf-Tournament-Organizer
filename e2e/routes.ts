@@ -68,6 +68,19 @@ export function isSwitchedOff(source: string): boolean {
  * opened. A screen is a page.tsx, wherever it sits.
  */
 export function consoleScreens(cwd: string = process.cwd()): string[] {
+  return walkConsole(cwd, false);
+}
+
+/**
+ * The screens `consoleScreens` holds out because their switch is off (`isSwitchedOff`). They are still
+ * doors of the app: the signed-out sweep in `security.spec.ts` asks them too (it only asserts "refused",
+ * which a redirect while off still is), so a new page is proven to refuse a stranger from its first day.
+ */
+export function switchedOffScreens(cwd: string = process.cwd()): string[] {
+  return walkConsole(cwd, true);
+}
+
+function walkConsole(cwd: string, switchedOff: boolean): string[] {
   const root = join(cwd, "src", "app", "(app)");
   const found: string[] = [];
   const walk = (parts: string[]) => {
@@ -78,7 +91,8 @@ export function consoleScreens(cwd: string = process.cwd()): string[] {
       if (
         existsSync(join(root, ...here, "page.tsx")) &&
         !isRedirectStub(readSource("src", "app", "(app)", ...here, "page.tsx")) &&
-        !isSwitchedOff(readSource("src", "app", "(app)", ...here, "page.tsx"))
+        !isRedirectStub(readSource("src", "app", "(app)", ...here, "page.tsx")) &&
+        isSwitchedOff(readSource("src", "app", "(app)", ...here, "page.tsx")) === switchedOff
       ) {
         found.push(`/${here.join("/")}`);
       }

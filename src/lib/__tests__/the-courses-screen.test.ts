@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { readSource } from "./source";
 import { cameFromPath } from "../domain/came-from";
 import { COURSE_KEEPER_WORDS } from "../domain/course-words";
-import { consoleScreens, isSwitchedOff } from "../../../e2e/routes";
+import { consoleScreens, isSwitchedOff, switchedOffScreens } from "../../../e2e/routes";
 import { SCREENS_BUILT } from "../../../e2e/console";
 
 /**
@@ -104,6 +104,8 @@ describe("the new address is held out of the live-screen sweeps while its switch
   it("`/courses` is a screen of its own, built at its address and not walked as a live one", () => {
     expect(SCREENS_BUILT.courses).toBe("/courses");
     expect(consoleScreens()).not.toContain("/courses");
+    // Held out of the sweeps that assert a landing path, yet still asked by the signed-out security sweep.
+    expect(switchedOffScreens()).toContain("/courses");
   });
 
   it("CONTROL: a screen that merely chooses by the switch, or redirects for another reason, stays swept", () => {
