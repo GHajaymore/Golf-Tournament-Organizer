@@ -45,6 +45,8 @@ const STAFF_GATES = [
   "requireStaff(",
   "requireAdminEvent(",
   "requireOrganizerOrg(",
+  // The club's course library (courses.ts, R2a): the open tournament's admin, or with none open the club's `canEdit`.
+  "requireCourseKeeper(",
   "requireOrganizer(",
   "requireStaffSession(",
   "requireStaffOrg(",

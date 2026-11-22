@@ -23,6 +23,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { scoringDefaults } from "@/lib/domain/round-scoring";
+import { newEventDefaults } from "@/lib/domain/event-defaults";
 import { addCourseToLibrary } from "@/lib/services/course-library";
 
 /**
@@ -210,6 +211,7 @@ export async function buildDemoClub(input: { mark: string; at?: Date }): Promise
 /** The columns both tournaments share. */
 function eventBase(orgId: string, courseId: string, teeId: string, shareToken: string, start: string, end: string) {
   return {
+    ...newEventDefaults(),
     organizationId: orgId,
     dates: formatDayRange(start, end, DEMO_CLUB.locale),
     startOn: start,

@@ -19,6 +19,16 @@ is left as it is. A capital letter sorts after every digit, so `A000` to `A999` 
 of it, then `B000`. `migrations-replay-in-the-order-written.test.ts` refuses anything else. When
 `prisma migrate dev --create-only` names one by timestamp, rename the folder before applying it.
 
+**A renumbered migration must be idempotent (13-21 Nov, F1).** Previews share one preview database,
+so a migration renamed from a timestamp to `A0NN_` is a NEW name to a database that already ran it:
+`migrate deploy` applies it again. Write it so a second run changes nothing (`IF NOT EXISTS`,
+`DROP ... IF EXISTS`, guarded `DO` blocks), or the preview turns red for every branch.
+
+**A preview build never reaches production (F2).** Every build script that creates a client or reads
+`DATABASE_URL` imports `scripts/build-database.mjs` FIRST: it swaps in `PREVIEW_DATABASE_URL*`, or
+exits 1 if a preview has none. `preview-build-never-reaches-production.test.ts` refuses a script that
+does not (a person-run script is listed there by name).
+
 **A new model means restarting the dev server, not just recompiling.** A running Next process
 holds the generated client in memory, so `prisma.yourNewModel` stays `undefined` however many
 times the page hot-reloads — and the screen fails with `Cannot read properties of undefined

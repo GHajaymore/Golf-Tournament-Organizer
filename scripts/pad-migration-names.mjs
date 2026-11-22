@@ -16,6 +16,7 @@
 // A brand-new database has no _prisma_migrations table; that is the no-op
 // path, and it must stay silent — CI creates a fresh database on every run.
 
+import "./build-database.mjs"; // FIRST: a preview build must never reach production
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
