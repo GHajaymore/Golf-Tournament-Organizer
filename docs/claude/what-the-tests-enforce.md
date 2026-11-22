@@ -176,6 +176,23 @@ the carried fields, so the source's own mode wins (`a-new-event-starts-single.au
 does, so "which screens does this request show" has one answer per page. The control plants a page
 that calls it directly and expects the refusal.
 
+## A server file never calls a client export, anywhere in src (G1, 23 Nov 2026)
+
+`server-never-calls-a-client-export.test.ts` sweeps every `.ts` and `.tsx` under `src/` (tests excluded), not
+only pages and components, and refuses a value import from a `"use client"` module unless the client module
+DECLARES the name as a component (`function Name(` or `const Name = (`). A lowercase helper, a constant, or a
+PascalCase object is refused. Controls: the R9a shape, a planted `src/lib/services/x.ts`, and a PascalCase
+constant. A rule both sides need goes in a module with no directive (`scope-lock-rules.ts`).
+
+## A `@redesign` block presses something that writes, and looks again (G1, 23 Nov 2026)
+
+`redesign-specs-press.test.ts` reads every `test.describe("@redesign…")` in `e2e/*.spec.ts` through `readSource`
+and refuses a block with no write press (`.click(`, `.fill(`, `.check(`, `.selectOption(`, `.press(`, not on a link or a
+fold opener) or with no `reload()` / `goto(` after the first one. The blocks that fail today (all nine of R2's and
+R9a's) are named in a dated `KNOWN_READ_ONLY` and placed with the QA Director; the list can only shrink. A floor on
+the number of blocks found stops a broken reader passing on none. Controls: a planted read-only block, a press with no
+look afterwards, a press only in a comment.
+
 ## One writer of a round's scoreInput, and the ring files (R4, 22 Nov 2026)
 
 `one-writer-of-score-input.test.ts` refuses a second caller of `setStageScoreInput` anywhere in `src/` but `components/rounds/RoundScoreInput.tsx` (`writeScoreInput`), which the round card and the team round's select both call; the control plants a second writer. `the-timeline-reads-the-machine.test.ts` holds the redesigned Rounds & formats files (`RoundsScreen`, `BetweenRounds`, `ScoringTile`) to the ring wall: no `.needs` read, no literal denominator. A guard that pins what the Rounds screen draws reads `roundsScreenSource()` (`__tests__/rounds-source.ts`: the screen and `components/rounds/`), because its controls were lifted out of `StagesClient.tsx`.
