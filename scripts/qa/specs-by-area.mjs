@@ -147,6 +147,8 @@ export const AREAS = {
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       "e2e/stages-scoring-setup.spec.ts",
+      // R4: the redesigned Rounds & formats says its lock once, and draws no control a lock would refuse.
+      "e2e/rounds-locked-once.spec.ts",
       // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
       "e2e/rounds-panel.spec.ts",
       // The two presses that do not wait for their answer (J51).

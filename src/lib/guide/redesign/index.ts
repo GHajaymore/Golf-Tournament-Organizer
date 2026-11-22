@@ -1,6 +1,7 @@
 import type { ScreenKey } from "@/lib/domain/console-merges";
 import type { GuideSection } from "@/lib/guide-steps";
 import { tableInClubWords, type GolfWords } from "@/lib/domain/golf-terms";
+import { ROUNDS_GUIDE } from "./rounds";
 
 /**
  * THE GUIDE'S REDESIGN VARIANTS (R1b): each redesigned screen's PR adds ONE file beside this one,
@@ -11,7 +12,8 @@ import { tableInClubWords, type GolfWords } from "@/lib/domain/golf-terms";
  * matches it, and everybody else reads today's guide, unchanged. `replaces` names the base sections
  * (`GuideSection.id`) the variant takes the place of; `[]` adds its sections at the end.
  *
- * STARTS EMPTY: with no variant the guide is exactly `GUIDE_STEPS`, for every set of shown screens.
+ * Each screen's PR adds its entry, one per line, in `SCREEN_KEYS` order. With no variant shown the guide is exactly
+ * `GUIDE_STEPS`.
  */
 
 export interface GuideVariant {
@@ -20,7 +22,9 @@ export interface GuideVariant {
   sections: GuideSection[];
 }
 
-export const REDESIGN_GUIDE: readonly GuideVariant[] = [];
+export const REDESIGN_GUIDE: readonly GuideVariant[] = [
+  ROUNDS_GUIDE,
+];
 
 /**
  * The guide as the screens now shown describe themselves. Each shown screen's variant takes the place

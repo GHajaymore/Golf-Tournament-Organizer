@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, CARD_PARS, dayIn, addDays } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * ROUNDS & FORMATS, STEP 2 — "COURSE DAY" (`?view=timeline`, behind its switch; Ajay, 2 Nov).
@@ -180,4 +181,36 @@ test("the timeline guides: the next thing first with its consequence, opened in 
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R4: the same job through the redesigned screen, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("a round with no day reads one setting short, and dating it closes the gap", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `${markFor(testInfo.project.name)}-ring`;
+    const club = await makeClub(mark);
+    try {
+      const today = dayIn("");
+      const { event, stages } = await makeEvent(club, "Autumn Meeting", {
+        stages: [{ playedOn: addDays(today, 7) }, { playedOn: addDays(today, 14) }, {}],
+        players: 8,
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      const set = async (round: string) => {
+        const words = await screen.column(round).locator("[data-round-ring]").innerText();
+        return Number(words.match(/^(\d+) of \d+ set$/)?.[1] ?? Number.NaN);
+      };
+      await screen.open();
+      expect(await set("Round 3"), "the undated round is not short of its day").toBeLessThan(await set("Round 1"));
+      await screen.dayInput("Round 3").fill(addDays(today, 21));
+      await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, { message: "the day was not stored" }).toBe(addDays(today, 21));
+      await screen.open();
+      expect(await set("Round 3"), "dating the round did not close the gap").toBe(await set("Round 1"));
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

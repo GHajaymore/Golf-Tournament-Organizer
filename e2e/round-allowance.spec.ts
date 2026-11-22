@@ -5,6 +5,8 @@ import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { makeCommitteeCorrection } from "./committee-correction";
 import { heldFromBoard } from "../src/lib/domain/board-hold";
+import { prisma as raPrisma, makeClub as raMakeClub, dropClub as raDropClub, makeEvent as raMakeEvent, signIn as raSignIn } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * A COMMITTEE CHANGES A MEDAL'S ALLOWANCE, AND EVERY NET ON THE BOARD IS THE
@@ -385,4 +387,25 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
   expect(anonErrors, anonErrors.join("\n")).toEqual([]);
   expect(memberErrors, memberErrors.join("\n")).toEqual([]);
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R4: the allowance's citation on the redesigned screen, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("a net medal's allowance is shown with where it comes from", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-ra-redesign-${testInfo.project.name}`;
+    const club = await raMakeClub(mark);
+    try {
+      const { event } = await raMakeEvent(club, "Net Medal", { stages: [{ scoringBasis: "net" }] });
+      await raSignIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      await expect(screen.column("Round 1")).toContainText("Allowance 95%, from the Rules' recommendation");
+      expect(await raPrisma.stage.count({ where: { eventId: event.id, handicapAllowance: { gt: 0 } } }), "the default was stored as if it were a choice").toBe(0);
+    } finally {
+      await raDropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

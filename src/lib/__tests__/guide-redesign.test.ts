@@ -37,11 +37,15 @@ describe("a variant's words are the club's words", () => {
 });
 
 describe("the guide with the redesign's registry", () => {
-  it("starts empty, so the guide is IDENTICAL to GUIDE_STEPS for every set of shown screens", () => {
-    expect(REDESIGN_GUIDE).toEqual([]);
-    const sets: ScreenKey[][] = [[], [...SCREEN_KEYS], ...SCREEN_KEYS.map((k) => [k])];
+  it("the guide is IDENTICAL to GUIDE_STEPS for every set of shown screens that holds no variant's screen", () => {
+    // Each redesigned screen's PR adds a variant; the guide changes only while that screen is shown.
+    const withVariant = new Set<ScreenKey>(REDESIGN_GUIDE.map((v) => v.screen));
+    const sets: ScreenKey[][] = [[], [...SCREEN_KEYS], ...SCREEN_KEYS.map((k) => [k])].filter((s) => !s.some((k) => withVariant.has(k)));
+    expect(sets.length).toBeGreaterThan(5);
     for (const shown of sets) expect(guideFor(GUIDE_STEPS, shown, US)).toEqual(GUIDE_STEPS);
-    expect(guideFor(GUIDE_STEPS, [...SCREEN_KEYS], US)).toBe(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, [], US)).toBe(GUIDE_STEPS);
+    // And it differs while a variant's screen is shown (the control: the registry is read at all).
+    for (const v of REDESIGN_GUIDE) expect(guideFor(GUIDE_STEPS, [v.screen], US)).not.toEqual(GUIDE_STEPS);
   });
 
   it("a planted variant replaces exactly the sections it names, in place, while its screen is shown", () => {

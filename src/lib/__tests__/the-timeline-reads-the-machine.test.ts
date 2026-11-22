@@ -37,7 +37,14 @@ export const TIMELINE_FILES: readonly string[] = [
 export const STEPPER_FILES: readonly string[] = ["src/lib/domain/lifecycle-track.ts", "src/components/LifecycleStepper.tsx"];
 
 /** The round's head and its locked section (R1b): they draw `roundRing`'s answer and never count it. */
-export const RING_FILES: readonly string[] = ["src/components/setup/RoundColumn.tsx", "src/components/setup/LockedOnce.tsx"];
+export const RING_FILES: readonly string[] = [
+  "src/components/setup/RoundColumn.tsx",
+  "src/components/setup/LockedOnce.tsx",
+  // The redesigned Rounds & formats (R4) draws the ring the page handed it and never counts one.
+  "src/components/rounds/RoundsScreen.tsx",
+  "src/components/rounds/BetweenRounds.tsx",
+  "src/components/rounds/ScoringTile.tsx",
+];
 
 /** What a ring file does that only `round-ring.ts` may: read a round's `.needs`, or write the denominator. */
 export function ringStrays(src: string): string[] {

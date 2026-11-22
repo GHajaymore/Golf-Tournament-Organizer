@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { pressRadio } from "./press-radio";
+import { makeClub as ssMakeClub, dropClub as ssDropClub, makeEvent as ssMakeEvent, signIn as ssSignIn } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * WHO KEEPS THE CARD, AND WHO CHECKS IT — chosen per round on Rounds & formats
@@ -172,4 +174,28 @@ test("the organizer says who keeps score on a round, and a late switch to one sc
   });
 
   expect(errors).toEqual([]);
+});
+
+// R4: the Scoring tile on the redesigned screen, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("the event's scoring is said once above the rounds, and a round's own keeping is under More", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-sss-redesign-${testInfo.project.name}`;
+    const club = await ssMakeClub(mark);
+    try {
+      const { event } = await ssMakeEvent(club, "Scoring Medal", { stages: [{}, {}] });
+      await ssSignIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      await expect(screen.scoringTile()).toContainText("Can players enter scores?");
+      await expect(screen.scoringTile()).toContainText("Who keeps the card");
+      await expect(page.locator("[data-scoring-tile]"), "the tile is drawn once, not once a round").toHaveCount(1);
+      await screen.openMore("Round 1");
+      await expect(screen.column("Round 1").getByRole("button", { name: "Customize who keeps score" })).toBeVisible();
+    } finally {
+      await ssDropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
