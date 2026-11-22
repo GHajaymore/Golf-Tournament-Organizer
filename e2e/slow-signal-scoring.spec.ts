@@ -47,7 +47,7 @@ const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "
 const { stageId, playerId } = data.partialCard;
 const prisma = new PrismaClient();
 
-test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });
+test.use({ storageState: join(process.cwd(), ".e2e", "player.json"), serviceWorkers: "block" });
 test.describe.configure({ mode: "serial" });
 
 const stored = async () => {
@@ -68,11 +68,14 @@ test.afterAll(async () => {
 
 /** Every save from this page takes two seconds to leave, as it does on a course. */
 async function onOneBar(page: Page) {
+  const held = { saves: 0 };
   await page.route("**/me/card**", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
+    held.saves++;
     await new Promise((r) => setTimeout(r, 2_000));
     await route.continue();
   });
+  return held;
 }
 
 /** Watches for the chooser for as long as the test runs: it must never be on screen, not even for a moment. */
@@ -113,7 +116,7 @@ test("three holes entered faster than they save are all kept, and nobody is aske
   expect(empty.length, "the fixture's card has fewer than three holes left to enter").toBeGreaterThanOrEqual(3);
   const [a, b, c] = empty;
 
-  await onOneBar(page);
+  const held = await onOneBar(page);
   await openCard(page);
   const asked = neverAsked(page);
 
@@ -133,6 +136,7 @@ test("three holes entered faster than they save are all kept, and nobody is aske
   await page.waitForTimeout(2_500);
   expect(await asked(), "a player who only entered three holes quickly was asked which card is right").toBe(false);
 
+  expect(held.saves, "CONTROL: no save was held back, so the slow bar never happened").toBeGreaterThan(0);
   const after = await stored();
   for (const hole of [a, b, c]) expect(after.strokes[hole - 1], `hole ${hole} was entered and is not stored`).not.toBeNull();
   const untouched = (card: (number | null)[]) => card.map((s, i) => ([a, b, c].includes(i + 1) ? "·" : s));
@@ -148,7 +152,7 @@ test("the rest of the card entered in a burst and signed at once is certified, w
   const empty = before.strokes.map((s, i) => (s == null ? i + 1 : 0)).filter(Boolean);
   expect(empty.length, "CONTROL: fewer than two holes are left, so no save can be out when the last is entered").toBeGreaterThan(1);
 
-  await onOneBar(page);
+  const held = await onOneBar(page);
   await openCard(page);
   const asked = neverAsked(page);
 
@@ -170,6 +174,7 @@ test("the rest of the card entered in a burst and signed at once is certified, w
   await expect.poll(async () => (await stored()).status, { timeout: 60_000, message: "the card was not certified" }).toBe("certified");
   await page.waitForTimeout(2_500);
   expect(await asked(), "a player signing their own card was told somebody else had edited it").toBe(false);
+  expect(held.saves, "CONTROL: no save was held back, so the slow bar never happened").toBeGreaterThan(0);
   const after = await stored();
   expect(after.strokes.filter((s) => s == null), "the certified card is missing a hole that was entered").toEqual([]);
   expect(after.status, "a late save took the signature back off").toBe("certified");

@@ -1017,6 +1017,7 @@ async function control(page: Page, context: BrowserContext, baseURL: string, clu
 }
 
 test.describe.configure({ mode: "parallel" });
+test.use({ serviceWorkers: "block" });
 
 for (let share = 1; share <= PARTS; share += 1) {
   test(`every text box, share ${share} of ${PARTS}: empty, over-long, bad and good input, saved and read back`, async ({ page, context, baseURL }, testInfo) => {

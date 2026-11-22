@@ -236,4 +236,19 @@ decides a press did nothing must first wait for the navigation requests it start
 `e2e/navigation-settle.ts`, bounded, an unanswered one reported as its own failure). Test it with a delayed
 fake, as `crawl-waits-for-a-navigation-to-answer.test.ts` does.
 
+## A stub never answers when a service worker is awake (WebKit)
+
+`page.route(...)` / `context.route(...)` sees only the requests the browser's own network stack makes. On
+WebKit a registered service worker makes fetches itself, so the stub never answers: the real server does, and the
+test reads the real answer as the stub's. **Signature:** the spec passes or fails on the app's real response while
+the stubbed branch (the 500, the stalled script, the delayed save) never happens; Chromium and Firefox are green and
+only the WebKit project differs. **Rule:** a spec that stubs requests blocks service workers (`serviceWorkers:
+"block"` in its `browser.newContext({...})` options, or `test.use({ serviceWorkers: "block" })` for the `page`
+fixture; `test.use` does NOT reach a context made with `browser.newContext`), and keeps a control that counts the
+requests the stub answered (`stubbed > 0`) so a stub that never fired fails instead of passing. Enforced for the
+first half by `src/lib/__tests__/e2e-stubs-block-service-workers.test.ts` (B100): any spec with `.route(` and no
+`serviceWorkers: "block"` fails.
+
+## A test that crosses the club's midnight
+
 A spec that opens a committee correction (`makeCommitteeCorrection`) near the club's midnight loses it: the real action ends it at `endOfClubDay`, and CI's club has no zone, so that is 00:00 UTC. The rounds lock came back mid-test (PR 1202, `team-allowance.spec.ts`: Save on "Scores that count" read disabled for 300 s). `makeCommitteeCorrection` now pushes any zz correction with under 10 minutes left out by 6 h (`correctionEndKeptOpen`); a spec that writes its own correction uses `openCorrectionFor`. Held by `fixture-correction-crosses-midnight.test.ts`.

@@ -36,7 +36,7 @@ import { landingSettled } from "./landing-settled";
 
 /** The fewest pictures that must be measured. The page has 19 to 22 that are read, by width. */
 const READ_AT_LEAST = 15;
-test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
+test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" }, serviceWorkers: "block" });
 
 async function sharpWholeStill(page: import("@playwright/test").Page) {
   // Waiting for each picture to come to rest is real time: a second or more for one that arrives with a flourish.

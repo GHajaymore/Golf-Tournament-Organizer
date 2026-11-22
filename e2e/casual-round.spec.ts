@@ -700,7 +700,7 @@ test.describe("a casual round at the course", () => {
     expect(code, "the round screen shows no round code").toMatch(/^[A-Z0-9-]{6,}$/);
 
     const phone = async (name: string, birdieOn: number | null) => {
-      const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+      const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined, serviceWorkers: "block" });
       try {
         const p = await ctx.newPage();
         await p.goto("/play");
@@ -764,7 +764,7 @@ test.describe("a casual round at the course", () => {
     await page.locator("summary", { hasText: /^More: Friends/ }).click();
     const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
 
-    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined, serviceWorkers: "block" });
     try {
       const p = await ctx.newPage();
       await p.goto("/play");
@@ -818,7 +818,7 @@ test.describe("a casual round at the course", () => {
     await page.locator("summary", { hasText: /^More: Friends/ }).click();
     const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
 
-    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined, serviceWorkers: "block" });
     try {
       const p = await ctx.newPage();
       await p.goto("/play");
@@ -878,7 +878,7 @@ test.describe("a casual round at the course", () => {
 
     await page.locator("summary", { hasText: /^More: Friends/ }).click();
     const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
-    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined, serviceWorkers: "block" });
     try {
       const p = await ctx.newPage();
       await p.goto("/play");

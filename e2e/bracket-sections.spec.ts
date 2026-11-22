@@ -47,7 +47,7 @@ const MARGINS = ["3&2", "1 up", "2&1", "W/O", "4&3", "19th"];
 const nameOf = (i: number) => `${FIRST[i % FIRST.length]} ${LAST[Math.floor(i / FIRST.length) % LAST.length]}`;
 
 test.describe.configure({ timeout: 300_000 });
-test.use({ actionTimeout: 20_000 });
+test.use({ actionTimeout: 20_000, serviceWorkers: "block" });
 test.afterAll(async () => {
   await prisma.$disconnect();
 });
@@ -222,8 +222,12 @@ test("a knockout of 129: sections, a result from inside one, Find a player, on a
 
     await test.step("a winner pressed inside Quarter 2 lands on that tie, with the tabs switched while the save is held", async () => {
       // Hold every server action back a second and a half: the press is in the air while the tabs move.
+      let held = 0;
       await page.route("**/bracket**", async (route) => {
-        if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 1500));
+        if (route.request().method() === "POST") {
+          held++;
+          await new Promise((r) => setTimeout(r, 1500));
+        }
         await route.continue();
       });
       const box = drawing(page).locator(`[data-tie="${tie.key}"]`);
@@ -237,6 +241,7 @@ test("a knockout of 129: sections, a result from inside one, Find a player, on a
           timeout: 30_000,
         })
         .toBe(winner.playerId);
+      expect(held, "CONTROL: no save was held back, so the tabs never moved while one was in the air").toBeGreaterThan(0);
       await page.unroute("**/bracket**");
       // Nothing else moved: the rows are the fixture's and this one.
       expect(await prisma.bracketWinner.count({ where: { eventId: ko.event.id } })).toBe(Object.keys(ko.winners).length + 1);

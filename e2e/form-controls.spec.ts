@@ -65,6 +65,8 @@ const written = (): string[] => {
   return all.split("\n").filter((line) => line.startsWith(`C ${WHERE} | `)).sort();
 };
 
+test.use({ serviceWorkers: "block" });
+
 test("CONTROL: the inventory sees each drawn control once, and the ledger holds exactly the ones changed", async ({ page }) => {
   await page.route(`**${WHERE}`, (route) => route.fulfill({ status: 200, contentType: "text/html", body: PAGE }));
   await page.goto(WHERE);
