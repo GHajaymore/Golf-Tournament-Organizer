@@ -34,6 +34,18 @@ export function isRedirectStub(source: string): boolean {
 }
 
 /**
+ * A REDESIGNED SCREEN'S NEW ADDRESS WHILE ITS SWITCH IS OFF (R2). `/courses` is a route of its own, and
+ * while the redesign is switched off it answers a redirect to where its content still lives
+ * (`if (!shown.has("courses")) redirect("/event#courses")`): every sweep below that asserts "we are on
+ * this path" would read that as a fault. The screen is walked where it is drawn instead, at its building
+ * address, by `console-sweep.spec.ts` (`SCREENS_BUILT`). Told by its shape, so each later new route
+ * leaves these walks the day it is written and rejoins on its own when the redirect goes at R16.
+ */
+export function isSwitchedOff(source: string): boolean {
+  return /if \(!shown\.has\("[A-Za-z]+"\)\) redirect\(/.test(source);
+}
+
+/**
  * Every CONSOLE screen, read off the filesystem rather than listed by hand.
  *
  * The hand-written list this replaced held fourteen of the twenty-two routes
@@ -65,7 +77,8 @@ export function consoleScreens(cwd: string = process.cwd()): string[] {
       // Legacy redirect stubs (`isRedirectStub`) have a page.tsx and no page.
       if (
         existsSync(join(root, ...here, "page.tsx")) &&
-        !isRedirectStub(readSource("src", "app", "(app)", ...here, "page.tsx"))
+        !isRedirectStub(readSource("src", "app", "(app)", ...here, "page.tsx")) &&
+        !isSwitchedOff(readSource("src", "app", "(app)", ...here, "page.tsx"))
       ) {
         found.push(`/${here.join("/")}`);
       }

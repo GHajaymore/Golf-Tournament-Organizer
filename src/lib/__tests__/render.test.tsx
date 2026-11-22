@@ -1882,6 +1882,20 @@ describe("course library", () => {
     expect(html).not.toContain("Ridgeline");
   });
 
+  it("picks THIS EVENT's courses only where it is told to (R2: the club's own Courses screen picks none)", () => {
+    // Tournament details ticks which courses this tournament is played on; the club's Courses screen may
+    // have no tournament at all, and picking one is that tournament's job.
+    const picking = render(<CourseLibrary eventPick canEdit courses={[{ ...course, inEvent: true }]} />);
+    expect(picking).toContain("Use Bushwood");
+    expect(picking).toContain("Where this tournament is played.");
+    const club = render(<CourseLibrary eventPick={false} canEdit courses={[{ ...course, inEvent: true }]} />);
+    expect(club, "the club's screen draws a tick for an event's course").not.toContain("Use Bushwood");
+    expect(club).not.toContain("Where this tournament is played.");
+    // The rest of the library is the same: the course, its card and its tees are all still there.
+    expect(club).toContain("Bushwood");
+    expect(club).toContain("Add a course");
+  });
+
   it("names the prize list, which another card points at by name", async () => {
     // The table's card was the only untitled one on the screen, and the
     // side-bets card refers to "the prize list" — pointing at something no
