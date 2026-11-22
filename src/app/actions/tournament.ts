@@ -4585,6 +4585,9 @@ export async function setKnockoutPlayBy(stageId: string, dates: Record<string, s
   if (typeof stageId !== "string") return { ok: false, error: "That round isn't a knockout in this tournament." };
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, type: true } });
   if (!stage || !isKnockoutRound(stage.type)) return { ok: false, error: "That round isn't a knockout in this tournament." };
+  // A day like the round's own: open while it runs, refused once the event is completed.
+  const dayRefused = await roundRefusal(eventId, stageId, { kind: "day" });
+  if (dayRefused) return { ok: false, error: dayRefused };
   const clean = cleanPlayBy(dates);
   if (!clean.ok) return { ok: false, error: clean.error };
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { knockoutPlayBy: clean.json } });
