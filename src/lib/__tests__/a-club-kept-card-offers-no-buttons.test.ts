@@ -5,7 +5,7 @@ import { readSource } from "./source";
 /**
  * A CARD THE CLUB KEEPS OFFERS THE PLAYER NOTHING TO PRESS (2026-10-24).
  *
- * Under "Who enters scores: Organizers and assistants only" every save the
+ * Under "Can players enter scores?: Organizers and assistants only" every save the
  * round-code surface makes is refused by the server, and `/play` drew the
  * card's score buttons anyway: a player tapped a hole and was told afterwards
  * that the card would not save. A refusal is said where the press was — and a

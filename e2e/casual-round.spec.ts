@@ -70,7 +70,7 @@ async function setUp(
   money?: { game: string; stake: string },
   /** Each player's handicap on a net round, in the order typed; 10 for all if not given. */
   handicaps?: Array<number | string>,
-  /** "Who enters scores?": each player their own, pressed on the setup's one line (2026-11-05). */
+  /** "Who keeps the card?": each player their own, pressed on the setup's one line (2026-11-05). */
   eachKeepsOwn = false,
 ) {
   const errors: string[] = [];

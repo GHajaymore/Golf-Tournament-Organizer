@@ -306,7 +306,7 @@ test("a result saved after the committee took the scoring back is refused beside
     watchPageErrors(page, errors, "Wren, by the code");
     await enter(page, MATCH, WREN);
 
-    // On the console meanwhile: "Who enters scores" is now the organizer.
+    // On the console meanwhile: "Can players enter scores?" is now the organizer.
     await prisma.event.update({ where: { id: ids.event }, data: { scoreEntryBy: "staff" } });
 
     await page.getByText("Final result", { exact: true }).click();
