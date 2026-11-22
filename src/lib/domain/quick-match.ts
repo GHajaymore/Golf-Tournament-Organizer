@@ -477,7 +477,7 @@ export interface MatchSetupInput {
    */
   currency?: string | null;
   /**
-   * WHO ENTERS SCORES (2026-11-05): "each" when the friends each keep their
+   * WHO KEEPS THE CARD (2026-11-05): "each" when the friends each keep their
    * own card; anything else — absent included — is the default, one phone for
    * the group (`scoringDefaults`). Read through `casualScoreKeeping`: a public
    * endpoint is called with whatever the caller likes.
@@ -485,7 +485,7 @@ export interface MatchSetupInput {
   scoreKeeping?: string | null;
 }
 
-/** The casual round's "Who enters scores", read off the setup: "each" only when asked for. */
+/** The casual round's "Who keeps the card", read off the setup: "each" only when asked for. */
 export function casualScoreKeeping(input: { scoreKeeping?: string | null }): "group" | "each" {
   return input.scoreKeeping === "each" ? "each" : "group";
 }

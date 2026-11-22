@@ -92,7 +92,7 @@ export function noSheetWarning(matchPlay: boolean): string {
     : "Groups come from the tee sheet. Until it is published, each player keeps their own card.";
 }
 
-/** The casual round's one line (2026-11-05): who enters scores. One phone is the default. */
+/** The casual round's one line (2026-11-05): who keeps the card. One phone is the default. */
 export const CASUAL_KEEPING: Array<{ key: "group" | "each"; label: string }> = [
   { key: "group", label: "One phone for the group" },
   { key: "each", label: "Each player their own" },

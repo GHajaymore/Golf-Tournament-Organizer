@@ -11,7 +11,7 @@ import { pressRadio } from "./press-radio";
  *
  *   a new round reads   "One scorer per group · each player confirms their
  *                       card" — `scoringDefaults` for a tournament
- *   Customize           "Who enters scores" and "End-of-round check"; the
+ *   Customize           "Who keeps the card" and "End-of-round check"; the
  *                       organizer chooses Organizer only (paper cards) and
  *                       turns the check off, and both are stored
  *   a late switch       back to one scorer per group, once two players have
@@ -146,7 +146,7 @@ test("the organizer says who keeps score on a round, and a late switch to one sc
     await scoring.getByRole("button", { name: "Customize who keeps score" }).click();
     await expect(scoring.getByRole("radio", { name: "One scorer per group" })).toBeChecked();
     await pressRadio(scoring.getByRole("radio", { name: "Organizer only (paper cards)" }));
-    await expect.poll(async () => (await stored()).scoreKeeping, { timeout: 15_000, message: "who enters scores was not saved" }).toBe("organizer");
+    await expect.poll(async () => (await stored()).scoreKeeping, { timeout: 15_000, message: "who keeps the card was not saved" }).toBe("organizer");
     await expect(scoring.getByRole("radio", { name: "Each player confirms their own card" })).toBeChecked();
     await pressRadio(scoring.getByRole("radio", { name: "Off", exact: true }));
     await expect.poll(async () => (await stored()).endCheck, { timeout: 15_000, message: "the end-of-round check was not saved" }).toBe("off");
