@@ -35,6 +35,14 @@ import { addCourseToLibrary } from "@/lib/services/course-library";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { roundKicker } from "@/lib/domain/round-label";
 import { markCourseCardChecked } from "@/lib/services/course-card-checked";
+import { organizationAccess, organizationAccessFor } from "@/lib/services/org-access";
+import {
+  cardImportProblem,
+  courseInputProblem,
+  playedChoice,
+  teeInputProblem,
+  type PlayedCardChoice,
+} from "@/lib/domain/course-payload";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -91,6 +99,71 @@ async function requireOrganizerOrg(): Promise<{ organizationId: string; eventId:
   // edited here rescores that tournament's played cards: an archived one is
   // read-only (2026-10-21).
   await assertEventWritable(session.eventId);
+  return { organizationId: event.organizationId, eventId: session.eventId };
+}
+
+/** Why a press on the club's courses was refused, said where the press was. */
+const KEEPER_REFUSAL = "Only a Commissioner or Admin can change the club's courses.";
+
+/**
+ * WHO MAY KEEP THE CLUB'S COURSES (R2a, Security Lead S3).
+ *
+ * `requireOrganizerOrg` wanted an open tournament and its admin, so a club's
+ * secretary with no tournament yet (`role: "player"`, no event) could keep no
+ * course at all. One function now answers for the ten library actions, and the
+ * argument is REQUIRED because the two kinds of press are not the same risk:
+ *
+ *   "add"     puts something NEW in the library: a course, a tee set, a card
+ *             confirmed. It touches nothing the club already holds, so an
+ *             organizer of one tournament (a guest organizer, added by
+ *             `addAccount`, with no membership) may still add an away day.
+ *   "change"  alters or removes what the club holds: the home course, a delete,
+ *             a card overwritten (`settlePlayedCards` re-scores OTHER
+ *             tournaments' played rounds), a confirmation withdrawn. That is
+ *             the upward leak `org-access.ts` closed for club settings, so it
+ *             also asks `canEdit` of the club.
+ *
+ * WITH NO TOURNAMENT open (`session.eventId === ""`, and ONLY then): the club
+ * the person runs, and `canEdit` of it. A session that HAS a tournament and is
+ * not its admin is refused as it always was, never allowed to fall through to
+ * the club branch on "not admin" or "event not found".
+ *
+ * Refusals come back as `{ refused }` in words, so a button shows them beside
+ * itself instead of the error screen. Not signed in still throws. The session
+ * is `getSession()` and nothing else, so a held sign-in (`maySignInNow`) is
+ * refused before any branch.
+ */
+async function requireCourseKeeper(
+  what: "add" | "change",
+): Promise<{ organizationId: string; eventId: string | null } | { refused: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  if (session.eventId === "") {
+    const access = await organizationAccess(session);
+    if (!access?.canEdit) return { refused: KEEPER_REFUSAL };
+    return { organizationId: access.organizationId, eventId: null };
+  }
+
+  if (session.role !== "admin") return { refused: "Only the tournament's organizer can change its courses." };
+  const event = await prisma.event.findUnique({
+    where: { id: session.eventId },
+    select: { organizationId: true },
+  });
+  if (!event) throw new Error("Event not found");
+  if (what === "change") {
+    const access = await organizationAccessFor(session.email, event.organizationId, session.role);
+    if (!access.canEdit) return { refused: KEEPER_REFUSAL };
+  }
+  // A card edited here re-scores that tournament's played cards: an archived
+  // one is read-only (2026-10-21).
+  try {
+    await assertEventWritable(session.eventId);
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
   return { organizationId: event.organizationId, eventId: session.eventId };
 }
 
@@ -177,7 +250,7 @@ async function playedEventsOn(
 }
 
 /** What an organizer has decided about the rounds already scored on a card. */
-export type PlayedCardChoice = "ask" | "keep-history" | "rescore";
+export type { PlayedCardChoice };
 
 /**
  * Deal with the rounds already scored on a card that is about to change.
@@ -264,7 +337,12 @@ export interface ClubCourseInput {
  * meaningless and force the same course to be entered twice.
  */
 export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  // Types are erased: look at the payload before anything reads it.
+  const shape = courseInputProblem(input);
+  if (shape) return { ok: false, error: shape };
+  const gate = await requireCourseKeeper(input.id ? "change" : "add");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Enter a course name." };
 
@@ -344,7 +422,7 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
      */
     const scoringChanged =
       existing.pars !== data.pars || existing.strokeIndex !== data.strokeIndex;
-    const mode: PlayedCardChoice = input.played ?? "ask";
+    const mode: PlayedCardChoice = playedChoice(input.played);
 
     if (scoringChanged) {
       const refusal = await settlePlayedCards(existing, organizationId, mode);
@@ -388,7 +466,9 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
  * deciding it knows better.
  */
 export async function deleteClubCourse(courseId: string): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const gate = await requireCourseKeeper("change");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
 
@@ -464,7 +544,9 @@ export async function deleteClubCourse(courseId: string): Promise<CourseResult> 
  * settings: changing a default must never rewrite an event already running.
  */
 export async function setHomeCourse(courseId: string | null): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const gate = await requireCourseKeeper("change");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
 
   if (courseId) {
     const owned = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
@@ -792,7 +874,11 @@ function teeProblem(input: TeeInput): string | null {
 }
 
 export async function saveTee(courseId: string, input: TeeInput, teeId?: string): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const shape = teeInputProblem(input);
+  if (shape) return { ok: false, error: shape };
+  const gate = await requireCourseKeeper(teeId ? "change" : "add");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
 
@@ -822,7 +908,9 @@ export async function saveTee(courseId: string, input: TeeInput, teeId?: string)
 }
 
 export async function deleteTee(teeId: string): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const gate = await requireCourseKeeper("change");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const tee = await prisma.tee.findFirst({
     where: { id: teeId, course: { organizationId } },
   });
@@ -971,7 +1059,9 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
  * saying they have looked at it.
  */
 export async function verifyCourseCard(courseId: string): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const gate = await requireCourseKeeper("add");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId }, select: { id: true } });
   if (!course) return { ok: false, error: "Course not found." };
 
@@ -984,7 +1074,9 @@ export async function verifyCourseCard(courseId: string): Promise<CourseResult> 
 
 /** Withdraw a confirmation — the card turned out to be wrong after all. */
 export async function unverifyCourseCard(courseId: string): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const gate = await requireCourseKeeper("change");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
   await prisma.course.update({
@@ -1026,7 +1118,11 @@ export async function importClubCourseCard(input: {
   holes?: number;
   sourceUrl?: string;
 }): Promise<CardImportResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const shape = cardImportProblem(input);
+  if (shape) return { ok: false, error: shape };
+  const gate = await requireCourseKeeper("add");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Enter a course name." };
 
@@ -1279,7 +1375,12 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
    * click along: the picker adds the course on the way past, so picking a hit
    * called the same refused guard.
    */
-  const organizationId = await libraryOrganizationFor(session);
+  // A secretary with NO tournament yet keeps the CLUB's library (R2a, S2).
+  // `libraryOrganizationFor` answers the event's club only for an admin with an
+  // event, so without this the course went into a personal organization it
+  // CREATED for them: a press that reported success and showed nothing.
+  const clubAccess = session.eventId === "" ? await organizationAccess(session) : null;
+  const organizationId = clubAccess?.canEdit ? clubAccess.organizationId : await libraryOrganizationFor(session);
 
   /**
    * THE STORED CATALOGUE FIRST, AND FREE. Only an id it does not hold goes to
@@ -1375,7 +1476,9 @@ export interface SourceCheckResult {
  * offered, and `applySourceCard` is the separate, deliberate act of taking it.
  */
 export async function checkCourseAgainstSource(courseId: string): Promise<SourceCheckResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const gate = await requireCourseKeeper("add");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
 
@@ -1418,7 +1521,9 @@ export async function applySourceCard(
   courseId: string,
   played: PlayedCardChoice = "ask",
 ): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const gate = await requireCourseKeeper("change");
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { organizationId } = gate;
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
 
@@ -1439,7 +1544,7 @@ export async function applySourceCard(
     course.pars !== JSON.stringify(fresh.card.pars) ||
     course.strokeIndex !== JSON.stringify(fresh.card.strokeIndex);
   if (scoringChanged) {
-    const refusal = await settlePlayedCards(course, organizationId, played);
+    const refusal = await settlePlayedCards(course, organizationId, playedChoice(played));
     if (refusal) return refusal;
   }
 
