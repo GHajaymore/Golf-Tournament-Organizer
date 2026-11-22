@@ -2,6 +2,7 @@ import type { ScreenKey } from "@/lib/domain/console-merges";
 import type { GuideSection } from "@/lib/guide-steps";
 import { tableInClubWords, type GolfWords } from "@/lib/domain/golf-terms";
 import { ROUNDS_GUIDE } from "./rounds";
+import { TEE_TIMES_GUIDE } from "./tee-times";
 import { COURSES_GUIDE } from "./courses";
 
 /**
@@ -25,6 +26,7 @@ export interface GuideVariant {
 // One entry per line, in `SCREEN_KEYS` order: each screen's PR adds its own (three lanes append here).
 export const REDESIGN_GUIDE: readonly GuideVariant[] = [
   ROUNDS_GUIDE,
+  TEE_TIMES_GUIDE,
   COURSES_GUIDE,
 ];
 

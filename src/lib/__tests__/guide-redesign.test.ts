@@ -46,7 +46,10 @@ describe("the guide with the redesign's registry", () => {
     expect(guideFor(GUIDE_STEPS, [...others], US)).toBe(GUIDE_STEPS);
   });
 
-  it("draws a registered screen's variant only while that screen is shown (R2: courses)", () => {
+  it("draws a registered screen's variant only while that screen is shown (R2: courses, R9a: teeTimes)", () => {
+    const teeTimes = guideFor(GUIDE_STEPS, ["teeTimes"], US);
+    expect(teeTimes.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "teetimes"]);
+    expect(teeTimes.slice(0, GUIDE_STEPS.length)).toEqual(GUIDE_STEPS);
     const courses = guideFor(GUIDE_STEPS, ["courses"], US);
     expect(courses.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "clubcourses"]);
     // Today's guide is not edited: every base section is still there, untouched.

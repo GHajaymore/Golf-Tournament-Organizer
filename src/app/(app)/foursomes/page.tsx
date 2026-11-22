@@ -1,6 +1,5 @@
 import { noticesOffAmong } from "@/lib/services/push";
 import { noticesOffWords } from "@/lib/domain/round-moved";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
@@ -10,8 +9,23 @@ import { needsTeams } from "@/lib/formats";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { printKit } from "@/lib/services/print-kit";
 import { staleSentence } from "@/lib/domain/print-kit";
+import type { ConsoleMode } from "@/lib/console-url";
+import { BUILD_PREVIEW } from "@/lib/domain/console-merges";
+import { STEPPER_PREVIEW } from "@/lib/domain/lifecycle-track";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { openTournamentJob } from "@/lib/services/whats-next";
+import { scopeLockFor, tournamentStatusFor } from "@/lib/services/tournament-status";
+import { roundHandicapsFor } from "@/lib/services/round-handicap";
+import { courseDayOf } from "@/lib/domain/timeline-step";
+import { drawSections, needsYouSection } from "@/lib/domain/draw-sections";
+import { needSentence, phaseTitle } from "@/lib/domain/lifecycle-track";
+import { RoundHandicaps } from "@/components/RoundHandicaps";
+import { LockedOnce } from "@/components/setup/LockedOnce";
+import { TeeTimesScreen } from "@/components/teetimes/TeeTimesScreen";
+import { CutWaitingCard } from "@/components/teetimes/CutWaitingCard";
+import { SheetDriftCard } from "@/components/teetimes/SheetDriftCard";
+import { PrintDoor } from "@/components/teetimes/PrintDoor";
 import { requestOrigin } from "@/lib/request-origin";
-import { screenName } from "@/lib/nav";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { FoursomeMaker } from "@/components/FoursomeMaker";
@@ -23,7 +37,7 @@ import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { replaceWorldFor } from "@/lib/services/tee-sheet-replace";
 import { TEAM_SESSION } from "@/lib/services/cup";
 import { sheetFieldFor } from "@/lib/services/sheet-field";
-import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn, DRIFT_PLACE_LINE } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn } from "@/lib/domain/tee-sheet";
 import { clubWallClock } from "@/lib/domain/club-clock";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { PlaceInGroup } from "@/components/PlaceInGroup";
@@ -35,7 +49,6 @@ import { cutFeederOf } from "@/lib/domain/cut-ready";
 import { shortDate } from "@/lib/domain/round-dates";
 import { roundCard } from "@/lib/services/course-resolution";
 import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
-import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { requestClusters, requestPairs, splitRequests } from "@/lib/domain/pairing-requests";
@@ -368,93 +381,68 @@ export default async function FoursomesPage({
         })()
       : null;
 
-  return (
-    <>
-      <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Manage</div>
-        <h1 className="page-title">Tee sheet</h1>
-        {/* One line, the rest an ⓘ away (2026-10-05). */}
-        <MoreInfo short="Who plays together, in what order, from which tee." style={{ marginTop: 6 }}>
-          Once a round has been played you can re-pair off the leaderboard and send the leaders out last.
-        </MoreInfo>
-      </div>
+  const terms = await golfTermsForEvent(session.eventId);
+  const noticesOff = noticesOffWords(await noticesOffAmong(session.eventId, field.map((p) => p.id)));
+  const roundTabs = rounds.map((r) => ({
+    id: r.id,
+    label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn, locale) : ""),
+  }));
 
-      {askMembers && <MembersAsk noun={askMembers.noun} asked={askMembers.asked} memberCount={askMembers.memberCount} />}
+  const membersAskEl = askMembers ? <MembersAsk noun={askMembers.noun} asked={askMembers.asked} memberCount={askMembers.memberCount} /> : null;
 
-      {/* The list the sheet below is drawn from, and the control that changes
-          it — in that order, above the draw, because a sheet drawn from the
-          wrong field is not worth reading. */}
-      {stage && weekRows.length > 0 && (
-        <WeekField
-          stageId={stage.id}
-          roundLabel={roundLabel(state.stages, stage.id)}
-          mode={attendanceMode}
-          rows={weekRows}
-          canEdit={session.role === "admin" || session.role === "assistant"}
-        />
-      )}
+  /* The list the sheet below is drawn from, and the control that changes
+     it — in that order, above the draw, because a sheet drawn from the
+     wrong field is not worth reading. */
+  const weekFieldEl =
+    stage && weekRows.length > 0 ? (
+      <WeekField
+        stageId={stage.id}
+        roundLabel={roundLabel(state.stages, stage.id)}
+        mode={attendanceMode}
+        rows={weekRows}
+        canEdit={session.role === "admin" || session.role === "assistant"}
+      />
+    ) : null;
 
-      {cutWaiting && (
-        <div
-          role="status"
-          className="card elev-sm"
-          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
-        >
-          <span className="card-title" style={{ fontSize: 14 }}>
-            <Icon name="warning-circle" /> The cut is waiting on a tie
-          </span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-            {cutWaiting} <Link href="/dashboard">Go to the cut card</Link>
-          </p>
-        </div>
+  /* A published sheet is a snapshot of a field that keeps moving.
+     validateTeeSheet ran when it went out and never again, so a player
+     withdrawn on the Wednesday stayed in the stored draw: the group
+     printed with three and a gap, and nothing said why. The print already
+     drops the missing name — this is what tells the committee it happened,
+     so they can move somebody up rather than send out a three-ball they
+     did not choose. */
+  const driftEl = drift?.stale ? (
+    <SheetDriftCard
+      sentence={driftSentence(
+        drift,
+        new Set(cutField ? state.confirmed.filter((p) => !cutField.has(p.id)).map((p) => p.id) : []),
       )}
+      anyUndrawn={drift.undrawn.length > 0}
+    />
+  ) : null;
 
-      {/* A published sheet is a snapshot of a field that keeps moving.
-          validateTeeSheet ran when it went out and never again, so a player
-          withdrawn on the Wednesday stayed in the stored draw: the group
-          printed with three and a gap, and nothing said why. The print already
-          drops the missing name — this is what tells the committee it happened,
-          so they can move somebody up rather than send out a three-ball they
-          did not choose. */}
-      {drift?.stale && (
-        <div
-          className="card elev-sm"
-          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
-        >
-          <span className="card-title" style={{ fontSize: 14 }}>
-            <Icon name="warning-circle" /> The published sheet no longer matches the field
-          </span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-            {driftSentence(
-              drift,
-              new Set(cutField ? state.confirmed.filter((p) => !cutField.has(p.id)).map((p) => p.id) : []),
-            )}{" "}
-            Re-pair and publish again to put it right — the printed sheet leaves out anyone who has gone, so
-            it is correct but shorter than you drew it.
-            {drift.undrawn.length > 0 && ` ${DRIFT_PLACE_LINE}`}
-          </p>
-        </div>
-      )}
-      {/* Mounted whenever staff have a saved sheet, though nobody is undrawn: the
-          refresh after placing the LAST player must not take away the line that
-          says where they went (round day-of-field-b-3, phone). The card draws
-          nothing when it has nothing to show. */}
-      {stage && savedSheet && isStaff && (
-        <PlaceInGroup
-          stageId={stage.id}
-          undrawn={undrawn.map((id) => ({ id, name: nameOf.get(id) ?? "" }))}
-          groups={markTeedOff(groupsWithRoom(savedSheet, new Set(fieldIds)), roundDay, clubWallClock(state.timeZone))}
-          door={placeDoor}
-          firstHole={firstHole}
-        />
-      )}
-      {stage && field.length > 1 && (
-        <PairingRequests
-          field={field.map((p) => ({ id: p.id, name: p.name }))}
-          pairs={requestList}
-          splitOnSheet={splitOnSheet}
-        />
-      )}
+  /* Mounted whenever staff have a saved sheet, though nobody is undrawn: the
+     refresh after placing the LAST player must not take away the line that
+     says where they went (round day-of-field-b-3, phone). The card draws
+     nothing when it has nothing to show. */
+  const placeEl =
+    stage && savedSheet && isStaff ? (
+      <PlaceInGroup
+        stageId={stage.id}
+        undrawn={undrawn.map((id) => ({ id, name: nameOf.get(id) ?? "" }))}
+        groups={markTeedOff(groupsWithRoom(savedSheet, new Set(fieldIds)), roundDay, clubWallClock(state.timeZone))}
+        door={placeDoor}
+        firstHole={firstHole}
+      />
+    ) : null;
+
+  const pairingEl =
+    stage && field.length > 1 ? (
+      <PairingRequests field={field.map((p) => ({ id: p.id, name: p.name }))} pairs={requestList} splitOnSheet={splitOnSheet} />
+    ) : null;
+
+  /** The groups. The redesigned screen has its own round tabs, so it hands the maker none (`pickRounds` false). */
+  const makerEl = (pickRounds: boolean) => (
       <FoursomeMaker
         firstHole={firstHole}
         canMove={canMove}
@@ -474,7 +462,7 @@ export default async function FoursomesPage({
           stage ? state.matches.filter((m) => m.stageId === stage.id && m.teamAId && m.teamBId) : [],
         )}
         // "7 foursomes · 1 twosome", or "7 fourballs · 1 two-ball" for a UK club.
-        terms={await golfTermsForEvent(session.eventId)}
+        terms={terms}
         standings={sideStandings.length > 0 ? sideStandings : standings}
         holes={holes}
         stageId={stage?.id ?? ""}
@@ -485,11 +473,8 @@ export default async function FoursomesPage({
         savedStart={savedSheet?.startType}
         published={stage?.teeSheetPublished ?? false}
         // Beside Publish (J39/J40 PR 2): how many of this sheet's field a tee-time push cannot reach.
-        noticesOff={noticesOffWords(await noticesOffAmong(session.eventId, field.map((p) => p.id)))}
-        rounds={rounds.map((r) => ({
-          id: r.id,
-          label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn, locale) : ""),
-        }))}
+        noticesOff={noticesOff}
+        rounds={pickRounds ? roundTabs : []}
         activeRoundId={stage?.id ?? ""}
         // Only when the field above has actually been narrowed to a week. In a
         // tournament `field` IS the roster, and passing it would turn "nobody
@@ -497,7 +482,9 @@ export default async function FoursomesPage({
         // round to be in.
         rosterSize={weekRows.length > 0 ? state.confirmed.length : 0}
       />
-      {/*
+  );
+
+  /*
        * PRINT… — THE TEE SHEET'S DOOR TO THE PRINT KIT (decision A).
        *
        * This screen printed its own cards, one per group, and `/scorecard` and
@@ -509,45 +496,149 @@ export default async function FoursomesPage({
        * AND IT SAYS WHEN PAPER ALREADY OUT HAS STOPPED BEING TRUE (decision D):
        * a group moved, a tee time changed, a code reissued after the cards and
        * signs were printed.
-       */}
-      {stage && savedSheet && (
-        <div id="print-scorecards" className="card elev-sm" style={{ marginTop: 16, gap: 8, scrollMarginTop: 80 }}>
-          {staleSheets.length > 0 && (
-            <p role="status" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-              <Icon name="warning-circle" /> <strong>{staleSentence(staleSheets.length)}:</strong>{" "}
-              {staleSheets.slice(0, 8).map((s) => s.label).join(" · ")}
-              {staleSheets.length > 8 ? ` and ${staleSheets.length - 8} more` : ""}.{" "}
-              <Link href={`/print?round=${stage.id}&stale=1`}>Reprint them in the {screenName("/print")}</Link>
-            </p>
-          )}
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <Link
-              href={`/print?round=${stage.id}&docs=cards,cup,slips,signs,spare,start`}
-              className="btn btn-secondary"
-              style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6 }}
-            >
-              <Icon name="printer" /> Print…
-            </Link>
-            <span className="text-muted" style={{ fontSize: 13 }}>
-              Scorecards, {(await golfTermsForEvent(session.eventId)).cart} signs and the starting sheet for {roundLabel(rounds, stage.id) || "this round"}, from the saved sheet.
-            </span>
-          </div>
-        </div>
-      )}
-      {stage && (
-        <RoundDaySetup
-          // Re-mounted per round, so switching rounds never shows the last
-          // round's pins in the editor.
-          key={stage.id}
-          stageId={stage.id}
-          roundLabel={roundLabel(rounds, stage.id)}
-          holes={holes}
-          pars={course.pars}
-          sheet={pinSheet}
-          paceMinutes={stage.paceMinutes}
-          firstHole={firstHole}
-        />
-      )}
+       */
+  const printEl =
+    stage && savedSheet ? (
+      <PrintDoor stageId={stage.id} roundName={roundLabel(rounds, stage.id) || "this round"} cartWord={terms.cart} stale={staleSheets} />
+    ) : null;
+  const daySetupEl = stage ? (
+    <RoundDaySetup
+      // Re-mounted per round, so switching rounds never shows the last
+      // round's pins in the editor.
+      key={stage.id}
+      stageId={stage.id}
+      roundLabel={roundLabel(rounds, stage.id)}
+      holes={holes}
+      pars={course.pars}
+      sheet={pinSheet}
+      paceMinutes={stage.paceMinutes}
+      firstHole={firstHole}
+    />
+  ) : null;
+
+  /**
+   * THE REDESIGNED SCREEN (R9a), for a stroke or Stableford round, behind the redesign switch (OFF for everybody
+   * but a preview). `screensShownFor` is the one question; `drawSections` says whether this round has the new
+   * screen yet (match, team, league, knockout and cup rounds still draw the tee sheet below until R9b/R9c).
+   */
+  const told = await tournamentStatusFor(session.eventId, state.today);
+  const shown = await screensShownFor(session);
+  const plan = stage && told ? drawSections({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, told.status.family) : null;
+  if (shown.has("teeTimes") && stage && told && plan?.built) {
+    const job = await openTournamentJob(session.eventId, state.today);
+    // While the screen is only previewed its own links keep the preview on; once it is on for everybody they are plain.
+    const query = new URLSearchParams((await headers()).get("x-search") ?? "");
+    const previewMode: ConsoleMode | null = query.get(STEPPER_PREVIEW) !== "1" ? null : query.get(BUILD_PREVIEW) === "1" ? "build" : "preview";
+    const mine = told.status.rounds.find((r) => r.id === stage.id);
+    const chips = courseDayOf(told.status).rounds;
+    const needs = (mine?.needs ?? [])
+      .filter((n) => n.key === "draw" || n.key === "teeSheet" || n.key === "date")
+      .map((n) => ({
+        key: n.key,
+        text: needSentence(roundLabel(state.stages, stage.id), n),
+        href: n.key === "draw" ? "#draw" : n.key === "teeSheet" ? "#draw" : `/stages?round=${stage.id}`,
+      }));
+    const sheetLock = await scopeLockFor(session.eventId, "teeSheet");
+    // THE ONE ROUND-HANDICAPS PANEL: here while this screen is shown, on Rounds & formats while it is not.
+    const handicapRows = isStaff && stage.scoringBasis !== "gross" ? await roundHandicapsFor(session.eventId, stage.id) : [];
+    const isAdmin = session.role === "admin";
+    const groupsOf = savedSheet?.groups ?? [];
+    const who = membersAskEl || weekFieldEl || cutWaiting || handicapRows.length > 0;
+    return (
+      <TeeTimesScreen
+        kicker={phaseTitle("draw", told.status.family)}
+        roundLabel={roundLabel(state.stages, stage.id)}
+        roundChip={chips[stage.id] ?? { chip: "Upcoming", tone: "neutral" }}
+        tabs={rounds.map((r) => ({ stageId: r.id, label: `${roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn, locale) : "")} · ${chips[r.id]?.chip ?? ""}` }))}
+        activeStageId={stage.id}
+        find={
+          isStaff
+            ? {
+                players: state.players.map((p) => ({ id: p.id, name: p.name, status: p.status })),
+                rounds: rounds.map((r) => ({
+                  id: r.id,
+                  label: roundLabel(state.stages, r.id),
+                  published: r.teeSheetPublished,
+                  groups: parseTeeSheet(r.teeSheet)?.groups ?? [],
+                })),
+                nextUnplayedId: state.nextUnplayedRound?.id ?? null,
+              }
+            : null
+        }
+        needs={needs}
+        keys={plan.keys}
+        needsYou={needsYouSection(job, stage.id, plan.keys)}
+        previewMode={previewMode}
+        sections={{
+          whoIn: who
+            ? {
+                state: cutWaiting ? "The cut is waiting on a tie" : `${field.length} in the field`,
+                node: (
+                  <>
+                    {membersAskEl}
+                    {weekFieldEl}
+                    <CutWaitingCard text={cutWaiting} />
+                    {handicapRows.length > 0 && (
+                      <RoundHandicaps stageId={stage.id} rows={handicapRows} roundName={roundLabel(rounds, stage.id) || "this round"} />
+                    )}
+                  </>
+                ),
+              }
+            : undefined,
+          draw: {
+            state: stage.teeSheetPublished ? "Published" : savedSheet ? "Saved, not published" : "Not drawn yet",
+            // The pairing requests sit above the banner: `setPairingRequest` asks no lock, so a banner over it
+            // would stand above a control that still writes (lock-scopes.md).
+            node: (
+              <>
+                {pairingEl}
+                <LockedOnce locks={sheetLock ? [sheetLock] : []} isAdmin={isAdmin} correction={null} open={null}>
+                  {() => makerEl(false)}
+                </LockedOnce>
+              </>
+            ),
+          },
+          teeTimes: {
+            state: groupsOf.length > 0 ? `${groupsOf.length} groups, first off ${groupsOf[0].time}` : "No tee times yet",
+            node: (
+              <>
+                {driftEl}
+                {placeEl}
+                <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+                  The start and the tee times are set in the groups above; a late entry is put in a group here.
+                </p>
+              </>
+            ),
+          },
+          onTheDay: { state: "Pins and pace", node: daySetupEl },
+          paper: printEl
+            ? { state: staleSheets.length > 0 ? staleSentence(staleSheets.length) : "From the saved sheet", node: printEl }
+            : undefined,
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <div style={{ marginBottom: 20 }}>
+        <div className="page-kicker">Manage</div>
+        <h1 className="page-title">Tee sheet</h1>
+        {/* One line, the rest an ⓘ away (2026-10-05). */}
+        <MoreInfo short="Who plays together, in what order, from which tee." style={{ marginTop: 6 }}>
+          Once a round has been played you can re-pair off the leaderboard and send the leaders out last.
+        </MoreInfo>
+      </div>
+
+      {membersAskEl}
+      {weekFieldEl}
+      <CutWaitingCard text={cutWaiting} />
+      {driftEl}
+      {placeEl}
+      {pairingEl}
+      {makerEl(true)}
+      {printEl}
+      {daySetupEl}
     </>
   );
 }

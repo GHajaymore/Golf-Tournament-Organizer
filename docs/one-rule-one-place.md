@@ -398,3 +398,5 @@ All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`,
 8. "Any stroke" and "round official" spellings.
 9. Typed handicap and rating readers.
 10. Hand-assembled card chain and stored-card parsing (42 JSON.parse sites).
+| which sections a round's draw screen (Tee times & draw) has, which one says "Needs you", and which families are built yet | one function, before the screen draws it | `drawSections` and `needsYouSection` in `domain/draw-sections.ts` (a round takes no flights; match, team, league, knockout and cup rounds keep today's tee sheet until R9b/R9c); `draw-sections.test.ts` (R9a) |
+| "where does this player go?": which of the field's names is on which published group, and the row or the way on that answers it | one function, before the box draws it | `findAPlayer` in `domain/find-a-player.ts` (a row opens its round at its group, `#group-<n>`, the anchor `FoursomeMaker` draws); `find-a-player.test.ts` (R9a) |

@@ -25,8 +25,9 @@ describe("Put in group keeps its last word", () => {
     const page = readSource("src", "app", "(app)", "foursomes", "page.tsx");
     const at = page.indexOf("<PlaceInGroup");
     expect(at, "the page draws the card").toBeGreaterThan(-1);
-    // The condition the card is drawn under: the JSX expression it opens.
-    const gate = page.slice(page.lastIndexOf("{", at), at);
+    // The condition the card is drawn under: the statement that builds it (R9a hoisted it into `placeEl`, so both screens draw the one card).
+    const gate = page.slice(page.lastIndexOf("const placeEl"), at);
+    expect(gate, "the card is built in placeEl").toMatch(/^const placeEl/);
     expect(gate, "the card's mount must not hang on who is still undrawn").not.toMatch(/undrawn/);
     expect(gate).toMatch(/savedSheet/);
   });

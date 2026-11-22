@@ -21,7 +21,8 @@ const { EntryTermsCard } = await import("@/components/EntryTermsCard");
 const { RoundDaySetup } = await import("@/components/RoundDaySetup");
 const { PlanBilling } = await import("@/components/PlanBilling");
 const { CupLineup } = await import("@/components/CupLineup");
-const { ScopeLockBanner, SCOPE_LOCK_REASON_ID, scopeLockBannerDrawn } = await import("@/components/ScopeLockBanner");
+const { ScopeLockBanner } = await import("@/components/ScopeLockBanner");
+const { SCOPE_LOCK_REASON_ID, scopeLockBannerDrawn } = await import("@/components/scope-lock-rules");
 const { locksFor, scopeLockOf } = await import("@/lib/domain/tournament-status");
 const { facts, launched } = await import("@/lib/domain/__tests__/tournament-facts-fixtures");
 

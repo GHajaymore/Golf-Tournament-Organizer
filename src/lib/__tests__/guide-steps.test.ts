@@ -51,7 +51,7 @@ const PINNED: [label: string, file: string][] = [
   ["Reprint these", "src/components/print/PrintKitClient.tsx"],
   ["Print the signs", "src/components/PlaySettings.tsx"],
   ["Share", "src/components/PlaySettings.tsx"],
-  ["Print…", "src/app/(app)/foursomes/page.tsx"],
+  ["Print…", "src/components/teetimes/PrintDoor.tsx"],
   ["Print…", "src/app/(app)/cup/page.tsx"],
   // Member or guest (the no-email player identity, PR 1): the CSV preview's buttons.
   ["Download template", "src/components/RegistrationClient.tsx"],

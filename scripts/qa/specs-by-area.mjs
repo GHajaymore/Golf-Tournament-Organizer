@@ -213,9 +213,11 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts", "src/components/teetimes/", "src/lib/domain/draw-sections.ts", "src/lib/domain/find-a-player.ts"],
     specs: [
       "e2e/organizer-teesheet.spec.ts",
+      // Find a player on Tee times & draw, as the starter on a phone (R9a): four of its seven states.
+      "e2e/find-a-player.spec.ts",
       "e2e/play-with.spec.ts",
       // Day-of field changes (PR B): put one late entry in a group with room, DNS, the late-entry cutoff.
       "e2e/day-of-tee-sheet.spec.ts",

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { prisma, makeClub, dropClub, makeEvent, returnCard, sessionOf, signInWith, signIn, addDays, dayIn, NAMES, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
 
@@ -293,5 +294,51 @@ test.describe("tee sheet moves: a league week", () => {
     } finally {
       await context.close();
     }
+  });
+});
+
+/**
+ * @redesign: MOVING ON A SAVED SHEET, ON THE REDESIGNED SCREEN (R9a). The move controls are part of the
+ * groups in the DRAW section: the region that says nothing is saved until Save changes, and a "Move [name]
+ * to…" list beside each player. Read from the fixture: a published Round 1 tomorrow.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign moving a player on Tee times & draw", () => {
+  const REDESIGN_MARK = "zz-rd-moves";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(REDESIGN_MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(REDESIGN_MARK);
+  });
+
+  test("a saved sheet offers the move controls inside the draw section", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      await expect(screen.section("draw").getByRole("region", { name: "Move players and groups" })).toBeVisible();
+      await expect(screen.section("draw").getByLabel(`Move ${day.placed[0].name} to`)).toBeVisible();
+    });
+  });
+
+  test("a move is drafted, saved once, and the screen stays Tee times & draw", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      await screen.open(day.round1);
+      const mover = day.placed[3]; // the fourth of Group 1's four; Group 2 holds two (read from the fixture)
+      await screen.section("draw").getByLabel(`Move ${mover.name} to`, { exact: true }).selectOption({ label: "Group 2 · 8:10 AM · 2 players" });
+      await expect(page.getByText("1 change not saved yet.")).toBeVisible();
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await expect
+        .poll(async () => {
+            const row = await prisma.stage.findUnique({ where: { id: day.round1 }, select: { teeSheet: true } });
+            const groups = (JSON.parse(row?.teeSheet ?? "{}").groups ?? []) as { playerIds: string[] }[];
+            return groups[1]?.playerIds ?? [];
+          }, { timeout: 20_000, message: "the move was not saved" })
+        .toContain(mover.id);
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect(page).toHaveURL(/stepper=1/);
+    });
   });
 });
