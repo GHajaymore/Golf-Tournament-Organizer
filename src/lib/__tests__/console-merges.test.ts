@@ -309,6 +309,43 @@ function clientCallRefusal(file: string, src: string): string | null {
   return null;
 }
 
+/** R1c: the only files that may call `mergesShown(`, besides its definition. A page asks `screensShownFor`. */
+const MERGES_CALLERS = ["src/app/(app)/layout.tsx", "src/lib/services/screens-shown.ts"];
+
+function mergesCallerRefusal(file: string, src: string): string | null {
+  const name = file.replace(/\\/g, "/");
+  if (!/\bmergesShown\(/.test(src)) return null;
+  if (name.endsWith("src/lib/domain/console-merges.ts")) return null;
+  if (MERGES_CALLERS.includes(name)) return null;
+  return `${name}: calls mergesShown( directly; ask screensShownFor (services/screens-shown.ts)`;
+}
+
+describe("the only callers of mergesShown( are the layout and screensShownFor (R1c)", () => {
+  it("no other file under src calls it", () => {
+    const refused: string[] = [];
+    const callers: string[] = [];
+    for (const file of sourceFiles("src")) {
+      const src = readSource(file);
+      const why = mergesCallerRefusal(file, src);
+      if (why) refused.push(why);
+      if (/\bmergesShown\(/.test(src)) callers.push(file.replace(/\\/g, "/"));
+    }
+    expect(refused).toEqual([]);
+    expect(callers).toEqual(expect.arrayContaining(MERGES_CALLERS));
+  });
+
+  it("CONTROL: a page calling it directly is refused; the two allowed callers and the definition are not", () => {
+    const call = 'const m = mergesShown("", { owner: false });';
+    expect(mergesCallerRefusal("src/app/(app)/zz/page.tsx", call)).toBe(
+      "src/app/(app)/zz/page.tsx: calls mergesShown( directly; ask screensShownFor (services/screens-shown.ts)",
+    );
+    expect(mergesCallerRefusal("src/app/(app)/layout.tsx", call)).toBeNull();
+    expect(mergesCallerRefusal("src/lib/services/screens-shown.ts", call)).toBeNull();
+    expect(mergesCallerRefusal("src/lib/domain/console-merges.ts", call)).toBeNull();
+    expect(mergesCallerRefusal("src/app/(app)/zz/page.tsx", "screensShownFor(session);")).toBeNull();
+  });
+});
+
 describe("the switches are called on the server only (review item 6; the stepper's owner gate)", () => {
   it("every caller under src is a server file", () => {
     const callers: string[] = [];

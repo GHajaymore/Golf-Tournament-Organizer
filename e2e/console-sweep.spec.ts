@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { test, expect, writeFormInventory } from "./coverage";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
 import { navForRole } from "../src/lib/nav";
+import { consoleUrl } from "../src/lib/console-url";
+import { builtScreenPaths } from "./console/index";
 import { sweep, keyOf, ratchet, knownFile, knownFor, SWEEP_WIDTH, REASON_WITHIN_PX, type Violation } from "./console-sweep";
 import { controlsOn, inventoryLine, screenLine } from "./form-controls";
 import { joinFormControls } from "../scripts/qa/form-controls.mjs";
@@ -161,13 +163,19 @@ test.describe("the console sweep", () => {
       const inventory: string[] = [];
 
       const walk = async (stage: string) => {
-        for (const path of screens) {
-          const response = await page.goto(`${path}?bust=${Date.now()}`);
+        // The menu's screens, then each redesigned screen built so far (`SCREENS_BUILT`, R1c) at its
+        // building address. With every line null that adds nothing; a screen's own PR sets its line.
+        const targets = [
+          ...screens.map((p) => ({ path: p, at: p, url: `${p}?bust=${Date.now()}` })),
+          ...builtScreenPaths().map((p) => ({ path: `${p} [build]`, at: p.split(/[?#]/)[0], url: `${consoleUrl(p, "build")}&bust=${Date.now()}` })),
+        ];
+        for (const { path, at, url } of targets) {
+          const response = await page.goto(url);
           await page.waitForLoadState("networkidle").catch(() => {});
           // ON the screen before anything about it: a redirect to the front door is a 200 that measures nothing.
           const status = response?.status() ?? 0;
           const landed = new URL(page.url()).pathname;
-          if (status !== 200 || landed !== path) {
+          if (status !== 200 || landed !== at) {
             unreached.push(`${stage} ${path}: answered ${status} and landed on ${landed}`);
             continue;
           }
