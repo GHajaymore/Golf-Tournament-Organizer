@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { dueBeforePlayed } from "@/lib/domain/round-dates";
 import { readSource } from "./source";
+import { roundsScreenSource } from "./rounds-source";
 
 /**
  * A ROUND IS NOT DUE BEFORE IT IS PLAYED (2026-10-30).
@@ -33,6 +34,6 @@ describe("the rule is asked where a deadline is saved and where it is shown", ()
     const body = action.slice(action.indexOf("export async function setStageDeadline("), action.indexOf("export async function setTournamentDates("));
     expect(body.indexOf("dueBeforePlayed(")).toBeGreaterThan(-1);
     expect(body.indexOf("dueBeforePlayed(")).toBeLessThan(body.indexOf("prisma.stage.updateMany("));
-    expect(readSource("src/components/StagesClient.tsx")).toMatch(/dueBeforePlayed\(deadline, playedOn\)/);
+    expect(roundsScreenSource()).toMatch(/dueBeforePlayed\(deadline, playedOn\)/);
   });
 });

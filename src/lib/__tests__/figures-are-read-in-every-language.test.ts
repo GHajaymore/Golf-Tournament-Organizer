@@ -167,7 +167,7 @@ describe("there is one reader of a typed amount", () => {
     // comma for every box (`a-typed-figure-is-read-one-way.test.ts`): each of the
     // two had its own `Number(decimalPoint(…))`, which is what this used to pin.
     expect(readSource("src/components/CasualRoundPanel.tsx")).toContain("readHandicapIndex(e.target.value)");
-    expect(readSource("src/components/CupLineup.tsx")).toContain("readDecimal(target.replace(");
+    expect(readSource("src/components/CupTile.tsx")).toContain("readDecimal(target.replace(");
     expect(readHandicapIndex("12,4")).toEqual({ kind: "index", value: 12.4 });
     expect(readDecimal("14,5")).toEqual({ kind: "number", value: 14.5 });
   });

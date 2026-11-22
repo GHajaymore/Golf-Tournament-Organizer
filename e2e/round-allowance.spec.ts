@@ -5,6 +5,8 @@ import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { makeCommitteeCorrection } from "./committee-correction";
 import { heldFromBoard } from "../src/lib/domain/board-hold";
+import { prisma as raPrisma, makeClub as raMakeClub, dropClub as raDropClub, makeEvent as raMakeEvent, signIn as raSignIn } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * A COMMITTEE CHANGES A MEDAL'S ALLOWANCE, AND EVERY NET ON THE BOARD IS THE
@@ -385,4 +387,43 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
   expect(anonErrors, anonErrors.join("\n")).toEqual([]);
   expect(memberErrors, memberErrors.join("\n")).toEqual([]);
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R4: the allowance's citation on the redesigned screen, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("a net medal's allowance is shown with where it comes from", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-ra-redesign-${testInfo.project.name}`;
+    const club = await raMakeClub(mark);
+    try {
+      const { event } = await raMakeEvent(club, "Net Medal", { stages: [{ scoringBasis: "net" }] });
+      await raSignIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      await expect(screen.column("Round 1")).toContainText("Allowance 95%, from the Rules' recommendation");
+      expect(await raPrisma.stage.count({ where: { eventId: event.id, handicapAllowance: { gt: 0 } } }), "the default was stored as if it were a choice").toBe(0);
+
+      // PRESSED, as the organizer would: change it on the column (under More), see it stored, then put the default back.
+      const stageId = (await raPrisma.stage.findFirstOrThrow({ where: { eventId: event.id, position: 0 } })).id;
+      const storedNow = async () => (await raPrisma.stage.findUniqueOrThrow({ where: { id: stageId } })).handicapAllowance;
+      await screen.openMore("Round 1");
+      const column = screen.column("Round 1");
+      const line = column.locator("p", { hasText: /^Handicap allowance/ });
+      await expect(line, "the column does not say its allowance under More").toBeVisible();
+      const changeButton = () => column.locator("div").filter({ has: page.locator("p", { hasText: /^Handicap allowance/ }) }).last().getByRole("button", { name: "Change", exact: true });
+      await changeButton().click();
+      await column.getByLabel("Handicap allowance percent").fill("90");
+      await column.getByRole("button", { name: "Save", exact: true }).click();
+      await expect.poll(storedNow, { message: "90% was not stored" }).toBe(90);
+      await expect(line).toContainText("90%");
+      await changeButton().click();
+      await column.getByRole("button", { name: "Back to 95%", exact: true }).click();
+      await expect.poll(storedNow, { message: "Back to 95% did not clear the committee's figure" }).toBe(0);
+      await expect(line).toContainText("the recommended allowance for this format");
+    } finally {
+      await raDropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

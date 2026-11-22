@@ -193,6 +193,10 @@ R9a's) are named in a dated `KNOWN_READ_ONLY` and placed with the QA Director; t
 the number of blocks found stops a broken reader passing on none. Controls: a planted read-only block, a press with no
 look afterwards, a press only in a comment.
 
+## One writer of a round's scoreInput, and the ring files (R4, 22 Nov 2026)
+
+`one-writer-of-score-input.test.ts` refuses a second caller of `setStageScoreInput` anywhere in `src/` but `components/rounds/RoundScoreInput.tsx` (`writeScoreInput`), which the round card and the team round's select both call; the control plants a second writer. `the-timeline-reads-the-machine.test.ts` holds the redesigned Rounds & formats files (`RoundsScreen`, `BetweenRounds`, `ScoringTile`) to the ring wall: no `.needs` read, no literal denominator. A guard that pins what the Rounds screen draws reads `roundsScreenSource()` (`__tests__/rounds-source.ts`: the screen and `components/rounds/`), because its controls were lifted out of `StagesClient.tsx`.
+
 ## Moved from CLAUDE.md (20 Nov 2026): The guard hook
 
 **Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before

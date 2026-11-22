@@ -2,6 +2,8 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { clickAndExplain, whileWatching } from "./stalled-click";
 import { seedOrganizer, teardownOrganizer, organizerEvent, returnACard } from "./organizer-fixture.mjs";
+import { prisma as rrPrisma, makeClub as rrMakeClub, dropClub as rrDropClub, makeEvent as rrMakeEvent, signIn as rrSignIn } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * ROUNDS & FORMATS, AS A NEW ORGANIZER BUILDS THEM — the walk of 2026-10-16.
@@ -366,4 +368,29 @@ test("a match-play championship in groups, then a knockout", async ({ page }, te
   });
 
   expect(errors).toEqual([]);
+});
+
+// R4: the round builder through the redesigned screen (the same AddRoundPanel), deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("a round is added from the builder and arrives as a column", async ({ page, context, baseURL }, testInfo) => {
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-orr-redesign-${testInfo.project.name}`;
+    const club = await rrMakeClub(mark);
+    try {
+      const { event, stages } = await rrMakeEvent(club, "Summer Medal", { stages: [{}] });
+      await rrSignIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      await expect(screen.column("Round 1")).toBeVisible();
+      await page.getByRole("button", { name: /^Add a round/ }).click();
+      await page.getByRole("button", { name: /Stroke play round/ }).first().click();
+      await page.getByRole("button", { name: /^Add stroke play round$/i }).click();
+      await expect.poll(async () => rrPrisma.stage.count({ where: { eventId: event.id } }), { message: "the round was not added" }).toBe(stages.length + 1);
+      await expect(screen.column("Round 2")).toBeVisible();
+    } finally {
+      await rrDropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

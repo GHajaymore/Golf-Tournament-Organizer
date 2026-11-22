@@ -19,8 +19,7 @@ import { readSource, stripComments } from "./source";
  */
 
 /**
- * Blocks that do not press-then-look, 23 Nov 2026: nine of R2's and R9a's, and six of R4's (#1218, which merges
- * before this PR; its blocks are listed now so main stays green when it does). Each is `file :: describe title`.
+ * Blocks that do not press-then-look, 23 Nov 2026: nine of R2's and R9a's, and six of R4's (#1218, merged). Each is `file :: describe title`.
  * OWNER: QA Director with the Test Engineer; backlog item "G1b": give every listed block a press-then-reload and
  * empty this list, test-only, before the R2, R4 and R9a switch-on flips. A screen's PR that adds a block must not
  * add to this list: the list is CAPPED at KNOWN_READ_ONLY_CAP below and may only shrink; the test refuses a name
@@ -52,21 +51,8 @@ export const KNOWN_READ_ONLY: readonly string[] = [
 /** The list's size today (15, dated 23 Nov 2026, owner G1b). NEVER RAISE: it may only shrink, and lowering this as entries go is the point. */
 export const KNOWN_READ_ONLY_CAP = 15;
 
-/**
- * R4's six, which are not on this branch until it is rebased onto main after #1218 merges. Until then the
- * "names exist" test skips them; at that rebase DELETE this constant and raise MIN_BLOCKS to 15.
- */
-const AWAITING_R4: readonly string[] = [
-  "organizer-rounds-screen.spec.ts :: @redesign",
-  "round-allowance.spec.ts :: @redesign",
-  "rounds-and-formats.spec.ts :: @redesign",
-  "rounds-panel.spec.ts :: @redesign",
-  "rounds-timeline.spec.ts :: @redesign",
-  "stages-scoring-setup.spec.ts :: @redesign",
-];
-
-/** The least number of `@redesign` blocks there are today (the brief asked 20; main holds 9 until R4, R3 and R6 merge). Raise it as screens land, never lower it. */
-export const MIN_BLOCKS = 9;
+/** The least number of `@redesign` blocks there are today (15 once R4 is on main; R3 and R6 are still to come). Raise it as screens land, never lower it. */
+export const MIN_BLOCKS = 15;
 
 const WRITE_PRESS = /\.(click|fill|check|selectOption|press)\(/;
 const NOT_A_WRITE = /getByRole\(\s*["']link["']|openSection\(|openFold\(|sectionLine\(|aria-expanded|\.locator\(\s*["']a\b/;
@@ -140,7 +126,6 @@ describe("every @redesign block presses something that writes, and looks again",
   it("KNOWN_READ_ONLY names only blocks that exist and are still read-only", () => {
     const names = new Map(blocks.map((b) => [nameOf(b), b]));
     for (const k of KNOWN_READ_ONLY) {
-      if (!names.has(k) && AWAITING_R4.includes(k)) continue;
       expect(names.has(k), `${k} is not a @redesign block any more: take it off the list`).toBe(true);
       expect(pressProblem(names.get(k)!.body), `${k} now presses: take it off the list`).not.toBeNull();
     }
