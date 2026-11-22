@@ -42,4 +42,43 @@ export async function makeCommitteeCorrection(page: Page, opts: { scope?: string
   await dialog.getByLabel("Why").fill(opts.reason ?? CORRECTION_REASON);
   await dialog.getByRole("button", { name: "Open it for a correction" }).click();
   await dialog.waitFor({ state: "hidden", timeout: 20_000 });
+  await keepFixtureCorrectionsOpen();
+}
+
+/** A correction must outlive the walk that opened it by at least this long. */
+export const CORRECTION_MIN_LEFT_MS = 10 * 60 * 1000;
+/** ...and is given this long when it would not (the same 6 h `openCorrectionFor` gives). */
+export const CORRECTION_EXTENSION_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * THE CORRECTION'S NEW END, or null when it needs none. The real action ends a correction at the
+ * club's midnight (`endOfClubDay`), so one pressed at 23:59:50 lapses ten seconds later and the
+ * lock is back mid-test (PR 1202, team-allowance.spec.ts). `now` is TOLD, never read here.
+ */
+export function correctionEndKeptOpen(until: Date | null, now: Date): Date | null {
+  if (!until) return null;
+  if (until.getTime() - now.getTime() >= CORRECTION_MIN_LEFT_MS) return null;
+  return new Date(now.getTime() + CORRECTION_EXTENSION_MS);
+}
+
+/**
+ * After the press, push out any zz fixture's correction that would lapse within minutes. One
+ * place for every spec that calls `makeCommitteeCorrection`. Only a tournament carrying the zz
+ * mark is touched (Hard rule 1).
+ */
+export async function keepFixtureCorrectionsOpen(now: Date = new Date()): Promise<void> {
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
+  try {
+    const rows = await prisma.event.findMany({
+      where: { name: { startsWith: "zz", mode: "insensitive" }, correctionScope: { not: null }, correctionUntil: { not: null } },
+      select: { id: true, correctionUntil: true },
+    });
+    for (const r of rows) {
+      const next = correctionEndKeptOpen(r.correctionUntil, now);
+      if (next) await prisma.event.update({ where: { id: r.id }, data: { correctionUntil: next } });
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
 }
