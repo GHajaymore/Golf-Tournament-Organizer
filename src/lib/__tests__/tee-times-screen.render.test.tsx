@@ -119,6 +119,19 @@ describe("the page: one panel of handicaps, one set of tabs", () => {
     expect(page).toMatch(/makerEl\(true\)/);
   });
 
+  it("the draw section's banner asks the teeSheet scope, never draw (draw is in BLANKET: it would say Locked over a live medal's working controls)", () => {
+    // `locksOf` puts `draw` in BLANKET, so on a launched stroke event it is locked by "launch"; only flight actions ask it.
+    // The sheet's writers ask `teeSheetChangeAllowed`, which refuses only a COMPLETED event: that is the `teeSheet` scope.
+    expect(page).toMatch(/scopeLockFor\(session\.eventId, "teeSheet"\)/);
+    expect(page).not.toMatch(/scopeLockFor\([^)]*"draw"\)/);
+  });
+
+  it("the pairing requests stand outside the banner (setPairingRequest asks no lock), and the teeSheet need goes to the draw section", () => {
+    expect(page.indexOf("{pairingEl}")).toBeLessThan(page.indexOf("<LockedOnce"));
+    expect(page).toMatch(/n\.key === "teeSheet" \? "#draw"/);
+    expect(page).not.toMatch(/"#teeTimes"/);
+  });
+
   it("asks which screens are shown of the one service, and the layout of the sheet is chosen by drawSections", () => {
     expect(page).toMatch(/screensShownFor\(session\)/);
     expect(page).not.toMatch(/mergesShown\(/);

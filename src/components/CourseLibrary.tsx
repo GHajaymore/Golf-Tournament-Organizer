@@ -126,8 +126,16 @@ export function CourseLibrary({
   clubCity = "",
   homeCourse = null,
   openCourseId = null,
+  eventPick,
 }: {
   courses: ClubCourse[];
+  /**
+   * Whether this screen picks THIS EVENT's courses (R2). Required, so a screen says which it is.
+   * Tournament details passes true: each row has its "use for this tournament" tick. The club's own
+   * Courses screen passes false and draws no tick, because picking the event's course is that event's
+   * screen's job (`console-merges.ts`, "pick-this-events-course") and a club screen may have no event.
+   */
+  eventPick: boolean;
   /** The club's city, so a local course does not need retyping. */
   clubCity?: string;
   canEdit: boolean;
@@ -385,11 +393,18 @@ export function CourseLibrary({
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Courses</span>
         {/* One line, the rest an ⓘ away (Ajay, 2026-10-05). */}
-        <MoreInfo short="Where this tournament is played." style={{ marginTop: 4 }}>
-          Pick one and nobody is asked again. Pick several — a multi-day event rotating courses, or a league
-          where opponents choose their own — and you can set the venue per round, or per match where it
-          can&rsquo;t be known in advance.
-        </MoreInfo>
+        {eventPick ? (
+          <MoreInfo short="Where this tournament is played." style={{ marginTop: 4 }}>
+            Pick one and nobody is asked again. Pick several — a multi-day event rotating courses, or a league
+            where opponents choose their own — and you can set the venue per round, or per match where it
+            can&rsquo;t be known in advance.
+          </MoreInfo>
+        ) : (
+          <MoreInfo short="The club&rsquo;s courses, their cards and their tees." style={{ marginTop: 4 }}>
+            A course is entered once and every tournament of the club can be played on it. Which course a
+            tournament is played on is picked on that tournament&rsquo;s own details.
+          </MoreInfo>
+        )}
       </div>
 
       {courses.length === 0 ? (
@@ -401,7 +416,7 @@ export function CourseLibrary({
           <table className="table" style={{ fontSize: 13 }}>
             <thead>
               <tr>
-                <th style={{ width: 34 }} />
+                {eventPick && <th style={{ width: 34 }} />}
                 <th>Course</th>
                 <th style={{ width: 90 }}>Par</th>
                 <th style={{ width: 120 }} />
@@ -411,15 +426,17 @@ export function CourseLibrary({
               {courses.map((c) => (
               <Fragment key={c.id}>
                 <tr>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(c.id)}
-                      disabled={!canEdit || pending}
-                      onChange={() => toggle(c.id)}
-                      aria-label={`Use ${c.name}`}
-                    />
-                  </td>
+                  {eventPick && (
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        disabled={!canEdit || pending}
+                        onChange={() => toggle(c.id)}
+                        aria-label={`Use ${c.name}`}
+                      />
+                    </td>
+                  )}
                   <td style={{ fontWeight: 500 }}>
                     {c.name}
                     {c.city && (
@@ -581,7 +598,7 @@ export function CourseLibrary({
                     and an organizer setting up a venue is exactly the person
                     holding the scorecard they are printed on. */}
                 <tr key={`-tees`}>
-                  <td colSpan={canEdit ? 7 : 6} style={{ paddingTop: 0 }}>
+                  <td colSpan={(canEdit ? 7 : 6) - (eventPick ? 0 : 1)} style={{ paddingTop: 0 }}>
                     <TeeEditor
                       courseId={c.id}
                       tees={c.tees}
@@ -765,7 +782,7 @@ export function CourseLibrary({
         </div>
       )}
 
-      {selectedCount > 1 && (
+      {eventPick && selectedCount > 1 && (
         <p
           style={{
             fontSize: 13,

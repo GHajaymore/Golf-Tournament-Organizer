@@ -32,7 +32,7 @@ export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
   money: null,
   events: null,
   members: null,
-  courses: null,
+  courses: "/courses",
   clubSettings: null,
 };
 

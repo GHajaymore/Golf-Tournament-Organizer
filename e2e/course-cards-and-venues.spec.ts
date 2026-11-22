@@ -2,7 +2,9 @@ import { test, expect, type Locator, type Page } from "./coverage";
 import { createHmac } from "node:crypto";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
-import { prisma, makeClub, dropClub, makeEvent, signIn, saidBeside, centre, NAMES, type Club } from "./rounds-fixture";
+import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, sessionOf, saidBeside, centre, NAMES, type Club } from "./rounds-fixture";
+import { openCourses, backLink } from "./console/courses";
+import { COURSE_KEEPER_WORDS } from "../src/lib/domain/course-words";
 
 /**
  * A COURSE'S CARD, GIVEN FOUR WAYS, AND A MATCH PLAYED AWAY (2026-10-21).
@@ -385,4 +387,105 @@ test("in a league with no fixed course the player names where they played: a car
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * THE CLUB'S COURSES SCREEN (R2, the redesign), reached at its building address (`/courses?stepper=1&build=1`).
+ * The same library, through the screen's page object (`e2e/console/courses.ts`); the tests above are not edited.
+ * Deleted with the old half at R17.
+ */
+test.describe("@redesign", () => {
+  test("a club with no tournament: its owner opens Courses, pastes a card, and the course is in the club's library", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("rd-none", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      // Signed in as the club's owner, and with NO tournament open: the person this screen is for.
+      expect(await prisma.event.count({ where: { organizationId: club.orgId } }), "the fixture club has a tournament").toBe(0);
+      await context.addCookies([{ name: "ng_session", value: club.session, url: baseURL! }]);
+      const library = await openCourses(page);
+      expect(new URL(page.url()).pathname, "the screen sent a club with no tournament elsewhere").toBe("/courses");
+      await expect(library.getByRole("checkbox"), "the club's screen draws a tick to use a course for a tournament").toHaveCount(0);
+
+      await library.getByRole("button", { name: "Paste a card" }).click();
+      const card = page.locator(".card", { has: page.getByText("Paste a course card", { exact: true }) }).last();
+      await field(card, /^Course name$/).locator("input").fill(`${mark} Craigmore Links`);
+      await field(card, /^Par$/).locator("textarea").fill(`Par ${AWAY_PARS.slice(0, 9).join(" ")} 36 ${AWAY_PARS.slice(9).join(" ")} 36 72`);
+      await field(card, /^Stroke index$/).locator("textarea").fill(`S.I. ${SI.join(" ")}`);
+      await field(card, /^Yards/).locator("textarea").fill(`Yards ${YARDS.join(" ")}`);
+      await expect(card.getByText(/Reads as\s+par 72/), "the pasted card was not read as par 72").toBeVisible();
+      await card.getByRole("button", { name: "Add course" }).click();
+      await expect
+        .poll(async () => prisma.course.findFirst({ where: { organizationId: club.orgId, name: `${mark} Craigmore Links` } }), { message: "the pasted course was not stored for a club with no tournament", timeout: 20_000 })
+        .not.toBeNull();
+      const made = await prisma.course.findFirstOrThrow({ where: { organizationId: club.orgId, name: `${mark} Craigmore Links` } });
+      expect(JSON.parse(made.pars), "the pars stored are not the pars pasted").toEqual(AWAY_PARS);
+      expect(made.verifiedAt, "a pasted card was marked checked").toBeNull();
+
+      // Checked there too: the card is marked, and who checked it is kept.
+      const reopened = await openCourses(page);
+      const row = reopened.locator("tbody tr").filter({ hasText: `${mark} Craigmore Links` }).first();
+      await row.getByRole("button", { name: "Verify card" }).click();
+      await expect
+        .poll(async () => !!(await prisma.course.findFirstOrThrow({ where: { id: made.id } })).verifiedAt, { message: "the card was not marked checked", timeout: 20_000 })
+        .toBe(true);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("sent from Rounds & formats, Back lands there; an address that is not a screen draws no way back", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("rd-from", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Summer Stableford", { stages: [{}] });
+      await signIn(context, baseURL!, club, event.id);
+      await openCourses(page, "/stages");
+      const back = backLink(page, "Rounds & formats");
+      await expect(back, "no way back to the screen the person was sent from").toBeVisible();
+      await back.click();
+      await expect.poll(() => new URL(page.url()).pathname, { message: "Back did not land on the screen the person came from" }).toBe("/stages");
+
+      for (const from of ["https://example.invalid/stages", "//example.invalid", "/not-a-screen"]) {
+        await openCourses(page, from);
+        await expect(page.getByRole("link", { name: /^Back to/ }), `${from} drew a way back`).toHaveCount(0);
+      }
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("an organizer who is not the club's staff reads the courses and is told why nothing can be pressed", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "guest organizer");
+    const mark = markFor("rd-guest", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      await course(club, `${mark} Rowan Hill`, HOME_PARS);
+      const { event } = await makeEvent(club, "Summer Stableford", { stages: [{}] });
+      // Added to ONE tournament as its organizer, with no place in the club: the upward leak the club's
+      // rules closed. They may open the screen; they may not change the club's courses.
+      const email = `${mark}-guest@example.invalid`;
+      const user = await prisma.user.create({ data: { email, name: "Wren Guest", password: "x:unusable" } });
+      await prisma.account.create({ data: { eventId: event.id, name: "Wren Guest", email, role: "admin" } });
+      await signInWith(context, baseURL!, sessionOf(user.id), event.id);
+      const library = await openCourses(page);
+      await expect(page.getByText(COURSE_KEEPER_WORDS), "no read-only sentence").toBeVisible();
+      await expect(library.getByText(`${mark} Rowan Hill`), "the course is not listed to read").toBeVisible();
+      await expect(library.getByRole("button", { name: "Add a course" }), "a control the press would refuse").toHaveCount(0);
+      await expect(library.getByRole("button", { name: "Paste a card" })).toHaveCount(0);
+      await expect(library.getByRole("button", { name: "Verify card" })).toHaveCount(0);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

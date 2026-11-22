@@ -11,7 +11,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * caller's answer (Needs you, or the sheet); this decides nothing about WHICH. The line is a button of
  * 48px or more; it is the section's heading, and the `id` is the anchor the round's needs link to.
  */
-const PHONE = "(max-width: 640px)";
+const PHONE = "(max-width: 767px)";
 
 export function SectionFold({
   id,

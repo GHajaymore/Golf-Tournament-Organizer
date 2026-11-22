@@ -2,6 +2,7 @@ import type { ScreenKey } from "@/lib/domain/console-merges";
 import type { GuideSection } from "@/lib/guide-steps";
 import { tableInClubWords, type GolfWords } from "@/lib/domain/golf-terms";
 import { TEE_TIMES_GUIDE } from "./tee-times";
+import { COURSES_GUIDE } from "./courses";
 
 /**
  * THE GUIDE'S REDESIGN VARIANTS (R1b): each redesigned screen's PR adds ONE file beside this one,
@@ -12,8 +13,7 @@ import { TEE_TIMES_GUIDE } from "./tee-times";
  * matches it, and everybody else reads today's guide, unchanged. `replaces` names the base sections
  * (`GuideSection.id`) the variant takes the place of; `[]` adds its sections at the end.
  *
- * With no variant for a screen the guide is exactly `GUIDE_STEPS` whenever that screen is the only one shown.
- * One line below per screen built; each screen's variant is its own file beside this one.
+ * With no registered screen shown the guide is exactly `GUIDE_STEPS`; the registry grows one screen at a time.
  */
 
 export interface GuideVariant {
@@ -22,7 +22,11 @@ export interface GuideVariant {
   sections: GuideSection[];
 }
 
-export const REDESIGN_GUIDE: readonly GuideVariant[] = [{ screen: "teeTimes", replaces: [], sections: TEE_TIMES_GUIDE }];
+// One entry per line, in `SCREEN_KEYS` order: each screen's PR adds its own (three lanes append here).
+export const REDESIGN_GUIDE: readonly GuideVariant[] = [
+  TEE_TIMES_GUIDE,
+  COURSES_GUIDE,
+];
 
 /**
  * The guide as the screens now shown describe themselves. Each shown screen's variant takes the place

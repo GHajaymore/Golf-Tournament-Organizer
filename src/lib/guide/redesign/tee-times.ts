@@ -1,4 +1,4 @@
-import type { GuideSection } from "@/lib/guide-steps";
+import type { GuideVariant } from "./index";
 
 /**
  * THE GUIDE AS IT WILL BE, FOR TEE TIMES & DRAW (R9a): shown only while the screen is (`REDESIGN_GUIDE`,
@@ -7,7 +7,10 @@ import type { GuideSection } from "@/lib/guide-steps";
  * "draw" into one place. Written for the stroke and Stableford round, the one R9a builds; the match, team,
  * league, knockout and cup rounds keep today's tee sheet, and the guide says so.
  */
-export const TEE_TIMES_GUIDE: GuideSection[] = [
+export const TEE_TIMES_GUIDE: GuideVariant = {
+  screen: "teeTimes",
+  replaces: [],
+  sections: [
   {
     id: "teetimes",
     part: "Part 5",
@@ -21,7 +24,7 @@ export const TEE_TIMES_GUIDE: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "**Find a player**, beside the title: type two letters of a name and the answer drops under the box, at most three rows, such as **Ana Whitlow · Round 2 · Group 5 · 9:20 · Tee 1**. Press a row to open that round. A player who is entered but on no published sheet is said so, with a link to the sheet to open; a player who withdrew or was disqualified, and a name nobody has, link to Entries. Staff see it; it reads the sheets already on the screen.",
+          "**Find a player**, beside the title: type two letters of a name and the answer drops under the box, at most three rows, such as **Ana Whitlow · Round 2 · Group 5 · 9:20 · Tee 1**. Press a row to open that round at that group. A player who is entered but on no published sheet is said so, with a link to the sheet to open; a player who withdrew or was disqualified, and a name nobody has, link to Entries. Staff see it; it reads the sheets already on the screen.",
           "**Who is in this round**: the week's list for a league, the cut when it is waiting on a tie, and **Handicaps for this round** (the figure each player plays off, changed here for one round).",
           "**The draw**: **Who plays together**, the group size, pairing requests and the groups. [[Save sheet]] keeps a draft; [[Save & publish]] then confirm [[Publish the tee sheet]].",
           "**Tee times and start**: a late entry or a reserve is put in a group with room ([[Put in group]]), and the screen says when the published sheet no longer matches the field. The start (one tee, split or shotgun), the first tee and the interval are set with the groups.",
@@ -39,4 +42,5 @@ export const TEE_TIMES_GUIDE: GuideSection[] = [
       },
     ],
   },
-];
+  ],
+};

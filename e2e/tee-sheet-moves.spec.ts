@@ -321,4 +321,24 @@ test.describe("@redesign moving a player on Tee times & draw", () => {
       await expect(screen.section("draw").getByLabel(`Move ${day.placed[0].name} to`)).toBeVisible();
     });
   });
+
+  test("a move is drafted, saved once, and the screen stays Tee times & draw", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      await screen.open(day.round1);
+      const mover = day.placed[3]; // the fourth of Group 1's four; Group 2 holds two (read from the fixture)
+      await screen.section("draw").getByLabel(`Move ${mover.name} to`, { exact: true }).selectOption({ label: "Group 2 · 8:10 AM · 2 players" });
+      await expect(page.getByText("1 change not saved yet.")).toBeVisible();
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await expect
+        .poll(async () => {
+            const row = await prisma.stage.findUnique({ where: { id: day.round1 }, select: { teeSheet: true } });
+            const groups = (JSON.parse(row?.teeSheet ?? "{}").groups ?? []) as { playerIds: string[] }[];
+            return groups[1]?.playerIds ?? [];
+          }, { timeout: 20_000, message: "the move was not saved" })
+        .toContain(mover.id);
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect(page).toHaveURL(/stepper=1/);
+    });
+  });
 });

@@ -130,7 +130,8 @@ export async function clubCourses(
    * offering it is a convenience, not the club taking the round over.
    */
   organizationId: string | string[],
-  eventId: string,
+  /** The open event, or null when none is: no course is then flagged `inEvent` (the club's own Courses screen). */
+  eventId: string | null,
 ): Promise<ClubCourse[]> {
   const [courses, links] = await Promise.all([
     prisma.course.findMany({
@@ -145,7 +146,9 @@ export async function clubCourses(
         organization: { select: { country: true, locale: true, timeZone: true } },
       },
     }),
-    prisma.eventCourse.findMany({ where: { eventId }, select: { courseId: true } }),
+    eventId === null
+      ? Promise.resolve([] as { courseId: string }[])
+      : prisma.eventCourse.findMany({ where: { eventId }, select: { courseId: true } }),
   ]);
   const selected = new Set(links.map((l) => l.courseId));
 

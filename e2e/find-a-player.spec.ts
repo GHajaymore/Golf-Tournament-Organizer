@@ -49,6 +49,9 @@ test("the secretary finds where a player goes, who is not on a sheet yet, who wi
         expect((await row.boundingBox())?.height ?? 0, "the row is shorter than 48px").toBeGreaterThanOrEqual(47.5);
         await row.click();
         await expect(page).toHaveURL(new RegExp(`round=${day.round1}`));
+        await expect(page).toHaveURL(/#group-1$/);
+        // It opens AT the group: the card with that anchor is on the page, and it holds the player.
+        await expect(page.locator("#group-1")).toContainText(first);
         await expect(page).toHaveURL(/stepper=1/);
         await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
       });

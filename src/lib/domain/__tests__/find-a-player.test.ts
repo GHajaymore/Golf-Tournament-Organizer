@@ -51,7 +51,9 @@ describe("findAPlayer: its seven states", () => {
       "Ana Whitlow · Round 1 · Group 5 · 9:20 · Tee 10",
       "Ana Whitlow · Round 2 · Group 5 · 9:20 · Tee 1",
     ]);
-    expect(out.rows[1].href).toBe("/foursomes?round=r2#draw");
+    // It opens AT the group: the anchor is the group's place in the sheet (FoursomeMaker draws `group-<n>`), not its name.
+    expect(out.rows[0].href).toBe("/foursomes?round=r1#group-2");
+    expect(out.rows[1].href).toBe("/foursomes?round=r2#group-1");
     expect(out.more).toBeNull();
   });
 

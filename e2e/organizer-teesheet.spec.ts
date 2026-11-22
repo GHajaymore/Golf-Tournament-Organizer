@@ -3,7 +3,7 @@ import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { expectLaunched } from "./end-early";
-import { addDays, dayIn } from "./rounds-fixture";
+import { addDays, dayIn, prisma } from "./rounds-fixture";
 
 /**
  * THE TEE SHEET, FROM THE SECRETARY'S DRAW TO A MEMBER'S PHONE.
@@ -231,6 +231,40 @@ test.describe("@redesign the draw on Tee times & draw", () => {
       await expect(screen.sectionLine("draw")).toContainText("Published");
       await expect(screen.section("draw")).toContainText("Group 1");
       await expect(screen.section("draw")).toContainText(day.placed[0].name);
+    });
+  });
+
+  test("a LIVE stroke event's sheet is open: no locked-because-live banner over controls that work (the scope is teeSheet, not draw)", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      await screen.open(day.round1);
+      await expect(screen.section("draw").locator("[data-locked-once]")).toHaveAttribute("data-locked-once", "open");
+      await expect(screen.section("draw").getByText(/locked/i)).toHaveCount(0);
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+    });
+  });
+
+  test("the secretary puts the player who is in no group into the group with room, and stays on the new screen", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      await screen.open(day.round1);
+      const card = screen.section("teeTimes").locator('section[aria-label="Put in a group"]');
+      await expect(card).toContainText("Not in a group yet (1)");
+      const choose = card.getByLabel(`Group for ${day.unplaced.name}`);
+      // Group 1 holds four (read from the fixture): only Group 2 is offered.
+      await expect(choose.locator("option").nth(1)).toContainText("Group 2");
+      await choose.selectOption({ index: 1 });
+      await card.getByRole("button", { name: "Put in group" }).click();
+      await expect
+        .poll(async () => {
+            const row = await prisma.stage.findUnique({ where: { id: day.round1 }, select: { teeSheet: true } });
+            const groups = (JSON.parse(row?.teeSheet ?? "{}").groups ?? []) as { playerIds: string[] }[];
+            return groups[1]?.playerIds ?? [];
+          }, { timeout: 20_000, message: "the player was not put in Group 2" })
+        .toContain(day.unplaced.id);
+      // The refresh after the action keeps the new screen: the old Tee sheet is not what comes back.
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect(page).toHaveURL(/stepper=1/);
     });
   });
 });

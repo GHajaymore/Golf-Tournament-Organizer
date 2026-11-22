@@ -536,7 +536,7 @@ export default async function FoursomesPage({
       .map((n) => ({
         key: n.key,
         text: needSentence(roundLabel(state.stages, stage.id), n),
-        href: n.key === "draw" ? "#draw" : n.key === "teeSheet" ? "#teeTimes" : `/stages?round=${stage.id}`,
+        href: n.key === "draw" ? "#draw" : n.key === "teeSheet" ? "#draw" : `/stages?round=${stage.id}`,
       }));
     const sheetLock = await scopeLockFor(session.eventId, "teeSheet");
     // THE ONE ROUND-HANDICAPS PANEL: here while this screen is shown, on Rounds & formats while it is not.
@@ -587,15 +587,15 @@ export default async function FoursomesPage({
             : undefined,
           draw: {
             state: stage.teeSheetPublished ? "Published" : savedSheet ? "Saved, not published" : "Not drawn yet",
+            // The pairing requests sit above the banner: `setPairingRequest` asks no lock, so a banner over it
+            // would stand above a control that still writes (lock-scopes.md).
             node: (
-              <LockedOnce locks={sheetLock ? [sheetLock] : []} isAdmin={isAdmin} correction={null} open={null}>
-                {() => (
-                  <>
-                    {pairingEl}
-                    {makerEl(false)}
-                  </>
-                )}
-              </LockedOnce>
+              <>
+                {pairingEl}
+                <LockedOnce locks={sheetLock ? [sheetLock] : []} isAdmin={isAdmin} correction={null} open={null}>
+                  {() => makerEl(false)}
+                </LockedOnce>
+              </>
             ),
           },
           teeTimes: {

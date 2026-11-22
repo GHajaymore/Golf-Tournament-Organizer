@@ -85,7 +85,7 @@ export function TeeTimesScreen({ kicker, roundLabel, roundChip, tabs, activeStag
             <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
               {needs.map((n) => (
                 <li key={n.key} style={{ fontSize: 14, lineHeight: 1.5, minWidth: 0, overflowWrap: "anywhere" }}>
-                  <Link href={to(n.href)} style={{ display: "inline-block", minHeight: "var(--tap-min, 24px)" }}>
+                  <Link href={to(n.href)} style={{ display: "inline-block", minHeight: 48 }}>
                     {n.text}
                   </Link>
                 </li>

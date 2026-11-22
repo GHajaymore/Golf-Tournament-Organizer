@@ -117,13 +117,13 @@ export function findAPlayer(
     if (isGone(p)) continue;
     for (const r of rounds) {
       if (!r.published) continue;
-      for (const g of r.groups) {
+      for (const [gi, g] of r.groups.entries()) {
         if (!g.playerIds.includes(p.id)) continue;
         rows.push({
           key: `${p.id}:${r.id}:${g.name}`,
           playerId: p.id,
           text: `${p.name} · ${r.label} · ${g.name} · ${shortTime(g.time)} · ${teeWords(g)}`,
-          href: `/foursomes?round=${encodeURIComponent(r.id)}#draw`,
+          href: `/foursomes?round=${encodeURIComponent(r.id)}#group-${gi + 1}`,
         });
       }
     }

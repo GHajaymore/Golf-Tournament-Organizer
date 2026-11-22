@@ -37,20 +37,24 @@ describe("a variant's words are the club's words", () => {
 });
 
 describe("the guide with the redesign's registry", () => {
-  it("is IDENTICAL to GUIDE_STEPS for every set of shown screens that has no variant registered", () => {
-    const withVariant = new Set<ScreenKey>(REDESIGN_GUIDE.map((v) => v.screen));
-    const bare = SCREEN_KEYS.filter((k) => !withVariant.has(k));
-    const sets: ScreenKey[][] = [[], bare, ...bare.map((k) => [k])];
+  it("is IDENTICAL to GUIDE_STEPS for every set of shown screens that holds no registered screen", () => {
+    const registered = new Set(REDESIGN_GUIDE.map((v) => v.screen));
+    const others = SCREEN_KEYS.filter((k) => !registered.has(k));
+    expect(others.length, "every screen is registered: this test would pass on nothing").toBeGreaterThan(0);
+    const sets: ScreenKey[][] = [[], [...others], ...others.map((k) => [k])];
     for (const shown of sets) expect(guideFor(GUIDE_STEPS, shown, US)).toEqual(GUIDE_STEPS);
-    expect(guideFor(GUIDE_STEPS, bare, US)).toBe(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, [...others], US)).toBe(GUIDE_STEPS);
   });
 
-  it("a registered variant is drawn only while its own screen is shown", () => {
-    for (const v of REDESIGN_GUIDE) {
-      const others = SCREEN_KEYS.filter((k) => k !== v.screen);
-      expect(guideFor(GUIDE_STEPS, others, US), v.screen).toBe(GUIDE_STEPS);
-      expect(guideFor(GUIDE_STEPS, [v.screen], US).length, v.screen).toBeGreaterThan(0);
-    }
+  it("draws a registered screen's variant only while that screen is shown (R2: courses, R9a: teeTimes)", () => {
+    const teeTimes = guideFor(GUIDE_STEPS, ["teeTimes"], US);
+    expect(teeTimes.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "teetimes"]);
+    expect(teeTimes.slice(0, GUIDE_STEPS.length)).toEqual(GUIDE_STEPS);
+    const courses = guideFor(GUIDE_STEPS, ["courses"], US);
+    expect(courses.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "clubcourses"]);
+    // Today's guide is not edited: every base section is still there, untouched.
+    expect(courses.slice(0, GUIDE_STEPS.length)).toEqual(GUIDE_STEPS);
+    expect(guideFor(GUIDE_STEPS, ["event"], US)).toEqual(GUIDE_STEPS);
   });
 
   it("a planted variant replaces exactly the sections it names, in place, while its screen is shown", () => {
