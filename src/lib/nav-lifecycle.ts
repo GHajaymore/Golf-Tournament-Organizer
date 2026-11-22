@@ -1,3 +1,4 @@
+import { EVENT_SCOPE_WORD } from "./domain/event-words";
 import type { LifecycleTrack, PhaseKey } from "./domain/lifecycle-track";
 import { NO_MERGES, relocate, type ScreenKey, type Move } from "./domain/console-merges";
 import { bySetupOrder } from "./domain/setup-flow";
@@ -41,7 +42,7 @@ import type { Role } from "./roles";
  *              leaderboard, the cup under Players as "Cup teams" with Players, the event's helpers
  *              named "Helpers" under Club settings with Club settings
  *   doors      every entry's address goes through `relocate()`, with the job the entry stands for
- *              where it has one (Money & payouts is Prizes' payout). An entry marked `stays` is
+ *              where it has one (Winners & money is Prizes' payout). An entry marked `stays` is
  *              re-pointed (the door is kept, one press as today, and opens the new room); any other
  *              entry whose door has moved is RETIRED, because the room it leads to is in the menu
  *              already. Which doors move is `MOVES`, never this file.
@@ -129,7 +130,7 @@ const PLACES: Record<PhaseKey, readonly Place[]> = {
     { screen: "reports", label: "Results" },
     // Paying out is done on Prizes today; a group's own games are beside it.
     // With Winners & money shown it opens that room, and the groups' games are a section of it.
-    { screen: "prizes", id: "money", label: "Money & payouts", icon: "ph ph-hand-coins", under: ["group-games"], job: "payout", stays: true },
+    { screen: "prizes", id: "money", label: "Winners & money", icon: "ph ph-hand-coins", under: ["group-games"], job: "payout", stays: true },
   ],
 };
 
@@ -147,7 +148,7 @@ const CLUB: readonly Place[] = [
 const HELP: readonly Place[] = [{ screen: "guide-steps", label: "Guide & rules", under: ["guide", "rules"] }, { screen: "me" }];
 
 /** The word over the four stops: what they are the stages OF. */
-export const EVENT_SCOPE = "Event";
+export const EVENT_SCOPE = EVENT_SCOPE_WORD;
 /** Anything `navForRole` kept that this arrangement has no place for — never dropped. */
 export const UNPLACED_SECTION = "More";
 
@@ -251,7 +252,7 @@ export function everyEntry(sections: readonly NavSection[]): NavItem[] {
 /**
  * WHICH ENTRY IS "HERE". The flat menu has one entry per screen, so it is the one whose address
  * this is. The lifecycle menu has three screens with two doors (Players and Entries; Prizes & side
- * games and Money & payouts): the entry BENEATH a group is the screen itself, so it wins over the
+ * games and Winners & money): the entry BENEATH a group is the screen itself, so it wins over the
  * group's name, and otherwise the first door in the menu's order. One entry, never two.
  */
 export function activeEntryKey(sections: readonly NavSection[], pathname: string | null): string | null {

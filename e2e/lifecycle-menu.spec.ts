@@ -102,7 +102,7 @@ test("with the switch on the menu is the stepper's four stops, and every old des
     for (const [i, word] of ["Set up", "Tee times", "Play", "Results"].entries()) {
       await expect(stops.nth(i).locator("[data-nav-heading]"), `stop ${i + 1}`).toContainText(new RegExp(`^${word}`, "i"));
     }
-    await expect(menu.locator("[data-nav-scope]")).toHaveText(/^event$/i);
+    await expect(menu.locator("[data-nav-scope]")).toHaveText(/^this event$/i);
     // The stepper names the same four, in the same order.
     await expect(stepper.locator(".ls-phase-title")).toHaveText(["Set up", "Tee times", "Play", "Results"]);
     // Setting up, ready to launch: the stepper is on Launch, and the menu marks Set up.
@@ -111,7 +111,7 @@ test("with the switch on the menu is the stepper's four stops, and every old des
     await expect(menu.locator('[data-nav-stop="setup"] > [aria-current="step"]')).toContainText(/set up/i);
 
     // The decided entries, and what is grouped beneath them.
-    for (const entry of ["Home", "Messages", "Event details", "Rounds & formats", "Players", "Prizes & side games", "Tee times & draw", "Score entry", "Leaderboard", "Results", "Money & payouts", "Events", "Members", "Courses", "Seasons & honours", "Club settings", "Guide & rules"]) {
+    for (const entry of ["Home", "Messages", "Event details", "Rounds & formats", "Players", "Prizes & side games", "Tee times & draw", "Score entry", "Leaderboard", "Results", "Winners & money", "Events", "Members", "Courses", "Seasons & honours", "Club settings", "Guide & rules"]) {
       await expect(menu.getByRole("link", { name: entry, exact: true }), `the menu has no "${entry}"`).toBeVisible();
     }
     for (const beneath of ["Announcements", "Entries", "Flights", "Print kit", "Side games", "Member history", "Staff & helpers", "How TourneyHQ works", "Rules reference"]) {
@@ -188,6 +188,10 @@ test("with the switch on the menu is the stepper's four stops, and every old des
     await expect(menu.locator('a.side-link[aria-current="page"]')).toHaveText("Flights");
     await menu.getByRole("link", { name: "Print kit", exact: true }).click();
     await expect(page).toHaveURL(/\/print\?stepper=1$/);
+    menu = await menuOf(page);
+    // The money room's door carries its ruled name and opens today's room, the payout.
+    await menu.getByRole("link", { name: "Winners & money", exact: true }).click();
+    await expect(page).toHaveURL(/\/prizes\?stepper=1$/);
     menu = await menuOf(page);
     // Two doors to one screen, one mark: Entries, beneath Players.
     await menu.getByRole("link", { name: "Players", exact: true }).click();
