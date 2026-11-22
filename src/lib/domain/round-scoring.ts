@@ -5,7 +5,7 @@
  * on /play, every phone in a four-ball could write the match, and a board
  * showed results the wrong way round. Ajay approved two per-round settings:
  *
- *   Who enters scores    one scorer per group (`group`), each player their own
+ *   Who keeps the card   one scorer per group (`group`), each player their own
  *                        (`each` — every round before this existed), or the
  *                        organizer from paper cards (`organizer`).
  *   End-of-round check   on: the other side confirms a match result, each
@@ -110,6 +110,29 @@ export function playersMayEnter(
   return playerEntryRefusal(settings, stage) === null;
 }
 
+/**
+ * THE ONE CONDITION for "the committee keeps every card of this event": the tournament-wide
+ * answer to "Can players enter scores?" is no. `playerEntryRefusal` refuses on it and
+ * `keepingShown` prints it, so the gate and the words it is shown with cannot part.
+ */
+export function committeeKeepsEveryCard(settings: { scoreEntryBy: string }): boolean {
+  return settings.scoreEntryBy !== "players";
+}
+
+/**
+ * WHO KEEPS THE CARD, AS A SCREEN SAYS IT. The event's "Can players enter scores?" (`scoreEntryBy`)
+ * decides first: when it is no, the committee keeps every card whatever the round stored, so the
+ * word is "organizer". Otherwise it is the round's own `scoreKeeping`. Both arguments REQUIRED.
+ * Display only: the gate is `playerEntryRefusal`, which asks the same condition.
+ */
+export function keepingShown(
+  settings: { scoreEntryBy: string },
+  stage: { scoreKeeping: string | null; endCheck: string | null },
+): ScoreKeeping {
+  if (committeeKeepsEveryCard(settings)) return "organizer";
+  return roundScoring(stage).scoreKeeping;
+}
+
 /** Said to a player when the tournament's committee enters every score. */
 export const ORGANIZER_KEEPS_THIS_TOURNAMENT = "Scores for this tournament are entered by the organizer.";
 
@@ -122,7 +145,7 @@ export function playerEntryRefusal(
   settings: { scoreEntryBy: string },
   stage: { scoreKeeping: string | null; endCheck: string | null } | null,
 ): string | null {
-  if (settings.scoreEntryBy !== "players") return ORGANIZER_KEEPS_THIS_TOURNAMENT;
+  if (committeeKeepsEveryCard(settings)) return ORGANIZER_KEEPS_THIS_TOURNAMENT;
   if (stage && roundScoring(stage).scoreKeeping === "organizer") return ORGANIZER_KEEPS_THIS_ROUND;
   return null;
 }

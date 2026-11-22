@@ -2518,7 +2518,7 @@ export async function setStageMatchKeptBy(stageId: string, kept: string): Promis
 
 /**
  * WHO KEEPS THE ROUND'S CARD, AND WHO CHECKS IT (2026-11-04, sprint 2 part B)
- * — "Who enters scores" and "End-of-round check" on the round's card.
+ * — "Who keeps the card" and "End-of-round check" on the round's card.
  *
  * Staff only. NOT behind the setup lock, unlike the round's format and
  * scoring: this changes who may PRESS, never what a score means, and the
@@ -2567,7 +2567,7 @@ export async function setStageScoring(
   await logAudit(
     eventId,
     "round.scoring",
-    `${await roundWordsFor(eventId, stage.id)}: ${[keeping ? `who enters scores ${keeping}` : "", check ? `end-of-round check ${check}` : ""].filter(Boolean).join(", ")}`,
+    `${await roundWordsFor(eventId, stage.id)}: ${[keeping ? `who keeps the card ${keeping}` : "", check ? `end-of-round check ${check}` : ""].filter(Boolean).join(", ")}`,
   );
   await refresh();
   return { ok: true };

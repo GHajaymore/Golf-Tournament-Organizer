@@ -6,7 +6,7 @@ import { keepCardOf } from "./keep-on-play";
 /**
  * A ROUND CODE ON A TOURNAMENT WHOSE CARDS THE CLUB KEEPS (2026-10-24).
  *
- * "Who enters scores: Organizers and assistants only" refuses every save the
+ * "Can players enter scores?: Organizers and assistants only" refuses every save the
  * round-code surface makes (`canEnterScores(settings, "player")` in each writer
  * of actions/play.ts). `/play` drew the card's buttons regardless, and a player
  * learned only after tapping a hole that the card "wouldn't save". Now the page

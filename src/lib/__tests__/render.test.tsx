@@ -7749,7 +7749,7 @@ describe("play settings name one thing per heading", () => {
     const html = await panel("tournament");
     for (const option of [
       "Organizers only", // who can see the leaderboard
-      "Players may enter their own scores", // who enters scores
+      "Players may enter their own scores", // can players enter scores
       "During the round, hole by hole", // when players may submit
       "An organizer approves each card", // who signs off
       "Everyone plays every round", // weekly sign-up

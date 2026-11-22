@@ -2537,7 +2537,7 @@ function StageCard({
                     {scoringOpen && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
                         <fieldset style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
-                          <legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Who enters scores</legend>
+                          <legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Who keeps the card</legend>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {SCORE_KEEPING.map((s) => (
                               <label key={s.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>

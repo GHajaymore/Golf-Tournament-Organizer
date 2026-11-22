@@ -51,12 +51,12 @@ describe("each radio option is its name, its explanation an ⓘ away", () => {
   it("an ⓘ for every option, across the whole screen", () => {
     // Every option on this screen is explained (`settings-explained`), so no
     // option may be left without its ⓘ. A label's own hint adds one more —
-    // "Who enters scores" carries one — so this is at least, not exactly.
+    // "Can players enter scores?" carries one — so this is at least, not exactly.
     const buttons = (html.match(/aria-label="More about /g) ?? []).length;
     const radios = (html.match(/type="radio"/g) ?? []).length;
     expect(radios).toBeGreaterThan(0);
     expect(buttons).toBeGreaterThanOrEqual(radios);
-    expect(html).toContain('aria-label="More about Who enters scores"');
+    expect(html).toContain('aria-label="More about Can players enter scores?"');
   });
 });
 
