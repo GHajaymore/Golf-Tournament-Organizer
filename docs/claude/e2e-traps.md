@@ -248,3 +248,5 @@ fixture; `test.use` does NOT reach a context made with `browser.newContext`), an
 requests the stub answered (`stubbed > 0`) so a stub that never fired fails instead of passing. Enforced for the
 first half by `src/lib/__tests__/e2e-stubs-block-service-workers.test.ts` (B100): any spec with `.route(` and no
 `serviceWorkers: "block"` fails.
+
+A spec that opens a committee correction (`makeCommitteeCorrection`) near the club's midnight loses it: the real action ends it at `endOfClubDay`, and CI's club has no zone, so that is 00:00 UTC. The rounds lock came back mid-test (PR 1202, `team-allowance.spec.ts`: Save on "Scores that count" read disabled for 300 s). `makeCommitteeCorrection` now pushes any zz correction with under 10 minutes left out by 6 h (`correctionEndKeptOpen`); a spec that writes its own correction uses `openCorrectionFor`. Held by `fixture-correction-crosses-midnight.test.ts`.

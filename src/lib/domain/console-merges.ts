@@ -221,7 +221,7 @@ export const DOOR_JOBS: Readonly<Record<string, Partial<Record<Role, readonly Do
 /** A link as the machine or the menu made it, and who is about to press it. */
 export interface OldLink {
   href: string;
-  /** The job key that made it (What's next, the checklist, the menu's Money & payouts), when one did. */
+  /** The job key that made it (What's next, the checklist, the menu's Winners & money), when one did. */
   job?: string;
   /** The round it is about, when the job is one round's. */
   roundId?: string;
