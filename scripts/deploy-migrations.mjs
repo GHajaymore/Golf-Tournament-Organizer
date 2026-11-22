@@ -31,6 +31,7 @@
 // preview is visible, cheap, and recoverable. An unreviewed migration on the
 // production database is none of those things.
 
+import "./build-database.mjs"; // FIRST: chooses the database; refuses a preview without its own
 import { spawnSync } from "node:child_process";
 
 const env = process.env.VERCEL_ENV;
@@ -51,18 +52,14 @@ const env = process.env.VERCEL_ENV;
  * applies unchanged. Detaching the preview database therefore fails safe,
  * rather than silently pointing branch migrations at real members' data.
  */
-const previewDirect = process.env.PREVIEW_DATABASE_URL_UNPOOLED;
-const previewPooled = process.env.PREVIEW_DATABASE_URL;
-
-if (env === "preview" && previewDirect && previewPooled) {
+// The swap itself, and the REFUSAL when a preview has no database of its own,
+// live in build-database.mjs (imported above, first), shared with every other
+// build script that touches the database.
+if (env === "preview") {
   console.log(
     "deploy-migrations: preview deploy — applying migrations to the PREVIEW\n" +
       "  database, which is separate from production.",
   );
-  // Prisma reads its datasource from the environment, so the preview values go
-  // where schema.prisma looks: `url` and `directUrl`.
-  process.env.PRISMA_DATABASE_URL = previewPooled;
-  process.env.DATABASE_URL = previewDirect;
 } else if (env && env !== "production") {
   console.log(
     `deploy-migrations: VERCEL_ENV=${env} — skipping "prisma migrate deploy".\n` +

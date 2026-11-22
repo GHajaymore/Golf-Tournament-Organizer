@@ -51,6 +51,43 @@ const CLUB_ACTIONS = FILES.flatMap((file) =>
     .map((a) => ({ file, ...a })),
 );
 
+/**
+ * A helper defined ABOVE the first export is invisible to `actionsIn` (it splits on exports), so the
+ * course library's gate is read by its own body (R2a): it must resolve the club through
+ * `organizationAccess(` AND `organizationAccessFor(` and ask `.canEdit` of each, so dropping the
+ * check from either branch is red here, not green.
+ */
+function helperBody(src: string, name: string): string {
+  const start = src.indexOf(`async function ${name}(`);
+  if (start < 0) return "";
+  const end = src.indexOf("\n}\n", start);
+  return src.slice(start, end < 0 ? undefined : end);
+}
+
+describe("the course library's gate asks the role in both branches", () => {
+  const body = helperBody(readSource("src", "app", "actions", "courses.ts").replace(/\r\n/g, "\n"), "requireCourseKeeper");
+
+  it("no tournament open: organizationAccess(session)?.canEdit", () => {
+    expect(body).toContain("organizationAccess(session)");
+    expect(body).toMatch(/!access\?\.canEdit/);
+  });
+
+  it("tournament open, a change: organizationAccessFor(...).canEdit", () => {
+    expect(body).toContain("organizationAccessFor(");
+    expect(body).toMatch(/!access\.canEdit/);
+  });
+
+  it("takes the no-event branch only when there is no event, never on 'not admin'", () => {
+    expect(body).toContain('session.eventId === ""');
+    // After the no-event branch the role is asked and a non-admin is REFUSED, not sent to the club branch.
+    expect(body).toMatch(/session\.role !== "admin"\) return \{ refused/);
+  });
+
+  it("CONTROL: the helper is found", () => {
+    expect(body.length).toBeGreaterThan(200);
+  });
+});
+
 describe("an action that works on the caller's club", () => {
   it("checks the caller's role, not only their membership", () => {
     const open = CLUB_ACTIONS.filter((a) => !asksTheRole(a.body)).map((a) => `${a.file}: ${a.name}`);
