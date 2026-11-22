@@ -1,4 +1,5 @@
 import { test, expect, closeAll } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -154,4 +155,30 @@ test("the committee sets the pins and the time allowed, and a player's card show
   } finally {
     await closeAll(organizer, member);
   }
+});
+
+/**
+ * @redesign: THE DAY'S SETUP, ON THE REDESIGNED SCREEN (R9a). Pins and the time allowed are the ON THE DAY
+ * section's, unchanged. Read from the fixture: a published Round 1.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign the round day on Tee times & draw", () => {
+  const REDESIGN_MARK = "zz-rd-roundday";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(REDESIGN_MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(REDESIGN_MARK);
+  });
+
+  test("On the day holds the time allowed and the pins", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      await expect(screen.sectionLine("onTheDay")).toContainText("Pins and pace");
+      const onTheDay = await screen.openSection("onTheDay");
+      await expect(onTheDay.getByText("Time allowed", { exact: true })).toBeVisible();
+    });
+  });
 });

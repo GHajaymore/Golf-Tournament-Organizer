@@ -32,7 +32,8 @@ import {
 import { withdrawConfirmation, type FieldChange } from "@/lib/domain/field-change";
 import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { ScopeLockBanner, SCOPE_LOCK_REASON_ID, scopeLockBannerDrawn } from "./ScopeLockBanner";
+import { ScopeLockBanner } from "./ScopeLockBanner";
+import { SCOPE_LOCK_REASON_ID, scopeLockBannerDrawn } from "./scope-lock-rules";
 import { useCaughtUp } from "./useAction";
 import type { CorrectionFacts, ScopeLock } from "@/lib/domain/tournament-status";
 import { RosterPicker } from "./RosterPicker";

@@ -972,7 +972,7 @@ export function FoursomeMaker({
           // row to show; the drift banner above says who and what to do.
           const gp = g.playerIds.map((id) => byId.get(id)!).filter(Boolean);
           return (
-            <div key={`${shown.source}-${i}`} className="card elev-sm" style={{ gap: 6 }}>
+            <div key={`${shown.source}-${i}`} id={`group-${i + 1}`} className="card elev-sm" style={{ gap: 6, scrollMarginTop: 80 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{g.name || `Group ${i + 1}`}</span>
                 <span className="text-muted" style={{ fontSize: 13 }}>avg {avg(gp.map((p) => p.handicap))}</span>

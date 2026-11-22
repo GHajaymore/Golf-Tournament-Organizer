@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { prisma, makeClub, dropClub, makeEvent, returnCard, sessionOf, signInWith, signIn, addDays, dayIn, NAMES, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
 
@@ -171,5 +172,29 @@ test.describe("tee sheet replace: a league week", () => {
       await context.close();
     }
     expect(errors, "the page threw").toEqual([]);
+  });
+});
+
+/**
+ * @redesign: REPLACING A PLAYER, ON THE REDESIGNED SCREEN (R9a). "Replace…" is drawn beside each player of a
+ * group that has not started, in the DRAW section. Read from the fixture: a published Round 1 tomorrow.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign replacing a player on Tee times & draw", () => {
+  const REDESIGN_MARK = "zz-rd-replace";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(REDESIGN_MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(REDESIGN_MARK);
+  });
+
+  test("a player in a group that has not started can be replaced from the draw section", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      await expect(screen.section("draw").getByRole("button", { name: `Replace ${day.placed[0].name}` })).toBeVisible();
+    });
   });
 });

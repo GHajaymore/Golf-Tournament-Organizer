@@ -35,6 +35,7 @@ export function RoundPicker({
   style,
   label = "Round",
   id,
+  carry,
 }: {
   rounds: PickableRound[];
   activeStageId: string;
@@ -44,6 +45,11 @@ export function RoundPicker({
   label?: string;
   /** Lets a visible caption name the box with `htmlFor`. */
   id?: string;
+  /**
+   * A query to carry across the round change (R9a): the redesign preview's own (`stepper=1&build=1`),
+   * which a screen shown only while previewed would otherwise lose on the first press. Absent: as ever.
+   */
+  carry?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -65,7 +71,7 @@ export function RoundPicker({
          judges the choice, instead of guessing how long the screen takes to load (G577-3). */
       data-view-picker="url"
       value={activeStageId}
-      onChange={(e) => router.push(`${pathname}?round=${e.target.value}`)}
+      onChange={(e) => router.push(`${pathname}?round=${e.target.value}${carry ? `&${carry}` : ""}`)}
     >
       {rounds.map((r) => (
         <option key={r.stageId} value={r.stageId}>

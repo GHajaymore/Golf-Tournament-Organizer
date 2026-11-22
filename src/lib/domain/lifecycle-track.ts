@@ -126,7 +126,7 @@ function drawStop(family: Family, needs: RoundNeed[]): { label: string; href: st
 const DRAW_KEYS = new Set(["draw", "teeSheet"]);
 
 /** "Round 2 has no date, so players cannot see when they play." */
-function needSentence(label: string, n: RoundNeed): string {
+export function needSentence(label: string, n: RoundNeed): string {
   return `${label} ${n.missing}, so ${n.consequence}.`;
 }
 

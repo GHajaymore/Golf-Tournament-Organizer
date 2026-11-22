@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { prisma, makeClub, dropClub, makeEvent, sessionOf, signInWith, addDays, dayIn, NAMES, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
 
@@ -170,4 +171,32 @@ test("the assistant puts a late entry in a group with room, withdraws a drawn pl
   } finally {
     await context.close();
   }
+});
+
+/**
+ * @redesign: THE LATE ENTRY, ON THE REDESIGNED SCREEN (R9a). Somebody confirmed and in no group is put in a
+ * group in the TEE TIMES section, where the card is drawn with the warning that the published sheet has
+ * gone out of step with the field. Read from the fixture: `unplaced` is confirmed and in no group.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign a late entry on Tee times & draw", () => {
+  const REDESIGN_MARK = "zz-rd-dayoftee";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(REDESIGN_MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(REDESIGN_MARK);
+  });
+
+  test("the player in no group is offered a group with room, under Tee times and start", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      const card = (await screen.openSection("teeTimes")).locator('section[aria-label="Put in a group"]');
+      await expect(card).toContainText("Not in a group yet (1)");
+      await expect(card.getByLabel(`Group for ${day.unplaced.name}`)).toBeVisible();
+      await expect(screen.section("teeTimes")).toContainText("The published sheet no longer matches the field");
+    });
+  });
 });
