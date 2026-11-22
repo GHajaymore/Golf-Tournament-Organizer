@@ -25,7 +25,7 @@ export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
   rounds: null,
   players: null,
   prizes: null,
-  teeTimes: null,
+  teeTimes: "/foursomes",
   scoreEntry: null,
   leaderboard: null,
   results: null,

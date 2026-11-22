@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { expectLaunched } from "./end-early";
@@ -205,4 +206,31 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
     await memberCtx.close();
   }
   expect(errors, "a screen threw").toEqual([]);
+});
+
+/**
+ * @redesign: THE SAME DRAW ON THE REDESIGNED SCREEN (R9a). The secretary's sheet is the DRAW section of
+ * Tee times & draw: its folded line says where the sheet stands, and the groups sit under it, where the
+ * old Tee sheet drew them. Read from the fixture, a published Round 1 of two groups.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign the draw on Tee times & draw", () => {
+  const MARK = "zz-rd-teesheet";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(MARK);
+  });
+
+  test("the published sheet is the draw section's, with its groups under it", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      await expect(screen.sectionLine("draw")).toContainText("Published");
+      await expect(screen.section("draw")).toContainText("Group 1");
+      await expect(screen.section("draw")).toContainText(day.placed[0].name);
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { prisma, makeClub, dropClub, makeEvent, returnCard, sessionOf, signInWith, signIn, addDays, dayIn, NAMES, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
 
@@ -293,5 +294,31 @@ test.describe("tee sheet moves: a league week", () => {
     } finally {
       await context.close();
     }
+  });
+});
+
+/**
+ * @redesign: MOVING ON A SAVED SHEET, ON THE REDESIGNED SCREEN (R9a). The move controls are part of the
+ * groups in the DRAW section: the region that says nothing is saved until Save changes, and a "Move [name]
+ * to…" list beside each player. Read from the fixture: a published Round 1 tomorrow.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign moving a player on Tee times & draw", () => {
+  const REDESIGN_MARK = "zz-rd-moves";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(REDESIGN_MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(REDESIGN_MARK);
+  });
+
+  test("a saved sheet offers the move controls inside the draw section", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      await expect(screen.section("draw").getByRole("region", { name: "Move players and groups" })).toBeVisible();
+      await expect(screen.section("draw").getByLabel(`Move ${day.placed[0].name} to`)).toBeVisible();
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, expect, type Page } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
 import { buildBracket } from "../src/lib/domain/bracket";
@@ -140,4 +141,31 @@ test("a knockout of 129 prints a sheet a quarter and one for the Finals", async 
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * @redesign: THE ONE PRINT DOOR, ON THE REDESIGNED SCREEN (R9a). The Paper section holds the door to the
+ * Print kit with this round's documents ticked, as the old Tee sheet's did; its folded line says where the
+ * paper stands. Read from the fixture: a published Round 1, so there is a saved sheet to print.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign the print door on Tee times & draw", () => {
+  const REDESIGN_MARK = "zz-rd-prints";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(REDESIGN_MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(REDESIGN_MARK);
+  });
+
+  test("the Paper section opens the Print kit for this round", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      const door = screen.section("paper").getByRole("link", { name: /Print/ });
+      await expect(door).toBeVisible();
+      await expect(door).toHaveAttribute("href", new RegExp(`/print\\?round=${day.round1}&docs=cards`));
+    });
+  });
 });

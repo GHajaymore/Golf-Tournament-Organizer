@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { test, expect, type Page } from "./coverage";
+import { seedTeeTimesDay, dropTeeTimesDay, withTeeTimes, type TeeTimesDay } from "./console/teeTimes";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { pressRadio } from "./press-radio";
@@ -226,4 +227,31 @@ test("the secretary changes a member's index from the round, and Members shows i
   });
 
   expect(errors, "a screen threw").toEqual([]);
+});
+
+/**
+ * @redesign: A ROUND'S HANDICAPS, ON THE REDESIGNED SCREEN (R9a). "Who is in this round" holds the one panel
+ * of the round's handicaps (it is on Rounds & formats only while Tee times & draw is not shown): pressing
+ * Change a player's handicap opens a row per player. Read from the fixture: eight entries, net scoring.
+ * Service workers blocked. Memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign the round's handicaps on Tee times & draw", () => {
+  const MARK = "zz-rd-handicap";
+  let day: TeeTimesDay;
+  test.beforeAll(async () => {
+    day = await seedTeeTimesDay(MARK);
+  });
+  test.afterAll(async () => {
+    await dropTeeTimesDay(MARK);
+  });
+
+  test("Who is in this round offers to change a player's handicap for the round", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen) => {
+      await screen.open(day.round1);
+      const who = screen.section("whoIn");
+      await who.getByRole("button", { name: "Change a player's handicap" }).click();
+      await expect(who.getByLabel(`Change ${day.placed[0].name}'s handicap`)).toBeVisible();
+    });
+  });
 });
