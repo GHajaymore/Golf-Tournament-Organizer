@@ -2900,8 +2900,11 @@ describe("a preview deployment has its own database", () => {
   });
 
   it("migrates a preview against the PREVIEW database, not production's", () => {
-    expect(gate).toMatch(/env === "preview" && previewDirect && previewPooled/);
-    expect(gate).toMatch(/process\.env\.DATABASE_URL = previewDirect;/);
+    // The swap lives in the one shared module every build script imports.
+    const shared = readSource("scripts", "build-database.mjs");
+    expect(gate).toMatch(/import "\.\/build-database\.mjs"/);
+    expect(shared).toMatch(/VERCEL_ENV === "preview"/);
+    expect(shared).toMatch(/process\.env\.DATABASE_URL = direct;/);
   });
 
   it("still refuses to migrate a preview that has no database of its own", () => {
@@ -2918,8 +2921,9 @@ describe("a preview deployment has its own database", () => {
     // A boolean somebody can set is a boolean somebody can set wrongly. The
     // condition is the existence of the connection itself.
     const body = stripComments(gate);
-    expect(body).toMatch(/const previewDirect = process\.env\.PREVIEW_DATABASE_URL_UNPOOLED;/);
-    expect(body).not.toMatch(/PREVIEW_DB_ENABLED|USE_PREVIEW_DB/);
+    const shared = stripComments(readSource("scripts", "build-database.mjs"));
+    expect(shared).toMatch(/const direct = process\.env\.PREVIEW_DATABASE_URL_UNPOOLED;/);
+    expect(body + shared).not.toMatch(/PREVIEW_DB_ENABLED|USE_PREVIEW_DB/);
   });
 });
 
