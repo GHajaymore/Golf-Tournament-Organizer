@@ -1,6 +1,5 @@
 import { noticesOffAmong } from "@/lib/services/push";
 import { noticesOffWords } from "@/lib/domain/round-moved";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
@@ -9,9 +8,10 @@ import { teamsForStage, teamStandings } from "@/lib/services/teams";
 import { needsTeams } from "@/lib/formats";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { printKit } from "@/lib/services/print-kit";
-import { staleSentence } from "@/lib/domain/print-kit";
+import { CutWaitingCard } from "@/components/teetimes/CutWaitingCard";
+import { SheetDriftCard } from "@/components/teetimes/SheetDriftCard";
+import { PrintDoor } from "@/components/teetimes/PrintDoor";
 import { requestOrigin } from "@/lib/request-origin";
-import { screenName } from "@/lib/nav";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { FoursomeMaker } from "@/components/FoursomeMaker";
@@ -23,7 +23,7 @@ import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { replaceWorldFor } from "@/lib/services/tee-sheet-replace";
 import { TEAM_SESSION } from "@/lib/services/cup";
 import { sheetFieldFor } from "@/lib/services/sheet-field";
-import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn, DRIFT_PLACE_LINE } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn } from "@/lib/domain/tee-sheet";
 import { clubWallClock } from "@/lib/domain/club-clock";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { PlaceInGroup } from "@/components/PlaceInGroup";
@@ -35,7 +35,6 @@ import { cutFeederOf } from "@/lib/domain/cut-ready";
 import { shortDate } from "@/lib/domain/round-dates";
 import { roundCard } from "@/lib/services/course-resolution";
 import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
-import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { requestClusters, requestPairs, splitRequests } from "@/lib/domain/pairing-requests";
@@ -394,20 +393,7 @@ export default async function FoursomesPage({
         />
       )}
 
-      {cutWaiting && (
-        <div
-          role="status"
-          className="card elev-sm"
-          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
-        >
-          <span className="card-title" style={{ fontSize: 14 }}>
-            <Icon name="warning-circle" /> The cut is waiting on a tie
-          </span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-            {cutWaiting} <Link href="/dashboard">Go to the cut card</Link>
-          </p>
-        </div>
-      )}
+      <CutWaitingCard text={cutWaiting} />
 
       {/* A published sheet is a snapshot of a field that keeps moving.
           validateTeeSheet ran when it went out and never again, so a player
@@ -417,23 +403,13 @@ export default async function FoursomesPage({
           so they can move somebody up rather than send out a three-ball they
           did not choose. */}
       {drift?.stale && (
-        <div
-          className="card elev-sm"
-          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
-        >
-          <span className="card-title" style={{ fontSize: 14 }}>
-            <Icon name="warning-circle" /> The published sheet no longer matches the field
-          </span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-            {driftSentence(
-              drift,
-              new Set(cutField ? state.confirmed.filter((p) => !cutField.has(p.id)).map((p) => p.id) : []),
-            )}{" "}
-            Re-pair and publish again to put it right — the printed sheet leaves out anyone who has gone, so
-            it is correct but shorter than you drew it.
-            {drift.undrawn.length > 0 && ` ${DRIFT_PLACE_LINE}`}
-          </p>
-        </div>
+        <SheetDriftCard
+          sentence={driftSentence(
+            drift,
+            new Set(cutField ? state.confirmed.filter((p) => !cutField.has(p.id)).map((p) => p.id) : []),
+          )}
+          anyUndrawn={drift.undrawn.length > 0}
+        />
       )}
       {/* Mounted whenever staff have a saved sheet, though nobody is undrawn: the
           refresh after placing the LAST player must not take away the line that
@@ -511,28 +487,12 @@ export default async function FoursomesPage({
        * signs were printed.
        */}
       {stage && savedSheet && (
-        <div id="print-scorecards" className="card elev-sm" style={{ marginTop: 16, gap: 8, scrollMarginTop: 80 }}>
-          {staleSheets.length > 0 && (
-            <p role="status" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-              <Icon name="warning-circle" /> <strong>{staleSentence(staleSheets.length)}:</strong>{" "}
-              {staleSheets.slice(0, 8).map((s) => s.label).join(" · ")}
-              {staleSheets.length > 8 ? ` and ${staleSheets.length - 8} more` : ""}.{" "}
-              <Link href={`/print?round=${stage.id}&stale=1`}>Reprint them in the {screenName("/print")}</Link>
-            </p>
-          )}
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <Link
-              href={`/print?round=${stage.id}&docs=cards,cup,slips,signs,spare,start`}
-              className="btn btn-secondary"
-              style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6 }}
-            >
-              <Icon name="printer" /> Print…
-            </Link>
-            <span className="text-muted" style={{ fontSize: 13 }}>
-              Scorecards, {(await golfTermsForEvent(session.eventId)).cart} signs and the starting sheet for {roundLabel(rounds, stage.id) || "this round"}, from the saved sheet.
-            </span>
-          </div>
-        </div>
+        <PrintDoor
+          stageId={stage.id}
+          roundName={roundLabel(rounds, stage.id) || "this round"}
+          cartWord={(await golfTermsForEvent(session.eventId)).cart}
+          stale={staleSheets}
+        />
       )}
       {stage && (
         <RoundDaySetup
