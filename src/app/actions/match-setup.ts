@@ -357,7 +357,7 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        */
       accessCode: await issueCode(),
       // Who keeps the card and who checks it — a casual round signs nothing,
-      // so its check starts off (`scoringDefaults`). Who enters scores is the
+      // so its check starts off (`scoringDefaults`). Who keeps the card is the
       // setup's one line: one phone for the group unless they each keep their
       // own (`casualScoreKeeping`, 2026-11-05).
       ...scoringDefaults(event.shape),

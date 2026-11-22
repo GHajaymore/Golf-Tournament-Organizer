@@ -198,7 +198,7 @@ async function playRound({ session, searchParams }: { session: PlaySession; sear
    * THE CLUB IS KEEPING THE CARDS, SO THIS PHONE OFFERS NOTHING TO PRESS
    * (2026-10-24).
    *
-   * Under "Who enters scores: Organizers and assistants only" every save this
+   * Under "Can players enter scores?: Organizers and assistants only" every save this
    * surface makes is refused — the one gate, `playerEntryRefusal`, in each
    * writer of actions/play.ts — and this page drew the card and the match
    * buttons anyway. A player tapped a hole and was told afterwards that the
