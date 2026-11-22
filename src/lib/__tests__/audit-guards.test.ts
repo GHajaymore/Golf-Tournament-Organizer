@@ -143,6 +143,9 @@ describe("every server action is guarded", () => {
     "requireStaffEvent",
     "requireScoreEntry",
     "requireOrganizerOrg",
+    // courses.ts (R2a): the club's course library. `getSession`, then the open tournament's admin, or with
+    // none open `organizationAccess(...).canEdit`; every row is re-read with the club's id from this gate.
+    "requireCourseKeeper",
     "requireRosterOrg",
     "requireOrganizer",
     "requireStaff",
