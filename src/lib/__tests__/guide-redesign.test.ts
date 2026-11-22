@@ -98,6 +98,7 @@ describe("every registered variant (none yet)", () => {
   it("reads through the registry from the guide page, and the layout is not edited", () => {
     const page = readSource("src/app/(app)/guide/steps/page.tsx");
     expect(page).toMatch(/guideFor\(guideInClubWords\(words\), \[\.\.\.shown\], words\)/);
-    expect(page).toMatch(/mergesShown\(asked\.get\("x-search"\)/);
+    // Which screens are shown is asked of the one service (R1c), never of `mergesShown` itself.
+    expect(page).toMatch(/screensShownFor\(session\)/);
   });
 });
