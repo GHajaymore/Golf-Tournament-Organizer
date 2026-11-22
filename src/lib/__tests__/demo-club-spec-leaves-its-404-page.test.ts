@@ -27,3 +27,13 @@ describe("demo-club.spec: the stranger's 404 test", () => {
     expect(body.indexOf("about:blank")).toBeGreaterThan(body.indexOf("networkidle"));
   });
 });
+
+describe("demo-club.spec: its own browser, and a wait that cannot fail the test", () => {
+  const src = readSource("e2e", "demo-club.spec.ts");
+  it("changes a worker option so the file gets a fresh browser", () => {
+    expect(src).toMatch(/test\.use\(\{\s*launchOptions:/);
+  });
+  it("never fails on the idle wait", () => {
+    expect(src).toMatch(/waitForLoadState\(\s*"networkidle"[^)]*\)\s*\.catch\(/);
+  });
+});
