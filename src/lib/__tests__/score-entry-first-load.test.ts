@@ -23,13 +23,13 @@ import { orNeedsSignal } from "../../components/LazyPanel";
 const LAZY: Array<{ client: string; panels: string[] }> = [
   { client: "src/components/EntryModes.tsx", panels: ["ScoreImport", "ClearScores"] },
   { client: "src/components/TeamScoreImport.tsx", panels: ["ScoreImport"] },
-  { client: "src/components/StagesClient.tsx", panels: ["MatchTiebreakControl", "RoundHandicaps"] },
+  { client: "src/components/rounds/shared.tsx", panels: ["MatchTiebreakControl", "RoundHandicaps"] },
   { client: "src/components/CourseLibrary.tsx", panels: ["CardImport", "CourseSearch"] },
 ];
 
 describe("the rounds screen loads the cut's tie panel when a tie is drawn", () => {
-  it("StagesClient makes CutTiePanel with next/dynamic and never imports it statically", () => {
-    const src = readSource("src/components/StagesClient.tsx");
+  it("the Rounds screen makes CutTiePanel with next/dynamic and never imports it statically", () => {
+    const src = readSource("src/components/rounds/shared.tsx");
     const staticImport = [...src.matchAll(/import\s+([^;]*?)\s+from\s*["']([^"']+)["']/g)].some(
       ([, names]) => !/^type\s/.test(names) && /\bCutTiePanel\b/.test(names),
     );

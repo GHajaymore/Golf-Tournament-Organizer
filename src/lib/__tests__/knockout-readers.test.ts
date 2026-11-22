@@ -126,6 +126,10 @@ describe("who reads it", () => {
        * hole in the guard that nobody is watching — the same objection the
        * paragraph above makes to exempting whole files.
        */
+      // The Rounds screen's controls were lifted into components/rounds/ (R4, the move): each keeps the guard it had,
+      // and `SettingsGroup` counts its children, so the same comparison is asked once more where the parent decides.
+      `return !!(stage.type === "Bracket Stage");`,
+      `return !!(stage.type === "Bracket Stage" && thirdPlace);`,
       // One third-place view per bracket.
       `for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {`,
     ]);
