@@ -183,6 +183,11 @@ const KNOWN_DEAD: string[] = [
   // mounts them. Each redesigned screen's PR (R4 onward) mounts them and takes these two lines off.
   "components/setup/SetupField.tsx:SetupField",
   "lib/domain/setup-field.ts:markOf",
+  // REDESIGN R1b (21 Nov 2026): the needs ring and the two kit components, built and tested before any
+  // screen mounts them. R4 (the first screen to draw a round's head) mounts them and takes these three off.
+  "lib/domain/round-ring.ts:roundRing",
+  "components/setup/RoundColumn.tsx:RoundColumn",
+  "components/setup/LockedOnce.tsx:LockedOnce",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
   "lib/domain/bracket.ts:splitBrackets",
