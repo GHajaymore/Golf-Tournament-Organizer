@@ -312,6 +312,8 @@ export const FULL_ONLY = [
   "e2e/guest-entry-the-guests-path.spec.ts",
   // B96: a guest whose device mint is refused (alarm standing, the network's twelve spent) is told in words beside the button (registration: who gets in).
   "e2e/guest-mint-refused.spec.ts",
+  // B97: held then live, the public board, the event page and the share picture name no waiting guest and count none (registration: who gets in).
+  "e2e/live-shows-no-guests-at-go-live.spec.ts",
   // One code box (plan row 4c, cut 1): either code in either box, one sentence for every wrong one (access: shared ground).
   "e2e/one-code-box.spec.ts",
   "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
