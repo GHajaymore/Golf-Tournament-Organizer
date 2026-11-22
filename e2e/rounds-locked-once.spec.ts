@@ -95,11 +95,20 @@ test("a launched league's undated week: the dashboard's button lands on its colu
     const screen = new RoundsScreen(page);
     await screen.open();
     await expect(screen.column("Round 2").locator("[data-round-ring]"), "an undated week on a launched league draws no ring").toBeVisible();
+    // The organizer presses "Use the default": for a league the app proposes a WEEK on (calendar days on the club's own day,
+    // no instant in it, so E2E_TZ cannot move it). The button names the day it proposes; nothing is typed.
     const day = addDays(week1, 7);
-    await screen.dayInput("Round 2").fill(day);
+    await screen.column("Round 2").getByRole("button", { name: `Use the default (${day})` }).click();
     await expect
       .poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[1].id } })).playedOn, { message: "the week's day was not stored from its column" })
       .toBe(day);
+
+    // The next week proposes a week after that: week 3 = week 2 + 7.
+    const day3 = addDays(day, 7);
+    await screen.column("Round 3").getByRole("button", { name: `Use the default (${day3})` }).click();
+    await expect
+      .poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, { message: "week 3 was not stored a week after week 2" })
+      .toBe(day3);
 
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await expect(setRound2, "the dashboard still asks for a day the column has set").toHaveCount(0);
