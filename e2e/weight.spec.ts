@@ -24,6 +24,17 @@ import { test, expect, type BrowserContext } from "./coverage";
  *
  * To record after a deliberate change: `WEIGHT_BUDGET=write`.
  *
+ * LINUX LINE RE-RECORDED 2026-11-22, with a name for every kilobyte. The
+ * dashboard had crept from 338 KB (13 Oct) to 370 KB and every PR's run was
+ * within 1 KB of failing. Measured on main's push runs: 339 KB on 13 Oct,
+ * 347 KB on 25 Oct, then +9 KB of script and +4 requests on 31 Oct with
+ * #976 (LifecycleBar, a client component, and its launch/state-machine
+ * imports: the one Setting up step), 351 KB by 10 Nov, +10 KB on 16 Nov with
+ * #1144 (the What's next card), 370 KB since 21 Nov. Shipped features, no
+ * single regression, and nothing cheap to trim without a rework. The redesign
+ * (R4/R9) reworks the dashboard and must re-measure, and bring it back down.
+ * The other seven screens were re-recorded from the same run (44987528347).
+ *
  * WHAT THIS CANNOT SEE: how long any of it takes on a real network or a slow
  * phone, and anything loaded after the screen settles. It is the cause, not
  * the stopwatch.
