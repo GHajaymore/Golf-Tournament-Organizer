@@ -18,7 +18,7 @@ export const SCORE_ENTRY_GUIDE: GuideVariant = {
         { kind: "where", text: "On the day → Score entry → Close Round n" },
         {
           kind: "p",
-          text: "Closing a round and its scoring window are on Score entry now, under the round you are scoring, and no longer on Rounds & formats. Wherever the guide says to close a round on Rounds & formats, or that **Close Round 1** opens Rounds & formats, read Score entry. On a phone the section is one line (**Close Round 2 · 3 cards to come**); it is open, and marked **Needs you**, while a card is still to come.",
+          text: "Closing a round and its scoring window are on Score entry now, under the round you are scoring, and no longer on Rounds & formats. Wherever the guide says to close a round on Rounds & formats, read Score entry. The **Close Round n** button on What's next still lands on Rounds & formats for now: open Score entry from the menu to close the round. Every round has it, a side's round and a cup session as much as a medal. On a phone the section is one line (**Close Round 2 · 3 cards to come**); it is open, and marked **Needs you**, while a card is still to come.",
         },
         { kind: "h", text: "Cards still to come" },
         {
@@ -29,7 +29,7 @@ export const SCORE_ENTRY_GUIDE: GuideVariant = {
           kind: "steps",
           items: [
             "Leave the name as it is to close with **No card returned**. On a stroke board the player is then shown without a place, under the field, and the board says why: no card was returned for the round, and the committee has closed it (Rule 3.3b). A points board keeps the player and counts the points the missed round was worth.",
-            "Press **Withdrew** beside a name, then confirm, for somebody who left the field. It is the withdrawal Players already has: the player is out of the rest of the event as well, and is listed **WD** over the cards they returned, or **DNS** if they never began. **Put back** on Players undoes it.",
+            "Press **Withdrew** beside a name, then confirm, for somebody who has left or will not play again (somebody away only this week is marked out for the week on Players, and is not listed here). It is the withdrawal Players already has: the player is out of the rest of the event as well, and is listed **WD** over the cards they returned, or **DNS** if they never began. **Put back** on Players undoes it.",
           ],
         },
         { kind: "h", text: "Is this round over?" },
@@ -45,7 +45,7 @@ export const SCORE_ENTRY_GUIDE: GuideVariant = {
         { kind: "h", text: "Where it was played" },
         {
           kind: "p",
-          text: "**Played at** is asked here only for an event with no fixed course, where each pairing arranges its own venue and whoever enters the card names it. For a fixed course the venue and the round's tees are set once on Rounds & formats, and a round with no card yet is still told so here.",
+          text: "**Played at** is asked here only for an event with no fixed course, where each pairing arranges its own venue and whoever enters the card names it. For a fixed course the venue is set once on Rounds & formats; the round's **Tees** stay here, and a round with no card yet is still told so.",
         },
         {
           kind: "tip",

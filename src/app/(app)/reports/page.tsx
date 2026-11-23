@@ -410,7 +410,7 @@ export default async function ReportsPage({
     !casual && (await screensShownFor(session)).has("results")
       ? await (async () => {
           const told = await tournamentStatusFor(session.eventId, loaded.today);
-          return told ? releaseView(told.status.step, told.status.nextAction) : null;
+          return told ? releaseView(told.status.step, told.status.nextAction, told.status.chipDetail, session.viewRole === "admin") : null;
         })()
       : null;
 

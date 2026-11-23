@@ -305,7 +305,7 @@ describe("live: the lead is the machine's next action, done on its round here", 
     const f = launched(FAMILY_FIXTURES.stroke());
     const st = tournamentStatus(f);
     const d = courseDayOf(st);
-    expect(d.lead).toMatchObject({ label: "Complete tournament", enabled: false, disabledBecause: st.nextAction!.disabledBecause });
+    expect(d.lead).toMatchObject({ label: "Make results final", enabled: false, disabledBecause: st.nextAction!.disabledBecause });
     expect(d.lead!.wayOut).toEqual({ kind: "link", ...st.nextAction!.wayOut! });
   });
 });

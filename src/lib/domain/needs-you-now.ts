@@ -490,7 +490,7 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
 
 /**
  * THE TOURNAMENT'S ONE BUTTON — what its dashboard card offers and the lifecycle stepper marks (the
- * panel's ruling, 9 Nov). Never "Complete tournament" while golf is being played: the machine's next
+ * panel's ruling, 9 Nov). Never "Make results final" while golf is being played: the machine's next
  * action offers Complete from the first card, which at a two-day outing is one press from ending it
  * before day 2. By phase:
  *
@@ -500,7 +500,7 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
  *   during play       Open score entry, "Round 1 · 18 of 24 cards in"; a dispute first ("Settle it")
  *   every card in     Close Round 1 (opens it on Rounds & formats)
  *   between rounds    Generate Round 2 pairings when a draw is owed; else the tee sheet; else waiting
- *   play over         Complete tournament, "Every round closed · results not released"
+ *   play over         Make results final, "Every round closed · results not released"
  *   completed         Reopen tournament (quiet)
  *
  * ONE ANSWER WITH THE HOME: when the home has a line for this tournament, the button is its FIRST line

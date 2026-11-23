@@ -23,7 +23,7 @@ export function ReleaseResults({ view }: { view: ReleaseView }) {
           )}
         </div>
       )}
-      {view.kind === "released" && view.reopen && (
+      {view.kind === "final" && view.reopen && (
         <div>
           <Link href={view.reopen.href} className="btn btn-secondary" style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Icon name="lock-key-open" /> {view.reopen.label}

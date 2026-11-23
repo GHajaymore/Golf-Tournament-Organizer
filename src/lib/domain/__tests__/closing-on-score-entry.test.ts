@@ -3,7 +3,8 @@ import { playersWithNoCard, noCardReturnedWords, noCardReturnedLabel, closingSta
 import { closingWords, closingTickShown } from "../closing-words";
 import { unplacedWorking, CITE } from "../figure-working";
 import { scoreEntryAsksWhere } from "../venue";
-import { releaseView, RELEASE_VERB } from "../release-results";
+import { releaseView } from "../release-results";
+import { readSource } from "../../__tests__/source";
 
 /**
  * CLOSING A ROUND ON SCORE ENTRY (R12): the words and the small rules the redesigned screens read, each worked from what the
@@ -93,42 +94,60 @@ describe("Played at is asked where each pairing arranges its own venue", () => {
   });
 });
 
-describe("Results has one verb for releasing", () => {
-  const complete = { kind: "complete" as const, href: "/dashboard", enabled: true, disabledBecause: null, asks: null };
+describe("Results has one verb for the last act: the machine's own label", () => {
+  const LABEL = "Make results final";
+  const complete = { kind: "complete" as const, label: LABEL, href: "/dashboard", enabled: true, disabledBecause: null, asks: null };
+  const detail = "Every round closed · results not released";
 
-  it("offers the one verb, pointing at the machine's press, once play is over", () => {
-    const v = releaseView("play-over", complete);
+  it("offers the machine's label, pointing at the machine's press, once play is over, to the Organizer", () => {
+    const v = releaseView("play-over", complete, detail, true);
     expect(v.kind).toBe("ready");
     if (v.kind === "ready") {
-      expect(v.verb).toBe(RELEASE_VERB);
+      expect(v.verb).toBe(LABEL);
       expect(v.href).toBe("/dashboard");
+      // What ended play is the machine's, with its tail left off, and there is no second word for the act.
+      expect(v.says).toContain("Every round closed.");
+      expect(v.says).not.toMatch(/release/i);
     }
   });
 
+  it("says what ended play in the event's own words (a knockout's final is not a round)", () => {
+    expect(releaseView("play-over", complete, "Final decided · results not released", true).says).toContain("Final decided.");
+  });
+
+  it("the label is the one the Dashboard's button draws: read from the machine, never held here", () => {
+    expect(readSource("src/lib/domain/tournament-status.ts")).toContain(`label: "${LABEL}"`);
+    expect(readSource("src/lib/domain/release-results.ts")).not.toContain(LABEL);
+  });
+
+  it("shows no control to anybody but the Organizer", () => {
+    expect(releaseView("play-over", complete, detail, false).kind).toBe("blocked");
+    const reopen = { ...complete, kind: "reopen" as const, label: "Reopen tournament" };
+    const v = releaseView("completed", reopen, "", false);
+    expect(v.kind === "final" && v.reopen).toBeNull();
+  });
+
   it("says the machine's own reason when it is refused, and offers no verb", () => {
-    const v = releaseView("play-over", { ...complete, enabled: false, disabledBecause: "A result is disputed." });
+    const v = releaseView("play-over", { ...complete, enabled: false, disabledBecause: "A result is disputed." }, detail, true);
     expect(v).toEqual({ kind: "blocked", says: "A result is disputed." });
   });
 
   it("carries the machine's question, so the card can say that it asks first", () => {
-    const v = releaseView("play-over", { ...complete, asks: "Round 2 has no scores." });
+    const v = releaseView("play-over", { ...complete, asks: "Round 2 has no scores." }, detail, true);
     expect(v.kind === "ready" && v.asks).toBe("Round 2 has no scores.");
   });
 
-  it("offers no verb while there is golf to close, and says when it will", () => {
-    for (const step of ["setting-up", "live"] as const) {
-      const v = releaseView(step, null);
-      expect(v.kind).toBe("later");
-      expect(v.says).toContain(RELEASE_VERB);
-    }
+  it("offers no verb while there is golf to close", () => {
+    for (const step of ["setting-up", "live"] as const) expect(releaseView(step, null, "", true).kind).toBe("later");
   });
 
-  it("says the results are released once completed, with the way back to correct a card", () => {
-    const v = releaseView("completed", { kind: "reopen", href: "/dashboard", enabled: true, disabledBecause: null, asks: null });
-    expect(v.kind).toBe("released");
-    expect(v.kind === "released" && v.reopen?.href).toBe("/dashboard");
+  it("says the results are final once completed, with the way back to correct a card", () => {
+    const reopen = { ...complete, kind: "reopen" as const, label: "Reopen tournament" };
+    const v = releaseView("completed", reopen, "", true);
+    expect(v.kind).toBe("final");
+    expect(v.kind === "final" && v.reopen?.href).toBe("/dashboard");
     // The control: a completed tournament that may not be reopened offers no way back.
-    const locked = releaseView("completed", { kind: "reopen", href: "/dashboard", enabled: false, disabledBecause: "x", asks: null });
-    expect(locked.kind === "released" && locked.reopen).toBeNull();
+    const locked = releaseView("completed", { ...reopen, enabled: false, disabledBecause: "x" }, "", true);
+    expect(locked.kind === "final" && locked.reopen).toBeNull();
   });
 });

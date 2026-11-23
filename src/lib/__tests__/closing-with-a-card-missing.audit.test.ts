@@ -51,7 +51,7 @@ const level = JSON.stringify(PARS);
 /** One over on the first hole: 73, for the second player. */
 const oneOver = JSON.stringify(PARS.map((p, i) => (i === 0 ? p + 1 : p)));
 
-const ids = { event: "", rounds: [] as string[], ann: "", bo: "", cy: "", di: "" };
+const ids = { event: "", rounds: [] as string[], ann: "", bo: "", cy: "", di: "", ed: "" };
 
 beforeAll(async () => {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -97,6 +97,8 @@ beforeAll(async () => {
   ids.bo = await person("Bo", 2);
   ids.cy = await person("Cy", 3);
   ids.di = await person("Di", 4);
+  // Ed never began: no card in either round.
+  ids.ed = await person("Ed", 5);
   const card = (stageId: string, playerId: string, strokes: string) =>
     prisma.scorecard.create({ data: { eventId: ev.id, stageId, playerId, strokes, status: "approved" } });
   for (const r of ids.rounds) {
@@ -169,6 +171,12 @@ describe("closing a round with a card missing", () => {
     // WD is listed beneath the ranked field.
     const order = rows.map((r) => r.id);
     expect(order.indexOf(di.id)).toBeGreaterThan(order.indexOf(ids.bo));
+    // A player who never began is DNS, not WD: the office's two codes (Withdrew promises "DNS if they never began").
+    expect((await removeSignup(ids.ed)).ok).toBe(true);
+    const ed = (await board()).rows.find((r) => r.id === ids.ed);
+    expect(ed, "a player who never began vanished from the results sheet").toBeDefined();
+    expect(ed!.didNotStart).toBe(true);
+    expect(ed!.withdrew).toBeFalsy();
     // And the other answer is not changed by it: Cy is still No card returned, still without a place.
     const cy = rows.find((r) => r.id === ids.cy)!;
     expect(cy.ranked).toBe(false);

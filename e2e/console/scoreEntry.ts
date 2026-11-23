@@ -107,6 +107,22 @@ export async function dropScoreEntryDay(mark: string): Promise<void> {
   await dropClub(mark);
 }
 
+/**
+ * PLAY IS OVER: every player holds an approved card in both rounds and both rounds are closed, so the machine's step is "play
+ * over" and the one press left is the last act. Set-up only (what Results then says and does is the thing under test).
+ */
+export async function finishPlay(day: ScoreEntryDay): Promise<void> {
+  const all = [...day.returned, day.missing];
+  for (const stageId of [day.round1, day.round2]) {
+    for (const p of all) {
+      const has = await prisma.scorecard.findFirst({ where: { stageId, playerId: p.id }, select: { id: true } });
+      if (!has) await returnCard(day.eventId, stageId, p.id);
+    }
+    await prisma.scorecard.updateMany({ where: { stageId }, data: { status: "approved", approvedBy: "zz", approvedAt: new Date() } });
+    await prisma.stage.update({ where: { id: stageId }, data: { closedAt: new Date() } });
+  }
+}
+
 /** The secretary's browser on the new screen: a context with the service worker blocked (a save spec's rule), closed after. */
 export async function withScoreEntry(
   browser: Browser,

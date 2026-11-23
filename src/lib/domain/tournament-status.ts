@@ -1155,7 +1155,7 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
         const enabled = refusals.complete === null;
         nextAction = {
           kind: "complete",
-          label: "Complete tournament",
+          label: "Make results final",
           href: DASHBOARD,
           roundId: null,
           enabled,

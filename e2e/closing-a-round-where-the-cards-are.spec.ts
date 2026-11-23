@@ -1,5 +1,8 @@
 import { test, expect } from "./coverage";
-import { seedScoreEntryDay, dropScoreEntryDay, withScoreEntry, type ScoreEntryDay } from "./console/scoreEntry";
+import { seedScoreEntryDay, dropScoreEntryDay, withScoreEntry, finishPlay, type ScoreEntryDay } from "./console/scoreEntry";
+import { ResultsPage } from "./console/results";
+import { statusCard } from "./end-early";
+import { prisma } from "./rounds-fixture";
 
 /**
  * @redesign: CLOSING A ROUND WHERE THE CARDS ARE (R12). On the redesigned Score entry the round's close section holds the cards
@@ -21,6 +24,8 @@ const ZONE = "Pacific/Auckland";
 
 test.describe("@redesign closing a round where the cards are", () => {
   test.describe.configure({ mode: "serial" });
+  // The browser is in the club's zone too, as E2E_TZ puts it: the window is a club day, whatever day the machine is on.
+  test.use({ timezoneId: ZONE });
   let day: ScoreEntryDay;
   test.beforeEach(async () => {
     day = await seedScoreEntryDay(MARK, ZONE);
@@ -87,6 +92,27 @@ test.describe("@redesign closing a round where the cards are", () => {
       const again = await screen.openClose();
       await expect(again).toContainText("Extended past the deadline");
       await expect(again.getByRole("button", { name: "Keep it open" })).toBeDisabled();
+    });
+  });
+
+  test("with play over, Results offers the one verb, the press completes it, and Results reads final after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    await finishPlay(day);
+    await withScoreEntry(browser, baseURL!, testInfo, day, async (_screen, page) => {
+      const results = new ResultsPage(page);
+      await results.open();
+      await expect(results.releaseCard()).toHaveAttribute("data-release-results", "ready");
+      // The verb is the machine's own label, the one the Dashboard's button carries.
+      await results.releaseVerb().click();
+      await page.waitForURL(/\/dashboard/);
+      await statusCard(page).getByRole("button", { name: "Make results final" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Make results final" }).click();
+      await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: day.eventId }, select: { status: true } })).status, { timeout: 30_000 }).toBe("completed");
+
+      await results.open();
+      await page.reload();
+      await expect(results.releaseCard()).toHaveAttribute("data-release-results", "final");
+      await expect(results.releaseCard()).toContainText("The results are final");
     });
   });
 });

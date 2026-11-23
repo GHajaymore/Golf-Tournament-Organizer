@@ -25,6 +25,6 @@ export class ResultsPage {
 
   /** The one verb, as a link, when the results can be released. */
   releaseVerb(): Locator {
-    return this.releaseCard().getByRole("link", { name: "Release results" });
+    return this.releaseCard().getByRole("link", { name: "Make results final" });
   }
 }

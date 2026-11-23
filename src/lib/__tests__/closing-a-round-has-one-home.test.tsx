@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StagesClient, type StageView } from "@/components/StagesClient";
 import { RoundsScreen, type RoundsScreenProps } from "@/components/rounds/RoundsScreen";
 import { CloseThisRound } from "@/components/entry/CloseThisRound";
+import { RoundVenue } from "@/components/RoundVenue";
 import { readSource } from "./source";
 
 /**
@@ -69,7 +70,7 @@ const count = (html: string, needle: string) => html.split(needle).length - 1;
 
 const scoreEntryDraws = () =>
   renderToStaticMarkup(
-    <CloseThisRound stageId="r1" label="Round 1" closed={false} tick pointsBoard={false} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
+    <CloseThisRound stageId="r1" label="Round 1" closed={false} tick cardsCounted pointsBoard={false} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
   );
 
 describe("the tick is drawn in exactly one room", () => {
@@ -111,6 +112,7 @@ describe("the cards still to come, with the two answers", () => {
         label="Round 2"
         closed={over.closed ?? false}
         tick
+        cardsCounted
         pointsBoard={false}
         deadline=""
         deadlineOverride={null}
@@ -143,6 +145,67 @@ describe("the cards still to come, with the two answers", () => {
   });
 });
 
+describe("a fixed course asks no Played at on Score entry, and the round's Tees stay", () => {
+  const tee = (id: string, name: string) => ({ id, courseId: "c1", name, courseRating: 70, slopeRating: 120, par: 72, rated: true });
+  const carded = { name: "Bushwood", courseId: "c1", hasCard: true };
+  const draw = (tees: ReturnType<typeof tee>[], pickersHere: boolean) =>
+    renderToStaticMarkup(
+      <RoundVenue
+        stageId="s1"
+        courseId=""
+        venues={[{ id: "c1", name: "Bushwood" }]}
+        library={[{ id: "c1", name: "Bushwood", tees }, { id: "c2", name: "Ridgeline", tees: [] }]}
+        venue={carded}
+        canEdit
+        teesDoor={null}
+        pickersHere={pickersHere}
+      />,
+    );
+
+  it("a course with two tee sets shows Tees and no Played at while the picker is off", () => {
+    const html = draw([tee("t1", "White"), tee("t2", "Yellow")], false);
+    expect(html).toContain("Tees");
+    expect(html).toContain("White");
+    expect(html).not.toContain("Played at");
+  });
+
+  it("CONTROL: the old screen draws both, and a course with one tee set draws nothing here", () => {
+    const old = draw([tee("t1", "White"), tee("t2", "Yellow")], true);
+    expect(old).toContain("Played at");
+    expect(old).toContain("Tees");
+    expect(draw([tee("t1", "White")], false)).toBe("");
+  });
+});
+
+describe("every staff branch of Score entry carries the close section", () => {
+  it("each return after the active round is chosen draws closingFor, except the player-only and casual ones", () => {
+    const src = readSource("src/app/(app)/entry/page.tsx");
+    const from = src.indexOf("const closingFor");
+    expect(from).toBeGreaterThan(0);
+    // The three staff branches: a match kept by tapping, a team round, and the individual card.
+    expect((src.slice(from).match(/closingFor\(/g) ?? []).length).toBe(3);
+    expect(src).toContain("{await closingFor([])}");
+    expect(src).toContain("closingFor(absentByStage[");
+  });
+
+  it("a team round draws the tick and the window, and no cards to come", () => {
+    const html = renderToStaticMarkup(
+      <CloseThisRound stageId="r1" label="Round 1" closed={false} tick cardsCounted={false} pointsBoard={false} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
+    );
+    expect(html).toContain(TICK);
+    expect(html).toContain("Scoring window");
+    expect(html).not.toContain("Cards are in");
+  });
+
+  it("a round with no tick is titled for what it holds", () => {
+    const html = renderToStaticMarkup(
+      <CloseThisRound stageId="r1" label="Round 1" closed={false} tick={false} cardsCounted={false} pointsBoard={false} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
+    );
+    expect(html).toContain("Scoring window for Round 1");
+    expect(html).not.toContain(TICK);
+  });
+});
+
 describe("the pages ask the one boolean", () => {
   it("Rounds & formats says whether the round is closed there, from the same key Score entry asks", () => {
     expect(readSource("src/app/(app)/stages/page.tsx")).toContain('onTheDayHere={!shown.has("scoreEntry")}');
@@ -152,10 +215,10 @@ describe("the pages ask the one boolean", () => {
     const entry = readSource("src/app/(app)/entry/page.tsx");
     const at = entry.indexOf("<CloseThisRound");
     expect(at).toBeGreaterThan(0);
-    const guard = entry.slice(entry.indexOf("let closing"), at);
-    expect(guard).toContain('shown.has("scoreEntry")');
-    expect(guard).toContain("isStaff");
-    expect(guard).toContain("!casualRound");
+    const guard = entry.slice(entry.indexOf("const closingFor"), at);
+    expect(guard).toContain('!shown.has("scoreEntry")');
+    expect(guard).toContain("!isStaff");
+    expect(guard).toContain("casualRound");
     expect(entry).toContain('playedAtOnlyOpen={shown.has("scoreEntry")}');
   });
 

@@ -519,7 +519,7 @@ export default async function DashboardPage() {
   /**
    * THE ONE BUTTON (B03; the panel, 9 Nov; the PM, 10 Nov: for everyone, not only behind the stepper's
    * switch): `tournamentJob`, the job the lifecycle stepper marks and the home's first line for this
-   * tournament, composed here — never in `statusCardOf`. So the card never offers "Complete tournament"
+   * tournament, composed here — never in `statusCardOf`. So the card never offers "Make results final"
    * while golf is being played: the machine offers it from the first card, which at a two-day outing is
    * one press from ending it before day 2.
    */

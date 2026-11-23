@@ -161,8 +161,8 @@ test.describe("@redesign the story is written from Results and kept", () => {
     const STORY = "A damp morning, a long delay on the 7th and a birdie on the last from nowhere.";
     const results = new ResultsPage(page);
     await results.open();
-    await expect(results.releaseCard()).toHaveAttribute("data-release-results", "released");
-    await expect(results.releaseCard()).toContainText("The results are released");
+    await expect(results.releaseCard()).toHaveAttribute("data-release-results", "final");
+    await expect(results.releaseCard()).toContainText("The results are final");
     await expect(results.releaseVerb(), "a finished tournament offers the verb again").toHaveCount(0);
 
     await page.getByRole("link", { name: "Open the final report", exact: true }).click();

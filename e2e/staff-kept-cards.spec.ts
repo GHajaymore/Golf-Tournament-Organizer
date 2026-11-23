@@ -247,9 +247,9 @@ test.describe("@redesign the club keeps a card and closes the round on Score ent
       await screen.finishedTick(section).click();
       // A card nobody has approved is ASKED about, naming whose; the answer is given where the question is.
       const stored = await fixturePrisma.scorecard.findFirstOrThrow({ where: { stageId: day.round1, playerId: day.missing.id }, select: { status: true } });
-      if (stored.status !== "approved") {
-        await section.getByRole("button", { name: "Close anyway" }).click();
-      }
+      // A card typed in by the club is stored as entered, not approved, so the question comes: a fixed step, not a branch.
+      expect(stored.status, "a staff-entered card is stored as entered").toBe("entered");
+      await section.getByRole("button", { name: "Close anyway" }).click();
       await expect(screen.finishedTick(section)).toBeChecked();
 
       await page.reload();

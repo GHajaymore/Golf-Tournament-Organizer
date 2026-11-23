@@ -1,5 +1,5 @@
 "use client";
-import { standingsUnit } from "@/lib/format-chain";
+import { closingTickShown } from "@/lib/domain/closing-words";
 import { RoundClosedControl } from "@/components/RoundClosedControl";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { RoundDeadlineControl } from "@/components/RoundDeadlineControl";
@@ -17,8 +17,7 @@ export function RoundOnTheDay({ ctx }: { ctx: RoundCtx }) {
           whatever the tournament's status. */}
       {underWay && (
         <SettingsGroup title="On the day">
-          {stage.type !== "Bracket Stage" &&
-            standingsUnit(stage.format, stage.scoringBasis) !== "match points" && (
+          {closingTickShown(stage) && (
             <div>
               <SectionLabel>Is this round over?</SectionLabel>
               <RoundClosedControl

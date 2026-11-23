@@ -16,7 +16,7 @@ export interface MissingCardPlayer {
 
 /**
  * The players this round is still owed a card from: in the round's field, not marked out for the week, and holding no
- * hole on any card for it. `withACard` is the ids whose card for the round has at least one hole (`hasAnyHole`).
+ * hole on any card for it. `withACard` is the ids whose card for the round has at least one stroke (`hasAnyStroke`, the close check's own line).
  * `field` is the round's own field: after a cut, the players it left in (`strokeCutField`), never the whole entry.
  */
 export function playersWithNoCard(
@@ -44,7 +44,10 @@ export function noCardReturnedLabel(round: string): string {
 
 /** What the other answer does, said before it is pressed: event-wide, kept on the sheet, and undone by Put back. */
 export const WITHDREW_WORDS =
-  "Withdrew takes the player out of the rest of the event as well and lists them WD on the results sheet (DNS if they never began). Put back, on Players, undoes it.";
+  "Withdrew is for a player who has left or will not play again: it takes them out of the rest of the event as well and lists them WD on the results sheet (DNS if they never began). A player who only missed this round and plays the next is No card returned. Put back, on Players, undoes it.";
+
+/** Said beside the list: somebody away for the week is not a missing card, and the filter that leaves them out is named. */
+export const MARKED_OUT_WORDS = "Somebody who is away only this week is marked out for the week on Players, and is not listed here.";
 
 /** The panel's one-line state, shown on its folded line on a phone. */
 export function closingState(closed: boolean, missing: number, round: string): string {

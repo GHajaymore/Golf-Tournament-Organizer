@@ -853,7 +853,7 @@ export function StagesClient({
    * Whether each round draws its "On the day" group, the tick that closes it and the scoring window (R12). The page says it,
    * from the same `shown.has("scoreEntry")` the redesigned screens ask, so Score entry and this screen never both draw them
    * and never both leave them out. Optional in the TYPE only because some fifty old render tests build this screen without
-   * it and may not be edited; `the-on-the-day-block-has-one-home.test.ts` holds that the one page that mounts it always says.
+   * it and may not be edited; `closing-a-round-has-one-home.test.tsx` holds that the one page that mounts it always says.
    */
   onTheDayHere?: boolean;
   /**
