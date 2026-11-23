@@ -1,7 +1,6 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
-import { useEffect, useState, useTransition } from "react";
-import { recall, remember } from "@/lib/domain/round-builder-memory";
+import { useState, useTransition } from "react";
 import { addFormatFor, formatChoicesFor } from "@/lib/domain/round-choices";
 import { addStage } from "@/app/actions/tournament";
 import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
@@ -94,28 +93,6 @@ export function AddRoundPanel({ roundCount, onAdded, redesign }: { roundCount: n
   // What the select shows and Add sends: asked of the kind each render, never read back from
   // `bulkFormat` alone, so a chosen kind cannot be left with a format that is not among its options.
   const addFormat = addFormatFor(newType, bulkFormat);
-
-  // What was picked a moment ago survives this panel being mounted afresh (a refresh that lands as a new tree):
-  // read back once, after mount so the server and first client render agree, and written as picks are made.
-  useEffect(() => {
-    try {
-      const held = recall(sessionStorage, Date.now());
-      if (held) {
-        setNewType((cur) => cur || (held.type as StageTypeKey));
-        setBulkFormat((cur) => cur || held.format);
-      }
-    } catch {
-      // storage blocked: the builder starts empty, as it always did
-    }
-  }, []);
-  useEffect(() => {
-    if (!newType) return;
-    try {
-      remember(sessionStorage, { type: newType, format: addFormat }, Date.now());
-    } catch {
-      // storage blocked
-    }
-  }, [newType, addFormat]);
 
   const pickType = (t: StageTypeKey) => {
     setNewType(t);

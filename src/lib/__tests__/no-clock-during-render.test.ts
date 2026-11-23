@@ -50,10 +50,6 @@ const ALLOWED: Record<string, { reads: number; why: string }> = {
     reads: 2,
     why: "mount-only state plus its one-second tick, both inside useEffect — the component that documented this bug",
   },
-  "src/components/rounds/AddRoundPanel.tsx": {
-    reads: 2,
-    why: "the builder's remembered pick (round-builder-memory): one read on mount and one on each pick, both inside useEffect",
-  },
   "src/components/MessagesClient.tsx": {
     reads: 2,
     why: "mount-only state plus its one-minute tick, both inside useEffect; `when` takes the clock as an argument",
