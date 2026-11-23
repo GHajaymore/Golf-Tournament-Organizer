@@ -44,7 +44,7 @@ export interface DrawRound {
 
 export type DrawSections =
   | { built: true; keys: readonly DrawSectionKey[] }
-  | { built: false; lane: "R9b" | "R9c"; keys: readonly [] };
+  | { built: false; lane: "R9c" | "none"; keys: readonly [] };
 
 /** The families no screen of this one builds: a knockout, a flighted knockout and a cup are R9c's. */
 const R9C_FAMILIES: readonly Family[] = ["knockout", "flightedKnockout", "teamCup"];
@@ -52,7 +52,7 @@ const R9C_FAMILIES: readonly Family[] = ["knockout", "flightedKnockout", "teamCu
 export function drawSections(round: DrawRound, family: Family): DrawSections {
   if (R9C_FAMILIES.includes(family)) return { built: false, lane: "R9c", keys: [] };
   // A casual round is in no PR's list: today's tee sheet draws it, as it always has.
-  if (family === "casual") return { built: false, lane: "R9b", keys: [] };
+  if (family === "casual") return { built: false, lane: "none", keys: [] };
   // Every other family is built, whatever the round is inside it: a stroke sheet, a match, a round robin
   // of flights, a league week, or a sided round of a stroke tournament. The sections are the same five, in
   // the TD's order; what the DRAW section holds is `drawControlsOf`'s.

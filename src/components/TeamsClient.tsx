@@ -352,6 +352,15 @@ export function TeamsClient({
         <SaveState status={saveStatus} />
       </div>
 
+      {drawsMatches && matchesHere && (
+        <p data-matches-moved="" className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          Generate matches is in the draw section of{" "}
+          <a href={`/foursomes?round=${activeRoundId}`} style={{ display: "inline-block", minHeight: 48 }}>
+            Tee times &amp; draw
+          </a>
+          .
+        </p>
+      )}
       {drawsMatches && !matchesHere && (
         <TeamMatchesControl roundId={activeRoundId} matchCount={matchCount} sideCount={teams.length} locked={locked} otherBusy={pending} />
       )}

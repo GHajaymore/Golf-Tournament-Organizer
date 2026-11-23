@@ -524,7 +524,7 @@ export default async function FoursomesPage({
   /**
    * THE REDESIGNED SCREEN (R9a), for a stroke or Stableford round, behind the redesign switch (OFF for everybody
    * but a preview). `screensShownFor` is the one question; `drawSections` says whether this round has the new
-   * screen yet (match, team, league, knockout and cup rounds still draw the tee sheet below until R9b/R9c).
+   * screen yet (a knockout, a cup and a casual round still draw the tee sheet below).
    */
   const told = await tournamentStatusFor(session.eventId, state.today);
   const shown = await screensShownFor(session);
@@ -554,7 +554,8 @@ export default async function FoursomesPage({
     const family = told.status.family;
     const controls = drawControlsOf(stage, {
       launched: told.status.step !== "setting-up",
-      isFirst: rounds[0]?.id === stage.id,
+      // As Rounds & formats reads it: the first of ALL the stages (a cut marker counts), never of the playing rounds.
+      isFirst: state.stages[0]?.id === stage.id,
       completed: told.status.step === "completed",
     });
     const roundMatches = state.matches.filter((m) => m.stageId === stage.id).length;
@@ -563,6 +564,19 @@ export default async function FoursomesPage({
       controls.teamMatches &&
       !isLeaguePointsSystem(state.event.leaguePoints) &&
       matchGeneratorPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes";
+    // An interclub league's week of four-balls is drawn on Teams & pairs (`LeagueDraw`, which writes the matches), not
+    // here: this screen holds the player groups. Said on the page until the TD rules whether it moves. The same
+    // question `LeagueSection` asks, `isLeaguePointsSystem`.
+    const leagueWeekPointer =
+      isStaff && isLeaguePointsSystem(state.event.leaguePoints) ? (
+        <p data-league-week-pointer="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+          The week&rsquo;s matches between clubs are drawn on{" "}
+          <a href={`/teams?round=${stage.id}`} style={{ display: "inline-block", minHeight: 48 }}>
+            Teams &amp; pairs
+          </a>
+          ; this is where the players go out together.
+        </p>
+      ) : null;
     const sidesLock = generatorHere ? await scopeLockFor(session.eventId, "sides") : null;
     const nextRoundEl = await (async () => {
       if (!isStaff || !controls.nextRound) return null;
@@ -639,6 +653,7 @@ export default async function FoursomesPage({
             node: (
               <>
                 {nextRoundEl}
+                {leagueWeekPointer}
                 {pairingEl}
                 {/* ONE banner for the section: the sheet's lock, and the sides' while the generator is here (one banner id per page). */}
                 <LockedOnce locks={[...(sheetLock ? [sheetLock] : []), ...(sidesLock ? [sidesLock] : [])]} isAdmin={isAdmin} correction={null} open={null}>

@@ -1,11 +1,11 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { generateTeamMatches } from "@/app/actions/teams";
 import { sideDrawReadiness } from "@/lib/domain/draw-readiness";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { Icon } from "@/components/Icon";
 import { ScopeLockMark } from "@/components/ScopeLockBanner";
-import { useCaughtUp } from "@/components/useAction";
+import { useAction, useCaughtUp } from "@/components/useAction";
 
 /**
  * "GENERATE MATCHES": A ROUND OF SIDES PAIRED AGAINST EACH OTHER (R9b; lifted whole from `TeamsClient`).
@@ -33,9 +33,8 @@ export function TeamMatchesControl({
   /** The screen that mounts this is saving something else: wait for it. */
   otherBusy: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, error, setError, startTransition } = useAction();
   const caughtUp = useCaughtUp();
-  const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false);
   const busy = pending || locked || otherBusy;
   // Why matches cannot be drawn yet, or null. Said on the page rather than in a `title`.

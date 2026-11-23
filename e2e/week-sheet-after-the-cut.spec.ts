@@ -177,7 +177,8 @@ test.describe("@redesign the sheet after a cut on Tee times & draw", () => {
         const door = (await screen.openSection("paper")).getByRole("link", { name: /Print/ });
         const href = await door.getAttribute("href");
         expect(href, "the print door has no address").toContain(`/print?round=${r2.id}`);
-        expect((await page.request.get(href!)).status(), "the print page does not answer 200").toBe(200);
+        // No redirect followed: a signed-out 307 to the sign-in page would otherwise answer 200 and read as a working screen.
+        expect((await page.request.get(href!, { maxRedirects: 0 })).status(), "the print page does not answer 200 itself").toBe(200);
         await page.goto(href!);
         expect(new URL(page.url()).pathname, "the print door did not open the print page").toBe("/print");
       });

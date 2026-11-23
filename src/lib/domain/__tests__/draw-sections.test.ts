@@ -36,7 +36,7 @@ describe("drawSections", () => {
           expect(out.keys, `${family} / ${type}`).toEqual(["whoIn", "draw", "teeTimes", "onTheDay", "paper"]);
         } else {
           expect(out.keys, `${family} / ${type}`).toEqual([]);
-          expect(out.lane, `${family} / ${type}`).toBe(family === "casual" ? "R9b" : "R9c");
+          expect(out.lane, `${family} / ${type}`).toBe(family === "casual" ? "none" : "R9c");
         }
       }
     }

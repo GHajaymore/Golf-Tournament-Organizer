@@ -40,7 +40,7 @@ const sides = [
   { id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] },
   { id: "t2", name: "Side B", seed: 2, stageId: "r1", playingHandicap: 12, members: [] },
 ];
-const teamsScreen = (matchesHere: boolean, drawsMatches = true) =>
+const teamsScreen = (matchesHere: boolean, drawsMatches = true, league = false) =>
   renderToStaticMarkup(
     <TeamsClient
       matchesHere={matchesHere}
@@ -52,6 +52,7 @@ const teamsScreen = (matchesHere: boolean, drawsMatches = true) =>
       unassigned={[]}
       matchCount={0}
       drawsMatches={drawsMatches}
+      league={league}
     />,
   );
 const mounts = (html: string) => html.split("data-team-matches").length - 1;
@@ -64,15 +65,36 @@ describe("the match generator is mounted once", () => {
     expect(mounts(teamsScreen(true, false))).toBe(0);
   });
 
-  it("across every family and both switch states, Teams plus Tee times & draw draw it exactly once", () => {
+  it("across every family and both switch states, Teams plus Tee times & draw draw it exactly once; a league draws it on neither", () => {
     for (const family of FAMILIES) {
       for (const teeTimesShown of [false, true]) {
+        // A league's sides are nominated, so Teams hides the generator (`league`) and the Tee times page withholds it
+        // (`generatorHere` has `!isLeaguePointsSystem`): the right count there is ZERO, not one.
+        const leagueMode = family === "league";
         const place = matchGeneratorPlace(ROUND, family, teeTimesShown);
-        const onTeams = mounts(teamsScreen(place === "teeTimes"));
-        const onTeeTimes = place === "teeTimes" ? 1 : 0;
-        expect(onTeams + onTeeTimes, `${family}, teeTimes ${teeTimesShown ? "shown" : "off"}`).toBe(1);
+        const onTeams = mounts(teamsScreen(place === "teeTimes", true, leagueMode));
+        // The Tee times side is the page's own `generatorHere`, which no unit test can render; the source checks
+        // below hold its mount to this same `place` and to the league and staff conditions.
+        const onTeeTimes = place === "teeTimes" && !leagueMode ? 1 : 0;
+        expect(onTeams + onTeeTimes, `${family}, teeTimes ${teeTimesShown ? "shown" : "off"}`).toBe(leagueMode ? 0 : 1);
       }
     }
+  });
+
+  it("where the generator has moved, Teams says so with a link to Tee times & draw, round open; where it has not, it says nothing", () => {
+    const moved = teamsScreen(true);
+    expect(moved).toContain("data-matches-moved");
+    expect(moved).toContain('href="/foursomes?round=r1"');
+    expect(teamsScreen(false)).not.toContain("data-matches-moved");
+    expect(teamsScreen(true, false), "a round that draws no matches has nothing to point at").not.toContain("data-matches-moved");
+  });
+
+  it("an interclub league's Tee times says its week of matches is drawn on Teams, asked of the one `isLeaguePointsSystem`", () => {
+    const tee = readSource("src", "app", "(app)", "foursomes", "page.tsx");
+    expect(tee).toMatch(/isStaff && isLeaguePointsSystem\(state\.event\.leaguePoints\) \?/);
+    expect(tee).toContain("data-league-week-pointer");
+    expect(tee).toContain("/teams?round=${stage.id}");
+    expect(tee).toMatch(/\{leagueWeekPointer\}/);
   });
 
   it("the old screen obeys the same boolean: with the switch off the generator stays on Teams for every family", () => {
@@ -105,6 +127,7 @@ describe("the two pages ask the one answer", () => {
     expect(teams).toMatch(/matchesHere=\{matchesHere\}/);
     const tee = readSource("src", "app", "(app)", "foursomes", "page.tsx");
     expect(tee).toMatch(/matchGeneratorPlace\([^)]*true\) === "teeTimes"/);
+    expect(tee).toMatch(/const generatorHere =\s*isStaff &&\s*controls\.teamMatches &&\s*!isLeaguePointsSystem\(/);
     expect(tee).toMatch(/\{generatorHere && \(\s*<TeamMatchesControl/);
   });
 });

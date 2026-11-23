@@ -38,7 +38,7 @@ export const TEE_TIMES_GUIDE: GuideVariant = {
       },
       {
         kind: "p",
-        text: "A knockout or a cup round still opens today's Bracket or Team cup; those move to this screen next. A league's club pairs and the interclub **Draw the week** stay on Teams & pairs for now.",
+        text: "A knockout or a cup round still opens today's Bracket or Team cup; those move to this screen next. A league's club pairs and the interclub **Draw the week** stay on Teams & pairs for now: the draw section says so, with a link, and Teams & pairs says where **Generate matches** went.",
       },
     ],
   },

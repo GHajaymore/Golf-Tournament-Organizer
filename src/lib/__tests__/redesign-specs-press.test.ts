@@ -51,8 +51,8 @@ export const KNOWN_READ_ONLY: readonly string[] = [
 /** The list's size today (15, dated 23 Nov 2026, owner G1b). NEVER RAISE: it may only shrink, and lowering this as entries go is the point. */
 export const KNOWN_READ_ONLY_CAP = 15;
 
-/** The least number of `@redesign` blocks there are today (15 once R4 is on main; R3 and R6 are still to come). Raise it as screens land, never lower it. */
-export const MIN_BLOCKS = 15;
+/** The least number of `@redesign` blocks there are today (20 once R9b is on main, measured by this file's own reader; R3 and R6 are still to come). Raise it as screens land, never lower it. */
+export const MIN_BLOCKS = 20;
 
 const WRITE_PRESS = /\.(click|fill|check|selectOption|press)\(/;
 const NOT_A_WRITE = /getByRole\(\s*["']link["']|openSection\(|openFold\(|sectionLine\(|aria-expanded|\.locator\(\s*["']a\b/;
