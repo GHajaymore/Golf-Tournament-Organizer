@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { makeCommitteeCorrection } from "./committee-correction";
+import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { PlayersPage } from "./console/players";
 
 /**
  * TEAMS & PAIRS, AS ITS SECRETARY USES IT ON A LIVE FOUR-BALL (2026-10-20).
@@ -148,4 +150,42 @@ test("a secretary renames a side, takes a player out and puts them back, and is 
   await expect(page.getByRole("textbox", { name: "Name of Spare Side" })).toHaveCount(0, { timeout: 20_000 });
 
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R6: the same sides through the Players room's Teams tab, deleted at R17 with the old screen.
+test.describe("@redesign players", () => {
+  test("a side made and renamed on the Teams tab keeps its name after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "two sizes: a third seeding of the club proves nothing more");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-teams-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Pairs Day", { stages: [{ format: "Four-Ball" }], players: 4 });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Teams");
+      await expect(room.current()).toHaveText("Teams");
+      const add = page.getByRole("textbox", { name: "Add a team" });
+      await add.fill("Slicers");
+      await add.press("Enter");
+      await expect
+        .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Slicers" } }), { message: "the side made was not stored" })
+        .toBe(1);
+      await page.reload();
+      await expect(room.current()).toHaveText("Teams");
+      const name = page.getByRole("textbox", { name: "Name of Slicers" });
+      await name.fill("Faders");
+      await name.press("Enter");
+      await expect
+        .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Faders" } }), { message: "the new name was not stored" })
+        .toBe(1);
+      await page.reload();
+      await expect(room.current()).toHaveText("Teams");
+      await expect(page.getByRole("textbox", { name: "Name of Faders" }), "the side lost its name after a reload").toHaveValue("Faders");
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

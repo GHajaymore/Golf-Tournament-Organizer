@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setMatchTiebreakers } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
+import { InfoOrFace } from "@/components/setup/InfoOrFace";
 import { useCaughtUp } from "./useAction";
 import {
   OFFERED_MATCH_TIEBREAKS,
@@ -28,7 +29,10 @@ export function MatchTiebreakControl({
   selected,
   holes,
   locked,
+  redesign = false,
 }: {
+  /** True on the redesigned Rounds & formats, which draws the explanation behind an ⓘ (`InfoOrFace`); today's screen leaves it off. */
+  redesign?: boolean;
   selected: MatchTiebreakKey[];
   /** The round length, which decides whether "last 9" means anything. */
   holes: number;
@@ -83,11 +87,19 @@ export function MatchTiebreakControl({
         <span className="card-kicker" style={{ display: "block" }}>
           If a match finishes all square
         </span>
-        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
+        <InfoOrFace
+          redesign={redesign}
+          label="if a match finishes all square"
+          face={(words) => (
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
+              {words}
+            </p>
+          )}
+        >
           Tried in order, stopping at the first step that separates them. With nothing selected a
           halved match stays halved — correct match play, and the right answer unless a winner has
           to be produced today.
-        </p>
+        </InfoOrFace>
       </div>
 
       {refused && (

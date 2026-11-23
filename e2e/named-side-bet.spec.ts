@@ -3,6 +3,8 @@ import { createHmac } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { consoleUrl } from "../src/lib/console-url";
+import * as rf from "./rounds-fixture";
 
 /**
  * A NAMED SIDE BET THAT IS NOT SKINS, FROM START TO GONE (2026-10-11).
@@ -166,4 +168,37 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
   [game] = await games();
   expect(game).toBeUndefined();
   expect(errors, "the screen threw in the browser").toEqual([]);
+});
+
+// R8a: a named bet is still re-priced where the groups' games are kept while the new Prizes screen is shown (they move with Winners & money, R8b).
+test.describe("@redesign", () => {
+  test("a named birdie pot's stake is re-priced with Prizes & side games shown, and the stake is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "one walk of the flow");
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "named side bet");
+    const mark = "zz-r8a-nsb";
+    const own = await rf.makeClub(mark);
+    try {
+      const { event, stages, players } = await rf.makeEvent(own, "Saturday Medal", { status: "live", stages: [{}], players: 4 });
+      const bet = await rf.prisma.sideGame.create({ data: { eventId: event.id, stageId: stages[0].id, kind: "birdies", groupKey: NAME, buyInCents: 500 } });
+      await rf.prisma.sideGameEntry.createMany({ data: players.slice(0, 3).map((p) => ({ sideGameId: bet.id, playerId: p.id, confirmed: true })) });
+      await rf.signIn(context, baseURL!, own, event.id);
+      await page.goto(consoleUrl("/group-games", "build"));
+      const card = () => page.locator("section.card, div.card", { has: page.locator(".card-title", { hasText: `${NAME} — side game` }) });
+      await expect(card(), "the named bet has no card on Side games").toHaveCount(1, { timeout: 30_000 });
+      const stake = card().getByLabel("Stake");
+      await expect(stake).toHaveValue(/^5(\.00)?$/);
+      await stake.fill("7");
+      await stake.blur();
+      await expect
+        .poll(async () => (await rf.prisma.sideGame.findUniqueOrThrow({ where: { id: bet.id } })).buyInCents, { message: "the new stake never reached the row" })
+        .toBe(700);
+      await page.reload();
+      await expect(card().getByLabel("Stake"), "the stake did not survive a reload").toHaveValue(/^7(\.00)?$/);
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

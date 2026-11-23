@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Fragment, useId, useMemo, useRef, useState } from "react";
 import { isWoman } from "@/lib/domain/handicap";
 import { ClubHandicapPanel } from "@/components/ClubHandicapPanel";
@@ -11,6 +12,7 @@ import { useGolfTerms } from "@/components/GolfTermsProvider";
 import { rosterSelection } from "@/lib/domain/roster-selection";
 import { indexLabel, indexFigure, hasIndex, NO_INDEX } from "@/lib/domain/handicap-label";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
+import { memberHistoryHref, type ConsoleMode } from "@/lib/console-url";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import {
@@ -102,6 +104,11 @@ interface Props {
   eventName: string;
   /** Why the field takes nobody now (`fieldRefusal(…, "add")`), or null when it does. */
   fieldLocked: string | null;
+  /**
+   * R7: while Members is redesigned a name opens that member's history (a section of this screen); null while it is
+   * not, and a name is only text. `mode` is the preview the request is in, so the link stays inside it.
+   */
+  history: { mode: ConsoleMode | null } | null;
   members: RosterRow[];
   /**
    * The FIELD of the open tournament — confirmed entries.
@@ -139,6 +146,7 @@ export function RosterClient({
   indexesReadable = true,
   eventName,
   fieldLocked,
+  history,
   members,
   fieldSize,
   unlinkedCount,
@@ -856,7 +864,7 @@ export function RosterClient({
                     />
                   </td>
                   <td style={{ fontWeight: 500 }}>
-                    {m.name}
+                    {history ? <Link href={memberHistoryHref(m.id, "/roster", history.mode)}>{m.name}</Link> : m.name}
                     {m.memberNumber && (
                       <span className="text-muted" style={{ fontSize: 13, marginLeft: 6 }}>
                         #{m.memberNumber}

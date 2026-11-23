@@ -12,6 +12,9 @@ import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roste
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
+import { screensShownFor, previewModeNow } from "@/lib/services/screens-shown";
+import { SectionFold } from "@/components/setup/SectionFold";
+import { MemberHistory } from "@/components/club/MemberHistory";
 
 // /roster used to be the per-event player list, which now lives inside
 // Entries. The path now means what it says: the club's standing
@@ -43,9 +46,16 @@ export const metadata = screenMetadata("/roster");
  * hides them — see the prop. The roster itself, which is the reason somebody
  * came here before their first tournament, is all there.
  */
-export default async function RosterPage() {
+export default async function RosterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ member?: string }>;
+}) {
   const { session, organizationId } = await requireOrgScreen("roster");
-
+  // R7: while Members is shown a member's history is a section of this screen, opened by a name in it
+  // (`?member=`); `/member` sends a person here. The one boolean decides where it is drawn.
+  const params = await searchParams;
+  const historyHere = (await screensShownFor(session)).has("members");
   const [org, members, event] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
@@ -149,6 +159,7 @@ export default async function RosterPage() {
       handicapPolicy={policy}
       indexesReadable={policy === "club" ? true : await handicapReadable(organizationId)}
       eventName={event?.name ?? ""}
+      history={historyHere ? { mode: await previewModeNow() } : null}
       fieldLocked={fieldLocked}
       fieldSize={fieldSizeOf(entered)}
       unlinkedCount={unlinked.length}
@@ -157,6 +168,22 @@ export default async function RosterPage() {
         return { ...m, entered: entry.live, entryStatus: entry.status };
       })}
     />
+    {historyHere && (
+      <SectionFold
+        // Keyed by the member chosen: the fold decides once per mount whether a phone opens it, and pressing
+        // a name is a soft navigation, so each choice mounts it afresh and it decides again.
+        key={typeof params.member === "string" ? params.member : "none"}
+        id="history"
+        title="Member history"
+        state={params.member ? "One member's tournaments" : "Choose a member"}
+        needsYou={false}
+        openOnPhone={Boolean(params.member)}
+      >
+        {/* Read for the roster's own roles (admin and assistant, `requireOrgScreen("roster")` above), and
+            for THIS club only: `MemberHistory` checks the id against the club's roster before using it. */}
+        <MemberHistory organizationId={organizationId} members={members} memberId={params.member} base="/roster" previewMode={await previewModeNow()} />
+      </SectionFold>
+    )}
     </>
   );
 }

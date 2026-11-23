@@ -2324,7 +2324,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" history={null} fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -2339,7 +2339,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" history={null} fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -2350,7 +2350,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" history={null} fieldLocked={null}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -6537,7 +6537,7 @@ describe("the roster and the tournament in front of it", () => {
   const roster = async (members: RosterRow[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" history={null} fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6587,7 +6587,7 @@ describe("members", () => {
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" history={null} fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };

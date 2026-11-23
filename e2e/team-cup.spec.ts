@@ -4,6 +4,8 @@ import { seedCup, teardownCup, PARS, CUP_EVENT } from "./cup-fixture.mjs";
 import { pressRadio } from "./press-radio";
 import { PrismaClient } from "@prisma/client";
 import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
+import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { PlayersPage } from "./console/players";
 
 /**
  * A TEAM CUP, PLAYED BY ITS PLAYERS — the Ryder Cup shape a golf trip runs,
@@ -646,4 +648,115 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   });
 
   expect(errors, `a screen threw in ${CUP_EVENT}`).toEqual([]);
+});
+
+// R6: the cup's two teams through the Players room's Cup teams tab, deleted at R17 with the old screen.
+test.describe("@redesign players", () => {
+  test("the cup's teams are made and filled on the Cup teams tab, and kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-cup-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Little Cup", {
+        stages: [{ type: "Team Session", format: "Four-Ball" }],
+        players: 4,
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Cup teams");
+      await expect(room.current()).toHaveText("Cup teams");
+      await page.getByLabel("First team").fill("Blues");
+      await page.getByLabel("Second team").fill("Whites");
+      await page.getByRole("button", { name: "Make the teams" }).click();
+      const flightsMade = () => rounds.group.findMany({ where: { eventId: event.id, stageId: null, isCarrier: false }, orderBy: { position: "asc" } });
+      await expect.poll(async () => (await flightsMade()).length, { message: "the two teams were not stored" }).toBe(2);
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
+      const blues = page.getByRole("group", { name: "Team Blues" });
+      await expect(blues, "the team made did not survive a reload").toBeVisible();
+      await blues.getByLabel("Add a player").selectOption({ index: 1 });
+      const bluesId = (await flightsMade()).find((g) => g.name === "Blues")!.id;
+      await expect
+        .poll(async () => rounds.player.count({ where: { eventId: event.id, groupId: bluesId } }), { message: "the player put on the team was not stored" })
+        .toBe(1);
+      const placed = await rounds.player.findFirstOrThrow({ where: { eventId: event.id, groupId: bluesId } });
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
+      await expect(page.getByRole("group", { name: "Team Blues" }), "the player was not on the team after a reload").toContainText(placed.name);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("in a cup, Entries sends an unplaced player to Cup teams, where they are put on a team and kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-cupentry-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event, players, flights } = await makeEvent(club, "Little Cup", {
+        stages: [{ type: "Team Session", format: "Four-Ball" }],
+        players: 4,
+        flights: 2,
+      });
+      // Set-up (not the thing under test): the last entrant is on no team yet.
+      const late = players[3];
+      await rounds.player.update({ where: { id: late.id }, data: { groupId: null } });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Entries");
+      const row = page.getByRole("row").filter({ hasText: late.name });
+      await expect(row, "an unplaced player in a cup is not told they have no team").toContainText("No team yet");
+      await expect(row.getByRole("combobox", { name: `Flight for ${late.name}` }), "Entries still offers a cup's team as a flight").toHaveCount(0);
+      await row.getByRole("link", { name: "Put them on one on Cup teams" }).click();
+      await expect(room.current(), "the link left the preview or the tab").toHaveText("Cup teams");
+      const team = page.getByRole("group", { name: "Team Flight A" });
+      await team.getByLabel("Add a player").selectOption(late.id);
+      await expect
+        .poll(async () => (await rounds.player.findUniqueOrThrow({ where: { id: late.id } })).groupId, { message: "the player put on the team was not stored" })
+        .toBe(flights[0].id);
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
+      await expect(page.getByRole("group", { name: "Team Flight A" }), "the player was not on the team after a reload").toContainText(late.name);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("after launch the Cup teams tab refuses in words on the team pressed, and its banner offers the correction", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop"].includes(testInfo.project.name), "one size: the refusal is the server's answer, the same at every width");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-cuplock-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event, players, flights } = await makeEvent(club, "Little Cup", {
+        stages: [{ type: "Team Session", format: "Four-Ball" }],
+        players: 4,
+        flights: 2,
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Cup teams");
+      const team = page.getByRole("group", { name: "Team Flight A" });
+      await expect(team).toContainText(players[0].name);
+      // Another tab launches the tournament after this screen was drawn.
+      await rounds.event.update({ where: { id: event.id }, data: { status: "live" } });
+      await team.getByRole("button", { name: `Take ${players[0].name} off Flight A` }).click();
+      const refused = team.getByText(/change the cup’s teams/);
+      await expect(refused, "the refusal was not said on the team that was pressed").toBeVisible({ timeout: 20_000 });
+      expect((await rounds.player.findUniqueOrThrow({ where: { id: players[0].id } })).groupId, "a launched cup's team was changed").toBe(flights[0].id);
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
+      await expect(page.getByText(/committee correction/i).first(), "the banner does not offer the correction").toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

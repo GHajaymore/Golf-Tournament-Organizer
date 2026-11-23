@@ -99,6 +99,8 @@ export function AccessClient({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("player");
   const [error, setError] = useState("");
+  /** The row a refusal belongs to: said in that row, beside the press, not above the table (a phone shows the row, not the head). */
+  const [errorRow, setErrorRow] = useState("");
   /** "Add account" refused — said beside it, not with the table's refusals. */
   const [addError, setAddError] = useState("");
   // The role change awaiting a second, deliberate press. Only ever one at a
@@ -131,6 +133,7 @@ export function AccessClient({
     startTransition(async () => {
       const result = await setAccountRole(accountId, next);
       if (!result.ok) {
+        setErrorRow(accountId);
         setError(result.error ?? "Something went wrong.");
         return;
       }
@@ -142,7 +145,10 @@ export function AccessClient({
     setError("");
     startTransition(async () => {
       const result = await removeAccount(accountId);
-      if (!result.ok) setError(result.error ?? "Something went wrong.");
+      if (!result.ok) {
+        setErrorRow(accountId);
+        setError(result.error ?? "Something went wrong.");
+      }
     });
   };
 
@@ -155,11 +161,6 @@ export function AccessClient({
           <b>{roleName("admin", organizer)}</b> — full control. <b>Assistant</b> — operational tasks (players, flights, rounds,
           scores), but not event setup, access, or deletion. <b>Player</b> — schedule, scores, leaderboard.
         </p>
-        {error && (
-          <p style={{ fontSize: 13, margin: "0 0 4px", color: "var(--color-danger)" }}>
-            <Icon name="warning-circle" /> {error}
-          </p>
-        )}
         <div className="table-scroll">
           <table className="table">
             <thead>
@@ -200,6 +201,12 @@ export function AccessClient({
                           onConfirm={commitRole}
                           onCancel={() => setConfirm(null)}
                         />
+                      )}
+                      {/* A refusal is said in the row of the press (a role change or a removal), where a phone is looking. */}
+                      {error && errorRow === a.id && (
+                        <p role="alert" style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }} ref={bringIntoView}>
+                          <Icon name="warning-circle" /> {error}
+                        </p>
                       )}
                     </td>
                     <td style={{ textAlign: "right" }}>

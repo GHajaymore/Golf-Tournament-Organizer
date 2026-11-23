@@ -8,13 +8,14 @@ import { STAGE_TYPE_INFO, stageTypeInfo, addRoundConsequence, isStructuralStage,
 import { Icon } from "@/components/Icon";
 import { useFormatting } from "@/components/CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { InfoOrFace } from "@/components/setup/InfoOrFace";
 
 /**
  * THE ROUND BUILDER, "Add a round" (R4, the move): what kind of round, how many, the format, the holes and the first day,
  * lifted from `StagesClient` so the redesigned Rounds screen draws the same builder. It owns its own state; the screen
  * hears of a new round through `onAdded`.
  */
-export function AddRoundPanel({ roundCount, onAdded }: { roundCount: number; onAdded: (stageId: string) => void }) {
+export function AddRoundPanel({ roundCount, onAdded, redesign }: { roundCount: number; onAdded: (stageId: string) => void; redesign: boolean }) {
   const { locale } = useFormatting();
 
   /**
@@ -149,11 +150,19 @@ export function AddRoundPanel({ roundCount, onAdded }: { roundCount: number; onA
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <div style={{ minWidth: 0 }}>
             <span className="card-title" style={{ fontSize: 15 }}>Add a round</span>
-            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+            <InfoOrFace
+              redesign={redesign}
+              label="adding a round"
+              face={(words) => (
+                <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+                  {words}
+                </p>
+              )}
+            >
               Sequence as many as you like. The <em>type</em> decides what gets drawn — pairings, a
               cut, or a bracket. How it&apos;s scored is the <em>format</em> on each round, chosen
               separately, so a Stableford or four-ball round is a round of one of these types.
-            </p>
+            </InfoOrFace>
           </div>
           {/* No way to shut it while there is nothing to shut it over: on an
               empty tournament this panel IS the screen, and a close button

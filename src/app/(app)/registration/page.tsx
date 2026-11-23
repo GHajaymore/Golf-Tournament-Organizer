@@ -35,6 +35,11 @@ import { fieldFactsFor } from "@/lib/services/field-change";
 import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, fieldLockSaid, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
 import { WithdrawnList } from "@/components/WithdrawnList";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
+import { playersRoomFor } from "@/lib/services/players-room";
+import { EntriesHowInCard } from "@/components/players/EntriesHowInCard";
+import { strandedEntrantCount } from "@/lib/services/round-codes";
+import { PLAYER_TABS, howInHome, playerTabHref, unplacedPlacedOn } from "@/lib/domain/players-tabs";
+import { PlayersTabs } from "@/components/players/PlayersTabs";
 
 export const metadata = screenMetadata("/registration");
 
@@ -45,6 +50,8 @@ function clubClock(at: Date, zone: string, locale: string): string {
 
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");
+  const room = await playersRoomFor(session);
+  const howIn = howInHome(room !== null);
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   // The machine's lock on the field (PR 5b) — the one the entry terms ask (`refuseIfLocked(…, "field")`);
@@ -173,6 +180,8 @@ export default async function RegistrationPage() {
   return (
     <>
       <SetupFlowRail flow={flow} href="/registration" />
+      {/* THE PLAYERS ROOM (R6): the tab strip, only while Players is shown; the page below is unchanged. */}
+      {room && <PlayersTabs tabs={room.tabs} active="entries" search={room.search} />}
       {/* Every door on this screen (the roster pick, a late entry, a CSV import, an approval) lands its
           player here, so the note is said here, after the write, for as long as it is true (lane N). */}
       <NeedsStrokesNote note={await needsStrokesNoteFor(session.eventId, session.viewRole === "admin" || session.viewRole === "assistant")} />
@@ -235,11 +244,23 @@ export default async function RegistrationPage() {
       underWay={underWay}
       flights={state.groups.map((g, i) => ({ id: g.id, label: flightLabel(g.name, i) }))}
       unplacedFlag={unplacedFlag}
+      // Where an unplaced player is put in a flight: here, except in a cup while Players is shown (`unplacedPlacedOn`).
+      placeUnplacedHere={fieldFacts ? unplacedPlacedOn(room !== null, fieldFacts.family) === "entries" : true}
+      cupTeamsHref={room ? playerTabHref(PLAYER_TABS.find((t) => t.key === "cup")!, room.search) : null}
       addFlight={fieldFacts ? addFlightPick(fieldFacts) : null}
       offerReserve={fieldFacts ? reserveOffered(fieldFacts) : false}
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
+      {/* HOW PLAYERS GET IN (R6, from R3-1): here while Players is shown (`howInHome`); the Event page stops drawing it by the same answer. */}
+      {howIn === "entries" && (
+        <EntriesHowInCard
+          settings={settingsOf(state.event)}
+          strandedCount={await strandedEntrantCount(session.eventId)}
+          askedWeekly={state.stages.length > 1 || settingsOf(state.event).attendanceMode !== "everyone"}
+          canEdit={session.viewRole === "admin"}
+        />
+      )}
       {/* THE COMMITTEE'S RULING (2026-10-08). Only once play has begun —
           there is nothing to be disqualified from before it — and outside the
           setup lock, since that is when the lock is on. */}

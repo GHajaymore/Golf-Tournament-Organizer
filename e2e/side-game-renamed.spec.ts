@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, centre, saidBeside } from "./rounds-fixture";
+import { consoleUrl } from "../src/lib/console-url";
 
 /**
  * A NAMED SIDE GAME, RENAMED — as the secretary renames it on Side games.
@@ -112,4 +113,45 @@ test("a crew's game is renamed with its pots and its people, and a clash with an
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+// R8a: with Prizes & side games shown, a crew's game is still renamed where the groups' games are kept (they move with Winners & money, R8b).
+test.describe("@redesign", () => {
+  test("a crew's game is renamed on Side games while the new Prizes screen is shown, and the name is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-r8a-sgr-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    const [FROM, TO] = ["Sunday Swindle", "Lunch Club"];
+    try {
+      const { event, stages, players } = await makeEvent(club, "Saturday Medal", { status: "live", stages: [{}], players: 6 });
+      const stageId = stages[0].id;
+      const skins = await prisma.skinsPot.create({ data: { eventId: event.id, stageId, groupKey: FROM, net: true, scope: "full", buyInCents: 500 } });
+      await prisma.skinsEntry.createMany({ data: players.slice(0, 3).map((p) => ({ potId: skins.id, playerId: p.id })) });
+      await signIn(context, baseURL!, club, event.id);
+      const potCard = (name: string) => page.locator(".card", { has: page.getByText(`${name} — Skins — net`, { exact: true }) }).last();
+      const open = async () => {
+        await page.goto(consoleUrl("/group-games", "build"));
+        await page.locator("h1").first().waitFor({ state: "visible", timeout: 30_000 });
+        expect(new URL(page.url()).pathname, "sent away from Side games — not signed in?").toBe("/group-games");
+      };
+      await open();
+      const card = potCard(FROM);
+      await expect(card, `Side games has no card for ${FROM}`).toBeVisible();
+      const rename = card.getByRole("button", { name: "Rename", exact: true });
+      await centre(rename);
+      await rename.click();
+      await card.locator(".field", { has: page.getByText("What to call it", { exact: true }) }).locator("input").fill(TO);
+      await card.getByRole("button", { name: "Save name", exact: true }).click();
+      await expect
+        .poll(async () => (await prisma.skinsPot.findUniqueOrThrow({ where: { id: skins.id } })).groupKey, { message: "the pot did not move to the new name" })
+        .toBe(TO);
+      await page.reload();
+      await expect(potCard(TO), "the new name is not on Side games after a reload").toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
