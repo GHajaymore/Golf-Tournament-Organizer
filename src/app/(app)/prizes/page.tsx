@@ -26,6 +26,11 @@ import { flightStandings } from "@/lib/services/me";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { SectionFold } from "@/components/teetimes/SectionFold";
+import { fieldGamesHome } from "@/lib/domain/money-parts";
+import { MONEY_MODE_LABEL } from "@/lib/domain/money-mode";
+import { isMatch } from "@/lib/tournament-shape";
 
 export const metadata = screenMetadata("/prizes");
 
@@ -271,22 +276,55 @@ export default async function PrizesPage({
   const moneyLock = await screenLocksFor(session.eventId, ["money"]);
   const moneyLocked = moneyLock.locks.length > 0;
 
+  /**
+   * THE REDESIGNED PRIZES & SIDE GAMES (R8a), drawn only while its key is shown (`screensShownFor`; "building", so only a
+   * `?stepper=1&build=1` preview off production). What is OFFERED, in one place: how money works first (folded to one line on a
+   * phone), then the prize table, then the field's pots and contests. The settle half (the season's skins, the kitty, the
+   * ledger) stays below until Winners & money is built (R8b), so no control is ever in neither place. Every control's part is
+   * `moneyPartOf`; the actions are unchanged.
+   */
+  const shown = await screensShownFor(session);
+  const newScreen = shown.has("prizes");
+  /** The field's pots and contests are mounted ONCE: here for a tournament, on `/group-games` for a casual round. */
+  const fieldGamesHere = fieldGamesHome({ casual: isMatch(state.event.shape) }) === "prizes";
+  const moneyAnswered = state.event.moneyMode !== "" || !!org?.moneyMode;
+  const moneySetup = isStaff ? (
+    <MoneySetup
+      mode="tournament"
+      eventMode={state.event.moneyMode}
+      orgMode={org?.moneyMode ?? ""}
+      orgKind={org?.kind ?? ""}
+      clubName={org?.shortName || org?.name || ""}
+      eventEntry={state.event.expenseEntry}
+      locked={moneyLocked}
+    />
+  ) : null;
+
   return (
     <>
       <SetupFlowRail flow={flow} href="/prizes" />
       {isStaff && <ScopeLockBanner locks={moneyLock.locks} correction={moneyLock.correction} isAdmin={session.viewRole === "admin"} />}
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 20 }} {...(newScreen ? { "data-prizes-screen": "" } : {})}>
         {/* "Set up" while the guide is still running, because that is what
             this screen is then: the last question before the tournament can
             be handed over. It goes back to being a results screen the moment
-            setup is finished. */}
-        <div className="page-kicker">{flow && !flow.complete ? "Set up" : "Results"}</div>
-        <h1 className="page-title">Prizes &amp; payouts</h1>
-        {/* One line, the rest an ⓘ away (2026-10-05). */}
-        <MoreInfo short="The prize list, the purse, and who won." style={{ marginTop: 6 }}>
-          Define the prize list and purse, then award winners. Flight winners, skins, closest-to-pin,
-          long drive and any specials.
-        </MoreInfo>
+            setup is finished. The redesigned screen is the offer half only,
+            so it is always "Set up" (step 3 §4.1). */}
+        <div className="page-kicker">{newScreen || (flow && !flow.complete) ? "Set up" : "Results"}</div>
+        <h1 className="page-title">{newScreen ? "Prizes & side games" : "Prizes & payouts"}</h1>
+        {newScreen ? (
+          <p className="page-sub" style={{ marginTop: 6 }}>
+            What is offered, before play: the prize list, pots and contests.{" "}
+            <strong>TourneyHQ works out and records who is owed what. It does not pay anyone.</strong>{" "}
+            {fieldGamesHere && <a href="#side-games">Side games</a>}
+          </p>
+        ) : (
+          /* One line, the rest an ⓘ away (2026-10-05). */
+          <MoreInfo short="The prize list, the purse, and who won." style={{ marginTop: 6 }}>
+            Define the prize list and purse, then award winners. Flight winners, skins, closest-to-pin,
+            long drive and any specials.
+          </MoreInfo>
+        )}
       </div>
       {/* Before any of the money, because it decides what all of it means —
           see the note on the component. The picker itself stays at the foot of
@@ -300,6 +338,19 @@ export default async function PrizesPage({
         clubName={org?.shortName || org?.name || ""}
         href={isStaff ? "#money-setup" : undefined}
       />
+      {/* FIRST, AND ONE LINE ON A PHONE (R8a): the answer decides what everything below means. Open until the first answer is
+          given; once it is, the fold says it ("Money: …") and the press is one tap away. A change of mode deletes nothing. */}
+      {newScreen && moneySetup && (
+        <SectionFold
+          id="money-setup"
+          title="How money works here"
+          state={`Money: ${MONEY_MODE_LABEL[moneyMode]}. A change keeps your prize list and side games.`}
+          needsYou={!moneyAnswered}
+          openOnPhone={!moneyAnswered}
+        >
+          {moneySetup}
+        </SectionFold>
+      )}
       <PrizesClient
         prizes={prizes.map((p) => ({
           id: p.id,
@@ -327,7 +378,8 @@ export default async function PrizesPage({
           Read off the seeded foursomes on 2026-09-20: skins, low gross, low
           net and the birdie pot all offered, with nothing saying why they
           could never settle. */}
-      {week && perPlayerPotRefusal(week.format) ? (
+      {newScreen && fieldGamesHere && <div id="side-games" style={{ scrollMarginTop: 16 }} />}
+      {fieldGamesHere && week && perPlayerPotRefusal(week.format) ? (
         <section className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title" style={{ fontSize: 14 }}>
             No pots on this round
@@ -345,6 +397,7 @@ export default async function PrizesPage({
           </p>
         </section>
       ) : (
+        fieldGamesHere &&
         week &&
         skinsGames.map((g) => (
           <SkinsPotClient
@@ -360,7 +413,7 @@ export default async function PrizesPage({
           a payout, and this is where a club comes to settle up. Per round,
           because closest-to-the-pin is a hole on a day rather than a
           tournament-wide setting. */}
-      {week && !perPlayerPotRefusal(week.format) && (
+      {fieldGamesHere && week && !perPlayerPotRefusal(week.format) && (
         <ContestsClient
           roundLabel={roundLabel(weeks, week.id)}
           stageId={week.id}
@@ -453,17 +506,10 @@ export default async function PrizesPage({
           missing is the other half — the screen never SAID which mode was in
           force until you had scrolled past everything it governs. That is
           `MoneyModeLine` at the top, and this is where it jumps to. */}
-      {isStaff && (
+      {/* Where the redesigned screen draws it is at the TOP, folded (above); the one boolean is `newScreen`. */}
+      {!newScreen && moneySetup && (
         <div id="money-setup" style={{ scrollMarginTop: 16 }}>
-        <MoneySetup
-          mode="tournament"
-          eventMode={state.event.moneyMode}
-          orgMode={org?.moneyMode ?? ""}
-          orgKind={org?.kind ?? ""}
-          clubName={org?.shortName || org?.name || ""}
-          eventEntry={state.event.expenseEntry}
-          locked={moneyLocked}
-        />
+          {moneySetup}
         </div>
       )}
       <SetupFlowFooter flow={flow} href="/prizes" />
