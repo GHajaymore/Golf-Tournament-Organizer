@@ -24,9 +24,9 @@ export const PRIZES_GUIDE: GuideVariant = {
           kind: "steps",
           items: [
             "**How money works here** comes first. Answer it once (follow the club, **Costs handled outside the app**, **Tournament kitty** or **Split shared costs**) and on a phone it folds to one line, such as **Money: Tournament kitty**, with the screen's own words saying a change keeps your prize list and side games. Pressing a choice deletes nothing.",
-            "Under **Prize list**, type a category and an amount and press [[Add]]. The purse at the top adds up the amounts. **One prize per player** is a tick on the same card: a player who wins one placing prize is set aside for the next.",
+            "On the **Add a prize** card, type a category and an amount and press [[Add]]. The **Prizes** card lists the lines and the purse at the top adds up the amounts. **One prize per player** is a tick on the **Prizes** card: a player who wins one placing prize is set aside for the next.",
             "Under each round's pots, set the buy-in and press [[Save]] to start a skins pot; **Add a game** offers a birdie pot, low gross or net, closest to the pin and the rest. A contest can name its sponsor, shown on the board with a thank-you.",
-            "A pot and a contest are per round, so the round is picked at the top. A round with one ball per side (foursomes) can hold no pot, and the screen says why instead of offering one.",
+            "A pot and a contest are per round, so the round is picked on the skins pot's card. A round with one ball per side (foursomes) can hold no pot, and the screen says why instead of offering one.",
           ],
         },
         {

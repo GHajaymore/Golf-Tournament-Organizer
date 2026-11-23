@@ -59,6 +59,28 @@ describe("every money control is in exactly one part", () => {
     }
   });
 
+  /** Every exported action of the money files, plus the prize actions of tournament.ts (the files `every-lock-scope-is-asked` classifies, without the cup). */
+  const moneyActions = (srcs: Record<string, string>): string[] => {
+    const out: string[] = [];
+    for (const f of ["contests.ts", "skins.ts", "side-games.ts", "money-setup.ts", "expenses.ts", "bet-name.ts"]) {
+      for (const m of (srcs[f] ?? "").matchAll(/export async function (\w+)\(/g)) out.push(m[1]);
+    }
+    for (const m of (srcs["tournament.ts"] ?? "").matchAll(/export async function (\w*Prize\w*)\(/g)) out.push(m[1]);
+    return out.filter((n) => n !== "setOrgMoneyMode");
+  };
+  const unplaced = (names: string[]) => names.filter((n) => !(OFFER_CONTROLS as readonly string[]).includes(n) && !(SETTLE_CONTROLS as readonly string[]).includes(n));
+
+  it("no money action is in NEITHER part (a new ledger action that asks no lock is placed too)", () => {
+    const names = moneyActions(sources);
+    expect(names.length, "no money actions found: this test is reading nothing").toBeGreaterThan(25);
+    expect(unplaced(names)).toEqual([]);
+  });
+
+  it("CONTROL: a planted money action nobody placed is found", () => {
+    const planted = { ...sources, "expenses.ts": `${sources["expenses.ts"]}\nexport async function zzPlantedLedgerAction() {}` };
+    expect(unplaced(moneyActions(planted))).toEqual(["zzPlantedLedgerAction"]);
+  });
+
   it("changing how money is handled deletes nothing (the line on Prizes says a change keeps the prize list and side games)", () => {
     const body = bodies().get("setEventMoneyMode")!;
     expect(body).toMatch(/prisma\.event\.update\(/);
