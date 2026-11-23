@@ -99,6 +99,40 @@ test("a double-tap on a score keeps it", async ({ page }) => {
 });
 
 /**
+ * A QUICK SECOND TAP DOES NOT SCORE THE NEXT HOLE (B117, 2026-11-23). The card
+ * moves on 160ms after a tap; a second tap at ~250ms landed on the NEXT hole's
+ * pad and scored a hole nobody played. Press, wait inside the settle window,
+ * press again, reload, and look: only the hole tapped is scored.
+ */
+test("a second tap just after the card moves on leaves the next hole unscored", async ({ page }) => {
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+  const scored = page.locator('[aria-label*=", complete"]');
+  const before = await scored.count();
+
+  const first = await page.getByRole("textbox", { name: /^Strokes on hole \d+$/ }).getAttribute("aria-label");
+  const n = Number(first!.replace(/\D+/g, ""));
+  await page.getByRole("button", { name: /^\d+\s*Par$/ }).first().click();
+  // Past the 160ms advance, inside the 400ms settle window.
+  await expect(page.getByRole("textbox", { name: `Strokes on hole ${n + 1}` })).toBeVisible();
+  await page.getByRole("button", { name: /^\d+\s*Par$/ }).first().click();
+  try {
+    await expect(scored).toHaveCount(before + 1);
+    // Let the save go out, then look at what the server kept.
+    await expect(page.getByText(/sent/i).first()).toBeVisible();
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(scored, "the second tap scored the next hole").toHaveCount(before + 1);
+    await expect(page.getByRole("button", { name: new RegExp(`^Hole ${n + 1},.*not scored`) })).toBeVisible();
+  } finally {
+    // Put the shared fixture back: clear hole n the deliberate way.
+    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
+    await page.getByRole("textbox", { name: `Strokes on hole ${n}` }).fill("");
+    await expect(scored).toHaveCount(before);
+  }
+});
+
+/**
  * A TWO-DIGIT SCORE TYPED AT A HUMAN PACE IS THAT SCORE (2026-10-09). "Other"
  * moved the card on at every keystroke, so a 10 typed as "1" … "0" recorded
  * an ACE on a par 4 and threw the "0" at the next hole — walked on a member's
