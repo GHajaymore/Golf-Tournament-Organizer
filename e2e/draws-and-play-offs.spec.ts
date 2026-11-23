@@ -17,6 +17,7 @@ import {
 } from "./rounds-fixture";
 import { RoundsScreen } from "./console/rounds";
 import { TeeTimesPage } from "./console/teeTimes";
+import { openScreen } from "./console";
 
 /**
  * THE MATCHES A COMMITTEE MAKES DURING A TOURNAMENT, made as the secretary
@@ -483,6 +484,136 @@ test.describe("@redesign a round robin's next draw on Tee times & draw", () => {
         (await screen.openSection("draw")).getByRole("button", { name: "Redraw Round 2's matches", exact: true }),
         "after a reload the draw section does not know it is drawn",
       ).toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+});
+
+/**
+ * @redesign: THE PLAY-OFF FOR THIRD PLACE, MADE ON TEE TIMES & DRAW (R9c). The play-off is a setting and a match of the
+ * knockout's own round. Rounds & formats hid it the moment the draw's door moved (R4d), so it is drawn on Tee times & draw
+ * for the bracket's round: the secretary switches it on, sees who plays (the two BEATEN semi-finalists, read from the
+ * fixture's semi-finals, never the two who go through), makes the match, and after a reload it is still switched on and
+ * says it is made. Rounds & formats draws no second copy. The rounds scope is opened by a committee correction, as the
+ * Rounds-side walk does (the blanket unlock is not read). One page, about 150 MB.
+ */
+test.describe("@redesign the play-off for third place on Tee times & draw", () => {
+  test("it is switched on and made on the bracket round's draw section, survives a reload, and Rounds holds no second copy", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("redesign-third", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      const { event, stages, players } = await makeEvent(club, "Club Knockout", {
+        status: "live",
+        stages: [{ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross" }],
+        players: 4,
+        event: KNOCKOUT,
+      });
+      await openCorrectionFor(prisma, event.id, "rounds");
+      const ko = stages[0];
+      // The semi-finals, played: the top seed through, and an upset (seed 3 beats seed 2). The beaten two are read from here.
+      await prisma.bracketWinner.createMany({
+        data: [
+          { eventId: event.id, key: "winners-0-0", winnerId: players[0].id, result: "3&2" },
+          { eventId: event.id, key: "winners-0-1", winnerId: players[2].id, result: "1 up" },
+        ],
+      });
+      const beaten = [players[3], players[1]];
+      await signIn(context, baseURL!, club, event.id);
+      const stored = () => prisma.stage.findUniqueOrThrow({ where: { id: ko.id } });
+      const playOffs = () => prisma.match.findMany({ where: { eventId: event.id, stageId: ko.id, round: 0 } });
+      expect((await stored()).thirdPlace, "CONTROL: the play-off is already switched on").toBe(false);
+
+      // Rounds & formats: the play-off for third is not drawn there while Tee times & draw builds the round.
+      const rounds = new RoundsScreen(page);
+      await rounds.open();
+      await expect(page.getByRole("checkbox", { name: /Play-off for third place/ }), "Rounds still draws the play-off for third").toHaveCount(0);
+
+      // Tee times & draw, the bracket round open: the switch, pressed.
+      const screen = new TeeTimesPage(page);
+      await screen.open(ko.id);
+      const third = (await screen.openSection("draw")).locator("[data-third-place]");
+      const box = third.getByRole("checkbox", { name: /Play-off for third place/ });
+      await centre(box);
+      await box.check();
+      await expect.poll(async () => (await stored()).thirdPlace, { message: "the play-off for third was not switched on" }).toBe(true);
+
+      // After a reload it is still on, and offers the match between the two beaten semi-finalists.
+      await page.reload();
+      const again = (await screen.openSection("draw")).locator("[data-third-place]");
+      await expect(again.getByRole("checkbox", { name: /Play-off for third place/ }), "the switch did not survive a reload").toBeChecked();
+      await expect(
+        again.locator("strong", { hasText: / v / }),
+        "the play-off is not offered between the two beaten semi-finalists",
+      ).toHaveText(new RegExp(`^(${beaten[0].name} v ${beaten[1].name}|${beaten[1].name} v ${beaten[0].name})$`));
+      const create = again.getByRole("button", { name: "Create the play-off", exact: true });
+      await centre(create);
+      await create.click();
+      await expect.poll(async () => (await playOffs()).length, { message: "the play-off was not made once" }).toBe(1);
+      const made = await playOffs();
+      expect([made[0].playerAId, made[0].playerBId].sort(), "the play-off is not between the two beaten semi-finalists").toEqual(beaten.map((p) => p.id).sort());
+
+      await page.reload();
+      await expect(
+        (await screen.openSection("draw")).locator("[data-third-place]").getByText(/The play-off is made/),
+        "after a reload the screen does not know the play-off is made",
+      ).toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+});
+
+/**
+ * @redesign: A KNOCKOUT'S PLAY-BY DATES, SET ON TEE TIMES & DRAW (R9c; phase 1 row 27). One date for each round of the
+ * bracket, the final last, saved with one press and said back; after a reload the boxes hold what was kept, and the Bracket
+ * says where the form went instead of drawing a second copy. A four-player knockout (a semi-final and a final) is read
+ * from the fixture; the rounds are found by the names the draw gives them ("Semi-finals", "Final"). One page, about 150 MB.
+ */
+test.describe("@redesign a knockout's play-by dates on Tee times & draw", () => {
+  test("the dates are saved on the bracket round's draw section, kept after a reload, and the Bracket draws no form", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("redesign-playby", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      const { event, stages } = await makeEvent(club, "Club Knockout", {
+        status: "live",
+        stages: [{ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross" }],
+        players: 4,
+        event: KNOCKOUT,
+      });
+      const ko = stages[0];
+      await signIn(context, baseURL!, club, event.id);
+      const kept = async () => (await prisma.stage.findUniqueOrThrow({ where: { id: ko.id } })).knockoutPlayBy;
+      expect(await kept(), "CONTROL: the knockout already has play-by dates").toBeFalsy();
+
+      const screen = new TeeTimesPage(page);
+      await screen.open(ko.id);
+      const form = (await screen.openSection("draw")).locator("section", { has: page.getByRole("heading", { name: "Play-by dates" }) });
+      await centre(form);
+      await form.getByLabel("Semi-finals", { exact: true }).fill("2031-06-07");
+      await form.getByLabel("Final", { exact: true }).fill("2031-06-14");
+      await form.getByRole("button", { name: "Save dates", exact: true }).click();
+      await expect(form.getByText("Saved", { exact: true }), "the form did not say the dates were saved").toBeVisible();
+      // Counted back from the final: 0 is the final, 1 the semi-finals.
+      await expect.poll(async () => JSON.parse((await kept()) || "{}"), { message: "the play-by dates were not stored" }).toEqual({ "0": "2031-06-14", "1": "2031-06-07" });
+
+      await page.reload();
+      const after = (await screen.openSection("draw")).locator("section", { has: page.getByRole("heading", { name: "Play-by dates" }) });
+      await expect(after.getByLabel("Final", { exact: true }), "the final's date did not survive a reload").toHaveValue("2031-06-14");
+      await expect(after.getByLabel("Semi-finals", { exact: true })).toHaveValue("2031-06-07");
+
+      // The Bracket points here instead of drawing a second form.
+      await openScreen(page, "/bracket");
+      await expect(page.locator("[data-knockout-setup-moved]")).toContainText("play-by dates");
+      await expect(page.getByRole("heading", { name: "Play-by dates" }), "the Bracket still draws the play-by form").toHaveCount(0);
     } finally {
       await dropClub(mark);
     }

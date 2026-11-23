@@ -1,8 +1,16 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
-import type { ThirdPlaceView } from "@/components/StagesClient";
 import type { EventState } from "./tournament";
+
+/** What `ThirdPlaceControl` is handed. Structurally `StagesClient`'s `ThirdPlaceView`, which it satisfies (named here so no service imports a component of the rounds area). */
+export interface ThirdPlaceFacts {
+  on: boolean;
+  problem: string;
+  aName: string;
+  bName: string;
+  made: boolean;
+}
 
 /**
  * THE PLAY-OFF FOR THIRD, AS ITS CONTROL IS HANDED IT (R9c): ONE reader for Rounds & formats and for Tee times & draw, so the
@@ -16,7 +24,7 @@ export async function thirdPlaceViewFor(
   eventId: string,
   stage: { id: string; thirdPlace: boolean },
   brackets: EventState["brackets"],
-): Promise<ThirdPlaceView> {
+): Promise<ThirdPlaceFacts> {
   const r = brackets.draws
     ? { problem: "A knockout in several flights has no play-off for third: each flight's beaten semi-finalists share third.", pairing: null }
     : resolveThirdPlace(brackets.winners);
