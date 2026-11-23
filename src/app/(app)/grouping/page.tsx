@@ -22,11 +22,15 @@ import { lockFactsFor } from "@/lib/services/tournament-facts";
 import { tournamentFamily } from "@/lib/domain/tournament-status";
 import { flagsUnplaced, unplacedWords } from "@/lib/domain/field-change";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
+import { playersRoomFor } from "@/lib/services/players-room";
+import { PLAYER_TABS, playerTabHref } from "@/lib/domain/players-tabs";
+import { PlayersTabs } from "@/components/players/PlayersTabs";
 
 export const metadata = screenMetadata("/grouping");
 
 export default async function GroupingPage() {
   const session = await requireScreen("grouping");
+  const room = await playersRoomFor(session);
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   /**
@@ -106,6 +110,8 @@ export default async function GroupingPage() {
   return (
     <>
       <SetupFlowRail flow={flow} href="/grouping" />
+      {/* THE PLAYERS ROOM (R6): the tab strip, only while Players is shown; the page below is unchanged. */}
+      {room && <PlayersTabs tabs={room.tabs} active="flights" search={room.search} />}
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 className="page-title">Flights</h1>
@@ -120,7 +126,7 @@ export default async function GroupingPage() {
         <p className="card elev-sm" style={{ margin: "0 0 14px", fontSize: 13, lineHeight: 1.5 }} data-testid="unplaced-flag">
           <span>
             <Icon name="warning" /> {unplacedFlag}{" "}
-            <Link href="/registration">Choose a flight beside their name on Entries</Link>
+            <Link href={room ? playerTabHref(PLAYER_TABS.find((t) => t.key === "entries")!, room.search) : "/registration"}>Choose a flight beside their name on Entries</Link>
           </span>
         </p>
       )}

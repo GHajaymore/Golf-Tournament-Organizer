@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import * as rf from "./rounds-fixture";
+import { PrizesScreen } from "./console/prizes";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -134,4 +136,43 @@ test("one prize per player: ticked, the net refused to the gross winner beside t
   await expect(counts, "the switch shows a value the server refused").not.toBeChecked();
 
   expect(errors, "the prizes screen threw").toEqual([]);
+});
+
+// R8a: the one-prize rule ticked and a prize awarded on the redesigned Prizes & side games, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  // Their own club and event: the fixture's prize list is the test above's.
+  test.use({ storageState: { cookies: [], origins: [] } });
+  const WALKED = ["desktop", "phone"];
+
+  test("one prize per player is ticked and a placing prize awarded on the new screen, and both are kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-r8a-oneprize-${testInfo.project.name}`;
+    const club = await rf.makeClub(mark);
+    try {
+      const { event, players } = await rf.makeEvent(club, "Spring Medal", { stages: [{}], players: 4 });
+      const best = `${mark} Best gross`;
+      await rf.prisma.prize.create({ data: { eventId: event.id, category: best, position: 1, countsForOnePrize: true } });
+      await rf.signIn(context, baseURL!, club, event.id);
+      const screen = new PrizesScreen(page);
+      await screen.open();
+      await page.getByLabel("One prize per player", { exact: true }).check();
+      await expect
+        .poll(async () => (await rf.prisma.event.findUniqueOrThrow({ where: { id: event.id } })).onePrizePerPlayer, { timeout: 20_000, message: "the box was not stored" })
+        .toBe(true);
+      const winner = players[1].id;
+      await screen.winnerOf(best).selectOption(winner);
+      await expect
+        .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: best } })).winnerId, { timeout: 20_000, message: "the award was not recorded" })
+        .toBe(winner);
+      await page.reload();
+      await expect(page.getByLabel("One prize per player", { exact: true }), "the rule did not survive a reload").toBeChecked();
+      await expect(screen.winnerOf(best), "the winner is not on the new screen after a reload").toHaveValue(winner);
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
