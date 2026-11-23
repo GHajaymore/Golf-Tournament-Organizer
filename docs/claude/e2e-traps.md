@@ -263,3 +263,7 @@ writes and look again after (`redesign-specs-press.test.ts`).
 ## A test that crosses the club's midnight
 
 A spec that opens a committee correction (`makeCommitteeCorrection`) near the club's midnight loses it: the real action ends it at `endOfClubDay`, and CI's club has no zone, so that is 00:00 UTC. The rounds lock came back mid-test (PR 1202, `team-allowance.spec.ts`: Save on "Scores that count" read disabled for 300 s). `makeCommitteeCorrection` now pushes any zz correction with under 10 minutes left out by 6 h (`correctionEndKeptOpen`); a spec that writes its own correction uses `openCorrectionFor`. Held by `fixture-correction-crosses-midnight.test.ts`.
+
+## Never `networkidle`
+
+Never `page.waitForLoadState("networkidle")`: the service worker (sw.js) keeps the network busy, so it never settles (four CI failures on 23 Nov 2026). Wait on a visible element or `expect(page).toHaveURL(...)`. Held by `no-networkidle.test.ts`: none in a `@redesign` block, and a ratchet (`NETWORKIDLE_CAP`) on the rest.
