@@ -145,12 +145,12 @@ test("the organizer opens the conclusion from Reports; the public link names win
 
 /**
  * @redesign: THE STORY, WRITTEN FROM THE REDESIGNED RESULTS, IS KEPT (R12). The organizer opens Results on its building address,
- * where the one verb for releasing is drawn (the fixture's tournament is finished, so the card says the results are released
+ * where the one verb for releasing is drawn (the fixture's tournament is finished, so the card says the results are final
  * and offers no verb), follows the report link, writes The story, presses Save the story, and after a RELOAD the story is
  * still there; the results' own story is then put back. Read from the fixture: `seeded.organizer`. Memory: one page, about 150 MB.
  */
 test.describe("@redesign the story is written from Results and kept", () => {
-  test("Results says the results are released; the story saved from the report survives a reload", async ({ page, baseURL }) => {
+  test("Results says the results are final; the story saved from the report survives a reload", async ({ page, baseURL }) => {
     test.setTimeout(150_000);
     const errors: string[] = [];
     watchPageErrors(page, errors);
@@ -167,12 +167,12 @@ test.describe("@redesign the story is written from Results and kept", () => {
 
     await page.getByRole("link", { name: "Open the final report", exact: true }).click();
     await page.waitForURL(/\/reports\/final$/);
-    await page.getByLabel("The story", { exact: true }).fill(STORY);
+    await page.locator("#report-recap").fill(STORY);
     await page.getByRole("button", { name: "Save the story" }).click();
     await expect(page.getByText("Story saved.")).toBeVisible({ timeout: 20_000 });
 
     await page.reload();
-    await expect(page.getByLabel("The story", { exact: true }), "the story is not kept after a reload").toHaveValue(STORY);
+    await expect(page.locator("#report-recap"), "the story is not kept after a reload").toHaveValue(STORY);
 
     // Put back: the report tells the story from the results again.
     await page.getByRole("button", { name: /Use the results.{1,2} story/ }).click();

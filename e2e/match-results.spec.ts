@@ -325,7 +325,7 @@ test("the organizer reopens an approved card and clears one player's scores, and
 /**
  * @redesign: A MATCH RESULT TYPED ON THE REDESIGNED SCORE ENTRY IS KEPT, AND "PLAYED AT" IS NOT ASKED FOR A FIXED COURSE (R12).
  * The same Final-result-only press as above, `3&2`, on the building address; after a RELOAD the match still reads Pending
- * confirmation. The club has one other course in its library, so the OLD screen offers "Played at" for the match (the control:
+ * confirmation. The event has one course with a card (a fixed course) and the club has one other course in its library, so the OLD screen offers "Played at" for the match (the control:
  * opened without the preview it is there), and the redesigned one, for a fixed-course event, does not. Its own club, event and
  * match, marked `zz-match-results-rd` and removed after. Memory: one signed-in page, about 150 MB.
  */
@@ -347,6 +347,12 @@ test.describe("@redesign a match result on Score entry, and Played at only for a
       },
     });
     rd.event = event.id;
+    // The event's one course, with a card: a FIXED course. (With no course at all the round is told it has nowhere to score
+    // against, and asks where on every screen: that is a different case, kept on purpose.)
+    const home = await prisma.course.create({
+      data: { organizationId: org.id, name: `${RD} Home Links`, city: "", pars: JSON.stringify(new Array(18).fill(4)), yards: JSON.stringify(new Array(18).fill(380)), strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)) },
+    });
+    await prisma.eventCourse.create({ data: { eventId: event.id, courseId: home.id } });
     const stage = await prisma.stage.create({
       data: { eventId: event.id, position: 0, type: "Round Robin", format: "Match Play", description: "Group stage", scoringBasis: "gross", holes: 18 },
     });
