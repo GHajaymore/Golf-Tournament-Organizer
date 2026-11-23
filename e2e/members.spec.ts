@@ -299,8 +299,6 @@ test.describe("@redesign", () => {
     const stranger = await browser.newContext({ ...device, baseURL, storageState: undefined });
     try {
       const { event } = await makeEvent(theirs, "Spring Medal", { stages: [{}], players: 0 });
-      // Set-up: a club with somebody already on its list, as the screen is used (the add below is the press).
-      await prisma.member.create({ data: { organizationId: theirs.orgId, name: "Cal Existing", email: `${mark}-cal@example.invalid`, handicap: 20 } });
       await signIn(desk, baseURL!, theirs, event.id);
       const page = await desk.newPage();
       watchPageErrors(page, errors, "commissioner");
@@ -310,6 +308,8 @@ test.describe("@redesign", () => {
 
       // ── adds her on Members; kept after a reload ──────────────────────────
       await openMembers(page);
+      // A new club's first look at Members: an EMPTY list, with the history fold drawn under it.
+      await expect(page.getByText(/No members yet/), "the empty list is not said").toBeVisible();
       await page.getByRole("button", { name: "Add member" }).click();
       await page.getByLabel("Name", { exact: true }).fill(name);
       await page.getByLabel("Handicap index").fill("12.4");
@@ -317,7 +317,7 @@ test.describe("@redesign", () => {
       await page.getByRole("button", { name: "Add member" }).click();
       await expect.poll(async () => (await stored())?.name, { timeout: 20_000, message: "the member was not added" }).toBe(name);
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.getByRole("heading", { level: 1, name: "Members" }).waitFor({ state: "visible" });
       await expect(page.locator("tbody tr").filter({ hasText: name }).first(), "the member is not listed after a reload").toBeVisible();
 
       // ── her history opens under the list, on the same screen ──────────────
@@ -331,7 +331,7 @@ test.describe("@redesign", () => {
       const member = await stored();
       await prisma.player.create({ data: { eventId: event.id, name, email, handicap: 12.4, seed: 1, status: "confirmed", memberId: member!.id } });
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.getByRole("heading", { level: 1, name: "Members" }).waitFor({ state: "visible" });
       history = await openHistory(page);
       await expect(history.locator("tbody tr").filter({ hasText: `${mark} Spring Medal` }), "her tournament is not in her history after a reload").toContainText("Played");
 
@@ -341,7 +341,7 @@ test.describe("@redesign", () => {
       const away = await stranger.newPage();
       watchPageErrors(away, errors, "player");
       await away.goto(consoleUrl(`/roster?member=${member!.id}`, "build"));
-      await away.waitForLoadState("networkidle").catch(() => {});
+      await away.locator("h1").first().waitFor({ state: "visible" });
       expect(new URL(away.url()).pathname, "a player was let into the club's members").not.toBe("/roster");
       expect(await away.content(), "a member's name was sent to a player").not.toContain(name);
 
@@ -383,17 +383,17 @@ test.describe("@redesign", () => {
       await expect(history.locator("tbody tr").filter({ hasText: `${mark} Autumn Medal` })).toContainText("Played");
 
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.getByRole("heading", { level: 1, name: "Members" }).waitFor({ state: "visible" });
       history = await openHistory(page);
       await expect(history.locator("tbody tr").filter({ hasText: `${mark} Autumn Medal` }), "her history is not read after a reload").toContainText("Played");
 
       // The old address sends a person to the same place, the preview kept.
       await page.goto(consoleUrl(`/member?member=${member.id}`, "build"));
-      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.getByRole("heading", { level: 1, name: "Member history" }).waitFor({ state: "visible" });
       // The old address still opens (as every old door does) and leads, keeping the member and the preview.
       expect(new URL(page.url()).pathname, "/member stopped opening").toBe("/member");
       await page.locator("main").getByRole("link", { name: "Members", exact: true }).click();
-      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.getByRole("heading", { level: 1, name: "Members" }).waitFor({ state: "visible" });
       expect(new URL(page.url()).pathname, "the link did not lead to Members").toBe("/roster");
       history = await openHistory(page);
       await expect(history.locator("tbody tr").filter({ hasText: `${mark} Autumn Medal` }), "/member did not open her history").toContainText("Played");

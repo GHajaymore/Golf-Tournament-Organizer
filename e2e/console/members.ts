@@ -13,7 +13,7 @@ export const MEMBERS_PATH = SCREENS_BUILT.members ?? "/roster";
 export async function openMembers(page: Page, memberId?: string): Promise<void> {
   const path = memberId ? `${MEMBERS_PATH}?member=${encodeURIComponent(memberId)}` : MEMBERS_PATH;
   await page.goto(consoleUrl(path, "build"));
-  await page.waitForLoadState("networkidle").catch(() => {});
+  // No networkidle: a page can draw whole and never go quiet (menu prefetches), and a wait on quiet hid the line that hung.
   // Bounded, and it names where the page is when the heading never comes (a test timeout says only "closed").
   await page
     .getByRole("heading", { level: 1, name: "Members" })
