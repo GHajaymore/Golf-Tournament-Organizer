@@ -415,7 +415,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: cat } })).winnerId, { timeout: 20_000, message: "awarding a prize was refused on a completed tournament (the ledger is not locked)" })
         .toBe(players[0].id);
-      await savedBeforeReload(page.locator("[data-money-screen]"));
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(money.winnerOf(cat), "the award is not on Winners & money after a reload").toHaveValue(players[0].id);
 

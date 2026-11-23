@@ -6,7 +6,7 @@ import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
 import { MoneyScreen } from "./console/money";
-import { savedBeforeReload } from "./save-settled";
+import { savedBeforeReload, prizesCard } from "./save-settled";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -173,7 +173,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: best } })).winnerId, { timeout: 20_000, message: "the award was not recorded" })
         .toBe(winner);
-      await savedBeforeReload(page.locator("[data-money-screen]"));
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(money.winnerOf(best), "the winner is not on Winners & money after a reload").toHaveValue(winner);
       await screen.open();

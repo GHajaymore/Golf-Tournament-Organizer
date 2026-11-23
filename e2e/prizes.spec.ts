@@ -175,7 +175,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.winnerId, { timeout: 20_000, message: "the award was not recorded" })
         .toBe(winner);
-      await savedBeforeReload(page.locator("[data-money-screen]"));
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(money.winnerOf(cat), "the winner is not on Winners & money after a reload").toHaveValue(winner!);
     } finally {
