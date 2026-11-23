@@ -7,7 +7,7 @@ import { consoleUrl, type ConsoleMode } from "@/lib/console-url";
 import { DRAW_SECTION_TITLES, type DrawSectionKey } from "@/lib/domain/draw-sections";
 import type { FindPlayer, FindRound } from "@/lib/domain/find-a-player";
 import { FindAPlayer } from "./FindAPlayer";
-import { SectionFold } from "./SectionFold";
+import { SectionFold } from "@/components/setup/SectionFold";
 
 /**
  * TEE TIMES & DRAW, the redesigned screen for a stroke or Stableford round (R9a; step 3 §2.2).
