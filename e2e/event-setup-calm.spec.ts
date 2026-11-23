@@ -69,7 +69,8 @@ test.afterAll(async () => {
 // R3: Event as what, when and where, with ONE Save. Deleted at R17 with the old screen.
 test.describe("@redesign", () => {
   // Its own club: the shared fixture is the launched tournament everybody else reads, and this one is renamed.
-  test.use({ storageState: { cookies: [], origins: [] } });
+  // Service workers are blocked: on WebKit one makes the fetches itself, and the partial-failure test stubs a request.
+  test.use({ storageState: { cookies: [], origins: [] }, serviceWorkers: "block" });
   test.describe.configure({ timeout: 150_000 });
 
   test("the name and the last day are kept by ONE Save, and the dates still save after launch", async ({ page, context, baseURL }, testInfo) => {
@@ -184,6 +185,70 @@ test.describe("@redesign", () => {
       await page.locator("[data-event-screen]").waitFor({ state: "visible" });
       await expect(screen.section("where")).toContainText("The players arrange their own course");
       expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).courseMode).toBe("open");
+    } finally {
+      await dropClub(mark).catch(() => {});
+    }
+  });
+
+  test("a tee save that does not reach the server says what was kept, and Save finishes the rest", async ({ page, context, baseURL }, testInfo) => {
+    const mark = `zz-evt-partial-${testInfo.project.name.replace(/[^a-z]/gi, "").toLowerCase()}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", {
+        stages: [{ playedOn: "2099-06-12" }],
+        event: { startOn: "2099-06-12", endOn: "2099-06-12", dates: "Jun 12, 2099" },
+      });
+      const course = await prisma.course.create({
+        data: {
+          organizationId: club.orgId,
+          name: `${mark} Hollins Moss`,
+          pars: JSON.stringify(new Array(18).fill(4)),
+          strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+          yards: JSON.stringify(new Array(18).fill(380)),
+        },
+      });
+      const tee = await prisma.tee.create({ data: { courseId: course.id, name: "White", gender: "any", courseRating: 69.8, slopeRating: 120, par: 72 } });
+      await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
+      await prisma.event.update({ where: { id: event.id }, data: { courseId: course.id, course: course.name } });
+      await signIn(context, baseURL!, club, event.id);
+
+      // Count the page's own server-action presses (POSTs carrying Next-Action).
+      let presses = 0;
+      page.on("request", (req) => {
+        if (req.method() === "POST" && req.headers()["next-action"]) presses++;
+      });
+      const screen = new EventScreen(page);
+      await screen.open();
+
+      // Two steps in the plan: the details (a new name) and the tees.
+      await screen.nameInput().fill(`${mark} Renamed Medal`);
+      await screen.teeSelect().selectOption(tee.id);
+
+      // The first press goes through, the second never reaches the server.
+      let seen = 0;
+      await page.route("**/event**", async (route) => {
+        const req = route.request();
+        if (req.method() === "POST" && req.headers()["next-action"] && ++seen === 2) await route.abort();
+        else await route.continue();
+      });
+      await screen.save().click();
+      await expect(screen.refusal(/The details were saved\. The tees were not/), "the screen did not say what was kept").toBeVisible();
+      await expect(screen.save(), "Save is not lit for the part that is left").toBeEnabled();
+      const half = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
+      expect(half.name, "the half that landed did not").toBe(`${mark} Renamed Medal`);
+      expect(half.defaultTeeId, "the tees were kept though the call never arrived").toBeNull();
+
+      // Retry with the route gone: exactly ONE more press, the tees alone, and Save settles.
+      await page.unroute("**/event**");
+      const before = presses;
+      await screen.saveAndWait();
+      expect(presses - before, "the retry sent more than what was left").toBe(1);
+
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.nameInput()).toHaveValue(`${mark} Renamed Medal`);
+      await expect(screen.teeSelect()).toHaveValue(tee.id);
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId).toBe(tee.id);
     } finally {
       await dropClub(mark).catch(() => {});
     }
