@@ -51,7 +51,7 @@ export const KNOWN_READ_ONLY: readonly string[] = [
 export const KNOWN_READ_ONLY_CAP = 14;
 
 /** The least number of `@redesign` blocks there are today (35 with R4d, R6, R8a, R8b and R7's four; R3 is still to come). Raise it as screens land, never lower it. */
-export const MIN_BLOCKS = 35;
+export const MIN_BLOCKS = 42;
 
 const WRITE_PRESS = /\.(click|fill|check|selectOption|press)\(/;
 const NOT_A_WRITE = /getByRole\(\s*["']link["']|openSection\(|openFold\(|sectionLine\(|aria-expanded|\.locator\(\s*["']a\b/;
