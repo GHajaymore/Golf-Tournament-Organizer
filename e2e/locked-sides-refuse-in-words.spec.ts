@@ -239,7 +239,8 @@ test.describe("@redesign players", () => {
       await expect(refused, "the locked refusal was not said in words").toBeVisible({ timeout: 20_000 });
       await expect(refused).toBeInViewport();
       expect(await rounds.team.count({ where: { eventId: event.id, name: "Zz Late Side" } }), "a locked tournament's side was made").toBe(0);
-      await room.open("Teams");
+      await page.reload();
+      await expect(room.current()).toHaveText("Teams");
       await expect(page.getByText(/committee correction/i).first(), "the banner does not offer the correction").toBeVisible();
     } finally {
       await dropClub(mark);

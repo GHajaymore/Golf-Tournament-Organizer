@@ -672,7 +672,8 @@ test.describe("@redesign players", () => {
       await page.getByRole("button", { name: "Make the teams" }).click();
       const flightsMade = () => rounds.group.findMany({ where: { eventId: event.id, stageId: null, isCarrier: false }, orderBy: { position: "asc" } });
       await expect.poll(async () => (await flightsMade()).length, { message: "the two teams were not stored" }).toBe(2);
-      await room.open("Cup teams");
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
       const blues = page.getByRole("group", { name: "Team Blues" });
       await expect(blues, "the team made did not survive a reload").toBeVisible();
       await blues.getByLabel("Add a player").selectOption({ index: 1 });
@@ -681,8 +682,46 @@ test.describe("@redesign players", () => {
         .poll(async () => rounds.player.count({ where: { eventId: event.id, groupId: bluesId } }), { message: "the player put on the team was not stored" })
         .toBe(1);
       const placed = await rounds.player.findFirstOrThrow({ where: { eventId: event.id, groupId: bluesId } });
-      await room.open("Cup teams");
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
       await expect(page.getByRole("group", { name: "Team Blues" }), "the player was not on the team after a reload").toContainText(placed.name);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("in a cup, Entries sends an unplaced player to Cup teams, where they are put on a team and kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-cupentry-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event, players, flights } = await makeEvent(club, "Little Cup", {
+        stages: [{ type: "Team Session", format: "Four-Ball" }],
+        players: 4,
+        flights: 2,
+      });
+      // Set-up (not the thing under test): the last entrant is on no team yet.
+      const late = players[3];
+      await rounds.player.update({ where: { id: late.id }, data: { groupId: null } });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Entries");
+      const row = page.getByRole("row").filter({ hasText: late.name });
+      await expect(row, "an unplaced player in a cup is not told they have no team").toContainText("No team yet");
+      await expect(row.getByRole("combobox", { name: `Flight for ${late.name}` }), "Entries still offers a cup's team as a flight").toHaveCount(0);
+      await row.getByRole("link", { name: "Put them on one on Cup teams" }).click();
+      await expect(room.current(), "the link left the preview or the tab").toHaveText("Cup teams");
+      const team = page.getByRole("group", { name: "Team Flight A" });
+      await team.getByLabel("Add a player").selectOption(late.id);
+      await expect
+        .poll(async () => (await rounds.player.findUniqueOrThrow({ where: { id: late.id } })).groupId, { message: "the player put on the team was not stored" })
+        .toBe(flights[0].id);
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
+      await expect(page.getByRole("group", { name: "Team Flight A" }), "the player was not on the team after a reload").toContainText(late.name);
     } finally {
       await dropClub(mark);
     }
@@ -712,7 +751,8 @@ test.describe("@redesign players", () => {
       const refused = team.getByText(/change the cup’s teams/);
       await expect(refused, "the refusal was not said on the team that was pressed").toBeVisible({ timeout: 20_000 });
       expect((await rounds.player.findUniqueOrThrow({ where: { id: players[0].id } })).groupId, "a launched cup's team was changed").toBe(flights[0].id);
-      await room.open("Cup teams");
+      await page.reload();
+      await expect(room.current()).toHaveText("Cup teams");
       await expect(page.getByText(/committee correction/i).first(), "the banner does not offer the correction").toBeVisible();
     } finally {
       await dropClub(mark);

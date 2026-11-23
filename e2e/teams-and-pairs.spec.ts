@@ -172,14 +172,16 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Slicers" } }), { message: "the side made was not stored" })
         .toBe(1);
-      await room.open("Teams");
+      await page.reload();
+      await expect(room.current()).toHaveText("Teams");
       const name = page.getByRole("textbox", { name: "Name of Slicers" });
       await name.fill("Faders");
       await name.press("Enter");
       await expect
         .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Faders" } }), { message: "the new name was not stored" })
         .toBe(1);
-      await room.open("Teams");
+      await page.reload();
+      await expect(room.current()).toHaveText("Teams");
       await expect(page.getByRole("textbox", { name: "Name of Faders" }), "the side lost its name after a reload").toHaveValue("Faders");
     } finally {
       await dropClub(mark);

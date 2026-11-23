@@ -212,7 +212,8 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => prisma.player.count({ where: { eventId: event.id, name: "Wren Ashby" } }), { message: "the player added was not stored" })
         .toBe(1);
-      await room.open("Entries");
+      await page.reload();
+      await expect(room.current()).toHaveText("Entries");
       await expect(page.getByText("Wren Ashby").first(), "the player did not survive a reload").toBeVisible();
     } finally {
       await dropClub(mark);
