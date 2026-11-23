@@ -24,17 +24,17 @@ export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
   home: null,
   event: null,
   rounds: "/stages",
-  players: null,
-  prizes: null,
+  players: "/registration",
+  prizes: "/prizes",
   teeTimes: "/foursomes",
   scoreEntry: null,
   leaderboard: null,
   results: null,
   money: null,
   events: null,
-  members: null,
+  members: "/roster",
   courses: "/courses",
-  clubSettings: null,
+  clubSettings: "/organization",
 };
 
 /** The built screens' paths, in key order. */

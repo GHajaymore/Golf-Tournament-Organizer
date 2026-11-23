@@ -23,6 +23,7 @@ export function RoundSingleMatch({ ctx }: { ctx: RoundCtx }) {
               rounds={singleMatch.rounds}
               players={singleMatch.players}
               locked={locked}
+              redesign={ctx.redesign}
             />
           </div>
         )}

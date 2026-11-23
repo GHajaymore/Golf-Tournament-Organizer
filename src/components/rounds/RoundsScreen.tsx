@@ -9,7 +9,8 @@ import { LockedOnce } from "@/components/setup/LockedOnce";
 import { roundLabel } from "@/lib/domain/round-label";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { chainIssues, issuesForRound } from "@/lib/format-chain";
-import { isKnockoutRound, isPlayingRound, nextPlayingStage, seededFromQualifiers } from "@/lib/stage-types";
+import { isKnockoutRound, isPlayingRound, nextPlayingStage } from "@/lib/stage-types";
+import { drawControlsOf } from "@/lib/domain/draw-sections";
 import { shortDate } from "@/lib/domain/round-dates";
 import type { RoundRing } from "@/lib/domain/round-ring";
 import type { Mark } from "@/lib/domain/setup-field";
@@ -17,6 +18,7 @@ import type { ScreenKey } from "@/lib/domain/console-merges";
 import type { RoundStepView } from "@/lib/domain/timeline-step";
 import type { CorrectionFacts, ScopeLock } from "@/lib/domain/tournament-status";
 import { AddRoundPanel } from "@/components/rounds/AddRoundPanel";
+import { CupSettings, type CupSettingsView } from "@/components/rounds/CupSettings";
 import { BetweenRounds } from "@/components/rounds/BetweenRounds";
 import { DrawRound } from "@/components/rounds/DrawRound";
 import { RemoveWarning } from "@/components/rounds/RemoveWarning";
@@ -67,6 +69,8 @@ export interface RoundsScreenExtras {
   shown: ScreenKey[];
   /** Where Round n's draw is made when Tee times & draw is shown (`relocate`), else "/stages". */
   drawHref: Record<string, string>;
+  /** The cup's points to win and holder (a team cup's two teams and its settings); null for any other event. */
+  cup: CupSettingsView | null;
 }
 
 export type RoundsScreenProps = React.ComponentProps<typeof StagesClient> & RoundsScreenExtras;
@@ -103,6 +107,7 @@ export function RoundsScreen(p: RoundsScreenProps) {
                     settings={p.eventScoring}
                     canChange={p.lock.isAdmin && !completed}
                   />
+                  {p.cup && <CupSettings cup={p.cup} locks={p.lock.locks} />}
                   {stages.map((s, i) => {
                     const card: RoundCardProps = {
                       stage: s,
@@ -121,6 +126,7 @@ export function RoundsScreen(p: RoundsScreenProps) {
                       homeVenue: p.homeVenue ?? "",
                       chainWarnings: issuesForRound(chain, s.position).map((w) => w.message),
                       chainsRounds,
+                      redesign: true,
                       expanded: true,
                       onToggle: () => undefined,
                       singleMatch: p.singleMatches?.[s.id] ?? null,
@@ -149,7 +155,7 @@ export function RoundsScreen(p: RoundsScreenProps) {
                 </>
               )}
             </LockedOnce>
-            {!completed && <AddRoundPanel roundCount={stages.length} onAdded={(id) => setJustAdded(id)} />}
+            {!completed && <AddRoundPanel redesign roundCount={stages.length} onAdded={(id) => setJustAdded(id)} />}
           </div>
         </SetupLocked.Provider>
       </Launched.Provider>
@@ -246,7 +252,7 @@ function RoundView({
           )}
 
           {/* WHERE A CONTROL THAT LEAVES THIS SCREEN STAYS UNTIL ITS ROOM IS SHOWN: one boolean decides, never two copies, never neither. */}
-          {!completed && launched && !isFirst && !seededFromQualifiers(stage.type) &&
+          {drawControlsOf(stage, { launched, isFirst, completed }).nextRound &&
             (drawMoved ? (
               <Link href={drawHref} style={{ color: "var(--color-accent-200)", minHeight: 44, display: "inline-flex", alignItems: "center" }}>
                 Draw {label}&apos;s matches
