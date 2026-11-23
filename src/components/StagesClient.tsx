@@ -1013,6 +1013,7 @@ export function StagesClient({
             sharedWithAll={shared}
             arrangement={arrangement}
             asPanel={timeline}
+            redesign={false}
             facts={timeline ? roundFacts?.[s.id] ?? null : null}
             roundStep={timeline ? courseDay?.rounds[s.id] ?? null : null}
             playingCount={playing.length}
@@ -1063,7 +1064,7 @@ export function StagesClient({
         </div>
       )}
 
-      <AddRoundPanel roundCount={stages.length} onAdded={(id) => { setOpenRound(id); setJustAdded(id); }} />
+      <AddRoundPanel redesign={false} roundCount={stages.length} onAdded={(id) => { setOpenRound(id); setJustAdded(id); }} />
     </div>
     </SetupLocked.Provider>
     </Launched.Provider>
