@@ -164,6 +164,9 @@ test.describe("@redesign", () => {
       await expect(page.getByRole("heading", { level: 1, name: "Winners & money" })).toBeVisible();
       const money = new MoneyScreen(page);
       await money.expectNoOfferControls();
+      // The field's pots and contests are one card, kept on Prizes & side games: this screen says how far they have got and links to them.
+      await expect(page.locator("[data-pot-status]")).toHaveText("No contests or stakes have been set up yet.");
+      await expect(page.getByRole("link", { name: "Open the pots and contests" })).toHaveAttribute("href", /#side-games/);
       const winner = await money.winnerOf(cat).locator("option").nth(1).getAttribute("value");
       expect(winner, "nobody is offered as a winner").toBeTruthy();
       await money.winnerOf(cat).selectOption(winner!);

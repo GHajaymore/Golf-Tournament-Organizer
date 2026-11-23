@@ -185,8 +185,10 @@ test.describe("@redesign", () => {
       await rf.prisma.sideGameEntry.createMany({ data: players.slice(0, 3).map((p) => ({ sideGameId: bet.id, playerId: p.id, confirmed: true })) });
       await rf.signIn(context, baseURL!, own, event.id);
       await page.goto(consoleUrl("/group-games", "build"));
-      // With Winners & money shown, a tournament's staff are sent to the groups' games there (R8b).
-      await expect(page, "staff were not sent to the groups' games on Winners & money").toHaveURL(/\/money\?/);
+      // With Winners & money shown the old door still OPENS (on its own path) and points at the groups' games there (R8b); press the link.
+      await expect(page, "the old door did not open on its own path").toHaveURL(/\/group-games\?/);
+      await page.getByRole("link", { name: /Groups.+ side games/ }).first().click();
+      await expect(page, "the link did not lead to the groups' games on Winners & money").toHaveURL(/\/money\?.*#groups/);
       const card =() => page.locator("section.card, div.card", { has: page.locator(".card-title", { hasText: `${NAME} — side game` }) });
       await expect(card(), "the named bet has no card on Side games").toHaveCount(1, { timeout: 30_000 });
       const stake = card().getByLabel("Stake");

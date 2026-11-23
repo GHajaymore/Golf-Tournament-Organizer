@@ -1,13 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { readSource } from "./source";
+import { groupGamesMovedTo } from "../domain/group-games-door";
+import { mergesShown, MOVES, type ScreenKey } from "../domain/console-merges";
+import { canAccessScreen, type Role } from "../roles";
+import { screenAppliesToMatch } from "../nav";
+import { potStatusLine } from "../domain/pot-status";
 import {
   OFFER_CONTROLS,
   SETTLE_CONTROLS,
   SETTLE_ON_THE_PLAYERS_SCREEN,
   SETTLE_ON_WINNERS_AND_MONEY,
   fieldGamesHome,
-  groupGamesHome,
   moneyPartOf,
   moneyPartProblems,
   moneyScreenOf,
@@ -230,33 +234,55 @@ describe("Winners & money's settle half is mounted once, by one boolean (R8b)", 
     for (const after of ["<PrizesClient", "<SettleHalf", "<GroupGames"]) expect(moneyPage.indexOf("<MoneyModeLine"), after).toBeLessThan(moneyPage.indexOf(after));
   });
 
-  it("the money page offers no control to change what is offered", () => {
+  it("outside the groups' section, the money page offers no control to change what is offered", () => {
     for (const offer of OFFER_CONTROLS) expect(moneyPage, `Winners & money mentions the offer control ${offer}`).not.toMatch(new RegExp(`\\b${offer}\\b`));
     for (const c of ["<MoneySetup", "<SkinsPotClient", "<ContestsClient"]) expect(moneyPage, `${c} is mounted on Winners & money, a second copy of the offer's card`).not.toContain(c);
   });
 
-  it("the groups' games are drawn once for every person and state of the switch", () => {
-    // Every combination: staff or not (a player keeps their own door), casual or not, and the switch.
-    for (const staff of [false, true]) {
+  it("the groups' games are drawn once for every person and state of the switch, by the rules that decide it", () => {
+    const BUILD = mergesShown("stepper=1&build=1", { owner: false }, "development");
+    const OFF = new Set<ScreenKey>();
+    for (const role of ["admin", "assistant", "player"] as Role[]) {
       for (const casual of [false, true]) {
-        for (const moneyShown of [false, true]) {
-          const home = groupGamesHome({ staff, casual, moneyShown });
-          // `/money` is opened by staff on a tournament only: `requireScreen("prizes")` sends a player away and a casual round to its one screen.
-          const moneyOpens = moneyShown && staff && !casual;
-          const mounts = (home === "group-games" ? 1 : 0) + (moneyOpens ? 1 : 0);
-          expect(mounts, `staff=${staff} casual=${casual} moneyShown=${moneyShown}: the groups' games are drawn ${mounts} times`).toBe(1);
+        for (const shown of [OFF, BUILD]) {
+          // `/group-games` draws its body unless the one rule (`relocate`) says the door moved.
+          const bodyOnOldDoor = groupGamesMovedTo(role, casual, shown) === null;
+          // `/money` is opened by the REAL gates: `requireScreen("prizes")` (the role's access; a casual round is sent to its one screen),
+          // its switch guard, and then the same rule. Nothing here restates the rule's own conditions.
+          const moneyOpens = shown.has("money") && canAccessScreen(role, "prizes") && (screenAppliesToMatch("prizes") || !casual);
+          const sectionOnMoney = moneyOpens && groupGamesMovedTo(role, false, shown) !== null;
+          const mounts = (bodyOnOldDoor ? 1 : 0) + (sectionOnMoney ? 1 : 0);
+          const canSee = canAccessScreen(role, "group-games");
+          expect(mounts, `role=${role} casual=${casual} money shown=${shown.has("money")}: the groups' games are drawn ${mounts} times`).toBe(canSee ? 1 : 0);
         }
       }
     }
-    expect(groupGamesHome({ staff: true, casual: false, moneyShown: true })).toBe("money");
-    expect(groupGamesHome({ staff: true, casual: true, moneyShown: true })).toBe("group-games");
-    expect(groupGamesHome({ staff: false, casual: false, moneyShown: true })).toBe("group-games");
-    expect(groupGamesHome({ staff: true, casual: false, moneyShown: false })).toBe("group-games");
   });
 
-  it("/group-games sends staff to the section only through that rule, and draws the body otherwise", () => {
-    expect(gamesPage).toMatch(/groupGamesHome\(\{ staff, casual: isMatch\(event\?\.shape\), moneyShown: true \}\) === "money"/);
-    expect(gamesPage).toMatch(/redirect\(`\$\{to\}#groups`\)/);
+  it("CONTROL: the rule is the MOVES row, and loosening it (a casual round let through) is seen", () => {
+    const BUILD = mergesShown("stepper=1&build=1", { owner: false }, "development");
+    expect(groupGamesMovedTo("admin", false, BUILD)).toMatch(/^\/money/);
+    expect(groupGamesMovedTo("admin", true, BUILD)).toBeNull();
+    expect(groupGamesMovedTo("player", false, BUILD)).toBeNull();
+    expect(groupGamesMovedTo("admin", false, new Set<ScreenKey>())).toBeNull();
+    const row = MOVES.find((m) => m.from === "/group-games");
+    expect(row?.notCasual, "the MOVES row no longer keeps a casual round on its one screen").toBe(true);
+  });
+
+  it("/group-games opens (200) and points at the section, asking the rule; /money gates the section on the same rule", () => {
+    expect(gamesPage).toMatch(/groupGamesMovedTo\(session\.viewRole, isMatch\(event\?\.shape\), shown, params\.round\)/);
+    expect(gamesPage).not.toMatch(/redirect\(/);
     expect(gamesPage).toContain("<GroupGames session={session} round={params.round} asSection={false} />");
+    expect(moneyPage).toMatch(/const groupsHere = groupGamesMovedTo\(session\.viewRole, false, shown, params\.round\) !== null;/);
+    expect(moneyPage).toMatch(/\{groupsHere \? \(\s*<GroupGames /);
+  });
+
+  it("says how far the field's pots and contests have got, in stored counts", () => {
+    expect(potStatusLine({ contests: 3, contestsWithWinner: 2, stakes: 12, stakesPaid: 5 })).toBe("2 of 3 contests have a winner. 5 of 12 stakes paid.");
+    expect(potStatusLine({ contests: 1, contestsWithWinner: 0, stakes: 1, stakesPaid: 1 })).toBe("0 of 1 contest has a winner. 1 of 1 stake paid.");
+    expect(potStatusLine({ contests: 0, contestsWithWinner: 0, stakes: 0, stakesPaid: 0 })).toBe("No contests or stakes have been set up yet.");
+    // A count of rows, not an amount: the line has no currency or decimal figure.
+    expect(potStatusLine({ contests: 3, contestsWithWinner: 2, stakes: 12, stakesPaid: 5 })).not.toMatch(/[$£€]|\d\.\d/);
+    expect(moneyPage).toContain("potStatusLine(await potStatusFor(session.eventId))");
   });
 });

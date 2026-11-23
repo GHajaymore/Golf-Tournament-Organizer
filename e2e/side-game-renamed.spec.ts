@@ -134,8 +134,10 @@ test.describe("@redesign", () => {
       const open = async () => {
         await page.goto(consoleUrl("/group-games", "build"));
         await page.locator("h1").first().waitFor({ state: "visible", timeout: 30_000 });
-        // With Winners & money shown, a tournament's staff are sent to the groups' games there (R8b), not left on `/group-games`.
-        expect(new URL(page.url()).pathname, "staff were not sent to the groups' games on Winners & money — not signed in?").toBe("/money");
+        // With Winners & money shown the old door still OPENS on its own path (R8b) and points at the groups' games there: press the link.
+        expect(new URL(page.url()).pathname, "the old door did not open on its own path — not signed in?").toBe("/group-games");
+        await page.getByRole("link", { name: /Groups.+ side games/ }).first().click();
+        await expect(page).toHaveURL(/\/money\?.*#groups/);
         await expect(page.locator("#groups"), "the groups' games are not a section of Winners & money").toBeVisible();
       };
       await open();

@@ -6,11 +6,12 @@ import { prisma } from "@/lib/db";
 import { roundLabel } from "@/lib/domain/round-label";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { prizeTableHalf } from "@/lib/domain/money-parts";
-import { STEPPER_PREVIEW } from "@/lib/domain/lifecycle-track";
-import { BUILD_PREVIEW } from "@/lib/domain/console-merges";
+import { previewQuery } from "@/lib/console-url";
+import { groupGamesMovedTo } from "@/lib/domain/group-games-door";
+import { potStatusLine } from "@/lib/domain/pot-status";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { keepingPreview, previewModeNow, screensShownFor } from "@/lib/services/screens-shown";
-import { settleHalfFor } from "@/lib/services/money-settle";
+import { potStatusFor, settleHalfFor } from "@/lib/services/money-settle";
 import { prizeFieldFor } from "@/lib/services/prize-field";
 import { PrizesClient } from "@/components/PrizesClient";
 import { MoneyModeLine } from "@/components/MoneyModeLine";
@@ -18,7 +19,7 @@ import { SettleHalf } from "@/components/money/SettleHalf";
 import { GroupGames } from "@/components/money/GroupGames";
 
 /**
- * WINNERS & MONEY (R8b, the redesign): who won what and who owes whom, once it is final. The settle half of a tournament's money
+ * WINNERS & MONEY (R8b, the redesign): who won what and who owes whom. The settle half of a tournament's money
  * (`domain/money-parts.ts`), drawn only while its screen is shown (`screensShownFor`, `?stepper=1&build=1` today and never in
  * production); otherwise the address sends a person to Prizes & payouts, where all of it has always been, so the address is
  * harmless while the redesign is switched off. The page opens with exactly that guard, the shape the signed-out sweep and the
@@ -61,10 +62,16 @@ export default async function MoneyPage({
   const prizeField = prizeFieldFor(state);
   const settle = await settleHalfFor({ eventId: session.eventId, email: session.email, name: session.name, isStaff, moneyMode });
 
+  // How far the field's pots and contests have got: a count of stored rows, never an amount (`pot-status.ts`).
+  const potStatus = potStatusLine(await potStatusFor(session.eventId));
   const sideGamesHref = await keepingPreview("/prizes#side-games");
   const setupHref = await keepingPreview("/prizes#money-setup");
+  const offerHref = await keepingPreview("/prizes");
   const mode = await previewModeNow();
-  const carry = mode === "build" ? `${STEPPER_PREVIEW}=1&${BUILD_PREVIEW}=1` : mode === "preview" ? `${STEPPER_PREVIEW}=1` : undefined;
+  const carry = mode ? previewQuery(mode) : undefined;
+  // The groups' games are drawn here only where the one rule says they moved here (`relocate`, through the door's helper); a tournament's
+  // staff always are, this screen being a tournament's. Otherwise the old screen keeps them and this points at it.
+  const groupsHere = groupGamesMovedTo(session.viewRole, false, shown, params.round) !== null;
 
   return (
     <>
@@ -72,7 +79,7 @@ export default async function MoneyPage({
         <div className="page-kicker">Results</div>
         <h1 className="page-title">Winners &amp; money</h1>
         <p className="page-sub" style={{ marginTop: 6 }}>
-          Who won what and who owes whom, shown once it is final.{" "}
+          Who won what and who owes whom. Amounts that can still change appear once they are final.{" "}
           <strong>TourneyHQ works out and records who is owed what. It does not pay anyone.</strong>
         </p>
       </div>
@@ -100,17 +107,22 @@ export default async function MoneyPage({
         flights={prizeField.flights}
         byScore={prizeField.byScore}
         onePrizePerPlayer={state.event.onePrizePerPlayer}
+        offerHref={offerHref}
       />
 
-      {/* Said where it is looked for: a pot or contest is ONE card, mounted once, and it is drawn on Prizes & side games with
-          its own people and winners. A second copy here would be a pot set on one card and read on the other. */}
+      {/* A pot or contest is ONE card, mounted once, and it is drawn on Prizes & side games with its own people, stakes and winners.
+          A second copy here would be a pot set on one card and read on the other, so this says how far the cards have got (a count
+          of stored rows, nothing live) and links to the card itself. */}
       <section className="card elev-sm" style={{ marginTop: 16 }} aria-label="Pots and contests">
         <span className="card-title" style={{ fontSize: 14 }}>
           Pots and contests
         </span>
+        <p data-pot-status="" style={{ margin: "6px 0 0", fontSize: 14, fontWeight: 600 }}>
+          {potStatus}
+        </p>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
-          Who is in each pot, who has paid their stake and who won a closest-to-the-pin or long drive are kept on that game&rsquo;s own card,
-          on <Link href={sideGamesHref}>Prizes &amp; side games</Link>, with the prize list and the stakes.
+          Who is in each pot, who has paid their stake and who won a closest-to-the-pin or long drive are kept on that game&rsquo;s own card.{" "}
+          <Link href={sideGamesHref}>Open the pots and contests</Link>
         </p>
       </section>
 
@@ -122,9 +134,16 @@ export default async function MoneyPage({
       />
 
       {/* The groups' own games, a section of this screen for a tournament's staff (`MOVES`: `/group-games` leads here). The same
-          body `/group-games` draws, mounted once per state: that screen sends staff here while this one is shown. */}
+          body `/group-games` draws, mounted once per state: that screen points here while this one is shown. The section draws a
+          group's own pot and contest cards, so it is the one place on this screen with offer controls for a group's game. */}
       <div style={{ marginTop: 24 }}>
-        <GroupGames session={session} round={params.round} asSection carry={carry} />
+        {groupsHere ? (
+          <GroupGames session={session} round={params.round} asSection carry={carry} />
+        ) : (
+          <p className="text-muted" style={{ fontSize: 13.5 }}>
+            The groups&rsquo; side games are kept on <Link href="/group-games">Side games</Link>.
+          </p>
+        )}
       </div>
     </>
   );

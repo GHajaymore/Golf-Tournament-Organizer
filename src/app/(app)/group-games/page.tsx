@@ -1,9 +1,9 @@
+import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isMatch } from "@/lib/tournament-shape";
-import { groupGamesHome } from "@/lib/domain/money-parts";
+import { groupGamesMovedTo } from "@/lib/domain/group-games-door";
 import { GroupGames } from "@/components/money/GroupGames";
 import { keepingPreview, screensShownFor } from "@/lib/services/screens-shown";
 
@@ -21,18 +21,27 @@ export default async function GroupGamesPage({
   const session = await requireScreen("group-games");
   const params = await searchParams;
   /**
-   * WITH WINNERS & MONEY SHOWN, A TOURNAMENT'S STAFF KEEP THE GROUPS' GAMES THERE (R8b; `MOVES`: `/group-games` for an admin or an
-   * assistant, never a casual round, whose one screen stays). A player's own door to their group's games is not moved.
-   * The one boolean is `shown.has("money")`; below it is the body, drawn only where nothing sent the person away.
+   * WITH WINNERS & MONEY SHOWN, A TOURNAMENT'S STAFF KEEP THE GROUPS' GAMES THERE. Whether they are moved is asked of `relocate`
+   * (the `MOVES` row for this door), never written again here. The old address still OPENS (200, on its own path, as every old door
+   * does while a redesigned screen is shown: `lifecycle-menu.spec`) and says where the games are, with a link; the body is then not
+   * drawn, so `GroupGames` is mounted once. Asked only when a screen is shown, so the page with the switch off reads nothing more.
    */
   const shown = await screensShownFor(session);
-  const staff = session.role === "admin" || session.role === "assistant";
-  // Asked only where it can matter, so the page with the switch off reads nothing more than it ever did.
-  if (shown.has("money") && staff) {
+  if (shown.size > 0) {
     const event = await prisma.event.findUnique({ where: { id: session.eventId }, select: { shape: true } });
-    if (groupGamesHome({ staff, casual: isMatch(event?.shape), moneyShown: true }) === "money") {
-      const to = await keepingPreview(params.round ? `/money?round=${encodeURIComponent(params.round)}` : "/money");
-      redirect(`${to}#groups`);
+    const to = groupGamesMovedTo(session.viewRole, isMatch(event?.shape), shown, params.round);
+    if (to) {
+      return (
+        <>
+          <div className="page-kicker">Results</div>
+          <h1 className="page-title">Side games</h1>
+          <section className="card">
+            <p style={{ margin: 0 }}>
+              The groups&rsquo; side games are now on <Link href={await keepingPreview(to)}>Winners &amp; money, under Groups&rsquo; side games</Link>.
+            </p>
+          </section>
+        </>
+      );
     }
   }
   return <GroupGames session={session} round={params.round} asSection={false} />;

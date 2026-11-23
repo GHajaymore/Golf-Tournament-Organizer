@@ -36,7 +36,7 @@ export class MoneyScreen {
     return this.page.locator("#groups");
   }
 
-  /** Nothing on this screen may offer to change what was offered. */
+  /** Nothing outside the groups' section may offer to change what was offered (the section draws a group's own pot and contest cards, offer controls included). */
   async expectNoOfferControls(): Promise<void> {
     await expect(this.page.getByRole("button", { name: "Add", exact: true }), "Winners & money draws the prize list's Add").toHaveCount(0);
     await expect(this.page.getByLabel(/^Amount for /), "Winners & money draws an amount box to re-price a prize").toHaveCount(0);

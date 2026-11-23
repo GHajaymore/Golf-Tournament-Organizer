@@ -114,8 +114,10 @@ export function moneyPartProblems(offer: readonly string[], settle: readonly str
  *               pulling its entrants off it to a second screen would be a second copy of the card (the Golf Pro, R8a: "do not move
  *               entrants off the pot card").
  *
- * A group's own games (`/group-games`, a section of Winners & money for a tournament's staff) draw the same pot and contest cards for
- * the group, so their controls are the same actions, on the same cards, in the other mount of `GroupGames`.
+ * A group's own games (`/group-games`, a section of Winners & money for a tournament's staff, `groupGamesMovedTo`) draw the same pot
+ * and contest cards for the group, so their controls, OFFER controls among them (a group's pot is set up there), are the same actions
+ * on the same cards in the other mount of `GroupGames`. "prizes" below means the FIELD's cards; the groups' section is the one place
+ * on Winners & money that draws an offer control.
  */
 export type MoneyScreen = "prizes" | "money" | "player";
 
@@ -171,19 +173,6 @@ export function moneyScreenProblems(winnersAndMoney: readonly string[], playerSc
   }
   for (const c of winnersAndMoney) if (playerScreen.includes(c)) problems.push(`${c} is drawn on Winners & money and on the player's screen`);
   return problems;
-}
-
-/** Where a group's own games (`GroupGames`) are drawn: the screen of their own, or a section of Winners & money. */
-export type GroupGamesHome = "group-games" | "money";
-
-/**
- * WHERE THE GROUPS' GAMES ARE DRAWN FOR THIS PERSON, THIS EVENT, THIS STATE OF THE SWITCH (R8b). A tournament's staff keep them on
- * Winners & money while it is shown (`MOVES`: `/group-games` for an admin or assistant, `notCasual`); a casual round keeps its one
- * screen (step 3 §4.4) and a player keeps their own door to their group's games. Both pages ask this, so `GroupGames` is mounted
- * once, never on both and never on neither.
- */
-export function groupGamesHome(who: { staff: boolean; casual: boolean; moneyShown: boolean }): GroupGamesHome {
-  return who.moneyShown && who.staff && !who.casual ? "money" : "group-games";
 }
 
 /** The home of a pot or contest of the WHOLE FIELD (an empty group key), the one place it is drawn. */

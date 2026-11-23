@@ -23,9 +23,11 @@ import { bringIntoView } from "@/lib/bring-into-view";
 import { useMoney } from "@/components/CurrencyProvider";
 import { usePrizeMoney } from "./usePrizeMoney";
 import { ConfirmButton } from "./ConfirmButton";
+import Link from "next/link";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { useCaughtUp } from "./useAction";
+import type { PrizeTableHalf } from "@/lib/domain/money-parts";
 
 export interface PrizeRow {
   id: string;
@@ -43,10 +45,10 @@ export interface PrizeRow {
  * prize) is on Winners & money. "both" is today's one screen, drawn whenever the redesigned Winners & money is not shown, so
  * the old screen is byte for byte what it was. Optional, so the old screen's render tests stay untouched (absent is "both"); `money-parts.test.ts` holds every page mount to saying it.
  */
-export type PrizesPart = "both" | "offer" | "settle";
 
 export function PrizesClient({
   part = "both",
+  offerHref,
   prizes: stored,
   players,
   flights = [],
@@ -55,7 +57,9 @@ export function PrizesClient({
   locked = false,
 }: {
   /** Which half of the table this mount draws; the whole table when absent (the old screen's). Every page mount says it. */
-  part?: PrizesPart;
+  part?: PrizeTableHalf;
+  /** Where the prize list is offered (Prizes & side games), for the settle half's empty text to link to. */
+  offerHref?: string;
   prizes: PrizeRow[];
   /**
    * The prize table is shut (the machine's `money` lock: a completed tournament, drawn above this by
@@ -567,7 +571,7 @@ export function PrizesClient({
                         found three times in one file on StagesClient. */}
                     {offerHere
                       ? <>No prizes yet — use &ldquo;Add a prize&rdquo; for flight winners, skins, closest-to-pin, long drive and any specials.</>
-                      : <>No prizes have been offered yet. They are added on Prizes &amp; side games.</>}
+                      : <>No prizes have been offered yet. Add them on {offerHref ? <Link href={offerHref}>Prizes &amp; side games</Link> : "Prizes & side games"}.</>}
                   </td>
                 </tr>
               )}

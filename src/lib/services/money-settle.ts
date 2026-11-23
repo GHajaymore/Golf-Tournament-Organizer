@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { MoneyMode } from "@/lib/domain/money-mode";
 import { moneyFor } from "@/lib/services/expenses";
 import { skinsSeasonFor } from "@/lib/services/skins-pot";
+import type { PotStatus } from "@/lib/domain/pot-status";
 
 /**
  * WHAT THE SETTLE HALF OF A TOURNAMENT'S MONEY READS (R8b): the season's skins table, the kitty's lines and the organizer's
@@ -35,4 +36,27 @@ export async function settleHalfFor(args: {
   return { skinsSeason, ledger, fundLines };
 }
 
-export type SettleHalf = Awaited<ReturnType<typeof settleHalfFor>>;
+/**
+ * How far the field's contests and pots have got, as COUNTS OF STORED ROWS (`pot-status.ts`): no amount is worked out, so it is
+ * safe to read mid-round. The field's games only (an empty group key); a group's own games are drawn with their section.
+ */
+export async function potStatusFor(eventId: string): Promise<PotStatus> {
+  const [contests, wonContests, contestStakes, contestPaid, gameStakes, gamePaid, skinStakes, skinPaid] = await Promise.all([
+    prisma.contest.count({ where: { eventId } }),
+    prisma.contest.count({ where: { eventId, entrants: { some: { won: true } } } }),
+    prisma.contestEntry.count({ where: { contest: { eventId }, excluded: false } }),
+    prisma.contestEntry.count({ where: { contest: { eventId }, excluded: false, confirmed: true } }),
+    prisma.sideGameEntry.count({ where: { sideGame: { eventId, groupKey: "" }, excluded: false } }),
+    prisma.sideGameEntry.count({ where: { sideGame: { eventId, groupKey: "" }, excluded: false, confirmed: true } }),
+    prisma.skinsEntry.count({ where: { pot: { eventId, groupKey: "" } } }),
+    prisma.skinsEntry.count({ where: { pot: { eventId, groupKey: "" }, confirmed: true } }),
+  ]);
+  return {
+    contests,
+    contestsWithWinner: wonContests,
+    stakes: contestStakes + gameStakes + skinStakes,
+    stakesPaid: contestPaid + gamePaid + skinPaid,
+  };
+}
+
+export type SettleHalf =Awaited<ReturnType<typeof settleHalfFor>>;

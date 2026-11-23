@@ -352,7 +352,7 @@ export async function GroupGames({
       <div className="page-head">
         {asSection ? (
           <h2 className="page-title" style={{ fontSize: 22 }}>
-            {casual ? "Money game" : "Side games"}
+            {casual ? "Money game" : "Groups’ side games"}
           </h2>
         ) : (
           <h1 className="page-title">{casual ? "Money game" : "Side games"}</h1>
