@@ -32,9 +32,9 @@ export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
   results: null,
   money: null,
   events: null,
-  members: null,
+  members: "/roster",
   courses: "/courses",
-  clubSettings: null,
+  clubSettings: "/organization",
 };
 
 /** The built screens' paths, in key order. */

@@ -6,6 +6,8 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { openSettingsTab } from "./settings-tabs";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { makeClub, dropClub, makeEvent, signIn, signInWith, sessionOf } from "./rounds-fixture";
+import { openStaffAndAccess, openAccessSection, openClubTab } from "./console/clubSettings";
 
 /**
  * WHO RUNS THE CLUB: SOMEBODY ADDED, MOVED DOWN, MOVED UP, AND REMOVED.
@@ -234,4 +236,136 @@ test("the secretary adds somebody to the club, changes their role, removes them,
     await prisma.organizationMember.deleteMany({ where: { userId: person.id } });
     await closeAll(organizer, theirs);
   }
+});
+
+/**
+ * THE CLUB'S OWN STAFF AND ONE CLUB DEFAULT, ON CLUB SETTINGS WHILE THE REDESIGN IS SHOWN (R7).
+ *
+ * In a club of this spec's own, the Commissioner adds somebody to "Club staff" (a bad address refused in words
+ * beside the button, a good one kept after a reload), and changes the club's currency, which is read again
+ * after a reload. The only Commissioner is then refused, in words where they pressed, when they move themselves
+ * down: the rule of the old screen, on the new one.
+ */
+test.describe("@redesign", () => {
+  test("the Commissioner adds club staff and changes a club default, both kept after a reload, and cannot lose the only Commissioner", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    const mark = `zz-r7staff-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    const device = testInfo.project.use;
+    const desk = await browser.newContext({ ...device, baseURL, storageState: undefined });
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", { stages: [{}] });
+      const email = `${mark}-person@example.invalid`;
+      const person = await prisma.user.create({ data: { email, name: THEIR_NAME, password: "x:unusable", emailVerifiedAt: new Date() } });
+      await signIn(desk, baseURL!, club, event.id);
+      const page = await desk.newPage();
+      watchPageErrors(page, errors, "commissioner");
+      const membership = () => prisma.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: club.orgId, userId: person.id } } });
+
+      // ── an address that is not one: refused in words, beside the button ───
+      await openStaffAndAccess(page);
+      let staff = await openAccessSection(page, "club");
+      const add = staff.locator(".card", { has: page.locator(".card-title", { hasText: /^Add staff$/ }) }).last();
+      await add.getByLabel("Email").fill("not an address");
+      await add.getByRole("button", { name: "Add staff" }).click();
+      const refusal = page.getByText("Enter a valid email address.");
+      await expect(refusal, "an address that is not one is not refused in words").toBeVisible({ timeout: 20_000 });
+      await expect(refusal, "the refusal is printed where the person who pressed Add staff cannot see it").toBeInViewport();
+
+      // ── added as a Member, kept after a reload ────────────────────────────
+      await add.getByLabel("Name").fill(TYPED_NAME);
+      await add.getByLabel("Email").fill(email);
+      await add.locator("label.seg-opt", { hasText: /^\s*Member\s*$/ }).click();
+      await add.getByRole("button", { name: "Add staff" }).click();
+      await expect.poll(async () => (await membership())?.role, { timeout: 20_000, message: "the person was not added" }).toBe("member");
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await openStaffAndAccess(page);
+      staff = await openAccessSection(page, "club");
+      await expect(staff.locator("tbody tr", { hasText: email }).first(), "the person added is not listed after a reload").toBeVisible();
+
+      // ── the only Commissioner is kept: told before, refused after, where they pressed ─
+      const mine = staff.locator("tbody tr", { hasText: `${mark}-secretary@example.invalid` }).first();
+      await mine.locator("label.seg-opt", { hasText: /^\s*Admin\s*$/ }).click();
+      await expect(mine, "the only Commissioner is not warned that this will be refused").toContainText("This is the only Commissioner — promote someone else first, or this will be refused.");
+      await mine.getByRole("button", { name: /^Yes — make / }).click();
+      const kept = page.getByText("This is the only Commissioner — make someone else a Commissioner first.");
+      await expect(kept, "the refusal is not said in words").toBeVisible({ timeout: 20_000 });
+      await expect(kept, "the refusal is printed where the person who pressed cannot see it").toBeInViewport();
+      expect((await prisma.organizationMember.findUniqueOrThrow({ where: { organizationId_userId: { organizationId: club.orgId, userId: club.userId } } })).role, "the only Commissioner was moved down").toBe("owner");
+
+      // ── one club default: the currency, kept after a reload ───────────────
+      const money = await openClubTab(page, "Money");
+      await money.getByLabel("Currency", { exact: true }).selectOption("EUR");
+      await expect
+        .poll(async () => (await prisma.organization.findUniqueOrThrow({ where: { id: club.orgId } })).currency, { timeout: 20_000, message: "the currency was not saved" })
+        .toBe("EUR");
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      const again = await openSettingsTab(page, "Money");
+      await expect(again.getByLabel("Currency", { exact: true }), "the club default is not kept after a reload").toHaveValue("EUR");
+
+      expect(errors, "a screen threw").toEqual([]);
+    } finally {
+      await closeAll(desk);
+      await dropClub(mark);
+    }
+  });
+
+  test("an Admin taken off the staff while their screen is open is refused in words where they pressed Add staff, and the screen is read-only after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    const mark = `zz-r7refused-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    const device = testInfo.project.use;
+    const ctx = await browser.newContext({ ...device, baseURL, storageState: undefined });
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", { stages: [{}] });
+      // Set-up: a club Admin (with the Commissioner already in the club) who also runs this tournament.
+      const admin = await prisma.user.create({
+        data: { email: `${mark}-admin@example.invalid`, name: "Quinn Clubadmin", password: "x:unusable", emailVerifiedAt: new Date() },
+      });
+      await prisma.organizationMember.create({ data: { organizationId: club.orgId, userId: admin.id, role: "admin" } });
+      await prisma.account.create({ data: { eventId: event.id, email: admin.email, name: admin.name, role: "admin" } });
+      await signInWith(ctx, baseURL!, sessionOf(admin.id), event.id);
+      const page = await ctx.newPage();
+      watchPageErrors(page, errors, "club admin");
+      const newcomer = `${mark}-newcomer@example.invalid`;
+      const WORDS = "Only a Commissioner or Admin can manage staff.";
+
+      await openStaffAndAccess(page);
+      let staff = await openAccessSection(page, "club");
+      const add = staff.locator(".card", { has: page.locator(".card-title", { hasText: /^Add staff$/ }) }).last();
+      await expect(add.getByLabel("Email"), "CONTROL: the Admin cannot type in Add staff before anything changes").toBeEnabled();
+      await add.getByLabel("Name").fill("Casey Newcomer");
+      await add.getByLabel("Email").fill(newcomer);
+
+      // The Commissioner takes them off the staff while their screen is open (set-up, not the thing under test).
+      await prisma.organizationMember.deleteMany({ where: { organizationId: club.orgId, userId: admin.id } });
+
+      await add.getByRole("button", { name: "Add staff" }).click();
+      const refusal = staff.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: WORDS });
+      await expect(refusal, "the stale press is not refused in words where it was pressed").toBeVisible({ timeout: 20_000 });
+      await expect(refusal).toBeInViewport();
+      expect(await prisma.user.count({ where: { email: newcomer } }), "an account was made for the stale press").toBe(0);
+      expect(
+        await prisma.organizationMember.count({ where: { organizationId: club.orgId, user: { email: newcomer } } }),
+        "somebody was added to the staff by a stale press",
+      ).toBe(0);
+
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await openStaffAndAccess(page);
+      staff = await openAccessSection(page, "club");
+      const button = staff.getByRole("button", { name: "Add staff" });
+      await expect(button, "Add staff is still offered after a reload").toBeDisabled();
+      await expect(button).toHaveAccessibleDescription(WORDS);
+
+      expect(errors, "a screen threw").toEqual([]);
+    } finally {
+      await closeAll(ctx);
+      await dropClub(mark);
+    }
+  });
 });
