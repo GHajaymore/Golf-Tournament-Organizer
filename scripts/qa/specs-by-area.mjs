@@ -374,6 +374,7 @@ export const FULL_ONLY = [
   "e2e/hydration-recorder.spec.ts",
   // The form controls no test changed, the most important first: handicap type, two stakes, the scoring picker, a selection — each changed, its effect read.
   "e2e/important-controls-are-changed.spec.ts",
+  "e2e/interclub-draw-the-week.spec.ts",
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",

@@ -26,7 +26,7 @@ export const TEE_TIMES_GUIDE: GuideVariant = {
         items: [
           "**Find a player**, beside the title: type two letters of a name and the answer drops under the box, at most three rows, such as **Ana Whitlow · Round 2 · Group 5 · 9:20 · Tee 1**. Press a row to open that round at that group. A player who is entered but on no published sheet is said so, with a link to the sheet to open; a player who withdrew or was disqualified, and a name nobody has, link to Entries. Staff see it; it reads the sheets already on the screen.",
           "**Who is in this round**: the week's list for a league (mark a player **Out** for the week and the groups are made without them), the cut when it is waiting on a tie, and **Handicaps for this round** (the figure each player plays off, changed here for one round).",
-          "**The draw**: for a round of matches, first the matches themselves: [[Generate matches]] pairs a round robin of sides (a four-ball, say) against each other and asks before it replaces matches already drawn; a round robin after the first has **Draw Round 2's matches** here, from the results. Then **Who plays together**, the group size, pairing requests and the groups. [[Save sheet]] keeps a draft; [[Save & publish]] then confirm [[Publish the tee sheet]].",
+          "**The draw**: for a round of matches, first the matches themselves: [[Generate matches]] pairs a round robin of sides (a four-ball, say) against each other and asks before it replaces matches already drawn; a round robin after the first has **Draw Round 2's matches** here, from the results. In an interclub league week, **Draw this week** is here too: it pairs the pairs each club nominated (first pair against first pair) and asks before it replaces a week already drawn. Then **Who plays together**, the group size, pairing requests and the groups. [[Save sheet]] keeps a draft; [[Save & publish]] then confirm [[Publish the tee sheet]].",
           "**Tee times and start**: a late entry or a reserve is put in a group with room ([[Put in group]]), and the screen says when the published sheet no longer matches the field. The start (one tee, split or shotgun), the first tee and the interval are set with the groups.",
           "**On the day**: pins and pace of play for the round.",
           "**Paper**: one [[Print…]] door opens the Print kit with this round's scorecards, signs and starting sheet ticked, and says how many printed sheets are out of date.",
@@ -38,7 +38,7 @@ export const TEE_TIMES_GUIDE: GuideVariant = {
       },
       {
         kind: "p",
-        text: "A knockout or a cup round still opens today's Bracket or Team cup; those move to this screen next. A league's club pairs and the interclub **Draw the week** stay on Teams & pairs for now: the draw section says so, with a link, and Teams & pairs says where **Generate matches** went.",
+        text: "A knockout or a cup round still opens today's Bracket or Team cup; those move to this screen next. A league's club pairs are still nominated on Teams & pairs, under Players: the draw section says so, with a link. Teams & pairs says where **Generate matches** and the league's **Draw this week** went.",
       },
     ],
   },
