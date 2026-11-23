@@ -23,3 +23,24 @@ export function consoleUrl(path: string, mode: ConsoleMode): string {
   else params.delete(BUILD_PREVIEW);
   return `${base}?${params.toString()}${place}`;
 }
+
+/**
+ * THE ONE ADDRESS OF A MEMBER'S HISTORY (R7), built here for every caller: `/member?member=` while Members is
+ * not shown, a section of `/roster` (`#history`) while it is. Inside a preview the preview parameters stay on.
+ */
+export function memberHistoryHref(id: string, base: "/member" | "/roster", mode: ConsoleMode | null): string {
+  const href = `${base}?member=${encodeURIComponent(id)}${base === "/roster" ? "#history" : ""}`;
+  return mode ? consoleUrl(href, mode) : href;
+}
+
+/**
+ * WHICH PREVIEW A REQUEST IS IN (R7), read off its query: `build` when both preview parameters are on,
+ * `preview` when only the first is, and null when the redesign is not being previewed (a plain address).
+ * A link or a redirect that stays inside a previewed screen goes through `consoleUrl(href, mode)` when this is
+ * not null, so the person is not dropped back onto the screen that is still live.
+ */
+export function previewModeOf(search: string): ConsoleMode | null {
+  const q = new URLSearchParams(search);
+  if (q.get(STEPPER_PREVIEW) !== "1") return null;
+  return q.get(BUILD_PREVIEW) === "1" ? "build" : "preview";
+}
