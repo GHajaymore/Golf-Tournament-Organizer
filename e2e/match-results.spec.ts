@@ -407,9 +407,10 @@ test.describe("@redesign a match result on Score entry, and Played at only for a
     await page.getByPlaceholder("3&2").fill("3&2");
     await page.getByRole("button", { name: /Apply result/ }).click();
     await expect.poll(async () => (await stored()).played, { message: "the result was not stored" }).toBe(16);
-
+    // The screen says the answer came back (the card's own tag) before it is loaded again, not only the row.
+    await expect(page.locator(".tag", { hasText: "Pending confirmation" }).last()).toBeVisible({ timeout: 30_000 });
     await page.reload();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
     await expect(page.locator(".tag", { hasText: "Pending confirmation" }).last(), "the result is not kept after a reload").toBeVisible({ timeout: 30_000 });
     expect((await stored()).played).toBe(16);
     expect(errors, errors.join("\n")).toEqual([]);
