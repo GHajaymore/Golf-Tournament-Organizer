@@ -62,6 +62,7 @@ const redesigned = (shown: RoundsScreenProps["shown"]): RoundsScreenProps => ({
   lock: { locks: [], correction: null, isAdmin: true, open: null },
   shown,
   drawHref: {},
+  cup: null,
   onTheDayHere: !shown.includes("scoreEntry"),
 });
 
