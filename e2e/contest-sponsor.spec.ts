@@ -151,7 +151,6 @@ test.describe("@redesign", () => {
         .poll(async () => (await rf.prisma.contest.findUniqueOrThrow({ where: { id: kp.id }, select: { sponsorUrl: true } })).sponsorUrl, { timeout: 20_000, message: "the sponsor was not stored" })
         .toBe("https://zz-sponsor.example/");
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(card().getByText(`${mark} Motors`), "the sponsor is not on the new screen after a reload").toBeVisible({ timeout: 20_000 });
     } finally {
       await rf.dropClub(mark);

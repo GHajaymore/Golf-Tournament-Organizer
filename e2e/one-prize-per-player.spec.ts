@@ -168,7 +168,6 @@ test.describe("@redesign", () => {
         .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: best } })).winnerId, { timeout: 20_000, message: "the award was not recorded" })
         .toBe(winner);
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(page.getByLabel("One prize per player", { exact: true }), "the rule did not survive a reload").toBeChecked();
       await expect(screen.winnerOf(best), "the winner is not on the new screen after a reload").toHaveValue(winner);
     } finally {

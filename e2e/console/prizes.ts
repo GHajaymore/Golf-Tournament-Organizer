@@ -18,7 +18,6 @@ export class PrizesScreen {
   async open(round?: string): Promise<void> {
     const path = round ? `${PRIZES_PATH}?round=${encodeURIComponent(round)}` : PRIZES_PATH;
     await this.page.goto(consoleUrl(path, "build"));
-    await this.page.waitForLoadState("networkidle").catch(() => {});
     await this.page.locator("[data-prizes-screen]").waitFor({ state: "visible" });
   }
 

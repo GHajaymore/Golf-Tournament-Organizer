@@ -133,7 +133,7 @@ test.describe("@redesign", () => {
       const potCard = (name: string) => page.locator(".card", { has: page.getByText(`${name} — Skins — net`, { exact: true }) }).last();
       const open = async () => {
         await page.goto(consoleUrl("/group-games", "build"));
-        await page.waitForLoadState("networkidle").catch(() => {});
+        await page.locator("h1").first().waitFor({ state: "visible", timeout: 30_000 });
         expect(new URL(page.url()).pathname, "sent away from Side games — not signed in?").toBe("/group-games");
       };
       await open();
@@ -148,7 +148,6 @@ test.describe("@redesign", () => {
         .poll(async () => (await prisma.skinsPot.findUniqueOrThrow({ where: { id: skins.id } })).groupKey, { message: "the pot did not move to the new name" })
         .toBe(TO);
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(potCard(TO), "the new name is not on Side games after a reload").toBeVisible();
     } finally {
       await dropClub(mark);

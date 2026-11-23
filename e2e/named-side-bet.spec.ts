@@ -180,14 +180,13 @@ test.describe("@redesign", () => {
     const mark = "zz-r8a-nsb";
     const own = await rf.makeClub(mark);
     try {
-      const { event, stages, players } = await rf.makeEvent(own, "Saturday Medal", { status: "live", stages: [{}], players: 4, event: { launchedAt: new Date() } });
+      const { event, stages, players } = await rf.makeEvent(own, "Saturday Medal", { status: "live", stages: [{}], players: 4 });
       const bet = await rf.prisma.sideGame.create({ data: { eventId: event.id, stageId: stages[0].id, kind: "birdies", groupKey: NAME, buyInCents: 500 } });
       await rf.prisma.sideGameEntry.createMany({ data: players.slice(0, 3).map((p) => ({ sideGameId: bet.id, playerId: p.id, confirmed: true })) });
       await rf.signIn(context, baseURL!, own, event.id);
       await page.goto(consoleUrl("/group-games", "build"));
-      await page.waitForLoadState("networkidle").catch(() => {});
       const card = () => page.locator("section.card, div.card", { has: page.locator(".card-title", { hasText: `${NAME} — side game` }) });
-      await expect(card(), "the named bet has no card on Side games").toHaveCount(1);
+      await expect(card(), "the named bet has no card on Side games").toHaveCount(1, { timeout: 30_000 });
       const stake = card().getByLabel("Stake");
       await expect(stake).toHaveValue(/^5(\.00)?$/);
       await stake.fill("7");
@@ -196,7 +195,6 @@ test.describe("@redesign", () => {
         .poll(async () => (await rf.prisma.sideGame.findUniqueOrThrow({ where: { id: bet.id } })).buyInCents, { message: "the new stake never reached the row" })
         .toBe(700);
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(card().getByLabel("Stake"), "the stake did not survive a reload").toHaveValue(/^7(\.00)?$/);
     } finally {
       await rf.dropClub(mark);
