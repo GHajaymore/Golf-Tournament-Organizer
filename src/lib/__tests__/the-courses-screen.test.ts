@@ -116,7 +116,7 @@ describe("the new address is held out of the live-screen sweeps while its switch
   });
 
   it("nothing else answers a redirect while off but the screens the sweeps hold out", () => {
-    const out = ["courses"];
+    const out = ["courses", "money"];
     const found: string[] = [];
     for (const name of readdirSync(join(process.cwd(), "src", "app", "(app)"))) {
       const dir = join(process.cwd(), "src", "app", "(app)", name);
