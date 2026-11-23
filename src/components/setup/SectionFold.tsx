@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * ONE SECTION OF TEE TIMES & DRAW (R9a). On a phone only two sections are open, the one marked Needs you
+ * ONE SECTION OF TEE TIMES & DRAW (R9a, moved to the kit by G1). On a phone only two sections are open, the one marked Needs you
  * and the sheet itself; every other section is one folded line with its state ("Paper: printed 08:10")
  * (step 3 §2.2, finding 9). On a wider screen every section is open.
  *
@@ -42,7 +42,7 @@ export function SectionFold({
   }, [openOnPhone]);
   const bodyId = `${id}-body`;
   return (
-    <section id={id} data-draw-section={id} data-needs-you={needsYou ? "true" : "false"} style={{ minWidth: 0, scrollMarginTop: 80, marginTop: 16 }}>
+    <section id={id} data-section={id} data-needs-you={needsYou ? "true" : "false"} style={{ minWidth: 0, scrollMarginTop: 80, marginTop: 16 }}>
       <button
         type="button"
         aria-expanded={open}

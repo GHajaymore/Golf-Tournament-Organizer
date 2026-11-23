@@ -24,7 +24,6 @@ const DIR = join("src", "components");
 /** Blur handlers that do not save — and what they do instead. */
 const EXEMPT: Record<string, string> = {
   "CoursePicker.tsx": "blur closes the list; the choice is saved by its caller",
-  "EventSetupClient.tsx": "blur looks a zip up; the event is saved by its own Save button",
   "FlightBoard.tsx": "blur abandons a rename; Enter is what saves it",
   "NewMatchForm.tsx": "blur closes the name suggestions; the round is saved by Start",
 };

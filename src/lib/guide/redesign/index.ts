@@ -1,14 +1,24 @@
-import type { ScreenKey } from "@/lib/domain/console-merges";
+import { SCREEN_KEYS, type ScreenKey } from "@/lib/domain/console-merges";
 import type { GuideSection } from "@/lib/guide-steps";
 import { tableInClubWords, type GolfWords } from "@/lib/domain/golf-terms";
+import { HOME_GUIDE } from "./home";
+import { EVENT_GUIDE } from "./event";
 import { ROUNDS_GUIDE } from "./rounds";
+import { PLAYERS_GUIDE } from "./players";
 import { PRIZES_GUIDE } from "./prizes";
 import { TEE_TIMES_GUIDE } from "./tee-times";
+import { SCORE_ENTRY_GUIDE } from "./score-entry";
+import { LEADERBOARD_GUIDE } from "./leaderboard";
+import { RESULTS_GUIDE } from "./results";
+import { MONEY_GUIDE } from "./money";
+import { EVENTS_GUIDE } from "./events";
+import { MEMBERS_GUIDE } from "./members";
 import { COURSES_GUIDE } from "./courses";
+import { CLUB_SETTINGS_GUIDE } from "./club-settings";
 
 /**
- * THE GUIDE'S REDESIGN VARIANTS (R1b): each redesigned screen's PR adds ONE file beside this one,
- * holding the guide's words for that screen as it will be, and one line in `REDESIGN_GUIDE`.
+ * THE GUIDE'S REDESIGN VARIANTS (R1b): each redesigned screen's PR fills in its ONE file beside this one,
+ * holding the guide's words for that screen as it will be (and no line here, since G1).
  * `guide-steps.ts` itself changes once, at R16, when the screens go on and the variants become the guide.
  *
  * A variant is drawn only while its screen is shown (`mergesShown`): a preview shows the guide that
@@ -24,13 +34,31 @@ export interface GuideVariant {
   sections: GuideSection[];
 }
 
-// One entry per line, in `SCREEN_KEYS` order: each screen's PR adds its own (three lanes append here).
-export const REDESIGN_GUIDE: readonly GuideVariant[] = [
-  ROUNDS_GUIDE,
-  PRIZES_GUIDE,
-  TEE_TIMES_GUIDE,
-  COURSES_GUIDE,
-];
+/**
+ * ONE FILE PER SCREEN (G1): `src/lib/guide/redesign/<screen>.ts` exports that screen's variant, or `null` until it
+ * is written. A screen's PR fills in its own file and NEVER edits this registry, so no two PRs collide here.
+ * The Record is keyed by `ScreenKey`, so a fifteenth screen cannot be added without a line here, and
+ * `guide-redesign.test.ts` holds every key to a file on disk.
+ */
+const VARIANTS: Readonly<Record<ScreenKey, GuideVariant | null>> = {
+  home: HOME_GUIDE,
+  event: EVENT_GUIDE,
+  rounds: ROUNDS_GUIDE,
+  players: PLAYERS_GUIDE,
+  prizes: PRIZES_GUIDE,
+  teeTimes: TEE_TIMES_GUIDE,
+  scoreEntry: SCORE_ENTRY_GUIDE,
+  leaderboard: LEADERBOARD_GUIDE,
+  results: RESULTS_GUIDE,
+  money: MONEY_GUIDE,
+  events: EVENTS_GUIDE,
+  members: MEMBERS_GUIDE,
+  courses: COURSES_GUIDE,
+  clubSettings: CLUB_SETTINGS_GUIDE,
+};
+
+// In `SCREEN_KEYS` order; a screen with no variant yet is skipped.
+export const REDESIGN_GUIDE: readonly GuideVariant[] = SCREEN_KEYS.flatMap((k) => VARIANTS[k] ?? []);
 
 /**
  * The guide as the screens now shown describe themselves. Each shown screen's variant takes the place

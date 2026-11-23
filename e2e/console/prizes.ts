@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { consoleUrl } from "../../src/lib/console-url";
-import { SCREENS_BUILT } from "./index";
+import { SCREENS_BUILT, openFold } from "./index";
 
 /**
  * PRIZES & SIDE GAMES, THE OFFER HALF (R8a), as a person drives it: `/prizes` reached while it is only previewed
@@ -35,8 +35,7 @@ export class PrizesScreen {
     const section = this.moneySetup();
     const line = section.locator(":scope > button[aria-expanded]");
     await expect(line, "the money setup has no line to open").toBeVisible();
-    if ((await line.getAttribute("aria-expanded")) === "false") await line.click();
-    await expect(line).toHaveAttribute("aria-expanded", "true");
+    await openFold(line);
     return section;
   }
 

@@ -27,7 +27,7 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screensShownFor } from "@/lib/services/screens-shown";
-import { SectionFold } from "@/components/teetimes/SectionFold";
+import { SectionFold } from "@/components/setup/SectionFold";
 import { fieldGamesHome } from "@/lib/domain/money-parts";
 import { MONEY_MODE_LABEL } from "@/lib/domain/money-mode";
 import { isMatch } from "@/lib/tournament-shape";
