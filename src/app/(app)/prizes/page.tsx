@@ -352,10 +352,14 @@ export default async function PrizesPage({
         <SectionFold
           id="money-setup"
           title="How money works here"
-          state={`Money: ${moneyMode === "none" ? "costs outside the app" : MONEY_MODE_LABEL[moneyMode]}. A change keeps your prize list and side games.`}
+          state={`Money: ${moneyMode === "none" ? "costs outside the app" : MONEY_MODE_LABEL[moneyMode]}`}
           needsYou={!moneyAnswered}
           openOnPhone={!moneyAnswered}
         >
+          {/* Said inside the fold, not on its one line: a long line in the fold's button overflowed a 320px phone. */}
+          <p className="text-muted" style={{ margin: "0 0 8px", fontSize: 13, minWidth: 0, overflowWrap: "anywhere" }}>
+            A change keeps your prize list and side games.
+          </p>
           {moneySetup}
         </SectionFold>
       )}

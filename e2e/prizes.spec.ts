@@ -5,7 +5,6 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
-import { consoleUrl } from "../src/lib/console-url";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -143,22 +142,9 @@ test.describe("@redesign", () => {
       const { event } = await rf.makeEvent(club, "Spring Medal", { stages: [{}] });
       await rf.signIn(context, baseURL!, club, event.id);
       const screen = new PrizesScreen(page);
-      // Arrived at through the menu, as a person does (the drawer behind "Open menu" on a phone), with the preview on.
-      await page.goto(consoleUrl("/dashboard", "build"));
-      await page.waitForLoadState("networkidle").catch(() => {});
-      const menu = page.getByRole("button", { name: "Open menu" });
-      if (await menu.isVisible().catch(() => false)) {
-        await menu.click();
-        await expect(page.getByRole("button", { name: "Close menu" })).toBeVisible();
-        await page.locator(".m-drawer").evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)).then(() => undefined)).catch(() => undefined);
-      }
-      const nav = (await page.locator(".m-drawer").isVisible().catch(() => false)) ? page.locator(".m-drawer") : page.locator(".app-sidebar");
-      const entry = nav.getByRole("link", { name: /prizes/i }).first();
-      await expect(entry, "the menu has no Prizes entry with the preview on").toBeVisible();
-      await entry.evaluate((el) => el.scrollIntoView({ block: "center" }));
-      await entry.click();
-      await page.waitForLoadState("networkidle").catch(() => {});
-      await expect(page.locator("[data-prizes-screen]"), "the menu landed on today's Prizes, not the new screen").toBeVisible();
+      // Reached by its address. The menu keeps `?stepper=1` and never `build=1` (NavSections draws "preview" links), so a screen still
+      // "building" is not on the menu until its key flips to "preview": the arrival through the menu is that flip's to prove.
+      await screen.open();
       await expect(page.getByRole("heading", { level: 1, name: "Prizes & side games" })).toBeVisible();
       const cat = `${mark} Nearest the pin`;
       await page.getByLabel("Category").fill(cat);

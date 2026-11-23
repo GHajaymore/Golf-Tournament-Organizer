@@ -180,7 +180,7 @@ test.describe("@redesign", () => {
     const mark = "zz-r8a-nsb";
     const own = await rf.makeClub(mark);
     try {
-      const { event, stages, players } = await rf.makeEvent(own, "Saturday Medal", { status: "live", stages: [{}], players: 4 });
+      const { event, stages, players } = await rf.makeEvent(own, "Saturday Medal", { status: "live", stages: [{}], players: 4, event: { launchedAt: new Date() } });
       const bet = await rf.prisma.sideGame.create({ data: { eventId: event.id, stageId: stages[0].id, kind: "birdies", groupKey: NAME, buyInCents: 500 } });
       await rf.prisma.sideGameEntry.createMany({ data: players.slice(0, 3).map((p) => ({ sideGameId: bet.id, playerId: p.id, confirmed: true })) });
       await rf.signIn(context, baseURL!, own, event.id);
