@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
+import { useAdvanceSettle } from "./useAdvanceSettle";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { useSeenOnce } from "./useSeenOnce";
 import { usePageIsLive } from "./usePageIsLive";
@@ -280,11 +281,14 @@ export function HoleByHoleCard({
     cancelAdvance();
     setHole(Math.max(0, Math.min(holes - 1, next)));
   };
+  // B117: a pad tap in the first 400ms of the new hole is the second half of a double-tap.
+  const settle = useAdvanceSettle();
   const advanceFrom = (from: number) => {
     cancelAdvance();
     if (from >= holes - 1) return;
     advance.current = setTimeout(() => {
       advance.current = null;
+      settle.markAdvanced();
       setHole((h) => (h === from ? from + 1 : h));
     }, 160);
   };
@@ -312,6 +316,7 @@ export function HoleByHoleCard({
    * at Enter.
    */
   const set = (playerId: string, v: number | null, moveOn = true) => {
+    if (moveOn && settle.settling()) return;
     onSet(playerId, hole, v);
     // Only advance on a solo card. On a group card the scorer is part way
     // through the hole and moving the screen out from under them would be
