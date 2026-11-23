@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { prisma, makeClub, dropClub, makeEvent, dayIn, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
 import { GUEST_WORDS } from "../src/lib/domain/guest-entry";
-import { RATE_LIMITS } from "../src/lib/domain/rate-limit";
+import { RATE_LIMITS, bucketKeyFor, windowFor } from "../src/lib/domain/rate-limit";
 
 /**
  * A GUEST WHOSE DEVICE MINT IS REFUSED IS TOLD SO, WHERE THEY PRESSED (B96; QA gate 1 on PR #1199, condition 1).
@@ -30,13 +30,22 @@ const ADDRESS = `10.${77 + Math.floor(Math.random() * 100)}.${octet()}.${octet()
 
 type Kind = "guest-mint-alarm" | "guest-mint-slow";
 
-/** `clientKeyFor(kind, address, now)`, worked here from its description: HMAC-SHA256 under the app secret, base64url. */
-function keyFor(kind: Kind, address: string): string {
+/**
+ * `clientKeyFor(kind, address, now)`: the HMAC of the address is worked here from its description (SHA-256 under the app secret,
+ * base64url), but the window bucket is the app's own `bucketKeyFor` / `windowFor`, never a copy of the formula (one rule, one place).
+ *
+ * B109: keys are made for the window the press lands in AND the one after it. A press that reaches the server just after a window
+ * turns over (seen at 04:15:00.576, a second after the seed) counts in the next bucket, which held no row, so it was not refused.
+ * Both buckets stand, so the refusal holds across a rollover.
+ */
+function keysFor(kind: Kind, address: string): string[] {
   const secret = process.env.AUTH_SECRET ?? "dev-secret";
   const who = createHmac("sha256", secret).update(`client:${address.trim().toLowerCase()}`).digest("base64url");
-  return `${kind}:${who}:${Math.floor(Date.now() / RATE_LIMITS[kind].windowMs)}`;
+  const now = Date.now();
+  return [now, now + RATE_LIMITS[kind].windowMs].map((at) => bucketKeyFor(kind, who, at));
 }
-const expiry = (kind: Kind) => new Date((Math.floor(Date.now() / RATE_LIMITS[kind].windowMs) + 1) * RATE_LIMITS[kind].windowMs);
+/** When the `index`th key of `keysFor` lapses: the end of its own window. */
+const expiry = (kind: Kind, index: number) => new Date(windowFor(RATE_LIMITS[kind], Date.now() + index * RATE_LIMITS[kind].windowMs).endsAt);
 
 test.describe("a guest whose device mint is refused", () => {
   let club: Club;
@@ -63,9 +72,9 @@ test.describe("a guest whose device mint is refused", () => {
 
   test("the refusal is said beside the button in words, the form stays shut, no cookie and no entry; lifted, the same press opens it", async ({ browser, baseURL }, testInfo) => {
     test.setTimeout(180_000);
-    const alarmKey = keyFor("guest-mint-alarm", "guest-mint-platform");
-    const slowKey = keyFor("guest-mint-slow", ADDRESS);
-    const priorAlarm = await prisma.rateLimitHit.findUnique({ where: { key: alarmKey } });
+    const alarmKeys = keysFor("guest-mint-alarm", "guest-mint-platform");
+    const slowKeys = keysFor("guest-mint-slow", ADDRESS);
+    const priorAlarm = await prisma.rateLimitHit.findMany({ where: { key: { in: alarmKeys } } });
     const context = await browser.newContext({
       ...testInfo.project.use,
       baseURL: baseURL!,
@@ -78,8 +87,12 @@ test.describe("a guest whose device mint is refused", () => {
       const page = await context.newPage();
       watchPageErrors(page, errors, "refused guest");
       // The alarm stands (301 > 300) and this network's twelve are spent (the next mint is its thirteenth).
-      await prisma.rateLimitHit.upsert({ where: { key: alarmKey }, create: { key: alarmKey, count: 301, expiresAt: expiry("guest-mint-alarm") }, update: { count: 301 } });
-      await prisma.rateLimitHit.upsert({ where: { key: slowKey }, create: { key: slowKey, count: 12, expiresAt: expiry("guest-mint-slow") }, update: { count: 12 } });
+      for (const [i, key] of alarmKeys.entries()) {
+        await prisma.rateLimitHit.upsert({ where: { key }, create: { key, count: 301, expiresAt: expiry("guest-mint-alarm", i) }, update: { count: 301 } });
+      }
+      for (const [i, key] of slowKeys.entries()) {
+        await prisma.rateLimitHit.upsert({ where: { key }, create: { key, count: 12, expiresAt: expiry("guest-mint-slow", i) }, update: { count: 12 } });
+      }
       const before = await prisma.player.count({ where: { eventId } });
 
       await page.goto(`/register/${TOKEN}`);
@@ -100,7 +113,7 @@ test.describe("a guest whose device mint is refused", () => {
       expect(await prisma.player.count({ where: { eventId, status: "pending" } }), "a waiting row exists").toBe(0);
 
       // CONTROL: this network's counter lifted, the same press opens the form and sets the cookie.
-      await prisma.rateLimitHit.deleteMany({ where: { key: slowKey } });
+      await prisma.rateLimitHit.deleteMany({ where: { key: { in: slowKeys } } });
       await expect(async () => {
         await section.getByRole("button", { name: /Enter as a guest/ }).click({ timeout: 3_000 });
         await expect(name).toBeVisible({ timeout: 3_000 });
@@ -109,9 +122,12 @@ test.describe("a guest whose device mint is refused", () => {
       expect(errors, "page errors while the mint was refused").toEqual([]);
     } finally {
       await context.close().catch(() => {});
-      await prisma.rateLimitHit.deleteMany({ where: { key: slowKey } });
-      if (priorAlarm) await prisma.rateLimitHit.update({ where: { key: alarmKey }, data: { count: priorAlarm.count } }).catch(() => {});
-      else await prisma.rateLimitHit.deleteMany({ where: { key: alarmKey } });
+      await prisma.rateLimitHit.deleteMany({ where: { key: { in: slowKeys } } });
+      for (const key of alarmKeys) {
+        const prior = priorAlarm.find((r) => r.key === key);
+        if (prior) await prisma.rateLimitHit.update({ where: { key }, data: { count: prior.count } }).catch(() => {});
+        else await prisma.rateLimitHit.deleteMany({ where: { key } });
+      }
     }
   });
 });
