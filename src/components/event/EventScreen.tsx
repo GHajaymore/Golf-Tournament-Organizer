@@ -381,7 +381,7 @@ export function EventScreen(p: EventScreenProps) {
               )}
             </div>
 
-            <SectionFold id="event-more" title="More" state={"The players’ own course, overall result, dates and money"} needsYou={false} openOnPhone={false}>
+            <SectionFold id="event-more" title="More" state={"Overall result, dates, money"} needsYou={false} openOnPhone={false}>
               <div className="card elev-sm" style={{ gap: 12 }}>
                 {locked ? (
                   <SetupField label="Overall result" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
