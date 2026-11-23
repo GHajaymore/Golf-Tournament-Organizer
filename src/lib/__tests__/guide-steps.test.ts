@@ -24,7 +24,7 @@ const PINNED: [label: string, file: string][] = [
   ["Save & publish", "src/components/FoursomeMaker.tsx"],
   ["Publish the tee sheet", "src/components/FoursomeMaker.tsx"],
   ["Launch tournament", "src/components/LifecycleBar.tsx"],
-  ["Complete tournament", "src/components/LifecycleBar.tsx"],
+  ["Make results final", "src/components/LifecycleBar.tsx"],
   ["Reopen tournament", "src/components/LifecycleBar.tsx"],
   ["Import scores", "src/components/EntryModes.tsx"],
   ["Suspend play now", "src/components/PlayStatusControl.tsx"],
@@ -46,7 +46,7 @@ const PINNED: [label: string, file: string][] = [
   ["Open score entry", "src/lib/domain/needs-you-now.ts"],
   // Since the state machine's PR 6 the tournament's own job is the dashboard's next action, in its words.
   ["Launch tournament", "src/lib/domain/tournament-status.ts"],
-  ["Complete tournament", "src/lib/domain/tournament-status.ts"],
+  ["Make results final", "src/lib/domain/tournament-status.ts"],
   // The Print kit (2026-10-23) and its doors.
   ["Reprint these", "src/components/print/PrintKitClient.tsx"],
   ["Print the signs", "src/components/event/RoundCodes.tsx"],

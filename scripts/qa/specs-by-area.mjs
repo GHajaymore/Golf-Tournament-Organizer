@@ -143,7 +143,7 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/rounds/", "src/components/RoundTeamScoring.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/rounds/", "src/components/RoundTeamScoring.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       "e2e/stages-scoring-setup.spec.ts",
@@ -235,8 +235,12 @@ export const AREAS = {
   },
   reports: {
     name: "Reports (the Reports screen)",
-    paths: ["src/app/(app)/reports/", "src/components/ReportsClient.tsx", "src/components/PrintReportButton.tsx", "src/components/AttendanceReport.tsx", "src/lib/services/attendance-report.ts"],
-    specs: ["e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts", "e2e/report-rich.spec.ts", "e2e/report-settings.spec.ts"],
+    paths: ["src/app/(app)/reports/", "src/components/ReportsClient.tsx", "src/components/PrintReportButton.tsx", "src/components/AttendanceReport.tsx", "src/lib/services/attendance-report.ts", "src/components/results/"],
+    specs: [
+      "e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts", "e2e/report-rich.spec.ts", "e2e/report-settings.spec.ts",
+      // R12: a round is closed where the cards are (the entry page has no area of its own), at a club a day ahead of the server's.
+      "e2e/closing-a-round-where-the-cards-are.spec.ts",
+    ],
     scenarios: [],
     // A report writes the event's dates.
     dateSensitive: true,

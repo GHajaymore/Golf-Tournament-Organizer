@@ -19,6 +19,7 @@ import { screenName } from "@/lib/nav";
 import { Icon } from "./Icon";
 import { KnockoutTies } from "./KnockoutTies";
 import type { EntryTie, ThirdPlaceCard } from "@/lib/domain/knockout-ties";
+import { scoreEntryAsksWhere } from "@/lib/domain/venue";
 
 // Behind a press, and each writes to the server: not part of the first load of a
 // screen used on the course. See LazyPanel.tsx.
@@ -133,6 +134,7 @@ export function EntryModes({
   eventDates = "",
   voice,
   openCourse = false,
+  playedAtOnlyOpen,
   courseLibrary = [],
   cardScanAvailable = true,
   brand,
@@ -209,6 +211,8 @@ export function EntryModes({
   voice?: VoiceContext;
   /** True when the tournament has no fixed venue and each match names its own. */
   openCourse?: boolean;
+  /** REQUIRED (R12): the redesigned Score entry asks "Played at" only for an open course (`scoreEntryAsksWhere`); the old screen asks as ever. */
+  playedAtOnlyOpen: boolean;
   /** This club's saved courses, offered before anyone types a card by hand. */
   courseLibrary?: VenueCourse[];
   /** The club's mark, for the head of the stroke card. */
@@ -489,6 +493,7 @@ export function EntryModes({
           canEdit={isStaff}
           informed={isStaff}
           canSearchDirectory={isAdmin}
+          pickersHere={scoreEntryAsksWhere({ onlyForOpenCourse: playedAtOnlyOpen, openCourse })}
           casual={casual}
         />
       )}
@@ -535,6 +540,7 @@ export function EntryModes({
           meId={meId}
           venues={venues}
           openCourse={openCourse}
+          playedAtOnlyOpen={playedAtOnlyOpen}
           courseLibrary={courseLibrary}
         />
         </DistanceUnitProvider>

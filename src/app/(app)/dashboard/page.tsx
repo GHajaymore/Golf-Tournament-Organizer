@@ -27,6 +27,7 @@ import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
 import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
+import { screensShownFor } from "@/lib/services/screens-shown";
 import { CopyLastEvent } from "@/components/CopyLastEvent";
 import { openTournamentJob, secretaryHomeFor } from "@/lib/services/whats-next";
 import { endEarlyOf } from "@/lib/domain/lifecycle-track";
@@ -519,7 +520,7 @@ export default async function DashboardPage() {
   /**
    * THE ONE BUTTON (B03; the panel, 9 Nov; the PM, 10 Nov: for everyone, not only behind the stepper's
    * switch): `tournamentJob`, the job the lifecycle stepper marks and the home's first line for this
-   * tournament, composed here — never in `statusCardOf`. So the card never offers "Complete tournament"
+   * tournament, composed here — never in `statusCardOf`. So the card never offers "Make results final"
    * while golf is being played: the machine offers it from the first card, which at a two-day outing is
    * one press from ending it before day 2.
    */
@@ -878,7 +879,7 @@ export default async function DashboardPage() {
           next job in every tournament this person runs at the club, in the
           order they fall due, each with the button that does it — buttons only
           for somebody who may (`canEdit`). */}
-      {home && <WhatsNext jobs={home.jobs} mayAct={home.mayAct} openEventId={session.eventId} />}
+      {home && <WhatsNext jobs={home.jobs} mayAct={home.mayAct} openEventId={session.eventId} shown={await screensShownFor(session)} />}
 
       {/* THE ORGANIZER GETS THE SHEET IN ONE LINE (Ajay, 2026-10-05). Every
           group and every name was drawn above the heading — one group on the
