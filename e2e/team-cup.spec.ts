@@ -4,6 +4,8 @@ import { seedCup, teardownCup, PARS, CUP_EVENT } from "./cup-fixture.mjs";
 import { pressRadio } from "./press-radio";
 import { PrismaClient } from "@prisma/client";
 import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
+import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { PlayersPage } from "./console/players";
 
 /**
  * A TEAM CUP, PLAYED BY ITS PLAYERS — the Ryder Cup shape a golf trip runs,
@@ -646,4 +648,44 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   });
 
   expect(errors, `a screen threw in ${CUP_EVENT}`).toEqual([]);
+});
+
+// R6: the cup's two teams through the Players room's Cup teams tab, deleted at R17 with the old screen.
+test.describe("@redesign players", () => {
+  test("the cup's teams are made and filled on the Cup teams tab, and kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-cup-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Little Cup", {
+        stages: [{ type: "Team Session", format: "Four-Ball" }],
+        players: 4,
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Cup teams");
+      await expect(room.current()).toHaveText("Cup teams");
+      await page.getByLabel("First team").fill("Blues");
+      await page.getByLabel("Second team").fill("Whites");
+      await page.getByRole("button", { name: "Make the teams" }).click();
+      const flightsMade = () => rounds.group.findMany({ where: { eventId: event.id, stageId: null, isCarrier: false }, orderBy: { position: "asc" } });
+      await expect.poll(async () => (await flightsMade()).length, { message: "the two teams were not stored" }).toBe(2);
+      await room.open("Cup teams");
+      const blues = page.getByRole("group", { name: "Team Blues" });
+      await expect(blues, "the team made did not survive a reload").toBeVisible();
+      await blues.getByLabel("Add a player").selectOption({ index: 1 });
+      const bluesId = (await flightsMade()).find((g) => g.name === "Blues")!.id;
+      await expect
+        .poll(async () => rounds.player.count({ where: { eventId: event.id, groupId: bluesId } }), { message: "the player put on the team was not stored" })
+        .toBe(1);
+      const placed = await rounds.player.findFirstOrThrow({ where: { eventId: event.id, groupId: bluesId } });
+      await room.open("Cup teams");
+      await expect(page.getByRole("group", { name: "Team Blues" }), "the player was not on the team after a reload").toContainText(placed.name);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

@@ -4,6 +4,8 @@ import { playScratch } from "./round-basis";
 import { verifyByCode } from "./verify-by-code";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { expectLaunched } from "./end-early";
+import { prisma, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { PlayersPage } from "./console/players";
 
 /**
  * A MEMBER ENTERS THE CLUB'S COMPETITION FROM THE LINK, AND SCORES THEIR OWN
@@ -189,4 +191,32 @@ test("a member enters from the link, signs in, and scores their own card", async
     await memberCtx.close();
   }
   expect(errors, "a screen threw").toEqual([]);
+});
+
+// R6: the same desk through the Players room (`consoleUrl("/registration", "build")`), deleted at R17 with the old screen.
+test.describe("@redesign players", () => {
+  test("a player added on Entries is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-entries-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", { stages: [{}], players: 2 });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Entries");
+      await expect(room.current(), "the strip does not mark Entries as the tab you are on").toHaveText("Entries");
+      await page.getByRole("textbox", { name: "Player name" }).fill("Wren Ashby");
+      await page.getByRole("button", { name: /Add to field|Add late entry/ }).click();
+      await expect
+        .poll(async () => prisma.player.count({ where: { eventId: event.id, name: "Wren Ashby" } }), { message: "the player added was not stored" })
+        .toBe(1);
+      await room.open("Entries");
+      await expect(page.getByText("Wren Ashby").first(), "the player did not survive a reload").toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

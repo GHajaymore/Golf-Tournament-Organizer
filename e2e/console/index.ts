@@ -23,7 +23,7 @@ export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
   home: null,
   event: null,
   rounds: "/stages",
-  players: null,
+  players: "/registration",
   prizes: null,
   teeTimes: "/foursomes",
   scoreEntry: null,
