@@ -28,8 +28,8 @@ function filesUnder(dir: string): string[] {
 const FED_BY: Record<string, Array<[file: string[], proof: string]>> = {
   "components/NewMatchForm.tsx": [[["src", "app", "match", "new", "page.tsx"], "cardNote: pickedCardNote(c,"]],
   "components/CourseLibrary.tsx": [[["src", "components", "CourseLibrary.tsx"], "cardNote: c.cardNote"]],
-  "components/EventSetupClient.tsx": [
-    [["src", "components", "EventSetupClient.tsx"], "cardNote: c.cardNote"],
+  "components/event/EventWhere.tsx": [
+    [["src", "components", "event", "EventWhere.tsx"], "cardNote: c.cardNote"],
     [["src", "app", "(app)", "event", "page.tsx"], "cardNote: c.cardNote"],
   ],
   "components/rounds/RoundCourseTees.tsx": [[["src", "app", "(app)", "stages", "page.tsx"], "cardNote: pickedCardNote(v,"]],

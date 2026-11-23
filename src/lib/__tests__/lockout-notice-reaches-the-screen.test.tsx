@@ -24,6 +24,9 @@ const render = (playerAccess: string, strandedCount: number) =>
       mode="tournament"
       settings={cleanSettings({ playerAccess })}
       canEdit
+      howInHere
+      shareHere
+      teesHere
       strandedCount={strandedCount}
       shareToken="zz-token"
       rounds={[]}

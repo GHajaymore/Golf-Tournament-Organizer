@@ -98,11 +98,12 @@ describe("the kinds of play follow the club's country, from one place", () => {
   });
 
   it("the screens that print a kind ask eventWords", () => {
-    for (const f of ["src/components/ResultLines.tsx", "src/components/ClubEventsList.tsx", "src/components/EventSetupClient.tsx"]) {
+    for (const f of ["src/components/ResultLines.tsx", "src/components/ClubEventsList.tsx", "src/components/event/EventWhat.tsx", "src/components/event/EventWhen.tsx"]) {
       expect(readSource(f), f).toMatch(/eventWords\(/);
     }
-    expect(readSource("src/components/EventSetupClient.tsx")).toMatch(/playKindsFor\(register/);
+    // The name and kind were lifted out of EventSetupClient (R3-1).
+    expect(readSource("src/components/event/EventWhat.tsx")).toMatch(/playKindsFor\(register/);
     // The dates label is named after the event's kind (Ajay, 2026-11-09), not the word Tournament.
-    expect(readSource("src/components/EventSetupClient.tsx")).toMatch(/\{words\.kind\} dates/);
+    expect(readSource("src/components/event/EventWhen.tsx")).toMatch(/\{words\.kind\} dates/);
   });
 });
