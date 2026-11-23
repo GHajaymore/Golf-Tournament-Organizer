@@ -249,6 +249,17 @@ requests the stub answered (`stubbed > 0`) so a stub that never fired fails inst
 first half by `src/lib/__tests__/e2e-stubs-block-service-workers.test.ts` (B100): any spec with `.route(` and no
 `serviceWorkers: "block"` fails.
 
+## A phone folds sections: open through the page object, locate inside the section (G1)
+
+On a phone (`max-width: 767px`; the `phone` project is a Pixel 5, 393px) the kit's `SectionFold`
+(`src/components/setup/SectionFold.tsx`, its section marked `data-section="<key>"`) folds every section but the
+ones the caller keeps open. A control inside a folded section is `display: none`, so a press on it fails on the
+phone project only (R9a; R4's "More about Round n" the same). Open it through the page object's opener
+(`openSection(key)`, which calls `openFold(line)` in `e2e/console/index.ts`: click only when `aria-expanded="false"`,
+then assert `"true"`), then find the control INSIDE the section the opener returns, never from `page`. A screen's
+phone-folded parts use `SectionFold`, never a home-made toggle. And a `@redesign` block must press something that
+writes and look again after (`redesign-specs-press.test.ts`).
+
 ## A test that crosses the club's midnight
 
 A spec that opens a committee correction (`makeCommitteeCorrection`) near the club's midnight loses it: the real action ends it at `endOfClubDay`, and CI's club has no zone, so that is 00:00 UTC. The rounds lock came back mid-test (PR 1202, `team-allowance.spec.ts`: Save on "Scores that count" read disabled for 300 s). `makeCommitteeCorrection` now pushes any zz correction with under 10 minutes left out by 6 h (`correctionEndKeptOpen`); a spec that writes its own correction uses `openCorrectionFor`. Held by `fixture-correction-crosses-midnight.test.ts`.
