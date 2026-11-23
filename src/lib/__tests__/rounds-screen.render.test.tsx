@@ -169,11 +169,12 @@ describe("R4d: where a match round's next draw is made when Tee times & draw is 
     return { href, html };
   };
 
-  it("a round robin of a match event: Tee times & draw does not build it, so the one DrawRound stays here", () => {
+  it("a round robin of a match event: Tee times & draw builds it, so Rounds holds the LINK once and no button", () => {
     const { href, html } = draws("match", "Round Robin", "Match Play");
-    expect(href).toBe("/stages");
+    expect(href).toContain("/foursomes?round=r2");
     expect(count(html, "Draw Round 2&#x27;s matches")).toBe(1);
-    expect(html).not.toContain("/foursomes?round=r2");
+    expect(html).toMatch(/<a [^>]*href="[^"]*\/foursomes\?round=r2[^"]*"[^>]*>Draw Round 2&#x27;s matches<\/a>/);
+    expect(html).not.toMatch(/<button[^>]*>[^<]*Draw Round 2/);
   });
 
   it("CONTROL: a stroke round of a stroke event, which Tee times & draw does build, has its draw there and not here", () => {
