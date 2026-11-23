@@ -1,7 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireOrgScreen } from "@/lib/page-helpers";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { memberHistoryHref } from "@/lib/console-url";
 import { PageHeader } from "@/components/PageHeader";
 import { loadRoster } from "@/lib/services/roster";
 import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
@@ -53,7 +53,20 @@ export default async function MemberHistoryPage({
   const params = await searchParams;
   const shown = await screensShownFor(session);
   if (shown.has("members")) {
-    redirect(await keepingPreview(params.member ? `/roster?member=${encodeURIComponent(params.member)}#history` : "/roster#history"));
+    // The old address still OPENS (200 on its own path, as every old door does while a redesigned screen is
+    // shown) and says where the history is, with a link that keeps the member and the preview.
+    return (
+      <>
+        <PageHeader kicker="Members" title="Member history" subtitle="A member's history is now a section of Members." />
+        <section className="card">
+          <p style={{ margin: 0 }}>
+            Press a member&rsquo;s name on{" "}
+            <Link href={await keepingPreview(params.member ? memberHistoryHref(params.member, "/roster", null) : "/roster")}>Members</Link>{" "}
+            to see what they have played.
+          </p>
+        </section>
+      </>
+    );
   }
 
   const members = await loadRoster(organizationId);

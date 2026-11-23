@@ -226,7 +226,11 @@ test.describe("@redesign", () => {
       // ── the old address lands on the same list, the preview kept, the tab chosen, the list drawn once ─
       await desk.goto(consoleUrl("/access", "build"));
       await desk.waitForLoadState("networkidle").catch(() => {});
-      expect(new URL(desk.url()).pathname, "/access did not land on Club settings").toBe("/organization");
+      // The old address still opens (as every old door does) and says where the list is.
+      expect(new URL(desk.url()).pathname, "/access stopped opening").toBe("/access");
+      await desk.getByRole("link", { name: /Club settings, under Staff & access/ }).click();
+      await desk.waitForLoadState("networkidle").catch(() => {});
+      expect(new URL(desk.url()).pathname, "the link did not lead to Club settings").toBe("/organization");
       await expect(desk.getByRole("tab", { name: /^Staff & access\b/ }), "the Staff & access tab is not the one chosen").toHaveAttribute("aria-selected", "true");
       section = await openAccessSection(desk, "event");
       await expect(row(section, helperEmail), "the helper is not listed once on the section /access sends to").toHaveCount(1);

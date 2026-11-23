@@ -292,12 +292,15 @@ test.describe("@redesign", () => {
     test.skip(testInfo.project.name !== "desktop", "one project: the list is a table at desktop width");
     test.setTimeout(240_000);
     const errors: string[] = [];
-    const mark = "zz-r7members";
+    const mark = `zz-r7members-${testInfo.project.name}`;
     const theirs = await makeClub(mark);
-    const desk = await browser.newContext({ baseURL, storageState: undefined });
-    const stranger = await browser.newContext({ baseURL, storageState: undefined });
+    const device = testInfo.project.use;
+    const desk = await browser.newContext({ ...device, baseURL, storageState: undefined });
+    const stranger = await browser.newContext({ ...device, baseURL, storageState: undefined });
     try {
       const { event } = await makeEvent(theirs, "Spring Medal", { stages: [{}], players: 0 });
+      // Set-up: a club with somebody already on its list, as the screen is used (the add below is the press).
+      await prisma.member.create({ data: { organizationId: theirs.orgId, name: "Cal Existing", email: `${mark}-cal@example.invalid`, handicap: 20 } });
       await signIn(desk, baseURL!, theirs, event.id);
       const page = await desk.newPage();
       watchPageErrors(page, errors, "commissioner");
@@ -387,7 +390,11 @@ test.describe("@redesign", () => {
       // The old address sends a person to the same place, the preview kept.
       await page.goto(consoleUrl(`/member?member=${member.id}`, "build"));
       await page.waitForLoadState("networkidle").catch(() => {});
-      expect(new URL(page.url()).pathname, "/member did not land on Members").toBe("/roster");
+      // The old address still opens (as every old door does) and leads, keeping the member and the preview.
+      expect(new URL(page.url()).pathname, "/member stopped opening").toBe("/member");
+      await page.locator("main").getByRole("link", { name: "Members", exact: true }).click();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      expect(new URL(page.url()).pathname, "the link did not lead to Members").toBe("/roster");
       history = await openHistory(page);
       await expect(history.locator("tbody tr").filter({ hasText: `${mark} Autumn Medal` }), "/member did not open her history").toContainText("Played");
 

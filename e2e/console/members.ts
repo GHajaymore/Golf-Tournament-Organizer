@@ -14,7 +14,13 @@ export async function openMembers(page: Page, memberId?: string): Promise<void> 
   const path = memberId ? `${MEMBERS_PATH}?member=${encodeURIComponent(memberId)}` : MEMBERS_PATH;
   await page.goto(consoleUrl(path, "build"));
   await page.waitForLoadState("networkidle").catch(() => {});
-  await page.getByRole("heading", { level: 1, name: "Members" }).waitFor({ state: "visible" });
+  // Bounded, and it names where the page is when the heading never comes (a test timeout says only "closed").
+  await page
+    .getByRole("heading", { level: 1, name: "Members" })
+    .waitFor({ state: "visible", timeout: 30_000 })
+    .catch(async (e) => {
+      throw new Error(`Members did not draw its heading: at ${page.url()}, h1 "${(await page.locator("h1").first().textContent().catch(() => null)) ?? "none"}". ${String(e)}`);
+    });
 }
 
 /** The history section, opened if a phone folded it; find controls INSIDE the section it returns. */

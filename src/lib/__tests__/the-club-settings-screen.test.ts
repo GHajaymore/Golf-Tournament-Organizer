@@ -36,7 +36,10 @@ describe("the event's helpers are mounted once, by one boolean", () => {
     expect(mountsOf("EventHelpers")).toEqual(["access/page.tsx", "organization/page.tsx"]);
     const access = readSource("src", "app", "(app)", "access", "page.tsx");
     // The old screen obeys the same boolean: while Club settings is shown it sends a person there, and draws nothing.
-    expect(access).toMatch(/if \(shown\.has\("clubSettings"\)\) redirect\(await keepingPreview\("\/organization#access"\)\);/);
+    // It does not redirect (every old door still opens on its own path: `lifecycle-menu.spec`): it says where the list went.
+    expect(access).not.toMatch(/redirect\(await keepingPreview/);
+    expect(access).toMatch(/if \(shown\.has\("clubSettings"\)\) \{/);
+    expect(access).toContain('keepingPreview("/organization#access")');
     expect(access.indexOf('shown.has("clubSettings")')).toBeLessThan(access.indexOf("<EventHelpers"));
     const org = readSource("src", "app", "(app)", "organization", "page.tsx");
     expect(org).toMatch(/const redesigned = shown\.has\("clubSettings"\);/);
