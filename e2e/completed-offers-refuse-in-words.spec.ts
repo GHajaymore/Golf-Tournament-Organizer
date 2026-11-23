@@ -360,16 +360,30 @@ test.describe("@redesign", () => {
       });
       const LOCK_LINE = /Locked because the tournament is completed\./;
       /** Drawn live (so the controls are offered, the money fold open), completed "in another tab", then pressed. */
+      /**
+       * THE SCREEN IS HELD STALE, so the press is the server's to refuse. `LiveRefresh` polls `router.refresh()` only while the tab is
+       * visible (`document.visibilityState`), and on a slow shard that poll lands between the database change and the click, the
+       * screen learns it is locked and Add is disabled (G681). The page's own visibility is told "hidden" from here (no app seam is
+       * added), and `letTheScreenCatchUp` gives it back and wakes the page, as a person returning to the tab does.
+       */
+      const holdTheScreenStale = () => page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }));
+      const letTheScreenCatchUp = () =>
+        page.evaluate(() => {
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
       const drawnLiveThenCompleted = async () => {
         await setStatus("live");
         await screen.open(stages[0].id);
         await screen.openMoneySetup();
+        await holdTheScreenStale();
         await setStatus("completed");
       };
       const refusedBesidePress = async (what: string, before: Awaited<ReturnType<typeof snapshot>>) => {
         const said = page.getByText(`Locked because the tournament is completed. Reopen it on the dashboard to ${what}.`).first();
         await expect(said, `the refusal to ${what} was not said`).toBeVisible({ timeout: 20_000 });
         await expect(said, `the refusal to ${what} was said off screen`).toBeInViewport();
+        await letTheScreenCatchUp();
         await expect(page.getByRole("region", { name: "Locked" }), "the screen did not catch up with the lock").toContainText(LOCK_LINE, { timeout: 20_000 });
         expect(await snapshot(), `written while locked (${what})`).toEqual(before);
       };
