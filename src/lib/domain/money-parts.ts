@@ -71,6 +71,8 @@ export type MoneyControl = (typeof OFFER_CONTROLS)[number] | (typeof SETTLE_CONT
  * nobody placed has found a hole, and silence here would be a control drawn twice or not at all.
  */
 export function moneyPartOf(control: string): MoneyPart {
+  const broken = moneyPartProblems(OFFER_CONTROLS, SETTLE_CONTROLS);
+  if (broken.length > 0) throw new Error(`the money parts are inconsistent: ${broken.join("; ")}`);
   const offer = (OFFER_CONTROLS as readonly string[]).includes(control);
   const settle = (SETTLE_CONTROLS as readonly string[]).includes(control);
   if (offer && settle) throw new Error(`the money control ${control} is in both parts`);

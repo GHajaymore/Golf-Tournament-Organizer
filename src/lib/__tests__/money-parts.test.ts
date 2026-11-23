@@ -90,6 +90,8 @@ describe("a field's pots and contests are mounted once", () => {
     for (const m of prizesPage.matchAll(/<(SkinsPotClient|ContestsClient)\b/g)) {
       expect(m.index!, `${m[1]} is mounted on Prizes outside the field-games guard`).toBeGreaterThan(from);
       expect(m.index!).toBeLessThan(to);
+      // …and the guard is IN ITS OWN condition, the lines just before the mount (not some other mount's).
+      expect(prizesPage.slice(Math.max(0, m.index! - 160), m.index!), `${m[1]} on Prizes is not behind fieldGamesHere`).toContain("fieldGamesHere");
     }
     expect((prizesPage.match(/fieldGamesHere &&/g) ?? []).length).toBeGreaterThanOrEqual(3);
     // Group games: the field's pot, its side games and the "Add a game" fold are the casual round's, asked as the same boolean.

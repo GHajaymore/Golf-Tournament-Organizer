@@ -213,7 +213,7 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts", "src/components/teetimes/", "src/lib/domain/draw-sections.ts", "src/lib/domain/find-a-player.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts", "src/components/teetimes/CutWaitingCard.tsx", "src/components/teetimes/FindAPlayer.tsx", "src/components/teetimes/PrintDoor.tsx", "src/components/teetimes/SheetDriftCard.tsx", "src/components/teetimes/StalePaperLine.tsx", "src/components/teetimes/TeeTimesScreen.tsx","src/lib/domain/draw-sections.ts", "src/lib/domain/find-a-player.ts"],
     specs: [
       "e2e/organizer-teesheet.spec.ts",
       // Find a player on Tee times & draw, as the starter on a phone (R9a): four of its seven states.
