@@ -2,6 +2,7 @@
 import { roundLabel as roundLabelOf, roundNumber as roundNumberOf } from "@/lib/domain/round-label";
 import { CutControl } from "@/components/CutControl";
 import { SectionLabel } from "@/components/rounds/shared";
+import { InfoOrFace } from "@/components/setup/InfoOrFace";
 import type { RoundCtx } from "./use-round-ctx";
 
 export function RoundCut({ ctx }: { ctx: RoundCtx }) {
@@ -32,12 +33,20 @@ export function RoundCut({ ctx }: { ctx: RoundCtx }) {
                 36-hole cut is. This said "ranked on this round's scores", which
                 told the organizer of a 54-hole championship that Round 1 would
                 not count towards who plays Round 3 (2026-10-16). */}
-            <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
+            <InfoOrFace
+              redesign={ctx.redesign}
+              label="the cut"
+              face={(words) => (
+                <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
+                  {words}
+                </p>
+              )}
+            >
               Who plays {roundLabelOf(allStages, nextStage.id)}, ranked on
               {roundNumberOf(allStages, stage.id) > 1 ? ` the total after ${thisRound}` : ` ${thisRound || "this round"}`}.
               A tie for the last place is settled the way you choose below. The cut is made when you
               mark this round finished.
-            </p>
+            </InfoOrFace>
             <CutControl
               key={nextStage.id}
               formId={stage.id}

@@ -5,6 +5,9 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { consoleUrl } from "../src/lib/console-url";
+import { openStaffAndAccess, openAccessSection } from "./console/clubSettings";
 
 /**
  * A HELPER IS LET INTO A TOURNAMENT, MOVED DOWN TO A PLAYER, AND SHOWN THE DOOR.
@@ -142,4 +145,112 @@ test("the organizer lets a helper in, makes them a player, lets them back in and
   } finally {
     await closeAll(organizer, helper);
   }
+});
+
+/**
+ * THE SAME HELPERS, ON CLUB SETTINGS' "ON THIS EVENT" (R7, behind the redesign switch).
+ *
+ * The secretary of a club of this spec's own moves a helper down to a player and removes them, each asked first
+ * and each seen after a reload of the screen; and the only organizer of the tournament is refused, in words,
+ * beside the button they pressed. The helper's own browser agrees: Registration opens or is shut. The three
+ * writes are the ones `addAccount`, `setAccountRole` and `removeAccount` make; nothing here is a new action.
+ */
+test.describe("@redesign", () => {
+  test("on 'On this event' a helper is moved down and removed, each asked first and kept after a reload, and the only organizer is refused in words", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    const mark = `zz-r7helpers-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    const device = testInfo.project.use;
+    const secretary = await browser.newContext({ ...device, baseURL, storageState: undefined });
+    const helper = await browser.newContext({ ...device, baseURL, storageState: undefined });
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", { stages: [{}] });
+      const helperEmail = `${mark}-helper@example.invalid`;
+      const helperName = "Robin Helper";
+      const helperUser = await prisma.user.create({ data: { email: helperEmail, name: helperName, password: "x:unusable", emailVerifiedAt: new Date() } });
+      // Set-up, not the thing under test: the helper is already an assistant, and the secretary is the tournament's one Admin.
+      await prisma.account.create({ data: { eventId: event.id, email: helperEmail, name: helperName, role: "assistant" } });
+      const owner = await prisma.user.findUniqueOrThrow({ where: { id: club.userId } });
+      const ownerAccount = await prisma.account.create({ data: { eventId: event.id, email: owner.email, name: owner.name, role: "admin" } });
+      await signIn(secretary, baseURL!, club, event.id);
+      await helper.addCookies([
+        { name: "ng_session", value: sign(signedInNow(helperUser.id)), url: baseURL! },
+        { name: "ng_active_event", value: sign(event.id), url: baseURL! },
+      ]);
+      const desk = await secretary.newPage();
+      const theirs = await helper.newPage();
+      watchPageErrors(desk, errors, "secretary");
+      watchPageErrors(theirs, errors, "helper");
+      const account = () => prisma.account.findFirst({ where: { eventId: event.id, email: helperEmail } });
+      const registration = async () => {
+        await theirs.goto(`/registration?bust=${Date.now()}`);
+        await theirs.waitForLoadState("networkidle").catch(() => {});
+        return new URL(theirs.url()).pathname;
+      };
+      /** The screen opened afresh, the section opened if a phone folded it, and the section returned. */
+      const events = async () => {
+        await openStaffAndAccess(desk);
+        return openAccessSection(desk, "event");
+      };
+      const row = (section: Awaited<ReturnType<typeof events>>, email: string) => section.locator("tr", { hasText: email });
+
+      expect(await registration(), "CONTROL: an assistant cannot open the console").toBe("/registration");
+
+      // ── moved down to a player: asked first ─────────────────────────────
+      let section = await events();
+      await row(section, helperEmail).locator("label.seg-opt", { hasText: /^\s*Player\s*$/ }).click();
+      expect((await account())?.role, "one press changed somebody's role without asking").toBe("assistant");
+      await row(section, helperEmail).getByRole("button", { name: /^Yes — make / }).click();
+      await expect.poll(async () => (await account())?.role, { timeout: 20_000, message: "the role was not changed" }).toBe("player");
+      await desk.reload();
+      await desk.waitForLoadState("networkidle").catch(() => {});
+      await openStaffAndAccess(desk);
+      section = await openAccessSection(desk, "event");
+      await expect(
+        row(section, helperEmail).locator("label.seg-opt", { hasText: /^\s*Player\s*$/ }).locator("input"),
+        "after a reload the helper is not shown as a player",
+      ).toBeChecked();
+      expect(await registration(), "somebody made a player can still open the console").not.toBe("/registration");
+
+      // ── the only organizer cannot be moved down: told before, refused after, beside the press ─
+      const own = row(section, owner.email);
+      await own.locator("label.seg-opt", { hasText: /^\s*Player\s*$/ }).click();
+      await expect(own, "the only organizer is not warned that this will be refused").toContainText(/This is the only .+ on the event — promote someone else first/);
+      await own.getByRole("button", { name: /^Yes — make / }).click();
+      const refusal = section.getByText(/This is the only .+ on this event — promote someone else first\./);
+      await expect(refusal, "the refusal is not said in words").toBeVisible({ timeout: 20_000 });
+      await expect(refusal, "the refusal is printed where the person who pressed cannot see it").toBeInViewport();
+      expect((await prisma.account.findUniqueOrThrow({ where: { id: ownerAccount.id } })).role, "the only organizer was made a player").toBe("admin");
+
+      // ── the old address lands on the same list, the preview kept, the tab chosen, the list drawn once ─
+      await desk.goto(consoleUrl("/access", "build"));
+      await desk.getByRole("heading", { level: 1, name: "Staff & helpers" }).waitFor({ state: "visible" });
+      // The old address still opens (as every old door does) and says where the list is.
+      expect(new URL(desk.url()).pathname, "/access stopped opening").toBe("/access");
+      await desk.getByRole("link", { name: /Club settings, under Staff & access/ }).click();
+      await desk.waitForURL((u) => u.pathname === "/organization", { timeout: 30_000 });
+      expect(new URL(desk.url()).pathname, "the link did not lead to Club settings").toBe("/organization");
+      await expect(desk.getByRole("tab", { name: /^Staff & access\b/ }), "the Staff & access tab is not the one chosen").toHaveAttribute("aria-selected", "true");
+      section = await openAccessSection(desk, "event");
+      await expect(row(section, helperEmail), "the helper is not listed once on the section /access sends to").toHaveCount(1);
+
+      // ── removed: asked first ────────────────────────────────────────────
+      section = await events();
+      await row(section, helperEmail).getByRole("button", { name: `Remove ${helperName}'s access` }).click();
+      expect(await account(), "one press removed somebody's access without asking").not.toBeNull();
+      await row(section, helperEmail).getByRole("button", { name: "Remove access" }).click();
+      await expect.poll(account, { timeout: 20_000, message: "the access was not removed" }).toBeNull();
+      await desk.reload();
+      await desk.waitForLoadState("networkidle").catch(() => {});
+      await openStaffAndAccess(desk);
+      section = await openAccessSection(desk, "event");
+      await expect(row(section, helperEmail), "a removed helper is still listed after a reload").toHaveCount(0);
+
+      expect(errors, "a screen threw").toEqual([]);
+    } finally {
+      await closeAll(secretary, helper);
+      await dropClub(mark);
+    }
+  });
 });

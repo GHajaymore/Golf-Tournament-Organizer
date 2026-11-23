@@ -221,7 +221,7 @@ describe("a shut cup Save says why beside itself (G663-1)", () => {
     { id: "a", name: "Oaks", players: [] },
     { id: "b", name: "Pines", players: [] },
   ];
-  const cup = (lockWhy: typeof rounds | null) => draw(<CupLineup teams={teams as never} sessions={[]} pointsToWin={0} holder="" locked lockWhy={lockWhy} />);
+  const cup = (lockWhy: typeof rounds | null) => draw(<CupLineup teams={teams as never} sessions={[]} pointsToWin={0} holder="" locked lockWhy={lockWhy} settingsHere />);
 
   it("the greyed Save names a sentence that is in the form, with the machine's words", () => {
     const html = cup(rounds);

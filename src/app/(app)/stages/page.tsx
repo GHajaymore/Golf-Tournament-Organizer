@@ -18,7 +18,9 @@ import type { ComponentProps } from "react";
 import { StagesClient } from "@/components/StagesClient";
 import { RoundsScreen } from "@/components/rounds/RoundsScreen";
 import { screensShownFor } from "@/lib/services/screens-shown";
-import { relocate } from "@/lib/domain/console-merges";
+import { roundDrawHref } from "@/lib/domain/round-draw-door";
+import { cupBoard } from "@/lib/services/cup";
+import type { CupSettingsView } from "@/components/rounds/CupSettings";
 import { roundRing, type RoundRing } from "@/lib/domain/round-ring";
 import { markOf, type Mark } from "@/lib/domain/setup-field";
 import { inheritedRoundTee } from "@/lib/domain/inherited-tee";
@@ -421,6 +423,26 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
    */
   const shown = await screensShownFor(session);
   const newScreen = shown.has("rounds") && told !== null;
+  /**
+   * THE CUP'S SETTINGS, ON ROUNDS (R4d; phase 1 Q5): a team cup's two teams are `cupBoard`'s (the one answer to "which two
+   * flights"), its points to win and holder the event's own. Staff only, as `setCupSettings` is; null for every other event.
+   */
+  const mayRunCup = session.viewRole === "admin" || session.viewRole === "assistant";
+  let cup: CupSettingsView | null = null;
+  if (newScreen && told?.status.family === "teamCup" && mayRunCup) {
+    const board = await cupBoard(session.eventId);
+    if (board.ok) {
+      const settings = await prisma.event.findUnique({ where: { id: session.eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } });
+      cup = {
+        teams: [
+          { id: board.board.teams[0].id, name: board.board.teams[0].name },
+          { id: board.board.teams[1].id, name: board.board.teams[1].name },
+        ],
+        pointsToWin: settings?.cupPointsToWin ?? 0,
+        holder: settings?.cupHolderGroupId ?? "",
+      };
+    }
+  }
   const screenExtras = newScreen && told
     ? (() => {
         const status = told.status;
@@ -443,7 +465,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
           allowanceSources[s.id] = allowanceSource(s.format, s.type);
         });
         for (const s of state.stages) {
-          drawHref[s.id] = relocate({ href: "/stages", job: "draw", roundId: s.id, role: session.viewRole }, shown);
+          drawHref[s.id] = roundDrawHref(s, status.family, session.viewRole, shown);
         }
         const rings: Record<string, RoundRing | null> = {};
         for (const r of status.rounds) rings[r.id] = roundRing(r);
@@ -464,6 +486,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
           },
           shown: [...shown],
           drawHref,
+          cup,
         };
       })()
     : null;

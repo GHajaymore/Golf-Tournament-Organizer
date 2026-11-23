@@ -15,6 +15,10 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, scopeLockFor } from "@/lib/services/tournament-status";
+import { playersRoomFor } from "@/lib/services/players-room";
+import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
+import { PlayersTabs } from "@/components/players/PlayersTabs";
+import { CupTeamsTab } from "@/components/players/CupTeamsTab";
 
 /**
  * Drawing sides for the team formats.
@@ -28,10 +32,28 @@ export const metadata = screenMetadata("/teams");
 export default async function TeamsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ round?: string }>;
+  searchParams: Promise<{ round?: string; tab?: string }>;
 }) {
   const session = await requireScreen("teams");
   const params = await searchParams;
+  const room = await playersRoomFor(session);
+
+  // THE CUP TEAMS TAB (R6): while Players is shown and the tournament has a cup, `?tab=cup` is where the cup's two
+  // teams are made and filled (`cupTeamsHome`); the cup page stops drawing them by the same answer.
+  if (room && params.tab === "cup" && room.tabs.some((t) => t.key === "cup") && cupTeamsHome(room !== null) === "players") {
+    const cupFlow = await setupRailFor(session.eventId);
+    const flightsTab = PLAYER_TABS.find((t) => t.key === "flights")!;
+    return (
+      <>
+        <SetupFlowRail flow={cupFlow} href="/teams" />
+        <PlayersTabs tabs={room.tabs} active="cup" search={room.search} />
+        <p className="kicker">Players</p>
+        <h1 className="page-title">Cup teams</h1>
+        <CupTeamsTab eventId={session.eventId} isAdmin={session.viewRole === "admin"} flightsHref={playerTabHref(flightsTab, room.search)} />
+        <SetupFlowFooter flow={cupFlow} href="/teams" />
+      </>
+    );
+  }
 
   const stages = await prisma.stage.findMany({
     where: { eventId: session.eventId },
@@ -45,6 +67,7 @@ export default async function TeamsPage({
   if (!active) {
     return (
       <>
+        {room && <PlayersTabs tabs={room.tabs} active="teams" search={room.search} />}
         <p className="kicker">Set up</p>
         <h1 className="page-title">Teams &amp; pairs</h1>
         <div className="card elev-sm" style={{ marginTop: 16 }}>
@@ -78,6 +101,7 @@ export default async function TeamsPage({
   return (
     <>
       <SetupFlowRail flow={flow} href="/teams" />
+      {room && <PlayersTabs tabs={room.tabs} active="teams" search={room.search} />}
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
       <ScopeLockBanner locks={sidesLock ? [sidesLock] : []} isAdmin={session.viewRole === "admin"} />

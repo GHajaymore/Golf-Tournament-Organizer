@@ -100,6 +100,11 @@ export interface RoundCardProps {
   chainWarnings: string[];
   /** False for a single-round tournament, which has no next round. */
   chainsRounds: boolean;
+  /**
+   * True from the redesigned Rounds & formats (`RoundsScreen`), false from today's (`StagesClient`): the sentences that
+   * explain a setting are drawn behind an ⓘ on the new screen only (`InfoOrFace`).
+   */
+  redesign: boolean;
 }
 
 /**
@@ -784,6 +789,7 @@ export function useRoundCtx(props: RoundCardProps) {
     roundColor,
     roundText,
     playByOnFace,
+    redesign: props.redesign,
   };
 }
 
