@@ -10,8 +10,8 @@ import { consoleUrl } from "../src/lib/console-url";
  * four-balls are there: the section offers a redraw instead of a first draw and the matches are stored. Teams & pairs,
  * opened in the same preview, says where the control went and does not draw a second one.
  *
- * Its own throwaway league (a zz- club, deleted after): two clubs of two, one pair nominated by each, so the week is two
- * four-balls' worth of pairs against pairs, read from the fixture. Service workers blocked; memory: one browser context
+ * Its own throwaway league (a zz- club, deleted after): two clubs of four, two pairs nominated by each, so the week is two
+ * four-balls (first pair against first, second against second: `drawMeeting`), read from the fixture. Service workers blocked; memory: one browser context
  * and one page, about 150 MB.
  */
 test.describe("@redesign interclub: Draw this week on Tee times & draw", () => {
@@ -29,26 +29,29 @@ test.describe("@redesign interclub: Draw this week on Tee times & draw", () => {
       const made = await makeEvent(club, "Thursday Interclub", {
         status: "live",
         stages: [{ type: "Round Robin", format: "Four-Ball", playedOn: addDays(dayIn(""), 7) }],
-        players: 4,
-        event: { leaguePoints: "match", leaguePairs: 1 },
+        players: 8,
+        event: { leaguePoints: "match", leaguePairs: 2 },
       });
       const round = made.stages[0];
       // Two clubs (a flight each) of two players, and each club's one nominated pair for the week.
       const clubs = [];
       for (const [c, name] of ["Ardlui", "Balfron"].entries()) {
         const g = await prisma.group.create({ data: { eventId: made.event.id, name: `${mark} ${name}`, position: c } });
-        const own = made.players.slice(c * 2, c * 2 + 2);
+        const own = made.players.slice(c * 4, c * 4 + 4);
         await prisma.player.updateMany({ where: { id: { in: own.map((p) => p.id) } }, data: { groupId: g.id } });
-        await prisma.team.create({
-          data: {
-            eventId: made.event.id,
-            stageId: round.id,
-            name: `${name} pair`,
-            seed: 1,
-            clubGroupId: g.id,
-            members: { create: own.map((p, position) => ({ playerId: p.id, position })) },
-          },
-        });
+        // Two pairs a club: `drawMeeting` makes min(pairs of A, pairs of B) four-balls, so the week is two.
+        for (const k of [0, 1]) {
+          await prisma.team.create({
+            data: {
+              eventId: made.event.id,
+              stageId: round.id,
+              name: `${name} pair ${k + 1}`,
+              seed: k + 1,
+              clubGroupId: g.id,
+              members: { create: own.slice(k * 2, k * 2 + 2).map((p, position) => ({ playerId: p.id, position })) },
+            },
+          });
+        }
         clubs.push(g.id);
       }
       const drawn = () => prisma.match.count({ where: { eventId: made.event.id, stageId: round.id } });
