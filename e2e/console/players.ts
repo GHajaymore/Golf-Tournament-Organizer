@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
-import { openScreen, SCREENS_BUILT } from "./index";
+import { openScreen } from "./index";
+import { PLAYER_TABS, playerTabHref } from "../../src/lib/domain/players-tabs";
 
 /**
  * THE REDESIGNED "PLAYERS" ROOM (R6), as a person drives it: Entries, Flights, Teams and Cup teams are four tabs,
@@ -8,12 +9,8 @@ import { openScreen, SCREENS_BUILT } from "./index";
  */
 export type PlayersTabName = "Entries" | "Flights" | "Teams" | "Cup teams";
 
-const PATHS: Record<PlayersTabName, string> = {
-  Entries: SCREENS_BUILT.players ?? "/registration",
-  Flights: "/grouping",
-  Teams: "/teams",
-  "Cup teams": "/teams?tab=cup",
-};
+/** Each tab's address, from the same list the strip is drawn from (`PLAYER_TABS`). */
+const PATHS: Record<PlayersTabName, string> = Object.fromEntries(PLAYER_TABS.map((t) => [t.label, playerTabHref(t, "")])) as Record<PlayersTabName, string>;
 
 export class PlayersPage {
   constructor(readonly page: Page) {}

@@ -23,8 +23,8 @@ export const PLAYERS_GUIDE: GuideVariant = {
         {
           kind: "steps",
           items: [
-            "On [[Entries]], add a player, approve an entry or move someone off the waiting list. How players get in is kept on the same tab.",
-            "On [[Flights]], divide the field into flights and name them. A flight is kept here; Entries only names it.",
+            "On [[Entries]], add a player, approve an entry or move someone off the waiting list.",
+            "On [[Flights]], divide the field into flights and name them, and move a player from one flight to another. A late entrant in no flight is put in one beside their name on Entries (in a cup, on Cup teams).",
             "On [[Teams]], name each side and say who is on it, round by round.",
             "On [[Cup teams]], make the cup's two teams and put each player on one. The cup's scoreboard and lineups stay on the cup's own screens.",
           ],

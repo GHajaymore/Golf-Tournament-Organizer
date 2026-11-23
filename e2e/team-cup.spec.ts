@@ -688,4 +688,35 @@ test.describe("@redesign players", () => {
     }
     expect(errors, errors.join("\n")).toEqual([]);
   });
+
+  test("after launch the Cup teams tab refuses in words on the team pressed, and its banner offers the correction", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop"].includes(testInfo.project.name), "one size: the refusal is the server's answer, the same at every width");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-cuplock-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event, players, flights } = await makeEvent(club, "Little Cup", {
+        stages: [{ type: "Team Session", format: "Four-Ball" }],
+        players: 4,
+        flights: 2,
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Cup teams");
+      const team = page.getByRole("group", { name: "Team Flight A" });
+      await expect(team).toContainText(players[0].name);
+      // Another tab launches the tournament after this screen was drawn.
+      await rounds.event.update({ where: { id: event.id }, data: { status: "live" } });
+      await team.getByRole("button", { name: `Take ${players[0].name} off Flight A` }).click();
+      const refused = team.getByText(/change the cup’s teams/);
+      await expect(refused, "the refusal was not said on the team that was pressed").toBeVisible({ timeout: 20_000 });
+      expect((await rounds.player.findUniqueOrThrow({ where: { id: players[0].id } })).groupId, "a launched cup's team was changed").toBe(flights[0].id);
+      await room.open("Cup teams");
+      await expect(page.getByText(/committee correction/i).first(), "the banner does not offer the correction").toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

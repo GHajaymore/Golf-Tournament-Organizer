@@ -36,6 +36,7 @@ import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, fieldLockSaid, f
 import { WithdrawnList } from "@/components/WithdrawnList";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
 import { playersRoomFor } from "@/lib/services/players-room";
+import { PLAYER_TABS, playerTabHref, unplacedPlacedOn } from "@/lib/domain/players-tabs";
 import { PlayersTabs } from "@/components/players/PlayersTabs";
 
 export const metadata = screenMetadata("/registration");
@@ -240,6 +241,9 @@ export default async function RegistrationPage() {
       underWay={underWay}
       flights={state.groups.map((g, i) => ({ id: g.id, label: flightLabel(g.name, i) }))}
       unplacedFlag={unplacedFlag}
+      // Where an unplaced player is put in a flight: here, except in a cup while Players is shown (`unplacedPlacedOn`).
+      placeUnplacedHere={fieldFacts ? unplacedPlacedOn(room !== null, fieldFacts.family) === "entries" : true}
+      cupTeamsHref={room ? playerTabHref(PLAYER_TABS.find((t) => t.key === "cup")!, room.search) : null}
       addFlight={fieldFacts ? addFlightPick(fieldFacts) : null}
       offerReserve={fieldFacts ? reserveOffered(fieldFacts) : false}
       isAdmin={session.viewRole === "admin"}

@@ -11,6 +11,7 @@ import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screenLocksFor } from "@/lib/services/tournament-status";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { headers } from "next/headers";
+import { cupTeamsPropsFor } from "@/lib/services/cup-teams";
 import { screensShownFor } from "@/lib/services/screens-shown";
 import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
 
@@ -144,38 +145,17 @@ async function StaffLineup({
   settingsLocked: boolean;
   settingsLock: ScopeLock | null;
 }) {
-  const [event, players, unplaced, captains] = await Promise.all([
+  const [event, cupTeams] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
-    prisma.player.findMany({
-      where: { eventId, status: "confirmed", groupId: { in: board.teams.map((t) => t.id) } },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, groupId: true, handicap: true, handicapSource: true, handicapType: true },
-    }),
-    prisma.player.findMany({
-      where: { eventId, status: "confirmed", groupId: null },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, handicap: true, handicapSource: true, handicapType: true },
-    }),
-    prisma.group.findMany({
-      where: { id: { in: board.teams.map((t) => t.id) }, eventId, isCarrier: false },
-      select: { id: true, captainId: true },
-    }),
+    cupTeamsPropsFor(eventId, board.teams),
   ]);
-  const teamPlayers = (id: string) => players.filter((p) => p.groupId === id).map((p) => ({ id: p.id, name: p.name }));
-  const captainOf = (id: string) => captains.find((c) => c.id === id)?.captainId ?? "";
-  const roster = (id: string) =>
-    players
-      .filter((p) => p.groupId === id)
-      .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapSource: p.handicapSource, handicapType: p.handicapType }));
+  const teamPlayers = (i: 0 | 1) => cupTeams.teams[i].players.map((p) => ({ id: p.id, name: p.name }));
   return (
     <>
     {teamsHere ? (
       <CupTeams
-        teams={[
-          { id: board.teams[0].id, name: board.teams[0].name, captainId: captainOf(board.teams[0].id), players: roster(board.teams[0].id) },
-          { id: board.teams[1].id, name: board.teams[1].name, captainId: captainOf(board.teams[1].id), players: roster(board.teams[1].id) },
-        ]}
-        unplaced={unplaced}
+        teams={cupTeams.teams}
+        unplaced={cupTeams.unplaced}
         inLineup={board.sessions.flatMap((s) => s.matches.flatMap((m) => m.playerIds))}
         locked={teamsLocked}
       />
@@ -190,8 +170,8 @@ async function StaffLineup({
       </h2>
       <CupLineup
         teams={[
-          { id: board.teams[0].id, name: board.teams[0].name, players: teamPlayers(board.teams[0].id) },
-          { id: board.teams[1].id, name: board.teams[1].name, players: teamPlayers(board.teams[1].id) },
+          { id: board.teams[0].id, name: board.teams[0].name, players: teamPlayers(0) },
+          { id: board.teams[1].id, name: board.teams[1].name, players: teamPlayers(1) },
         ]}
         pointsToWin={event?.cupPointsToWin ?? 0}
         holder={event?.cupHolderGroupId ?? ""}

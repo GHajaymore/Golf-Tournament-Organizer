@@ -278,14 +278,14 @@ test("a rename after another tab launched the tournament is answered in words, n
 
 // R6: the same board through the Players room's Flights tab, deleted at R17 with the old screen.
 test.describe("@redesign players", () => {
-  test("a flight renamed on the Flights tab keeps its name after a reload", async ({ page, context, baseURL }, testInfo) => {
+  test("a player moved between flights, and a flight renamed, on the Flights tab are kept after a reload", async ({ page, context, baseURL }, testInfo) => {
     test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
     const errors: string[] = [];
     watchPageErrors(page, errors, "secretary");
     const mark = `zz-r6-flights-${testInfo.project.name}`;
     const club = await makeClub(mark);
     try {
-      const { event, flights } = await makeEvent(club, "Spring Medal", {
+      const { event, flights, players } = await makeEvent(club, "Spring Medal", {
         stages: [{}],
         players: 4,
         flights: 2,
@@ -295,6 +295,16 @@ test.describe("@redesign players", () => {
       const room = new PlayersPage(page);
       await room.open("Flights");
       await expect(room.current()).toHaveText("Flights");
+      // The briefed press: a placed player is MOVED between flights here (Entries only places an unplaced one).
+      const mover = players[0];
+      expect(mover.groupId, "the fixture did not put the first player in Flight A").toBe(flights[0].id);
+      await page.getByRole("combobox", { name: `Move ${mover.name} to another flight` }).selectOption({ label: "Flight B" });
+      await expect
+        .poll(async () => (await rounds.player.findUniqueOrThrow({ where: { id: mover.id } })).groupId, { message: "the player was not moved to Flight B" })
+        .toBe(flights[1].id);
+      await room.open("Flights");
+      await expect(flightCard(page, "Flight B"), "after a reload the player is not under Flight B").toContainText(mover.name);
+      await expect(flightCard(page, "Flight A")).not.toContainText(mover.name);
       await page.getByRole("button", { name: "Rename Flight A" }).click();
       const box = page.getByRole("textbox", { name: "Rename Flight A" });
       await box.fill("Championship");
@@ -303,7 +313,7 @@ test.describe("@redesign players", () => {
         .poll(async () => (await rounds.group.findUniqueOrThrow({ where: { id: flights[0].id } })).name, { message: "the flight's new name was not stored" })
         .toBe("Championship");
       await room.open("Flights");
-      await expect(page.getByText("Championship").first(), "the board lost the name after a reload").toBeVisible();
+      await expect(flightCard(page, "Championship"), "the board lost the name after a reload").toBeVisible();
     } finally {
       await dropClub(mark);
     }

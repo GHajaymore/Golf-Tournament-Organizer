@@ -27,8 +27,22 @@ describe("the tabs a tournament lists", () => {
     expect(keys(false, true)).toEqual(["entries", "flights", "cup"]);
     expect(keys(true, true)).toEqual(["entries", "flights", "teams", "cup"]);
   });
-  it("every tab asks its own lock: field, flights, sides, cup", () => {
-    expect(PLAYER_TABS.map((t) => t.scope)).toEqual(["field", "flights", "sides", "cup"]);
+  it("the four tabs, in order", () => {
+    expect(PLAYER_TABS.map((t) => t.key)).toEqual(["entries", "flights", "teams", "cup"]);
+  });
+});
+
+describe("the tabs follow the sidebar's own rule for Teams and Cup", () => {
+  it("for all four fact combinations, a tab is listed exactly when the sidebar lists its screen", async () => {
+    const { navForRole } = await import("@/lib/nav");
+    for (const hasTeamRound of [false, true]) {
+      for (const hasCup of [false, true]) {
+        const listed = navForRole("admin", undefined, { hasTeamRound, hasCup }).flatMap((s) => s.items.map((i) => i.key));
+        const tabs = playerTabsFor({ hasTeamRound, hasCup }).map((t) => t.key);
+        expect(tabs.includes("teams"), `team round ${hasTeamRound}, cup ${hasCup}: Teams`).toBe(listed.includes("teams"));
+        expect(tabs.includes("cup"), `team round ${hasTeamRound}, cup ${hasCup}: Cup teams`).toBe(listed.includes("cup"));
+      }
+    }
   });
 });
 
@@ -93,7 +107,9 @@ describe("the cup's teams have ONE home (mounted once)", () => {
     expect(cup).toMatch(/\{teamsHere \? \(\s*<CupTeams/);
     expect(cup).toContain('cupTeamsHome(playersShown) === "cup"');
     const teams = stripComments(readFileSync(join(root, "app/(app)/teams/page.tsx"), "utf8"));
-    expect(teams).toContain('cupTeamsHome(true) === "players"');
+    // The tab asks the ROOM's answer (a literal `true` would always draw it, switch off or on).
+    expect(teams).toContain('cupTeamsHome(room !== null) === "players"');
+    expect(teams).not.toMatch(/cupTeamsHome\((true|false)\)/);
     expect(teams.match(/<CupTeamsTab/g)).toHaveLength(1);
   });
 });

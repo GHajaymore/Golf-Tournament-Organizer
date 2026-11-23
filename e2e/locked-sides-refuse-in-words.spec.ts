@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
+import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { PlayersPage } from "./console/players";
 
 /**
  * A LOCKED SIDE IS REFUSED IN WORDS, NOT AN ERROR PAGE (state machine PR 5a; J10).
@@ -213,4 +215,35 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
     await prisma.team.deleteMany({ where: { id: spare.id } });
     await prisma.player.deleteMany({ where: { id: reserve.id } });
   }
+});
+
+// R6: a locked side's refusal, through the Players room's Teams tab, deleted at R17 with the old screen.
+test.describe("@redesign players", () => {
+  test("a side added after another tab launched the tournament is refused in words beside the box, and the banner offers the correction", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "one size: the refusal is the server's answer, the same at every width");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "organizer");
+    const mark = `zz-r6-locked-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Pairs Day", { stages: [{ format: "Four-Ball" }], players: 4 });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Teams");
+      // Another tab launches the tournament after this screen was drawn.
+      await rounds.event.update({ where: { id: event.id }, data: { status: "live" } });
+      const add = page.getByRole("textbox", { name: "Add a team" });
+      await add.fill("Zz Late Side");
+      await add.press("Enter");
+      const refused = page.getByText("Locked because the tournament is live. Make a committee correction to change teams.");
+      await expect(refused, "the locked refusal was not said in words").toBeVisible({ timeout: 20_000 });
+      await expect(refused).toBeInViewport();
+      expect(await rounds.team.count({ where: { eventId: event.id, name: "Zz Late Side" } }), "a locked tournament's side was made").toBe(0);
+      await room.open("Teams");
+      await expect(page.getByText(/committee correction/i).first(), "the banner does not offer the correction").toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

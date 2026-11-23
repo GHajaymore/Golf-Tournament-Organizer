@@ -174,13 +174,13 @@ test.describe("@redesign players", () => {
         .toBe(1);
       await room.open("Teams");
       const name = page.getByRole("textbox", { name: "Name of Slicers" });
-      await name.fill("Hookers");
+      await name.fill("Faders");
       await name.press("Enter");
       await expect
-        .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Hookers" } }), { message: "the new name was not stored" })
+        .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Faders" } }), { message: "the new name was not stored" })
         .toBe(1);
       await room.open("Teams");
-      await expect(page.getByRole("textbox", { name: "Name of Hookers" }), "the side lost its name after a reload").toHaveValue("Hookers");
+      await expect(page.getByRole("textbox", { name: "Name of Faders" }), "the side lost its name after a reload").toHaveValue("Faders");
     } finally {
       await dropClub(mark);
     }

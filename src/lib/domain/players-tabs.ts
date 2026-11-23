@@ -1,6 +1,6 @@
 import { BUILD_PREVIEW } from "@/lib/domain/console-merges";
 import { STEPPER_PREVIEW } from "@/lib/domain/lifecycle-track";
-import type { LockScope } from "@/lib/domain/tournament-status";
+import type { Family } from "@/lib/domain/tournament-status";
 
 /**
  * THE PLAYERS ROOM'S TABS (R6), in a module with NO "use client": the pages and the tab strip both ask it.
@@ -17,15 +17,13 @@ export interface PlayerTab {
   path: string;
   /** The tab's own query, if it is a view of an address another tab also uses. */
   query: string;
-  /** The machine's lock this tab asks (`scopeLockFor`). */
-  scope: LockScope;
 }
 
 export const PLAYER_TABS: readonly PlayerTab[] = [
-  { key: "entries", label: "Entries", path: "/registration", query: "", scope: "field" },
-  { key: "flights", label: "Flights", path: "/grouping", query: "", scope: "flights" },
-  { key: "teams", label: "Teams", path: "/teams", query: "", scope: "sides" },
-  { key: "cup", label: "Cup teams", path: "/teams", query: "tab=cup", scope: "cup" },
+  { key: "entries", label: "Entries", path: "/registration", query: "" },
+  { key: "flights", label: "Flights", path: "/grouping", query: "" },
+  { key: "teams", label: "Teams", path: "/teams", query: "" },
+  { key: "cup", label: "Cup teams", path: "/teams", query: "tab=cup" },
 ];
 
 /** The tabs this tournament lists: Entries and Flights always, the other two where they have something to do. */
@@ -50,6 +48,15 @@ export function playerTabHref(tab: PlayerTab, search: string): string {
   for (const [k, v] of previewQuery(search)) q.set(k, v);
   const s = q.toString();
   return s ? `${tab.path}?${s}` : tab.path;
+}
+
+/**
+ * WHERE A PLAYER IN NO FLIGHT IS PUT IN ONE (J04), while Players is shown: on Entries, where the late entry was taken, in every
+ * family but a cup; in a cup the teams are the flights and Cup teams is their home (its lock and its lineup check are the cup's).
+ * Both arguments are required: the switch being off is `false`, never a missing answer.
+ */
+export function unplacedPlacedOn(playersShown: boolean, family: Family): "entries" | "cup-teams" {
+  return playersShown && family === "teamCup" ? "cup-teams" : "entries";
 }
 
 /**

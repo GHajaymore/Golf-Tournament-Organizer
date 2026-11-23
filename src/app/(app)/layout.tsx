@@ -23,6 +23,7 @@ import { openTournamentJob } from "@/lib/services/whats-next";
 import { navForRole } from "@/lib/nav";
 import { lifecycleNav } from "@/lib/nav-lifecycle";
 import { loadEventState } from "@/lib/services/tournament";
+import { teamAndCupCounts } from "@/lib/services/team-cup-counts";
 import { tournamentStatusFor } from "@/lib/services/tournament-status";
 import { STEP_TAG } from "@/lib/domain/tournament-status";
 import { roundNameFor } from "@/lib/domain/round-label";
@@ -49,7 +50,6 @@ import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { clubDistanceUnit } from "@/lib/domain/distance-unit";
 import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
-import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { KNOCKOUT_STAGE_TYPES, WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
 import { myPlayerIds } from "@/lib/services/me";
 import { isMatch } from "@/lib/tournament-shape";
@@ -78,9 +78,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Teams only appear once a round is actually set to a team format, so the
   // many tournaments that never play one are not shown a link to an empty
   // screen.
-  const teamRounds = event
-    ? await prisma.stage.count({ where: { eventId: event.id, format: { in: TEAM_FORMAT_NAMES } } })
-    : 0;
+  const { teamRounds, cupRounds } = event ? await teamAndCupCounts(event.id) : { teamRounds: 0, cupRounds: 0 };
   // Qualification is the preview of who advances to the knockout. Without a
   // knockout stage there is nothing to advance to, and the screen reports
   // "0 players qualify" for the many tournaments that simply end at the last
@@ -91,9 +89,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       })
     : 0;
   // A team cup's screen, only where there is a cup session.
-  const cupRounds = event
-    ? await prisma.stage.count({ where: { eventId: event.id, type: "Team Session" } })
-    : 0;
   // Screens the tournament governs (leaderboard, score entry) are filtered out
   // of the sidebar here rather than shown and then bounced.
   // "This week" earns a slot once there is more than one round to be a week

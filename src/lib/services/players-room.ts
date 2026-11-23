@@ -1,7 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { prisma } from "@/lib/db";
-import { TEAM_FORMAT_NAMES } from "@/lib/formats";
+import { teamAndCupCounts } from "@/lib/services/team-cup-counts";
 import { playerTabsFor, type PlayerTab } from "@/lib/domain/players-tabs";
 import { screensShownFor } from "@/lib/services/screens-shown";
 
@@ -19,10 +18,7 @@ export async function playersRoomFor(session: { email: string; eventId: string; 
   if (session.viewRole !== "admin" && session.viewRole !== "assistant") return null;
   const shown = await screensShownFor(session);
   if (!shown.has("players")) return null;
-  const [teamRounds, cupRounds] = await Promise.all([
-    prisma.stage.count({ where: { eventId: session.eventId, format: { in: TEAM_FORMAT_NAMES } } }),
-    prisma.stage.count({ where: { eventId: session.eventId, type: "Team Session" } }),
-  ]);
+  const { teamRounds, cupRounds } = await teamAndCupCounts(session.eventId);
   const asked = await headers();
   return { tabs: playerTabsFor({ hasTeamRound: teamRounds > 0, hasCup: cupRounds > 0 }), search: asked.get("x-search") ?? "" };
 }
