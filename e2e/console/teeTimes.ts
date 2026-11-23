@@ -121,9 +121,25 @@ export async function withTeeTimes(
   run: (screen: TeeTimesPage, page: Page) => Promise<void>,
   viewport?: { width: number; height: number },
 ): Promise<void> {
+  await withTeeTimesAs(browser, baseURL, testInfo, day, run, viewport);
+}
+
+/**
+ * The same, for any club and tournament (R9b: a match, a league week, a round after a cut): the secretary's browser
+ * with the service worker blocked, opened on the screen at its first round, closed after. A spec built on its own
+ * fixture hands `{ club, eventId }`; the run opens the round it wants with `screen.open(roundId)`.
+ */
+export async function withTeeTimesAs(
+  browser: Browser,
+  baseURL: string,
+  testInfo: TestInfo,
+  who: { club: Club; eventId: string },
+  run: (screen: TeeTimesPage, page: Page) => Promise<void>,
+  viewport?: { width: number; height: number },
+): Promise<void> {
   const context = await browser.newContext({ ...testInfo.project.use, baseURL, serviceWorkers: "block", ...(viewport ? { viewport } : {}) });
   try {
-    await signIn(context, baseURL, day.club, day.eventId);
+    await signIn(context, baseURL, who.club, who.eventId);
     const page = await context.newPage();
     const screen = new TeeTimesPage(page);
     await screen.open();

@@ -1,6 +1,7 @@
 import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, CARD_PARS } from "./rounds-fixture";
+import { EventScreen } from "./console/event";
 
 /**
  * NET SCORES WITHOUT TEES SAY SO, AS THE SECRETARY MEETS IT (foundation item J27).
@@ -108,4 +109,56 @@ test("a net medal on a course with no tees: the rail and Launch both say scores 
   } finally {
     await dropClub(mark).catch(() => {});
   }
+});
+
+// R3: on Event the same course with no tees SAYS so beside the course, and the tees are offered the moment there are some.
+test.describe("@redesign", () => {
+  test("a course with no tees says so on Event; once it has tees they are chosen there and kept", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const mark = `zz-j27-evt-${testInfo.project.name.replace(/[^a-z]/gi, "").toLowerCase()}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", {
+        status: "draft",
+        stages: [{ playedOn: "2099-06-12", scoringBasis: "net" }],
+        players: 4,
+        event: { dates: "Jun 12", startOn: "2099-06-12", endOn: "2099-06-12", moneyMode: "none" },
+      });
+      const course = await prisma.course.create({
+        data: {
+          organizationId: club.orgId,
+          name: `${mark} Hollins Moss`,
+          pars: JSON.stringify(CARD_PARS),
+          strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+          yards: JSON.stringify(new Array(18).fill(380)),
+        },
+      });
+      await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
+      await prisma.event.update({ where: { id: event.id }, data: { courseId: course.id, course: course.name } });
+      await signIn(context, baseURL!, club, event.id);
+
+      const screen = new EventScreen(page);
+      await screen.open();
+      // The course has no tees: the screen says what that costs, and offers no tees to choose.
+      await expect(screen.section("where").locator("[data-no-tees]")).toContainText("No tees are set up for this course");
+      await expect(screen.section("where").locator("[data-no-tees]")).toContainText("raw Handicap Index");
+      await expect(screen.teeSelect()).toHaveCount(0);
+
+      // The secretary adds a rated set on the course (set-up, not what is under test), and the tees appear on the next look.
+      const tee = await prisma.tee.create({ data: { courseId: course.id, name: "Blue", gender: "any", courseRating: 71.5, slopeRating: 125, par: 72 } });
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.section("where").locator("[data-no-tees]")).toHaveCount(0);
+      await expect(screen.teeSelect(), "the new tees were not offered beside the course").toBeVisible();
+
+      // PRESSED: choose them and keep them with the one Save, then see them on a fresh load.
+      await screen.teeSelect().selectOption(tee.id);
+      await screen.saveAndWait();
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.teeSelect()).toHaveValue(tee.id);
+    } finally {
+      await dropClub(mark).catch(() => {});
+    }
+  });
 });

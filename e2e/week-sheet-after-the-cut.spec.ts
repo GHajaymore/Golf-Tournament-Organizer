@@ -3,6 +3,8 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { makeClub, dropClub, makeEvent, returnCard, addDays, dayIn } from "./rounds-fixture";
+import { withTeeTimesAs } from "./console/teeTimes";
 
 /**
  * THE WEEK SHEET AFTER A CUT: ONLY THE FIELD THAT PLAYED ON, ON ITS TOTALS.
@@ -119,4 +121,69 @@ test("after the cut, the week sheet's table is the sixteen who played on, on 36-
   inOrder(two);
 
   expect(errors, "the page threw").toEqual([]);
+});
+
+/**
+ * @redesign: THE SHEET AFTER A CUT, ON TEE TIMES & DRAW (R9b). Round 2 of a 36-hole medal is drawn from the field that
+ * made the cut, not the whole entry: "Who is in this round" says so, and the groups the secretary makes hold exactly
+ * the survivors. The seeded championship above is finished (a finished tournament refuses a sheet), so this has its
+ * own live one: six entries, Round 1 closed with a card each, a cut to four made (the survivors hold a blank Round 2
+ * card, as the cut leaves them), read from the fixture. As the secretary: make the sheet, see after a reload that it
+ * is the four and that the print door in Paper is there, and open it: the page must answer 200 before it is read
+ * (a 307 or 500 would read as a working screen). Service workers blocked; memory: one context and one page, about 150 MB.
+ */
+test.describe("@redesign the sheet after a cut on Tee times & draw", () => {
+  test("Round 2's groups are the four who made the cut, kept after a reload, and the print door answers", async ({ browser, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "two sizes: a third seeding proves nothing more");
+    test.setTimeout(180_000);
+    const mark = `zz-wsc-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const today = dayIn("");
+      const made = await makeEvent(club, "Club Championship", {
+        status: "live",
+        stages: [{ playedOn: addDays(today, -1) }, { playedOn: addDays(today, 1) }],
+        players: 6,
+      });
+      const [r1, r2] = made.stages;
+      await prisma.stage.update({ where: { id: r1.id }, data: { closedAt: new Date() } });
+      await prisma.stage.update({
+        where: { id: r2.id },
+        data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 4, cutMadeAt: new Date() },
+      });
+      for (const p of made.players) await returnCard(made.event.id, r1.id, p.id);
+      const through = made.players.slice(0, 4);
+      for (const p of through) {
+        await prisma.scorecard.create({ data: { eventId: made.event.id, stageId: r2.id, playerId: p.id, strokes: JSON.stringify(new Array(18).fill(null)) } });
+      }
+      const sheet = async () => {
+        const row = await prisma.stage.findUniqueOrThrow({ where: { id: r2.id }, select: { teeSheet: true } });
+        return ((JSON.parse(row.teeSheet || "{}").groups ?? []) as { playerIds: string[] }[]).flatMap((g) => g.playerIds).sort();
+      };
+      expect(await sheet(), "CONTROL: Round 2 already has a sheet").toEqual([]);
+
+      await withTeeTimesAs(browser, baseURL!, testInfo, { club, eventId: made.event.id }, async (screen, page) => {
+        await screen.open(r2.id);
+        await expect(screen.sectionLine("whoIn"), "Who is in this round is not the four who made the cut").toContainText("4 in the field");
+        const draw = await screen.openSection("draw");
+        await draw.getByRole("button", { name: /^Balanced handicap/ }).click();
+        await draw.getByLabel("First tee").fill("07:30");
+        await draw.getByRole("button", { name: /^Save sheet/ }).click();
+        await expect.poll(sheet, { message: "the sheet is not the four who made the cut" }).toEqual(through.map((p) => p.id).sort());
+        await page.reload();
+        await expect(await screen.openSection("draw"), "after a reload the draw section does not hold the saved sheet").toContainText("Saved as a draft");
+
+        // The print door is in Paper once a sheet is saved, and the page behind it answers before anybody reads it.
+        const door = (await screen.openSection("paper")).getByRole("link", { name: /Print/ });
+        const href = await door.getAttribute("href");
+        expect(href, "the print door has no address").toContain(`/print?round=${r2.id}`);
+        // No redirect followed: a signed-out 307 to the sign-in page would otherwise answer 200 and read as a working screen.
+        expect((await page.request.get(href!, { maxRedirects: 0 })).status(), "the print page does not answer 200 itself").toBe(200);
+        await page.goto(href!);
+        expect(new URL(page.url()).pathname, "the print door did not open the print page").toBe("/print");
+      });
+    } finally {
+      await dropClub(mark);
+    }
+  });
 });

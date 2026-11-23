@@ -22,7 +22,7 @@ export async function openScreen(page: Page, path: string): Promise<void> {
  */
 export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
   home: null,
-  event: null,
+  event: "/event",
   rounds: "/stages",
   players: "/registration",
   prizes: "/prizes",

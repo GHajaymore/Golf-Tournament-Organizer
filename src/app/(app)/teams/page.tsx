@@ -14,7 +14,9 @@ import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor, scopeLockFor } from "@/lib/services/tournament-status";
+import { setupRailFor, scopeLockFor, tournamentStatusNow } from "@/lib/services/tournament-status";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { matchGeneratorPlace } from "@/lib/domain/draw-sections";
 import { playersRoomFor } from "@/lib/services/players-room";
 import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
 import { PlayersTabs } from "@/components/players/PlayersTabs";
@@ -97,6 +99,11 @@ export default async function TeamsPage({
   // rail, so the banner and the refusal are one answer.
   const sidesLock = await scopeLockFor(session.eventId, "sides");
   const locked = sidesLock !== null;
+  // WHERE "GENERATE MATCHES" IS DRAWN (R9b): on Tee times & draw while that screen is shown and builds this round.
+  const told = await tournamentStatusNow(session.eventId);
+  const matchesHere =
+    !!told &&
+    matchGeneratorPlace({ type: active.type, format: active.format, hasSavedSheet: false }, told.status.family, (await screensShownFor(session)).has("teeTimes")) === "teeTimes";
 
   return (
     <>
@@ -149,6 +156,7 @@ export default async function TeamsPage({
         unassigned={unassigned}
         matchCount={matchCount}
         drawsMatches={generatesPairings(active.type)}
+        matchesHere={matchesHere}
         league={isLeaguePointsSystem(leagueEvent?.leaguePoints)}
       />
 
