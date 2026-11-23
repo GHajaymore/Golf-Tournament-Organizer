@@ -213,7 +213,7 @@ export interface QualValues {
 }
 
 
-function StageCard(props: RoundCardProps) {
+function StageCard(props: RoundCardProps & { onTheDayHere: boolean }) {
   const ctx = useRoundCtx(props);
   const { stage, isFirst, standing, allStages, confirmedCount, chainWarnings, expanded, onToggle, sharedWithAll, asPanel, facts, roundStep, playingCount, locale, launched, underWay, thisRound, basis, format, customizeOpen, setCustomizeOpen, saveStatus, notGenerated, roundRaisesTies, customizeParts, intoNext, summaryLine, sameAsAllLine, roundColor, roundText, playByOnFace } = ctx;
   
@@ -283,7 +283,9 @@ function StageCard(props: RoundCardProps) {
       <RoundTransition ctx={ctx} />
       {playByOnFace && <RoundDeadlineField ctx={ctx} />}
       <RoundSignUp ctx={ctx} />
-      <RoundOnTheDay ctx={ctx} />
+      {/* The same boolean the redesigned Rounds screen asks (`shown.has("scoreEntry")`): while Score entry is shown
+          the round is closed and its window set THERE, and this screen stops drawing them (R12). */}
+      {props.onTheDayHere && <RoundOnTheDay ctx={ctx} />}
     </>
   );
   // "Customize this round" on its own, so the timeline's panel can give it the fourth section
@@ -845,7 +847,15 @@ export function StagesClient({
   roundFacts = null,
   courseDay = null,
   strokesBand = [],
+  onTheDayHere = true,
 }: {
+  /**
+   * Whether each round draws its "On the day" group, the tick that closes it and the scoring window (R12). The page says it,
+   * from the same `shown.has("scoreEntry")` the redesigned screens ask, so Score entry and this screen never both draw them
+   * and never both leave them out. Optional in the TYPE only because some fifty old render tests build this screen without
+   * it and may not be edited; `the-on-the-day-block-has-one-home.test.ts` holds that the one page that mounts it always says.
+   */
+  onTheDayHere?: boolean;
   /**
    * Rounds scored net in which players with no handicap index need strokes (`playersNeedingFigure`), for
    * the band at the top (`NeedsStrokesBand`). Empty for anybody who may not give strokes.
@@ -1005,6 +1015,7 @@ export function StagesClient({
           <StageCard
             key={s.id}
             stage={s}
+            onTheDayHere={onTheDayHere}
             canSetVenue={canSetVenue}
             allStages={stages}
             singleMatch={singleMatches?.[s.id] ?? null}

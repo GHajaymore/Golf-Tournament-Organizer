@@ -25,6 +25,8 @@ export function RoundOnTheDay({ ctx }: { ctx: RoundCtx }) {
                 stageId={stage.id}
                 closed={stage.closed}
                 pointsBoard={isStablefordRound(stage.scoringBasis, stage.format)}
+                // Rounds & formats draws the whole paragraph; Score entry draws its own copy with the ⓘ (R12).
+                infoBehind={false}
               />
             </div>
           )}

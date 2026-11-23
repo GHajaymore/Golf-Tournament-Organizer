@@ -662,6 +662,8 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         stages={stages}
         // The redesign's preview, off unless asked for (2026-10-30; go/no-go Tue 17 Nov).
         timeline={timeline}
+        // Closing a round and its scoring window are drawn here until Score entry is shown, then THERE (R12).
+        onTheDayHere={!shown.has("scoreEntry")}
         // Step 2's golf facts, from what is stored, and where the tournament is, from the
         // state machine (timeline only).
         roundFacts={step2?.facts ?? null}
