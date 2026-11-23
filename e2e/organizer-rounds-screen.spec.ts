@@ -388,6 +388,11 @@ test.describe("@redesign", () => {
       await page.getByRole("button", { name: /^Add stroke play round$/i }).click();
       await expect.poll(async () => rrPrisma.stage.count({ where: { eventId: event.id } }), { message: "the round was not added" }).toBe(stages.length + 1);
       await expect(screen.column("Round 2")).toBeVisible();
+      // Looked at again: the added round is still a column after a reload.
+      await page.reload();
+      await expect(page.locator("[data-rounds-screen]")).toBeVisible();
+      await expect(screen.column("Round 2"), "the added round is not a column after a reload").toBeVisible();
+      expect(await rrPrisma.stage.count({ where: { eventId: event.id } }), "the reload changed the number of rounds").toBe(stages.length + 1);
     } finally {
       await rrDropClub(mark);
     }

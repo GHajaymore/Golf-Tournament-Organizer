@@ -204,6 +204,11 @@ test.describe("@redesign", () => {
       await screen.column("Round 1").getByRole("radio", { name: "Organizer only (paper cards)" }).click();
       await expect.poll(keeping, { timeout: 15_000, message: "who keeps the card was not saved" }).toBe("organizer");
       await expect.poll(async () => screen.scoringTile().innerText(), { message: "the Scoring tile's line did not change" }).not.toBe(lineBefore);
+      // Looked at again: Round 1's choice is still the one checked after a reload.
+      await page.reload();
+      await expect(page.locator("[data-rounds-screen]")).toBeVisible();
+      await expect.poll(async () => screen.scoringTile().innerText(), { message: "the Scoring tile's line did not keep the change after a reload" }).not.toBe(lineBefore);
+      expect(await keeping(), "the choice did not survive a reload").toBe("organizer");
     } finally {
       await ssDropClub(mark);
     }

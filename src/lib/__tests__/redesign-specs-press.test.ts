@@ -31,24 +31,17 @@ import { readSource, stripComments } from "./source";
  * other tests only read. Two blocks with one title in one file would share an entry.
  */
 export const KNOWN_READ_ONLY: readonly string[] = [
-  "club-course.spec.ts :: @redesign",
-  "course-cards-and-venues.spec.ts :: @redesign",
   "day-of-tee-sheet.spec.ts :: @redesign a late entry on Tee times & draw",
-  "organizer-rounds-screen.spec.ts :: @redesign",
   "organizer-teesheet.spec.ts :: @redesign the draw on Tee times & draw",
-  "round-allowance.spec.ts :: @redesign",
   "round-day.spec.ts :: @redesign the round day on Tee times & draw",
   "round-handicap.spec.ts :: @redesign the round's handicaps on Tee times & draw",
-  "rounds-panel.spec.ts :: @redesign",
-  "rounds-timeline.spec.ts :: @redesign",
-  "stages-scoring-setup.spec.ts :: @redesign",
   "tee-sheet-moves.spec.ts :: @redesign moving a player on Tee times & draw",
   "tee-sheet-replace.spec.ts :: @redesign replacing a player on Tee times & draw",
   "the-draw-prints.spec.ts :: @redesign the print door on Tee times & draw",
 ];
 
-/** The list's size today (14, dated 23 Nov 2026, owner G1b). NEVER RAISE: it may only shrink, and lowering this as entries go is the point. */
-export const KNOWN_READ_ONLY_CAP = 14;
+/** The list's size today (7, lowered from 14 on 23 Nov 2026 when R2's and R4's blocks were given a press and a reload, B105; owner G1b). NEVER RAISE: it may only shrink, and lowering this as entries go is the point. */
+export const KNOWN_READ_ONLY_CAP = 7;
 
 /** The least number of `@redesign` blocks there are today (34 with R4d, R6, R8a and R7's four; R3 is still to come). Raise it as screens land, never lower it. */
 export const MIN_BLOCKS = 34;
