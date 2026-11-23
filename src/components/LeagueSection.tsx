@@ -14,6 +14,7 @@ import { LeagueDraw } from "@/components/LeagueDraw";
 import { LeaguePlayoffs } from "@/components/LeaguePlayoffs";
 import { PlayoffDecision, type DecidableMeeting } from "@/components/PlayoffDecision";
 import { leagueMeetings as meetingsOfRound } from "@/lib/services/league";
+import { keepingPreview } from "@/lib/services/screens-shown";
 
 /**
  * AN INTERCLUB LEAGUE, ON THE SCREEN THAT ALREADY OWNS SIDES.
@@ -31,11 +32,17 @@ export async function LeagueSection({
   eventId,
   stageId,
   canEdit,
+  drawMoved,
 }: {
   eventId: string;
   stageId: string;
   /** Whether the viewer may change the league's rules — the organizer only. */
   canEdit: boolean;
+  /**
+   * "Draw this week" is drawn on Tee times & draw instead (`leagueDrawPlace` === "teeTimes", B110). REQUIRED, so a
+   * second caller must ask; the control is mounted on exactly one of the two screens.
+   */
+  drawMoved: boolean;
 }) {
   const clubs = await flightsIn(eventId);
   if (clubs.length === 0) return null;
@@ -171,7 +178,17 @@ export async function LeagueSection({
             <PairBuilder key={club.clubId} club={club} stageId={stageId} />
           ))}
       </div>
-      <LeagueDraw stageId={stageId} drawn={drawn} />
+      {drawMoved ? (
+        <p data-league-draw-moved="" className="text-muted" style={{ margin: "16px 0 0", fontSize: 13 }}>
+          Draw this week is in the draw section of{" "}
+          <a href={await keepingPreview(`/foursomes?round=${stageId}`)} style={{ display: "inline-block", minHeight: 48 }}>
+            Tee times &amp; draw
+          </a>
+          .
+        </p>
+      ) : (
+        <LeagueDraw stageId={stageId} drawn={drawn} />
+      )}
 
       <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>
         This week&rsquo;s meetings

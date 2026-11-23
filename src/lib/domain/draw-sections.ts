@@ -70,15 +70,29 @@ export function drawSections(round: DrawRound, family: Family): DrawSections {
  *  - `nextRound`: the round follows another and is drawn from its results ("Draw Round 2's matches", "Give
  *    out cards") once the tournament is live and not over: what Rounds & formats has always offered on the
  *    round's column, never on the first round or one seeded from qualifiers.
+ *  - `leagueWeek` (B110): an interclub league's week of four-balls ("Draw this week"), a weekly job of a round of
+ *    pairs while the league is switched on (`when.league`, `isLeaguePointsSystem`; absent means no league). Where it
+ *    is drawn is `leagueDrawPlace`'s.
  */
 export function drawControlsOf(
   round: { type: string; format: string },
-  when: { launched: boolean; isFirst: boolean; completed: boolean },
-): { teamMatches: boolean; nextRound: boolean } {
+  when: { launched: boolean; isFirst: boolean; completed: boolean; league?: boolean },
+): { teamMatches: boolean; nextRound: boolean; leagueWeek: boolean } {
   return {
     teamMatches: needsTeams(round.format) && generatesPairings(round.type),
     nextRound: when.launched && !when.completed && !when.isFirst && !seededFromQualifiers(round.type),
+    leagueWeek: !!when.league && needsTeams(round.format),
   };
+}
+
+/**
+ * WHERE AN INTERCLUB LEAGUE'S "DRAW THIS WEEK" IS DRAWN (B110, TD ruling 23 Nov): Tee times & draw, in the week's draw
+ * section, while that screen is shown AND builds this round; Teams & pairs otherwise. The pairs are nominated on
+ * Teams either way. ONE answer for both pages, so the control is on exactly one of them (the same answer as the
+ * match generator's: both are the draw of a round of sides).
+ */
+export function leagueDrawPlace(round: DrawRound, family: Family, teeTimesShown: boolean): "teeTimes" | "teams" {
+  return matchGeneratorPlace(round, family, teeTimesShown);
 }
 
 /**

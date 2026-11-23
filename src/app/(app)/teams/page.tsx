@@ -15,8 +15,8 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, scopeLockFor, tournamentStatusNow } from "@/lib/services/tournament-status";
-import { screensShownFor } from "@/lib/services/screens-shown";
-import { matchGeneratorPlace } from "@/lib/domain/draw-sections";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
+import { matchGeneratorPlace, leagueDrawPlace } from "@/lib/domain/draw-sections";
 import { playersRoomFor } from "@/lib/services/players-room";
 import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
 import { PlayersTabs } from "@/components/players/PlayersTabs";
@@ -101,9 +101,13 @@ export default async function TeamsPage({
   const locked = sidesLock !== null;
   // WHERE "GENERATE MATCHES" IS DRAWN (R9b): on Tee times & draw while that screen is shown and builds this round.
   const told = await tournamentStatusNow(session.eventId);
-  const matchesHere =
-    !!told &&
-    matchGeneratorPlace({ type: active.type, format: active.format, hasSavedSheet: false }, told.status.family, (await screensShownFor(session)).has("teeTimes")) === "teeTimes";
+  const teeTimesShown = (await screensShownFor(session)).has("teeTimes");
+  const roundForPlace = { type: active.type, format: active.format, hasSavedSheet: false };
+  const matchesHere = !!told && matchGeneratorPlace(roundForPlace, told.status.family, teeTimesShown) === "teeTimes";
+  // An interclub league's "Draw this week" (B110): the same screen, asked of its own place function.
+  const leagueDrawMoved = !!told && leagueDrawPlace(roundForPlace, told.status.family, teeTimesShown) === "teeTimes";
+  // Where the moved controls went: a preview viewer lands on the redesigned screen, not today's (B114).
+  const teeTimesHref = await keepingPreview(`/foursomes?round=${active.id}`);
 
   return (
     <>
@@ -157,6 +161,7 @@ export default async function TeamsPage({
         matchCount={matchCount}
         drawsMatches={generatesPairings(active.type)}
         matchesHere={matchesHere}
+        teeTimesHref={teeTimesHref}
         league={isLeaguePointsSystem(leagueEvent?.leaguePoints)}
       />
 
@@ -172,7 +177,7 @@ export default async function TeamsPage({
        * organizer's switch until the league is turned on, so every
        * ordinary four-ball event sees exactly what it saw before.
        */}
-      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} />
+      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} drawMoved={leagueDrawMoved} />
       <SetupFlowFooter flow={flow} href="/teams" />
     </>
   );
