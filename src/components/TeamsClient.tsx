@@ -2,7 +2,7 @@
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState } from "react";
 import { sideAddBlock } from "@/lib/domain/draw-readiness";
-import { TeamMatchesControl } from "./teetimes/TeamMatchesControl";
+import { TeamMatchesControl } from "./TeamMatchesControl";
 import { ScopeLockMark } from "./ScopeLockBanner";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
@@ -103,9 +103,9 @@ export function TeamsClient({
    */
   drawsMatches: boolean;
   /**
-   * WHERE "GENERATE MATCHES" IS MOUNTED (R9b): here, or in the draw section of Tee times & draw once that screen is
-   * shown and builds this round (`drawSections(...).built`). ONE boolean, so the one control is never drawn twice and
-   * never by neither. Required, so a caller says; the page sets it from `screensShownFor`.
+   * TRUE WHEN "GENERATE MATCHES" IS DRAWN IN THE DRAW SECTION OF TEE TIMES & DRAW INSTEAD (R9b): that screen is shown
+   * and builds this round (`matchGeneratorPlace`, the one answer both pages ask). ONE boolean, so the one control is
+   * never drawn twice and never by neither. Required, so a caller says; the page sets it from `screensShownFor`.
    */
   matchesHere: boolean;
   /**

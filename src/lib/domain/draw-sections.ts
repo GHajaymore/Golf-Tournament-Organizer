@@ -1,5 +1,6 @@
 import type { Family } from "./tournament-status";
-import { roundIsStroke } from "../stage-types";
+import { generatesPairings, seededFromQualifiers } from "../stage-types";
+import { needsTeams } from "../formats";
 
 /**
  * WHICH SECTIONS DOES A ROUND'S "TEE TIMES & DRAW" SCREEN HAVE, AND IN WHAT ORDER (R9a).
@@ -9,10 +10,15 @@ import { roundIsStroke } from "../stage-types";
  * is in them, so it holds no draw, cut or handicap arithmetic (`draw.ts` and `grouping.ts` are not
  * touched by this screen). The page asks it, the screen draws what it answers.
  *
- * R9a builds the stroke and Stableford round. A match, team, league, knockout or cup round is not built
- * yet: the answer says `built: false` and WHICH PR builds it (`lane`), and the page keeps drawing
- * today's tee sheet for it, unchanged. When R9b / R9c land they change this function and nothing else
- * decides, so a round is never drawn by two screens.
+ * R9a built the stroke and Stableford round; R9b builds every other round that is a sheet of groups or a
+ * set of matches: a match, a round robin of flights, a league week, and a sided or head-to-head round
+ * inside a stroke tournament. A knockout, flighted knockout or cup round is not built yet (R9c): the answer
+ * says `built: false` and WHICH PR builds it (`lane`), and the page keeps drawing today's tee sheet for it,
+ * unchanged. A casual round (`shape: match`) is in neither PR's list and stays on today's sheet. Whichever
+ * PR lands next changes this function and nothing else decides, so a round is never drawn by two screens.
+ *
+ * WHAT THE DRAW SECTION HOLDS is the page's to fill, but WHICH CONTROLS a round's draw has is asked of
+ * `drawControlsOf` below, so the Teams page, the Rounds link and this screen read one answer.
  */
 
 export const DRAW_SECTION_KEYS = ["whoIn", "draw", "teeTimes", "onTheDay", "paper"] as const;
@@ -40,28 +46,47 @@ export type DrawSections =
   | { built: true; keys: readonly DrawSectionKey[] }
   | { built: false; lane: "R9b" | "R9c"; keys: readonly [] };
 
-/** The PR that builds each family's screen. Stroke and Stableford are this one. */
-function laneOf(family: Family): "R9b" | "R9c" {
-  switch (family) {
-    case "knockout":
-    case "flightedKnockout":
-    case "teamCup":
-      return "R9c";
-    default:
-      return "R9b";
-  }
-}
+/** The families no screen of this one builds: a knockout, a flighted knockout and a cup are R9c's. */
+const R9C_FAMILIES: readonly Family[] = ["knockout", "flightedKnockout", "teamCup"];
 
 export function drawSections(round: DrawRound, family: Family): DrawSections {
-  const strokeFamily = family === "stroke" || family === "stableford";
-  // A round whose pairings are the draw (a match, a head-to-head side format) is not a stroke sheet,
-  // whatever the tournament's family says.
-  if (!strokeFamily || !roundIsStroke(round.type, round.format)) {
-    return { built: false, lane: laneOf(family), keys: [] };
-  }
+  if (R9C_FAMILIES.includes(family)) return { built: false, lane: "R9c", keys: [] };
+  // A casual round is in no PR's list: today's tee sheet draws it, as it always has.
+  if (family === "casual") return { built: false, lane: "R9b", keys: [] };
+  // Every other family is built, whatever the round is inside it: a stroke sheet, a match, a round robin
+  // of flights, a league week, or a sided round of a stroke tournament. The sections are the same five, in
+  // the TD's order; what the DRAW section holds is `drawControlsOf`'s.
   const keys: DrawSectionKey[] = ["whoIn", "draw", "teeTimes", "onTheDay"];
   if (round.hasSavedSheet) keys.push("paper");
   return { built: true, keys };
+}
+
+/**
+ * WHICH DRAW CONTROLS A ROUND HAS (R9b), asked once by every screen that mounts one.
+ *
+ *  - `teamMatches`: the sides of the round are paired against each other ("Generate matches"): a round of
+ *    sides that draws matches (`generatesPairings`), which is what `TeamsClient`'s `drawsMatches` always
+ *    meant and `generateTeamMatches` refuses without.
+ *  - `nextRound`: the round follows another and is drawn from its results ("Draw Round 2's matches", "Give
+ *    out cards") once the tournament is live and not over: what Rounds & formats has always offered on the
+ *    round's column, never on the first round or one seeded from qualifiers.
+ */
+export function drawControlsOf(
+  round: { type: string; format: string },
+  when: { launched: boolean; isFirst: boolean; completed: boolean },
+): { teamMatches: boolean; nextRound: boolean } {
+  return {
+    teamMatches: needsTeams(round.format) && generatesPairings(round.type),
+    nextRound: when.launched && !when.completed && !when.isFirst && !seededFromQualifiers(round.type),
+  };
+}
+
+/**
+ * WHERE "GENERATE MATCHES" IS DRAWN (R9b): Tee times & draw while that screen is shown AND builds this round,
+ * Teams & pairs otherwise. ONE answer for both pages, so the control is on exactly one of them.
+ */
+export function matchGeneratorPlace(round: DrawRound, family: Family, teeTimesShown: boolean): "teeTimes" | "teams" {
+  return teeTimesShown && drawSections(round, family).built ? "teeTimes" : "teams";
 }
 
 /**

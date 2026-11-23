@@ -17,7 +17,12 @@ import { openTournamentJob } from "@/lib/services/whats-next";
 import { scopeLockFor, tournamentStatusFor } from "@/lib/services/tournament-status";
 import { roundHandicapsFor } from "@/lib/services/round-handicap";
 import { courseDayOf } from "@/lib/domain/timeline-step";
-import { drawSections, needsYouSection } from "@/lib/domain/draw-sections";
+import { drawSections, drawControlsOf, matchGeneratorPlace, needsYouSection } from "@/lib/domain/draw-sections";
+import { roundRobinCutOf } from "@/lib/services/regroup";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
+import { DrawRound } from "@/components/DrawRound";
+import { TeamMatchesControl } from "@/components/TeamMatchesControl";
+import type { CutTieOnCard } from "@/components/CutReadyCard";
 import { needSentence, phaseTitle } from "@/lib/domain/lifecycle-track";
 import { RoundHandicaps } from "@/components/RoundHandicaps";
 import { LockedOnce } from "@/components/setup/LockedOnce";
@@ -539,6 +544,48 @@ export default async function FoursomesPage({
         href: n.key === "draw" ? "#draw" : n.key === "teeSheet" ? "#draw" : `/stages?round=${stage.id}`,
       }));
     const sheetLock = await scopeLockFor(session.eventId, "teeSheet");
+    /**
+     * THE DRAW CONTROLS OF A ROUND OF MATCHES (R9b), each mounted here only while this screen builds the round:
+     * "Generate matches" for a round of sides (Teams & pairs draws it otherwise: `matchGeneratorPlace`), and
+     * "Draw Round n's matches" for a round drawn from the one before (Rounds & formats keeps it until its link
+     * here). `drawControlsOf` is the one answer to which a round has. A league's sides are nominated, so the
+     * generator is never offered there (`generateTeamMatches` refuses it).
+     */
+    const family = told.status.family;
+    const controls = drawControlsOf(stage, {
+      launched: told.status.step !== "setting-up",
+      isFirst: rounds[0]?.id === stage.id,
+      completed: told.status.step === "completed",
+    });
+    const roundMatches = state.matches.filter((m) => m.stageId === stage.id).length;
+    const generatorHere =
+      isStaff &&
+      controls.teamMatches &&
+      !isLeaguePointsSystem(state.event.leaguePoints) &&
+      matchGeneratorPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes";
+    const sidesLock = generatorHere ? await scopeLockFor(session.eventId, "sides") : null;
+    const nextRoundEl = await (async () => {
+      if (!isStaff || !controls.nextRound) return null;
+      // A tie at a round robin's cut line, for the round it decides the field of (`roundRobinCutOf`, the answer the round is drawn with).
+      let cutTie: { feederId: string; ties: CutTieOnCard[] } | null = null;
+      if (stage.cutEnabled) {
+        const made = await roundRobinCutOf(session.eventId, stage.id);
+        if (made) {
+          const name = (id: string) => made.names.get(id) ?? "A player";
+          const ties = [
+            ...made.outcome.undecided.map((t) => ({ t, chosen: [] as string[] })),
+            ...made.outcome.decided.map((t) => ({ t, chosen: t.through })),
+          ].map(({ t, chosen }) => ({ tied: t.playerIds, names: t.playerIds.map(name), places: t.places, by: t.by, chosen }));
+          if (ties.length > 0) cutTie = { feederId: made.feeder.id, ties };
+        }
+      }
+      return (
+        <DrawRound
+          stage={{ id: stage.id, type: stage.type, matchCount: roundMatches, cutEnabled: stage.cutEnabled, cutTies: stage.cutTies, cutTie }}
+          label={roundLabel(rounds, stage.id) || "this round"}
+        />
+      );
+    })();
     // THE ONE ROUND-HANDICAPS PANEL: here while this screen is shown, on Rounds & formats while it is not.
     const handicapRows = isStaff && stage.scoringBasis !== "gross" ? await roundHandicapsFor(session.eventId, stage.id) : [];
     const isAdmin = session.role === "admin";
@@ -591,9 +638,18 @@ export default async function FoursomesPage({
             // would stand above a control that still writes (lock-scopes.md).
             node: (
               <>
+                {nextRoundEl}
                 {pairingEl}
-                <LockedOnce locks={sheetLock ? [sheetLock] : []} isAdmin={isAdmin} correction={null} open={null}>
-                  {() => makerEl(false)}
+                {/* ONE banner for the section: the sheet's lock, and the sides' while the generator is here (one banner id per page). */}
+                <LockedOnce locks={[...(sheetLock ? [sheetLock] : []), ...(sidesLock ? [sidesLock] : [])]} isAdmin={isAdmin} correction={null} open={null}>
+                  {() => (
+                    <>
+                      {generatorHere && (
+                        <TeamMatchesControl roundId={stage.id} matchCount={roundMatches} sideCount={teams.length} locked={sidesLock !== null} otherBusy={false} />
+                      )}
+                      {makerEl(false)}
+                    </>
+                  )}
                 </LockedOnce>
               </>
             ),

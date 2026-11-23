@@ -15,6 +15,8 @@ import {
   saidBeside,
   pick,
 } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
+import { TeeTimesPage } from "./console/teeTimes";
 
 /**
  * THE MATCHES A COMMITTEE MAKES DURING A TOURNAMENT, made as the secretary
@@ -429,4 +431,61 @@ test("a result a player reported is turned down: nothing goes on the draw, and t
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * @redesign: A MATCH EVENT'S NEXT DRAW, MADE ON TEE TIMES & DRAW (R9b). A round robin is a round of matches, so the
+ * redesigned Tee times & draw builds it and the draw leaves the Rounds column for it: Rounds holds a link, Tee times
+ * holds the press. As the secretary: Rounds says "Draw Round 2's matches" as a link to Tee times with Round 2 open,
+ * the screen there is opened as the person with the switch on sees it, the button is pressed, the matches are drawn
+ * in each flight (twelve for two flights of four: everybody against everybody once, read from the fixture), and
+ * after a reload the screen says Redraw. Replaces R4d's block that pressed the draw on the Rounds column while the
+ * link led to a sheet with no draw (that state is gone: `drawSections` builds the round).
+ */
+test.describe("@redesign a round robin's next draw on Tee times & draw", () => {
+  test("Draw Round 2's matches is a link on Rounds and the press on Tee times, and survives a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("redesign-tt", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      const { event, stages } = await makeEvent(club, "Winter Groups", {
+        status: "live",
+        stages: [
+          { type: "Round Robin", format: "Match Play", scoringBasis: "net" },
+          { type: "Round Robin", format: "Match Play", scoringBasis: "net" },
+        ],
+        players: 8,
+        flights: 2,
+      });
+      const second = stages[1];
+      await signIn(context, baseURL!, club, event.id);
+      const matches = () => prisma.match.count({ where: { eventId: event.id, stageId: second.id } });
+      expect(await matches(), "CONTROL: Round 2 is already drawn").toBe(0);
+
+      // Rounds & formats: no press on the column, a link to the room with this round open.
+      const rounds = new RoundsScreen(page);
+      await rounds.open();
+      const column = rounds.column("Round 2");
+      await expect(column.getByRole("button", { name: /Draw Round 2/ })).toHaveCount(0);
+      await expect(column.getByRole("link", { name: /Draw Round 2/ })).toHaveAttribute("href", new RegExp(`/foursomes\\?round=${second.id}`));
+
+      // Tee times & draw, Round 2 open: the press.
+      const screen = new TeeTimesPage(page);
+      await screen.open(second.id);
+      const press = (await screen.openSection("draw")).getByRole("button", { name: "Draw Round 2's matches", exact: true });
+      await centre(press);
+      await press.click();
+      await expect.poll(matches, { message: "Round 2 was not drawn as two round robins of six" }).toBe(12);
+      await page.reload();
+      await expect(
+        (await screen.openSection("draw")).getByRole("button", { name: "Redraw Round 2's matches", exact: true }),
+        "after a reload the draw section does not know it is drawn",
+      ).toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
