@@ -23,6 +23,9 @@ const settings = (over: Record<string, string> = {}) =>
       mode="tournament"
       settings={cleanSettings(over)}
       canEdit
+      howInHere
+      shareHere
+      teesHere
       shareToken="zz-token"
       rounds={[{ stageId: "r1", label: "Round 1", code: "" }]}
     />,
@@ -67,6 +70,9 @@ describe("weekly sign-up is asked where there is a next week", () => {
         mode="tournament"
         settings={cleanSettings(over)}
         canEdit
+        howInHere
+        shareHere
+        teesHere
         shareToken="zz-token"
         rounds={Array.from({ length: n }, (_, i) => ({ stageId: `r${i}`, label: `Round ${i + 1}`, code: "" }))}
       />,
@@ -85,7 +91,7 @@ describe("weekly sign-up is asked where there is a next week", () => {
   });
 
   it("is unchanged on the club's defaults", () => {
-    const org = renderToStaticMarkup(<PlaySettings mode="organization" settings={cleanSettings({})} canEdit />);
+    const org = renderToStaticMarkup(<PlaySettings mode="organization" settings={cleanSettings({})} canEdit howInHere shareHere teesHere />);
     expect(org).toContain("Weekly sign-up");
   });
 });

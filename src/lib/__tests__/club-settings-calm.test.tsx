@@ -127,7 +127,7 @@ const CARDS: [string, () => string][] = [
   )],
   ["colour, dark", () => render(<ThemePicker theme={{ ...DEFAULT_CLUB_THEME, appearance: "dark" }} readOnly={false} />)],
   ["colour, light", () => render(<ThemePicker theme={{ ...DEFAULT_CLUB_THEME, appearance: "light" }} readOnly={false} />)],
-  ["house defaults", () => render(<PlaySettings mode="organization" settings={cleanSettings({})} canEdit />)],
+  ["house defaults", () => render(<PlaySettings mode="organization" settings={cleanSettings({})} canEdit howInHere shareHere teesHere />)],
   ["handicaps", () => render(
     <HandicapSetup view={{
       policy: "club", canEdit: true,
