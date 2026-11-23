@@ -72,11 +72,11 @@ describe("TeeTimesScreen", () => {
 
   it("draws the sections in the TD's order, marks Needs you on one, and folds every line with its state", () => {
     const html = draw();
-    const at = ["whoIn", "draw", "teeTimes", "onTheDay", "paper"].map((k) => html.indexOf(`data-draw-section="${k}"`));
+    const at = ["whoIn", "draw", "teeTimes", "onTheDay", "paper"].map((k) => html.indexOf(`data-section="${k}"`));
     expect(at.every((n) => n > 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(html.match(/Needs you/g)).toHaveLength(1);
-    expect(html).toContain('data-draw-section="draw" data-needs-you="true"');
+    expect(html).toContain('data-section="draw" data-needs-you="true"');
     for (const state of ["6 in the field", "Not drawn yet", "No tee times yet", "Pins and pace", "From the saved sheet"]) expect(html).toContain(state);
   });
 
@@ -88,15 +88,15 @@ describe("TeeTimesScreen", () => {
 
   it("a section the page left out is not drawn, and a person who is not staff gets no Find a player", () => {
     const html = draw({ sections: { ...sections, paper: undefined, whoIn: undefined }, find: null });
-    expect(html).not.toContain('data-draw-section="paper"');
-    expect(html).not.toContain('data-draw-section="whoIn"');
+    expect(html).not.toContain('data-section="paper"');
+    expect(html).not.toContain('data-section="whoIn"');
     expect(html).not.toContain('placeholder="Find a player"');
   });
 
   it("uses tokens, never a hard-coded colour, and lets every flex child shrink", () => {
     const src = [
       readSource("src/components/teetimes", "TeeTimesScreen.tsx"),
-      readSource("src/components/teetimes", "SectionFold.tsx"),
+      readSource("src/components/setup", "SectionFold.tsx"),
       readSource("src/components/teetimes", "FindAPlayer.tsx"),
     ].join("\n");
     expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);

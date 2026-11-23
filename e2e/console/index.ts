@@ -1,4 +1,5 @@
-import type { Page } from "@playwright/test";
+import { expect } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { consoleUrl } from "../../src/lib/console-url";
 import type { ScreenKey } from "../../src/lib/domain/console-merges";
 
@@ -39,4 +40,15 @@ export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
 /** The built screens' paths, in key order. */
 export function builtScreenPaths(): string[] {
   return Object.values(SCREENS_BUILT).filter((p): p is string => p !== null);
+}
+
+/**
+ * OPEN WHAT A PHONE FOLDS (G1). Every phone-folded part of a screen is the kit's `SectionFold`, whose line is a
+ * button with `aria-expanded`. A person taps a folded line open and leaves an open one alone; the opener does
+ * the same, then asserts it is open. A page object's `openSection` calls this, and the spec then finds the
+ * control INSIDE the section it returns, never from `page`.
+ */
+export async function openFold(line: Locator): Promise<void> {
+  if ((await line.getAttribute("aria-expanded")) === "false") await line.click();
+  await expect(line).toHaveAttribute("aria-expanded", "true");
 }

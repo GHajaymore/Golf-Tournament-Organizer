@@ -5,6 +5,8 @@ import { golfTermsFor, GOLF_REGISTERS } from "../domain/golf-terms";
 import { SCREEN_KEYS, type ScreenKey } from "../domain/console-merges";
 import { guideShapeProblems } from "./guide-word-checks";
 import { readSource } from "./source";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * THE GUIDE'S REDESIGN HARNESS (R1b): with no variant the guide is exactly today's, for every set of
@@ -95,6 +97,30 @@ describe("the guide with the redesign's registry", () => {
     expect(guideShapeProblems([section("Bad Id", "x")])).not.toEqual([]);
     expect(guideShapeProblems([{ ...section("empty", "x"), blocks: [] }])).not.toEqual([]);
     expect(guideShapeProblems([section("same", "a"), section("same", "b")])).not.toEqual([]);
+  });
+});
+
+describe("one guide file per screen (G1)", () => {
+  const kebab = (k: string) => k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+  const dir = join(process.cwd(), "src", "lib", "guide", "redesign");
+
+  it("every screen key has its own file, and the registry names it", () => {
+    const index = readSource("src/lib/guide/redesign/index.ts");
+    for (const k of SCREEN_KEYS) {
+      expect(existsSync(join(dir, `${kebab(k)}.ts`)), `${k} has no src/lib/guide/redesign/${kebab(k)}.ts`).toBe(true);
+      expect(index, `${k} is not in the registry`).toMatch(new RegExp(`\\b${k}: [A-Z_]+_GUIDE,`));
+      expect(index).toContain(`from "./${kebab(k)}"`);
+    }
+  });
+
+  it("an unbuilt screen's file is null, and a null variant changes nothing", () => {
+    for (const v of REDESIGN_GUIDE) expect(v, "a null must not reach the registry").not.toBeNull();
+    // Every screen shown at once draws exactly the registered variants, and none for the unbuilt keys.
+    const all = guideFor(GUIDE_STEPS, [...SCREEN_KEYS], US);
+    expect(all.length).toBeGreaterThanOrEqual(GUIDE_STEPS.length);
+    expect(REDESIGN_GUIDE.map((v) => v.screen)).toEqual(SCREEN_KEYS.filter((k) => REDESIGN_GUIDE.some((v) => v.screen === k)));
+    // A key with no variant is drawn as today's guide (home is not built).
+    expect(guideFor(GUIDE_STEPS, ["home"], US)).toEqual(GUIDE_STEPS);
   });
 });
 
