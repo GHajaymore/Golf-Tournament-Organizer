@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
+import { MoneyScreen } from "./console/money";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -132,7 +133,7 @@ test.describe("@redesign", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
   const WALKED = ["desktop", "phone"];
 
-  test("a prize is added on the new screen and is there after a reload", async ({ page, context, baseURL }, testInfo) => {
+  test("a prize is added on the new screen, awarded on Winners & money, and both are there after a reload", async ({ page, context, baseURL }, testInfo) => {
     test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
     const errors: string[] = [];
     watchPageErrors(page, errors);
@@ -155,8 +156,22 @@ test.describe("@redesign", () => {
         .toBe(25);
       await page.reload();
       await expect(screen.amountFor(cat), "the prize is not on the new screen after a reload").toHaveValue("25");
-      // The settle half is still drawn on this screen until Winners & money is built: the line can be awarded here.
-      await expect(screen.winnerOf(cat), "no control to award the prize is drawn anywhere").toBeVisible();
+      // With Winners & money shown the winner is picked THERE, never here: the line is offered on this screen and awarded on that one.
+      await expect(page.getByLabel(`Winner of ${cat}`), "the winner picker is drawn on the offer screen too").toHaveCount(0);
+      // The way to it is a link in this screen's own words (the menu keeps `stepper=1` and not `build=1`, so a building screen is not in it yet).
+      await page.locator("p.page-sub").getByRole("link", { name: "Winners & money" }).click();
+      await expect(page.locator("[data-money-screen]"), "the link did not open Winners & money").toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Winners & money" })).toBeVisible();
+      const money = new MoneyScreen(page);
+      await money.expectNoOfferControls();
+      const winner = await money.winnerOf(cat).locator("option").nth(1).getAttribute("value");
+      expect(winner, "nobody is offered as a winner").toBeTruthy();
+      await money.winnerOf(cat).selectOption(winner!);
+      await expect
+        .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.winnerId, { timeout: 20_000, message: "the award was not recorded" })
+        .toBe(winner);
+      await page.reload();
+      await expect(money.winnerOf(cat), "the winner is not on Winners & money after a reload").toHaveValue(winner!);
     } finally {
       await rf.dropClub(mark);
     }

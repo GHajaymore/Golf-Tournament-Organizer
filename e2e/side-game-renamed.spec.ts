@@ -115,9 +115,9 @@ test("a crew's game is renamed with its pots and its people, and a clash with an
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
-// R8a: with Prizes & side games shown, a crew's game is still renamed where the groups' games are kept (they move with Winners & money, R8b).
+// R8a/R8b: with the redesign shown, the groups' games are a section of Winners & money, and a crew's game is renamed there.
 test.describe("@redesign", () => {
-  test("a crew's game is renamed on Side games while the new Prizes screen is shown, and the name is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+  test("a crew's game is renamed in the groups' games on Winners & money, and the name is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
     test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
     const errors: string[] = [];
     watchPageErrors(page, errors);
@@ -134,7 +134,9 @@ test.describe("@redesign", () => {
       const open = async () => {
         await page.goto(consoleUrl("/group-games", "build"));
         await page.locator("h1").first().waitFor({ state: "visible", timeout: 30_000 });
-        expect(new URL(page.url()).pathname, "sent away from Side games — not signed in?").toBe("/group-games");
+        // With Winners & money shown, a tournament's staff are sent to the groups' games there (R8b), not left on `/group-games`.
+        expect(new URL(page.url()).pathname, "staff were not sent to the groups' games on Winners & money — not signed in?").toBe("/money");
+        await expect(page.locator("#groups"), "the groups' games are not a section of Winners & money").toBeVisible();
       };
       await open();
       const card = potCard(FROM);

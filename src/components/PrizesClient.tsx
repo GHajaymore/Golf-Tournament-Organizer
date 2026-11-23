@@ -37,7 +37,16 @@ export interface PrizeRow {
   counts: boolean;
 }
 
+/**
+ * WHICH HALF OF THE PRIZE TABLE THIS MOUNT DRAWS (R8b). Money is split by when (`domain/money-parts.ts`): what is OFFERED (the lines,
+ * their amounts, removing one, the one-prize rule and what counts) is on Prizes & side games, and what is SETTLED (who won each
+ * prize) is on Winners & money. "both" is today's one screen, drawn whenever the redesigned Winners & money is not shown, so
+ * the old screen is byte for byte what it was. Optional, so the old screen's render tests stay untouched (absent is "both"); `money-parts.test.ts` holds every page mount to saying it.
+ */
+export type PrizesPart = "both" | "offer" | "settle";
+
 export function PrizesClient({
+  part = "both",
   prizes: stored,
   players,
   flights = [],
@@ -45,6 +54,8 @@ export function PrizesClient({
   onePrizePerPlayer = false,
   locked = false,
 }: {
+  /** Which half of the table this mount draws; the whole table when absent (the old screen's). Every page mount says it. */
+  part?: PrizesPart;
   prizes: PrizeRow[];
   /**
    * The prize table is shut (the machine's `money` lock: a completed tournament, drawn above this by
@@ -85,6 +96,8 @@ export function PrizesClient({
     net: Array<{ id: string; name: string; place?: number | null }> | null;
   };
 }) {
+  const offerHere = part !== "settle";
+  const settleHere = part !== "offer";
   const flightOf = new Map(flights.flatMap((f) => f.players.map((pl) => [pl.id, f.label] as const)));
   /** The options for one prize: in the order its own name asks for. */
   const optionsFor = (category: string) => {
@@ -142,7 +155,7 @@ export function PrizesClient({
    * "Counts"; on a phone's row it says the whole thing.
    */
   const countsSwitch = (p: PrizeRow, short: boolean) =>
-    on ? (
+    on && offerHere ? (
       <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, whiteSpace: short ? "nowrap" : undefined }}>
         <input
           type="checkbox"
@@ -171,7 +184,10 @@ export function PrizesClient({
    */
   const controls = (p: PrizeRow, asCells = false) => {
     const picker = pickerFor(optionsFor(p.category), holdings, p.id, on);
-    const amountBox = (
+    // What a prize is worth is offered; on Winners & money it is only read beside the winner.
+    const amountBox = !offerHere ? (
+      <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(p.amount)}</span>
+    ) : (
       <input
         className="input"
         type="number"
@@ -212,7 +228,7 @@ export function PrizesClient({
           <Icon name="warning-circle" /> {amountRefused.error}
         </p>
       ) : null;
-    const winnerPick = (
+    const winnerPick = !settleHere ? null : (
       <select
         className="input"
         value={p.winnerId ?? ""}
@@ -254,7 +270,7 @@ export function PrizesClient({
         )}
       </select>
     );
-    const remove = (
+    const remove = !offerHere ? null : (
       <ConfirmButton
         title="Remove prize"
         confirmLabel="Remove it"
@@ -278,9 +294,9 @@ export function PrizesClient({
           {amountBox}
           {amountSaid}
         </td>
-        <td>{winnerPick}</td>
-        {on && <td>{countsSwitch(p, true)}</td>}
-        <td>{remove}</td>
+        {settleHere && <td>{winnerPick}</td>}
+        {on && offerHere && <td>{countsSwitch(p, true)}</td>}
+        {offerHere && <td>{remove}</td>}
       </>
     ) : (
       <>
@@ -299,6 +315,8 @@ export function PrizesClient({
       </p>
     ) : null;
 
+  /** Category, detail and amount, then each of the controls this half draws. */
+  const columns = 3 + (settleHere ? 1 : 0) + (on && offerHere ? 1 : 0) + (offerHere ? 1 : 0);
   const purse = prizes.reduce((s, p) => s + p.amount, 0);
   const awarded = prizes.filter((p) => p.winnerId).length;
 
@@ -339,16 +357,21 @@ export function PrizesClient({
           <span className="card-kicker">Total purse</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{money(purse)}</div>
         </div>
-        <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
-          <span className="card-kicker">Prize lines</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{prizes.length}</div>
-        </div>
-        <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
-          <span className="card-kicker">Awarded</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{awarded} / {prizes.length}</div>
-        </div>
+        {offerHere && (
+          <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
+            <span className="card-kicker">Prize lines</span>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{prizes.length}</div>
+          </div>
+        )}
+        {settleHere && (
+          <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
+            <span className="card-kicker">Awarded</span>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{awarded} / {prizes.length}</div>
+          </div>
+        )}
       </div>
 
+      {offerHere && (
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Add a prize</span>
 
@@ -435,6 +458,7 @@ export function PrizesClient({
           )}
         </div>
       </div>
+      )}
 
       {/* Named. This was the only untitled card on the screen, and it is the
           prize list itself — which the side-bets card further down refers to
@@ -450,6 +474,13 @@ export function PrizesClient({
         {/* ONE PRIZE PER PLAYER, beside the list it governs (2026-10-21). Off
             by default; ticking it while somebody already holds two counting
             prizes is refused, naming them, and said right under the box. */}
+        {!offerHere ? (
+          on && (
+            <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
+              {ONE_PRIZE_LABEL} is on: {ONE_PRIZE_HELP}
+            </p>
+          )
+        ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
             <input
@@ -478,6 +509,7 @@ export function PrizesClient({
             </p>
           )}
         </div>
+        )}
         {/* ON A PHONE, ONE PRIZE A ROW (2026-09-29). The table put the WINNER
             in its last column, and at 390px that column was off the right edge
             — the one screen whose point is who won never showed it without a
@@ -506,9 +538,9 @@ export function PrizesClient({
                 <th>Category</th>
                 <th>Detail</th>
                 <th style={{ textAlign: "right", width: 120 }}>Amount</th>
-                <th style={{ width: 200 }}>Winner</th>
-                {on && <th style={{ width: 90 }} title={COUNTS_LABEL}>Counts</th>}
-                <th style={{ width: 44 }} />
+                {settleHere && <th style={{ width: 200 }}>Winner</th>}
+                {on && offerHere && <th style={{ width: 90 }} title={COUNTS_LABEL}>Counts</th>}
+                {offerHere && <th style={{ width: 44 }} />}
               </tr>
             </thead>
             <tbody>
@@ -521,20 +553,21 @@ export function PrizesClient({
                   </tr>
                   {rowRefused?.prizeId === p.id && (
                     <tr>
-                      <td colSpan={on ? 6 : 5}>{refusedHere(p)}</td>
+                      <td colSpan={columns}>{refusedHere(p)}</td>
                     </tr>
                   )}
                 </Fragment>
               ))}
               {prizes.length === 0 && (
                 <tr>
-                  <td colSpan={on ? 6 : 5} className="text-muted" style={{ fontSize: 13, padding: 16 }}>
+                  <td colSpan={columns} className="text-muted" style={{ fontSize: 13, padding: 16 }}>
                     {/* Names the control rather than pointing at a position.
                         "above" is a claim about layout that nothing checks and
                         a re-arrangement makes false — the defect this pass
                         found three times in one file on StagesClient. */}
-                    No prizes yet — use &ldquo;Add a prize&rdquo; for flight winners, skins,
-                    closest-to-pin, long drive and any specials.
+                    {offerHere
+                      ? <>No prizes yet — use &ldquo;Add a prize&rdquo; for flight winners, skins, closest-to-pin, long drive and any specials.</>
+                      : <>No prizes have been offered yet. They are added on Prizes &amp; side games.</>}
                   </td>
                 </tr>
               )}

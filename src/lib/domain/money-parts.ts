@@ -102,6 +102,90 @@ export function moneyPartProblems(offer: readonly string[], settle: readonly str
   return problems;
 }
 
+/**
+ * WHICH SCREEN DRAWS A CONTROL, once Winners & money is shown (R8b). The part says WHEN a control is for; this says WHERE it is
+ * drawn, and the two are not the same for a control that is settled on the card of the game it settles:
+ *
+ *   - "money"   Winners & money: who won each prize, the kitty, and settling up (`SETTLE_ON_WINNERS_AND_MONEY`).
+ *   - "player"  the player's own money screen (`/me/money`), not a screen of the console and never moved: a player asks to join
+ *               a pot or contest and writes a shared cost down there (`SETTLE_ON_THE_PLAYERS_SCREEN`).
+ *   - "prizes"  everything else: the offer, and the settle controls that are drawn WITH the pot or contest they settle (who is in
+ *               it, who has paid their stake, who won a closest-to-the-pin, a game's name). A pot's card is one card, mounted once;
+ *               pulling its entrants off it to a second screen would be a second copy of the card (the Golf Pro, R8a: "do not move
+ *               entrants off the pot card").
+ *
+ * A group's own games (`/group-games`, a section of Winners & money for a tournament's staff) draw the same pot and contest cards for
+ * the group, so their controls are the same actions, on the same cards, in the other mount of `GroupGames`.
+ */
+export type MoneyScreen = "prizes" | "money" | "player";
+
+export const SETTLE_ON_WINNERS_AND_MONEY = ["setPrizeWinner", "addFundLine", "removeFundLine", "recordSettlement", "removeSettlement"] as const;
+
+export const SETTLE_ON_THE_PLAYERS_SCREEN = [
+  "requestContestEntry",
+  "requestSkinsEntry",
+  "requestSideGameEntry",
+  "addExpense",
+  "updateExpense",
+  "removeExpense",
+] as const;
+
+/** The screen a control is drawn on. Throws for a control with no part, like `moneyPartOf`. */
+export function moneyScreenOf(control: string): MoneyScreen {
+  const part = moneyPartOf(control);
+  const broken = moneyScreenProblems(SETTLE_ON_WINNERS_AND_MONEY, SETTLE_ON_THE_PLAYERS_SCREEN);
+  if (broken.length > 0) throw new Error(`the money screens are inconsistent: ${broken.join("; ")}`);
+  if ((SETTLE_ON_WINNERS_AND_MONEY as readonly string[]).includes(control)) {
+    if (part !== "settle") throw new Error(`${control} is drawn on Winners & money and is not a settle control`);
+    return "money";
+  }
+  if ((SETTLE_ON_THE_PLAYERS_SCREEN as readonly string[]).includes(control)) {
+    if (part !== "settle") throw new Error(`${control} is drawn on the player's screen and is not a settle control`);
+    return "player";
+  }
+  return "prizes";
+}
+
+/** The half of the prize table (`PrizesClient`'s `part`) a screen draws. Both pages ask this, so the table is never drawn twice. */
+export type PrizeTableHalf = "both" | "offer" | "settle";
+
+/**
+ * Which half of the prize table is drawn on `screen`: Winners & money draws the winners (the settle half) and Prizes & side games
+ * the lines (the offer half) while Winners & money is shown; with it not shown Prizes draws the one whole table it always has.
+ * `moneyShown` is the page's own `shown.has("money")`, so this is the ONE answer to "is a prize's winner picker on this screen".
+ */
+export function prizeTableHalf(screen: "prizes" | "money", moneyShown: boolean): PrizeTableHalf {
+  if (screen === "money") return "settle";
+  return moneyShown ? "offer" : "both";
+}
+
+/**
+ * The faults in the two settle-screen lists: a control in both, or one that is empty. Like `moneyPartProblems`, so a test can hand
+ * it a planted control and watch it go red.
+ */
+export function moneyScreenProblems(winnersAndMoney: readonly string[], playerScreen: readonly string[]): string[] {
+  const problems: string[] = [];
+  for (const [screen, list] of [["Winners & money", winnersAndMoney], ["the player's screen", playerScreen]] as const) {
+    for (const c of list) if (c.trim() === "") problems.push(`an empty control for ${screen}`);
+    if (new Set(list).size !== list.length) problems.push(`a control is listed twice for ${screen}`);
+  }
+  for (const c of winnersAndMoney) if (playerScreen.includes(c)) problems.push(`${c} is drawn on Winners & money and on the player's screen`);
+  return problems;
+}
+
+/** Where a group's own games (`GroupGames`) are drawn: the screen of their own, or a section of Winners & money. */
+export type GroupGamesHome = "group-games" | "money";
+
+/**
+ * WHERE THE GROUPS' GAMES ARE DRAWN FOR THIS PERSON, THIS EVENT, THIS STATE OF THE SWITCH (R8b). A tournament's staff keep them on
+ * Winners & money while it is shown (`MOVES`: `/group-games` for an admin or assistant, `notCasual`); a casual round keeps its one
+ * screen (step 3 §4.4) and a player keeps their own door to their group's games. Both pages ask this, so `GroupGames` is mounted
+ * once, never on both and never on neither.
+ */
+export function groupGamesHome(who: { staff: boolean; casual: boolean; moneyShown: boolean }): GroupGamesHome {
+  return who.moneyShown && who.staff && !who.casual ? "money" : "group-games";
+}
+
 /** The home of a pot or contest of the WHOLE FIELD (an empty group key), the one place it is drawn. */
 export type FieldGamesHome = "prizes" | "group-games";
 

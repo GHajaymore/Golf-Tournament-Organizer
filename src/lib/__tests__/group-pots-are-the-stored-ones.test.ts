@@ -41,7 +41,7 @@ describe("the pots a group has", () => {
 
 describe("Side games", () => {
   it("reads each group's pots off the stored rows, not one fixed pair", () => {
-    const src = readSource("src/app/(app)/group-games/page.tsx");
+    const src = readSource("src/components/money/GroupGames.tsx");
     expect(src).toMatch(/potsOfGroup\(groupPotRows, g\.name, true\)/);
     expect(src).toMatch(/potsOfGroup\(groupPotRows, name, false\)/);
     // The old shape: the group's name handed to a hard-coded net full pot.

@@ -1,7 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { readSource } from "./source";
-import { OFFER_CONTROLS, SETTLE_CONTROLS, moneyPartOf, moneyPartProblems, fieldGamesHome } from "../domain/money-parts";
+import {
+  OFFER_CONTROLS,
+  SETTLE_CONTROLS,
+  SETTLE_ON_THE_PLAYERS_SCREEN,
+  SETTLE_ON_WINNERS_AND_MONEY,
+  fieldGamesHome,
+  groupGamesHome,
+  moneyPartOf,
+  moneyPartProblems,
+  moneyScreenOf,
+  moneyScreenProblems,
+  prizeTableHalf,
+} from "../domain/money-parts";
 
 /**
  * THE TWO HALVES OF MONEY, AND WHERE A FIELD'S GAMES ARE OFFERED (R8a).
@@ -91,7 +103,7 @@ describe("every money control is in exactly one part", () => {
 
 describe("a field's pots and contests are mounted once", () => {
   const prizesPage = readSource("src", "app", "(app)", "prizes", "page.tsx");
-  const gamesPage = readSource("src", "app", "(app)", "group-games", "page.tsx");
+  const gamesPage = readSource("src", "components", "money", "GroupGames.tsx");
 
   it("a tournament offers them on Prizes; a casual round keeps them on its one screen, whichever screens are shown", () => {
     for (const casual of [false, true]) {
@@ -107,7 +119,7 @@ describe("a field's pots and contests are mounted once", () => {
     expect(gamesPage).toContain('fieldGamesHome({ casual }) === "group-games"');
     // Prizes: every pot and contest mount sits between the first fieldGamesHere guard and the season's skins that follows them.
     const from = prizesPage.indexOf("fieldGamesHere && week && perPlayerPotRefusal");
-    const to = prizesPage.indexOf("<SkinsSeason");
+    const to = prizesPage.indexOf("<SettleHalf");
     expect(from).toBeGreaterThan(-1);
     for (const m of prizesPage.matchAll(/<(SkinsPotClient|ContestsClient)\b/g)) {
       expect(m.index!, `${m[1]} is mounted on Prizes outside the field-games guard`).toBeGreaterThan(from);
@@ -125,5 +137,126 @@ describe("a field's pots and contests are mounted once", () => {
     expect((prizesPage.match(/<MoneySetup\b/g) ?? []).length).toBe(1);
     expect(prizesPage).toMatch(/\{newScreen && moneySetup && \(\s*<SectionFold/);
     expect(prizesPage).toMatch(/\{!newScreen && moneySetup && \(/);
+  });
+});
+
+/**
+ * WINNERS & MONEY, THE SETTLE HALF (R8b). Each control is drawn on ONE screen once it is shown, each mount is behind the one
+ * boolean (`shown.has("money")`), and the groups' own games are drawn once for each person in each state.
+ */
+describe("every money control is drawn on exactly one screen (R8b)", () => {
+  const ALL = [...OFFER_CONTROLS, ...SETTLE_CONTROLS] as string[];
+
+  it("the two settle-screen lists have no control twice, in both, or empty", () => {
+    expect(moneyScreenProblems(SETTLE_ON_WINNERS_AND_MONEY, SETTLE_ON_THE_PLAYERS_SCREEN)).toEqual([]);
+  });
+
+  it("CONTROL: a planted control on both screens, listed twice or empty is caught", () => {
+    expect(moneyScreenProblems([...SETTLE_ON_WINNERS_AND_MONEY, "addExpense"], SETTLE_ON_THE_PLAYERS_SCREEN)).toEqual([
+      "addExpense is drawn on Winners & money and on the player's screen",
+    ]);
+    expect(moneyScreenProblems([...SETTLE_ON_WINNERS_AND_MONEY, "recordSettlement"], [])).toEqual(["a control is listed twice for Winners & money"]);
+    expect(moneyScreenProblems([""], [])).toEqual(["an empty control for Winners & money"]);
+  });
+
+  it("every control has a screen, and only a settle control is drawn off Prizes & side games", () => {
+    for (const c of ALL) expect(["prizes", "money", "player"], c).toContain(moneyScreenOf(c));
+    for (const c of OFFER_CONTROLS) expect(moneyScreenOf(c), `${c} is offered and must be drawn on Prizes & side games`).toBe("prizes");
+    for (const c of SETTLE_ON_WINNERS_AND_MONEY) expect(moneyScreenOf(c), c).toBe("money");
+    for (const c of SETTLE_ON_THE_PLAYERS_SCREEN) expect(moneyScreenOf(c), c).toBe("player");
+    expect(() => moneyScreenOf("notAControl")).toThrow(/no part/);
+  });
+
+  it("the controls drawn on Winners & money are the ones its components import, and no page draws a second copy", () => {
+    const component = (name: string) => readSource("src", "components", `${name}.tsx`);
+    const drawnBy: Record<string, string> = {
+      setPrizeWinner: "PrizesClient",
+      addFundLine: "FloatClient",
+      removeFundLine: "FloatClient",
+      recordSettlement: "OrganizerLedger",
+      removeSettlement: "OrganizerLedger",
+    };
+    for (const c of SETTLE_ON_WINNERS_AND_MONEY) {
+      expect(drawnBy[c], `${c} has no component named for it here`).toBeTruthy();
+      expect(component(drawnBy[c]), `${drawnBy[c]} does not draw ${c}`).toMatch(new RegExp(`\\b${c}\\b`));
+    }
+    // The settle components reach a page only through `SettleHalf` and the prize table's `settle` half.
+    const half = readSource("src", "components", "money", "SettleHalf.tsx");
+    for (const c of ["SkinsSeason", "FloatClient", "OrganizerLedger"]) expect(half, `${c} is not drawn by SettleHalf`).toContain(`<${c}`);
+    for (const page of ["prizes", "money"]) {
+      const src = readSource("src", "app", "(app)", page, "page.tsx");
+      for (const c of ["<FloatClient", "<OrganizerLedger", "<SkinsSeason"]) expect(src, `${page} draws ${c} on its own, a second copy of the settle half`).not.toContain(c);
+    }
+  });
+});
+
+describe("Winners & money's settle half is mounted once, by one boolean (R8b)", () => {
+  const prizesPage = readSource("src", "app", "(app)", "prizes", "page.tsx");
+  const moneyPage = readSource("src", "app", "(app)", "money", "page.tsx");
+  const gamesPage = readSource("src", "app", "(app)", "group-games", "page.tsx");
+
+  it("prizeTableHalf: Winners & money draws the winners, Prizes the lines, and the old screen the whole table", () => {
+    expect(prizeTableHalf("money", true)).toBe("settle");
+    expect(prizeTableHalf("prizes", true)).toBe("offer");
+    expect(prizeTableHalf("prizes", false)).toBe("both");
+    // Whatever the switch, a prize's winner picker is on one screen and its amount box on one screen.
+    for (const moneyShown of [false, true]) {
+      const halves = [prizeTableHalf("prizes", moneyShown), ...(moneyShown ? [prizeTableHalf("money", true)] : [])];
+      const winnerScreens = halves.filter((h) => h !== "offer");
+      const amountScreens = halves.filter((h) => h !== "settle");
+      expect(winnerScreens.length, `moneyShown=${moneyShown}: a winner picker on ${winnerScreens.length} screens`).toBe(1);
+      expect(amountScreens.length, `moneyShown=${moneyShown}: an amount box on ${amountScreens.length} screens`).toBe(1);
+    }
+  });
+
+  it("Prizes reads the settle half only while it draws it, and mounts SettleHalf once behind that", () => {
+    expect(prizesPage).toContain('const moneyShown = shown.has("money");');
+    expect(prizesPage).toMatch(/const settle = moneyShown\s*\? null\s*: await settleHalfFor\(/);
+    expect((prizesPage.match(/<SettleHalf\b/g) ?? []).length).toBe(1);
+    expect(prizesPage).toMatch(/\{settle && \(\s*<SettleHalf/);
+    expect(prizesPage).toContain('part={prizeTableHalf("prizes", moneyShown)}');
+  });
+
+  it("Winners & money opens on the switch's own guard, draws each half once, and asks the same readers", () => {
+    expect(moneyPage).toMatch(/const session = await requireScreen\("prizes"\);\s*const shown = await screensShownFor\(session\);\s*if \(!shown\.has\("money"\)\) redirect\("\/prizes"\);/);
+    expect((moneyPage.match(/<PrizesClient\b/g) ?? []).length).toBe(1);
+    expect(moneyPage).toContain('part={prizeTableHalf("money", true)}');
+    expect((moneyPage.match(/<SettleHalf\b/g) ?? []).length).toBe(1);
+    expect(moneyPage).toMatch(/<GroupGames session=\{session\} round=\{params\.round\} asSection\b/);
+    expect(moneyPage).toContain("settleHalfFor(");
+    expect(moneyPage).toContain("prizeFieldFor(state)");
+    expect(prizesPage).toContain("prizeFieldFor(state)");
+    // The statement of how money works is above what it decides, here as on Prizes.
+    for (const after of ["<PrizesClient", "<SettleHalf", "<GroupGames"]) expect(moneyPage.indexOf("<MoneyModeLine"), after).toBeLessThan(moneyPage.indexOf(after));
+  });
+
+  it("the money page offers no control to change what is offered", () => {
+    for (const offer of OFFER_CONTROLS) expect(moneyPage, `Winners & money mentions the offer control ${offer}`).not.toMatch(new RegExp(`\\b${offer}\\b`));
+    for (const c of ["<MoneySetup", "<SkinsPotClient", "<ContestsClient"]) expect(moneyPage, `${c} is mounted on Winners & money, a second copy of the offer's card`).not.toContain(c);
+  });
+
+  it("the groups' games are drawn once for every person and state of the switch", () => {
+    // Every combination: staff or not (a player keeps their own door), casual or not, and the switch.
+    for (const staff of [false, true]) {
+      for (const casual of [false, true]) {
+        for (const moneyShown of [false, true]) {
+          const home = groupGamesHome({ staff, casual, moneyShown });
+          // `/money` is opened by staff on a tournament only: `requireScreen("prizes")` sends a player away and a casual round to its one screen.
+          const moneyOpens = moneyShown && staff && !casual;
+          const mounts = (home === "group-games" ? 1 : 0) + (moneyOpens ? 1 : 0);
+          expect(mounts, `staff=${staff} casual=${casual} moneyShown=${moneyShown}: the groups' games are drawn ${mounts} times`).toBe(1);
+        }
+      }
+    }
+    expect(groupGamesHome({ staff: true, casual: false, moneyShown: true })).toBe("money");
+    expect(groupGamesHome({ staff: true, casual: true, moneyShown: true })).toBe("group-games");
+    expect(groupGamesHome({ staff: false, casual: false, moneyShown: true })).toBe("group-games");
+    expect(groupGamesHome({ staff: true, casual: false, moneyShown: false })).toBe("group-games");
+  });
+
+  it("/group-games sends staff to the section only through that rule, and draws the body otherwise", () => {
+    expect(gamesPage).toMatch(/groupGamesHome\(\{ staff, casual: isMatch\(event\?\.shape\), moneyShown: true \}\) === "money"/);
+    expect(gamesPage).toMatch(/redirect\(`\$\{to\}#groups`\)/);
+    expect(gamesPage).toContain("<GroupGames session={session} round={params.round} asSection={false} />");
   });
 });
