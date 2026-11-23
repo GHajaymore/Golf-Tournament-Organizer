@@ -3,6 +3,7 @@ import { drawControlsOf, drawSections } from "@/lib/domain/draw-sections";
 import { roundDrawHref } from "@/lib/domain/round-draw-door";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import type { Family } from "@/lib/domain/tournament-status";
+import type { ScreenKey } from "@/lib/domain/console-merges";
 import { readSource } from "./source";
 
 /**
@@ -24,7 +25,8 @@ const STEPS = [
   { name: "live", launched: true, completed: false },
   { name: "completed", launched: true, completed: true },
 ];
-const SHOWN = new Set(["rounds", "teeTimes"] as const);
+// Every state of the two keys: the OLD Rounds column is drawn while `rounds` is off, and `teeTimes` can be shown alone.
+const SHOWN_STATES: ScreenKey[][] = [[], ["rounds"], ["teeTimes"], ["rounds", "teeTimes"]];
 
 describe("the draw of the next round is on exactly one screen", () => {
   it("for every family x round type x first or later x step: one of Rounds' button or link, and the link exactly when Tee times mounts it", () => {
@@ -34,15 +36,19 @@ describe("the draw of the next round is on exactly one screen", () => {
         const round = { type, format: type === "Stroke Play Round" ? "Stroke Play" : "Match Play" };
         for (const isFirst of [true, false]) {
           for (const step of STEPS) {
-            const has = drawControlsOf(round, { isFirst, launched: step.launched, completed: step.completed }).nextRound;
-            const moved = roundDrawHref({ id: "r2", ...round }, family, "admin", SHOWN) !== "/stages";
-            const roundsButton = has && !moved;
-            const roundsLink = has && moved;
-            const teeTimes = has && drawSections({ ...round, hasSavedSheet: false }, family).built;
-            const where = `${family} / ${type} / ${isFirst ? "first" : "later"} / ${step.name}`;
-            expect([roundsButton, roundsLink].filter(Boolean).length, where).toBe(has ? 1 : 0);
-            expect(teeTimes, where).toBe(roundsLink);
-            checked += 1;
+            for (const keys of SHOWN_STATES) {
+              const shown = new Set<ScreenKey>(keys);
+              const has = drawControlsOf(round, { isFirst, launched: step.launched, completed: step.completed }).nextRound;
+              const moved = roundDrawHref({ id: "r2", ...round }, family, "admin", shown) !== "/stages";
+              // EITHER Rounds screen draws the button while the door has not moved; only the NEW one draws the link once it has.
+              const roundsButton = has && !moved;
+              const roundsLink = has && moved && shown.has("rounds");
+              const teeTimes = has && shown.has("teeTimes") && drawSections({ ...round, hasSavedSheet: false }, family).built;
+              const where = `${family} / ${type} / ${isFirst ? "first" : "later"} / ${step.name} / ${keys.join("+") || "neither"}`;
+              expect(Number(roundsButton) + Number(teeTimes), where).toBe(has ? 1 : 0);
+              expect(teeTimes && shown.has("rounds"), where).toBe(roundsLink);
+              checked += 1;
+            }
           }
         }
       }
@@ -67,5 +73,10 @@ describe("the draw of the next round is on exactly one screen", () => {
   it("Tee times reads 'first round' as Rounds does: of all the stages, not of the playing rounds", () => {
     const page = readSource("src", "app", "(app)", "foursomes", "page.tsx");
     expect(page).toMatch(/isFirst: state\.stages\[0\]\?\.id === stage\.id/);
+  });
+
+  it("the OLD Rounds column draws DrawRound only while its door has not moved (Tee times shown, Rounds not)", () => {
+    expect(readSource("src", "components", "StagesClient.tsx")).toMatch(/!seededFromQualifiers\(stage\.type\) && !ctx\.drawMoved && \(/);
+    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/drawMoved=\{drawMoved\}/);
   });
 });

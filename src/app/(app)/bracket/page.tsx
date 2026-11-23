@@ -1,7 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { scopeLockFor, tournamentStatusFor } from "@/lib/services/tournament-status";
-import { screensShownFor } from "@/lib/services/screens-shown";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import { bracketFlightsPropsOf } from "@/lib/services/bracket-flights-props";
 import { knockoutSetupPlace } from "@/lib/domain/draw-sections";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
@@ -304,7 +304,7 @@ export default async function BracketPage() {
       {setupMoved && koStage && (
         <p data-knockout-setup-moved="" className="text-muted" style={{ margin: "0 0 12px", fontSize: 14, lineHeight: 1.5, maxWidth: "62ch" }}>
           {mode === "flights" ? "The flights, the" : "The"} play-by dates and the play-off for third are set on{" "}
-          <Link href={`/foursomes?round=${koStage.id}`} style={{ display: "inline-block", minHeight: 48 }}>
+          <Link href={await keepingPreview(`/foursomes?round=${koStage.id}`)} style={{ display: "inline-block", minHeight: 48 }}>
             Tee times &amp; draw
           </Link>
           .

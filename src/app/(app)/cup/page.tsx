@@ -10,7 +10,7 @@ import { CupOtherPoints } from "@/components/CupOtherPoints";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screenLocksFor, tournamentStatusNow } from "@/lib/services/tournament-status";
 import { cupLineupPlace } from "@/lib/domain/draw-sections";
-import { screensShownFor } from "@/lib/services/screens-shown";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { headers } from "next/headers";
 import { cupLineupPropsFor } from "@/lib/services/cup-teams";
@@ -126,7 +126,7 @@ export default async function CupPage() {
               </Link>
             )}
           </p>
-          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsHere={teamsHere} teamsTabHref={teamsTabHref} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsHere={!shown.has("rounds")} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} lineupMoved={lineupMoved && result.board.sessions.length > 0} />}
+          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsHere={teamsHere} teamsTabHref={teamsTabHref} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsHere={!shown.has("rounds")} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} lineupMoved={lineupMoved} />}
         </>
       )}
     </>
@@ -181,13 +181,19 @@ async function StaffLineup({
       </h2>
       {lineupMoved ? (
         <div style={{ display: "grid", gap: 8 }}>
-          <p data-cup-lineup-moved="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-            Each session&rsquo;s lineup is set on{" "}
-            <Link href={`/foursomes?round=${board.sessions[0].id}`} style={{ display: "inline-block", minHeight: 48 }}>
-              Tee times &amp; draw
-            </Link>
-            , one session at a time.
-          </p>
+          {board.sessions[0] ? (
+            <p data-cup-lineup-moved="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+              Each session&rsquo;s lineup is set on{" "}
+              <Link href={await keepingPreview(`/foursomes?round=${board.sessions[0].id}`)} style={{ display: "inline-block", minHeight: 48 }}>
+                Tee times &amp; draw
+              </Link>
+              , one session at a time.
+            </p>
+          ) : (
+            <p data-cup-lineup-moved="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+              Add a session on <Link href={await keepingPreview("/stages")}>Rounds &amp; formats</Link>, then set its lineup on Tee times &amp; draw.
+            </p>
+          )}
           {!settingsHere && <CupSettingsMoved />}
         </div>
       ) : (

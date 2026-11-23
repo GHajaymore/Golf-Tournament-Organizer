@@ -95,14 +95,19 @@ export function matchGeneratorPlace(round: DrawRound, family: Family, teeTimesSh
  *  - `flights`: the division of a knockout in flights, which IS its draw (`bracketMode: "flights"`).
  *  - `lineup`: a cup session's lineup, on the session's own round (`TEAM_SESSION` is the stage type of a session).
  *
- * `bracketMode` is the event's (`Event.bracketMode`); only the value "flights" asks for the flights panel.
+ * `bracketMode` is the event's (`Event.bracketMode`); only the value "flights" asks for the flights panel. `isFirstKnockout` is whether
+ * this is the event's first bracket round, as the Bracket computes it (`findIndex(isKnockoutRound)`).
  */
 export function knockoutSetupOf(
   round: { type: string },
   bracketMode: string,
+  isFirstKnockout: boolean,
 ): { thirdPlace: boolean; playBy: boolean; flights: boolean; lineup: boolean } {
   const bracket = isKnockoutRound(round.type);
-  return { thirdPlace: bracket, playBy: bracket, flights: bracket && bracketMode === "flights", lineup: round.type === "Team Session" };
+  // The knockout is ONE ladder (Golf Pro, 23 Nov): its play-by dates and its flights are the event's, kept on the FIRST bracket round (the
+  // one the Bracket reads), so they are drawn there once. The play-off for third stays per round, as Rounds & formats had it.
+  const ladder = bracket && isFirstKnockout;
+  return { thirdPlace: bracket, playBy: ladder, flights: ladder && bracketMode === "flights", lineup: round.type === "Team Session" };
 }
 
 /**

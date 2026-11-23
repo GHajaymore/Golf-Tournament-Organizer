@@ -5,7 +5,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
-import { isHeadToHead, isPlayingRound, hasKnockoutStage } from "@/lib/stage-types";
+import { isHeadToHead, isPlayingRound, hasKnockoutStage, isKnockoutRound } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
 import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
 import { playersNeedingFigure } from "@/lib/services/committee-figure";
@@ -188,7 +188,15 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
    * uses, and for the same reason.
    */
   const thirdPlaces: Record<string, ThirdPlaceView> = {};
-  for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {
+  /**
+   * WHICH ROUNDS' DRAW (AND PLAY-OFF FOR THIRD) HAVE MOVED TO TEE TIMES & DRAW (R9c), asked of the one door
+   * (`roundDrawHref`), whichever of the two Rounds screens is drawn: Tee times can be shown while the new Rounds is
+   * not, and the old column must not draw a second copy. A moved round gets no play-off view and no DrawRound here.
+   */
+  const shown = await screensShownFor(session);
+  const drawMoved: Record<string, boolean> = {};
+  for (const s of state.stages) drawMoved[s.id] = !!told && roundDrawHref(s, told.status.family, session.viewRole, shown) !== "/stages";
+  for (const s of state.stages.filter((x) => isKnockoutRound(x.type) && !drawMoved[x.id])) {
     // `thirdPlaceViewFor` is the one reader (Tee times & draw hands the same control the same answer).
     thirdPlaces[s.id] = await thirdPlaceViewFor(session.eventId, s, state.brackets);
   }
@@ -410,7 +418,6 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
    * handed down: the chip (`courseDayOf`), the ring (`roundRing`), the mark (`markOf`), the proposed day, the allowance's
    * citation, the inherited tee, and where a draw goes when Tee times & draw is shown (`relocate`). The screen computes none.
    */
-  const shown = await screensShownFor(session);
   const newScreen = shown.has("rounds") && told !== null;
   /**
    * THE CUP'S SETTINGS, ON ROUNDS (R4d; phase 1 Q5): a team cup's two teams are `cupBoard`'s (the one answer to "which two
@@ -701,6 +708,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         canSetVenue={session.viewRole === "admin" || session.viewRole === "assistant"}
         singleMatches={singleMatches}
         thirdPlaces={thirdPlaces}
+        drawMoved={drawMoved}
         venues={venues}
         // The tournament's own course, for the rounds that name none. Never
         // shown on a one-venue tournament; the moment a club plays a round

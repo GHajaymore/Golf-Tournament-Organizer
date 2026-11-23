@@ -3,6 +3,7 @@ import { cupLineupPlace, knockoutSetupOf, knockoutSetupPlace, drawSections } fro
 import { roundDrawHref } from "@/lib/domain/round-draw-door";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import type { Family } from "@/lib/domain/tournament-status";
+import type { ScreenKey } from "@/lib/domain/console-merges";
 import { readSource } from "./source";
 
 /**
@@ -29,13 +30,14 @@ describe("the play-off for third place is on exactly one of Rounds & formats and
     let checked = 0;
     for (const family of FAMILIES) {
       for (const type of STAGE_TYPES) {
-        for (const teeTimesShown of [false, true]) {
+        // EVERY state of the two keys: the old Rounds screen is drawn when `rounds` is not shown, and `teeTimes` can be shown on its own.
+        for (const [roundsShown, teeTimesShown] of [[false, false], [true, false], [false, true], [true, true]]) {
           const round = { type, format: "Match Play", hasSavedSheet: false };
-          const shown = new Set(teeTimesShown ? (["rounds", "teeTimes"] as const) : (["rounds"] as const));
-          // Rounds draws RoundThirdPlace only while the draw's door has not moved (RoundsScreen's `!drawMoved`).
+          const shown = new Set<ScreenKey>([...(roundsShown ? ["rounds" as const] : []), ...(teeTimesShown ? ["teeTimes" as const] : [])]);
+          // EITHER Rounds screen draws the play-off for third only while the draw's door has not moved: the new one by `!drawMoved`, the old one because the page fills no view for a moved round.
           const onRounds = type === "Bracket Stage" && roundDrawHref({ id: "r1", type, format: round.format }, family, "admin", shown) === "/stages";
-          const onTeeTimes = knockoutSetupOf(round, "single").thirdPlace && knockoutSetupPlace(round, family, teeTimesShown) === "teeTimes";
-          const where = `${family} / ${type} / Tee times ${teeTimesShown ? "shown" : "off"}`;
+          const onTeeTimes = knockoutSetupOf(round, "single", true).thirdPlace && knockoutSetupPlace(round, family, teeTimesShown) === "teeTimes";
+          const where = `${family} / ${type} / Rounds ${roundsShown ? "shown" : "off"} / Tee times ${teeTimesShown ? "shown" : "off"}`;
           expect(Number(onRounds) + Number(onTeeTimes), where).toBe(type === "Bracket Stage" ? 1 : 0);
           checked += 1;
         }
@@ -50,6 +52,12 @@ describe("the play-off for third place is on exactly one of Rounds & formats and
     const page = readSource("src", "app", "(app)", "foursomes", "page.tsx");
     expect(page).toMatch(/knockoutSetupPlace\(roundForPlace, family, true\) === "teeTimes"/);
     expect(page).toMatch(/setup\.thirdPlace && \(/);
+    // The OLD Rounds screen asks the same door: no view, and no DrawRound, for a moved round.
+    const stages = readSource("src", "app", "(app)", "stages", "page.tsx");
+    expect(stages).toMatch(/drawMoved\[s\.id\] = !!told && roundDrawHref\(s, told\.status\.family, session\.viewRole, shown\) !== "\/stages"/);
+    expect(stages).toMatch(/isKnockoutRound\(x\.type\) && !drawMoved\[x\.id\]/);
+    expect(stages).toMatch(/drawMoved=\{drawMoved\}/);
+    expect(readSource("src", "components", "StagesClient.tsx")).toMatch(/!ctx\.drawMoved && \(/);
   });
 });
 
@@ -60,7 +68,7 @@ describe("the play-by dates and the flights are on exactly one of the Bracket an
         for (const teeTimesShown of [false, true]) {
           const round = { type: "Bracket Stage", format: "Match Play", hasSavedSheet: false };
           const moved = knockoutSetupPlace(round, family, teeTimesShown) === "teeTimes";
-          const setup = knockoutSetupOf(round, mode);
+          const setup = knockoutSetupOf(round, mode, true);
           const where = `${family} / ${mode} / Tee times ${teeTimesShown ? "shown" : "off"}`;
           expect(Number(!moved) + Number(moved && setup.playBy), `${where}: play-by`).toBe(1);
           if (mode === "flights") expect(Number(!moved) + Number(moved && setup.flights), `${where}: flights`).toBe(1);
@@ -90,7 +98,7 @@ describe("a cup session's lineup is on exactly one of the Team cup and Tee times
       for (const type of STAGE_TYPES) {
         for (const teeTimesShown of [false, true]) {
           const round = { type, format: "Match Play", hasSavedSheet: false };
-          const onTeeTimes = knockoutSetupOf(round, "single").lineup && cupLineupPlace(round, family, teeTimesShown) === "teeTimes";
+          const onTeeTimes = knockoutSetupOf(round, "single", false).lineup && cupLineupPlace(round, family, teeTimesShown) === "teeTimes";
           const onCupPage = cupLineupPlace(round, family, teeTimesShown) === "cup";
           // The cup page draws the lineups of every session at once, so it is asked of a Team Session; any other round has no lineup at all.
           if (type === "Team Session") expect(Number(onTeeTimes) + Number(onCupPage), `${family} / ${teeTimesShown}`).toBe(1);

@@ -116,10 +116,16 @@ describe("knockoutSetupOf and the places (R9c): the knockout's and the cup's set
   ];
 
   it("the play-off for third and the play-by dates are the bracket's own round's, the flights only while the knockout is in flights, a lineup a session's", () => {
-    expect(knockoutSetupOf(rounds[0], "flights")).toEqual({ thirdPlace: false, playBy: false, flights: false, lineup: false });
-    expect(knockoutSetupOf(rounds[1], "single")).toEqual({ thirdPlace: true, playBy: true, flights: false, lineup: false });
-    expect(knockoutSetupOf(rounds[1], "flights")).toEqual({ thirdPlace: true, playBy: true, flights: true, lineup: false });
-    expect(knockoutSetupOf(rounds[2], "split")).toEqual({ thirdPlace: false, playBy: false, flights: false, lineup: true });
+    expect(knockoutSetupOf(rounds[0], "flights", false)).toEqual({ thirdPlace: false, playBy: false, flights: false, lineup: false });
+    expect(knockoutSetupOf(rounds[1], "single", true)).toEqual({ thirdPlace: true, playBy: true, flights: false, lineup: false });
+    expect(knockoutSetupOf(rounds[1], "flights", true)).toEqual({ thirdPlace: true, playBy: true, flights: true, lineup: false });
+    expect(knockoutSetupOf(rounds[2], "split", false)).toEqual({ thirdPlace: false, playBy: false, flights: false, lineup: true });
+  });
+
+  it("two Bracket Stages: the play-by dates and the flights are drawn on the FIRST only (the Bracket reads one), the play-off for third on each", () => {
+    const [first, second] = [true, false].map((isFirst) => knockoutSetupOf({ type: "Bracket Stage" }, "flights", isFirst));
+    expect(first).toMatchObject({ playBy: true, flights: true, thirdPlace: true });
+    expect(second).toMatchObject({ playBy: false, flights: false, thirdPlace: true });
   });
 
   it("every family, three rounds, both switch states: Tee times & draw while it is shown and builds the family, the old screen otherwise", () => {
