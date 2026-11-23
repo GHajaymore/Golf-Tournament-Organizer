@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import * as rf from "./rounds-fixture";
+import { PrizesScreen } from "./console/prizes";
 
 /**
  * A CONTEST'S WINNER AND ITS SPONSOR, ON THE BOARD A CLUB SENDS ITS MEMBERS (2026-10-17).
@@ -113,4 +115,47 @@ test("an organizer names a contest's sponsor, and the public board shows the win
   }
 
   expect(errors, "a screen threw").toEqual([]);
+});
+
+// R8a: the sponsor named on the redesigned Prizes & side games, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  // Their own club and event: the fixture's contests are the specs above's.
+  test.use({ storageState: { cookies: [], origins: [] } });
+  const WALKED = ["desktop", "phone"];
+
+  test("a contest's sponsor is refused when it is not https, then saved, and is on the new screen after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-r8a-sponsor-${testInfo.project.name}`;
+    const club = await rf.makeClub(mark);
+    try {
+      const { event, stages } = await rf.makeEvent(club, "Spring Medal", { stages: [{}], players: 4 });
+      const kp = await rf.prisma.contest.create({
+        data: { eventId: event.id, stageId: stages[0].id, kind: "closest-pin", name: `${mark} KP`, hole: 7, buyInCents: 0 },
+      });
+      await rf.signIn(context, baseURL!, club, event.id);
+      const screen = new PrizesScreen(page);
+      await screen.open(stages[0].id);
+      const card = () => page.locator("div", { hasText: `${mark} KP` }).filter({ has: page.getByRole("button", { name: /^Remove (this game|the game)$/ }) }).last();
+      await expect(card(), "the contest is not on the new screen").toBeVisible({ timeout: 20_000 });
+      await card().getByRole("button", { name: "Add a sponsor" }).click();
+      await card().getByLabel("Sponsored by").fill(`${mark} Motors`);
+      await card().getByLabel(/Sponsor.s website/).fill("http://zz-sponsor.example");
+      await card().getByRole("button", { name: "Save sponsor" }).click();
+      await expect(card().getByRole("alert").filter({ hasText: "https" }), "a plain-http website was not refused beside the press").toBeVisible();
+      await card().getByLabel(/Sponsor.s website/).fill("zz-sponsor.example");
+      await card().getByRole("button", { name: "Save sponsor" }).click();
+      await expect
+        .poll(async () => (await rf.prisma.contest.findUniqueOrThrow({ where: { id: kp.id }, select: { sponsorUrl: true } })).sponsorUrl, { timeout: 20_000, message: "the sponsor was not stored" })
+        .toBe("https://zz-sponsor.example/");
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(card().getByText(`${mark} Motors`), "the sponsor is not on the new screen after a reload").toBeVisible({ timeout: 20_000 });
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

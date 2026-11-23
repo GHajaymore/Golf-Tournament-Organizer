@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import * as rf from "./rounds-fixture";
+import { PrizesScreen } from "./console/prizes";
+import { consoleUrl } from "../src/lib/console-url";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -122,4 +125,85 @@ test("the organizer adds a prize, re-prices it, awards it, takes the award back 
   // ── to the cent ─────────────────────────────────────────────────────────
   expect(await head(page), "after all of it the purse, the lines and the awards are not what they were").toEqual(before);
   expect(errors, "the prizes screen threw").toEqual([]);
+});
+
+// R8a: the same jobs through the redesigned Prizes & side games (`consoleUrl("/prizes", "build")`), deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  // Their own club and event: the shared fixture's prize list is every other spec's.
+  test.use({ storageState: { cookies: [], origins: [] } });
+  const WALKED = ["desktop", "phone"];
+
+  test("a prize is added on the new screen and is there after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-r8a-prize-${testInfo.project.name}`;
+    const club = await rf.makeClub(mark);
+    try {
+      const { event } = await rf.makeEvent(club, "Spring Medal", { stages: [{}] });
+      await rf.signIn(context, baseURL!, club, event.id);
+      const screen = new PrizesScreen(page);
+      // Arrived at through the menu, as a person does (the drawer behind "Open menu" on a phone), with the preview on.
+      await page.goto(consoleUrl("/dashboard", "build"));
+      await page.waitForLoadState("networkidle").catch(() => {});
+      const menu = page.getByRole("button", { name: "Open menu" });
+      if (await menu.isVisible().catch(() => false)) {
+        await menu.click();
+        await expect(page.getByRole("button", { name: "Close menu" })).toBeVisible();
+        await page.locator(".m-drawer").evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)).then(() => undefined)).catch(() => undefined);
+      }
+      const nav = (await page.locator(".m-drawer").isVisible().catch(() => false)) ? page.locator(".m-drawer") : page.locator(".app-sidebar");
+      const entry = nav.getByRole("link", { name: /prizes/i }).first();
+      await expect(entry, "the menu has no Prizes entry with the preview on").toBeVisible();
+      await entry.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await entry.click();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(page.locator("[data-prizes-screen]"), "the menu landed on today's Prizes, not the new screen").toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Prizes & side games" })).toBeVisible();
+      const cat = `${mark} Nearest the pin`;
+      await page.getByLabel("Category").fill(cat);
+      await page.getByLabel(/^Amount \(/).fill("25");
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      await expect
+        .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.amount, { timeout: 20_000, message: "the prize was not stored" })
+        .toBe(25);
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(screen.amountFor(cat), "the prize is not on the new screen after a reload").toHaveValue("25");
+      // The settle half is still drawn on this screen until Winners & money is built: the line can be awarded here.
+      await expect(screen.winnerOf(cat), "no control to award the prize is drawn anywhere").toBeVisible();
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("how money works is chosen inside the fold, the fold's line says it, and it is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-r8a-mode-${testInfo.project.name}`;
+    const club = await rf.makeClub(mark);
+    try {
+      const { event } = await rf.makeEvent(club, "Spring Medal", { stages: [{}] });
+      await rf.signIn(context, baseURL!, club, event.id);
+      const screen = new PrizesScreen(page);
+      await screen.open();
+      // A phone folds it (open here, because nobody has answered: "Needs you"); opened through the page object either way.
+      const section = await screen.openMoneySetup();
+      // A click, not `check()`: the radio is controlled by what the server stored, so it settles a moment after the press.
+      await section.getByRole("radio", { name: /Tournament kitty/ }).click();
+      await expect
+        .poll(async () => (await rf.prisma.event.findUniqueOrThrow({ where: { id: event.id } })).moneyMode, { timeout: 20_000, message: "the money mode was not stored" })
+        .toBe("float");
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(screen.moneySetup().locator(":scope > button[aria-expanded]"), "the fold's line does not say the answer").toContainText("Money: Tournament kitty");
+      const again = await screen.openMoneySetup();
+      await expect(again.getByRole("radio", { name: /Tournament kitty/ }), "the choice did not survive a reload").toBeChecked();
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

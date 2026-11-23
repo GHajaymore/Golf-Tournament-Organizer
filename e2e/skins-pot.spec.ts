@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import * as rf from "./rounds-fixture";
+import { PrizesScreen } from "./console/prizes";
 
 /**
  * A SKINS POT: A PLAYER ASKS IN, THE ORGANIZER TAKES THE MONEY, OTHERS ARE
@@ -161,4 +163,43 @@ test("a player asks into the skins, the organizer takes the money, two more are 
   } finally {
     await closeAll(organizer, member);
   }
+});
+
+// R8a: the pot's stake set on the redesigned Prizes & side games, deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  const WALKED = ["desktop", "phone"];
+
+  test("the skins pot is turned on with a stake beside how money works, and the stake is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-r8a-skins-${testInfo.project.name}`;
+    const club = await rf.makeClub(mark);
+    try {
+      const { event, stages } = await rf.makeEvent(club, "Spring Medal", { stages: [{}], players: 4 });
+      await rf.signIn(context, baseURL!, club, event.id);
+      const screen = new PrizesScreen(page);
+      await screen.open(stages[0].id);
+      // How money works comes first, and a phone folds it: opened through the page object, then read.
+      const setup = await screen.openMoneySetup();
+      await expect(setup, "how money works is not on the screen").toContainText("Money in this tournament");
+      const pot = screen.skinsCard();
+      await expect(pot, "the new screen has no skins pot to set up").toBeVisible();
+      await pot.getByLabel(/^Buy-in \(/).fill("5");
+      await pot.getByRole("button", { name: "Save", exact: true }).click();
+      await expect
+        .poll(async () => (await rf.prisma.skinsPot.findFirst({ where: { eventId: event.id, stageId: stages[0].id, groupKey: "" } }))?.buyInCents, {
+          timeout: 20_000,
+          message: "the stake was not stored",
+        })
+        .toBe(500);
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(screen.skinsCard().getByLabel(/^Buy-in \(/), "the stake did not survive a reload").toHaveValue(/^5(\.00)?$/);
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
