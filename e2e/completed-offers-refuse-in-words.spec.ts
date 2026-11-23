@@ -372,18 +372,6 @@ test.describe("@redesign", () => {
           document.dispatchEvent(new Event("visibilitychange"));
         });
       /** Drawn live (so the controls are offered, the money fold open), completed "in another tab", then pressed. */
-      /**
-       * THE SCREEN IS HELD STALE, so the press is the server's to refuse. `LiveRefresh` polls `router.refresh()` only while the tab is
-       * visible (`document.visibilityState`), and on a slow shard that poll lands between the database change and the click, the
-       * screen learns it is locked and Add is disabled (G681). The page's own visibility is told "hidden" from here (no app seam is
-       * added), and `letTheScreenCatchUp` gives it back and wakes the page, as a person returning to the tab does.
-       */
-      const holdTheScreenStale = () => page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }));
-      const letTheScreenCatchUp = () =>
-        page.evaluate(() => {
-          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
-          document.dispatchEvent(new Event("visibilitychange"));
-        });
       const drawnLiveThenCompleted = async () => {
         await setStatus("live");
         await screen.open(stages[0].id);
