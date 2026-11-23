@@ -7674,7 +7674,7 @@ describe("play settings name one thing per heading", () => {
   const panel = async (mode: "tournament" | "organization") => {
     const { PlaySettings } = await import("@/components/PlaySettings");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<PlaySettings mode={mode} settings={settings as any} canEdit rounds={rounds} />);
+    return render(<PlaySettings mode={mode} settings={settings as any} canEdit howInHere shareHere teesHere rounds={rounds} />);
   };
 
   /**
@@ -7690,7 +7690,7 @@ describe("play settings name one thing per heading", () => {
     const { PlaySettings } = await import("@/components/PlaySettings");
     return render(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      <PlaySettings mode="tournament" settings={settings as any} canEdit tees={tees as any} />,
+      <PlaySettings mode="tournament" settings={settings as any} canEdit howInHere shareHere teesHere tees={tees as any} />,
     );
   };
   const tee = (id: string, name: string, courseName: string) => ({
@@ -7713,7 +7713,7 @@ describe("play settings name one thing per heading", () => {
     const tees = [tee("t1", "Blue", "Bushwood"), tee("t2", "White", "Bushwood")];
     const draw = (teesDoor: string | null) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      render(<PlaySettings mode="tournament" settings={settings as any} canEdit tees={tees as any} teesDoor={teesDoor} />);
+      render(<PlaySettings mode="tournament" settings={settings as any} canEdit howInHere shareHere teesHere tees={tees as any} teesDoor={teesDoor} />);
     const box = (html: string) => {
       const at = html.indexOf('id="default-tee"');
       return html.slice(html.lastIndexOf("<select", at), html.indexOf(">", at) + 1);
@@ -10055,7 +10055,7 @@ describe("changing the weekly sign-up mode, on screen", () => {
   const panel = async (over: Record<string, unknown> = {}) => {
     const { PlaySettings } = await import("@/components/PlaySettings");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<PlaySettings mode="tournament" settings={{ ...settings, ...over } as any} canEdit />);
+    return render(<PlaySettings mode="tournament" settings={{ ...settings, ...over } as any} canEdit howInHere shareHere teesHere />);
   };
 
   it("says nothing while the saved mode is the one selected", async () => {
@@ -10088,11 +10088,14 @@ describe("changing the weekly sign-up mode, on screen", () => {
      * so it is pinned in source.
      */
     const { readSource } = await import("./source");
-    const src = readSource("src/components/PlaySettings.tsx");
+    // The warning was lifted out of PlaySettings into EntriesWeeklySignUp (R3-1): it judges the draft
+    // against what `PlaySettings` hands it as the SAVED settings.
+    const src = readSource("src/components/players/EntriesHowIn.tsx");
     expect(src).toMatch(
-      /attendanceModeChange\(\s*settings\.attendanceMode,\s*form\.attendanceMode,?\s*\)/,
+      /attendanceModeChange\(\s*saved\.attendanceMode,\s*form\.attendanceMode,?\s*\)/,
     );
-    expect(src).toMatch(/\{attendanceWarning && \(/);
+    expect(src).toMatch(/\{warning && \(/);
+    expect(readSource("src/components/PlaySettings.tsx")).toMatch(/<EntriesWeeklySignUp[\s\S]*?saved=\{settings\}/);
   });
 });
 
