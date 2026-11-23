@@ -216,7 +216,9 @@ test.describe("@redesign players", () => {
       const signInGroup = page.getByRole("group", { name: "How players sign in" });
       await expect(signInGroup, "Entries does not draw how players sign in").toBeVisible();
       await pressRadio(signInGroup.getByRole("radio", { name: "Either email or access code" }));
-      const save = page.getByRole("button", { name: /Save how players get in|Saved/ });
+      // Scoped to this card: the entry terms card on the same page has its own "Save entry terms" / "Saved" button.
+      const save = page.locator("[data-entries-how-in]").getByRole("button", { name: /Save how players get in|Saved/ });
+      await expect(save).toBeVisible();
       await save.click();
       await expect(save, "the save was not answered").toHaveText(/Saved/, { timeout: 20_000 });
       await page.reload();
