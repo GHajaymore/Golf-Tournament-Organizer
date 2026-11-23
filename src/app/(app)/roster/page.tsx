@@ -170,6 +170,9 @@ export default async function RosterPage({
     />
     {historyHere && (
       <SectionFold
+        // Keyed by the member chosen: the fold decides once per mount whether a phone opens it, and pressing
+        // a name is a soft navigation, so each choice mounts it afresh and it decides again.
+        key={typeof params.member === "string" ? params.member : "none"}
         id="history"
         title="Member history"
         state={params.member ? "One member's tournaments" : "Choose a member"}

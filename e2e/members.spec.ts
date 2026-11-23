@@ -371,6 +371,11 @@ test.describe("@redesign", () => {
       await expect(folded, "the history section is not on Members").toBeVisible();
       await page.locator("tbody tr").filter({ hasText: name }).first().getByRole("link", { name }).click();
       await expect(page, "the member's name did not open her history").toHaveURL(/[?&]member=/);
+      // Opened by the press itself, on a phone too: asserted BEFORE any opener, which would hide a shut fold.
+      await expect(
+        page.locator('section[data-section="history"] button[aria-expanded]').first(),
+        "pressing a name left the history fold shut",
+      ).toHaveAttribute("aria-expanded", "true");
       let history = await openHistory(page);
       await expect(history.locator("tbody tr").filter({ hasText: `${mark} Autumn Medal` })).toContainText("Played");
 
