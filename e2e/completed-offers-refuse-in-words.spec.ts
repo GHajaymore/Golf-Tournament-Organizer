@@ -6,6 +6,7 @@ import { pressReopen } from "./end-early";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
+import { MoneyScreen } from "./console/money";
 
 /**
  * WHAT MONEY OFFERED IS REFUSED IN WORDS ONCE THE TOURNAMENT IS COMPLETED; THE LEDGER IS NOT; REOPEN GIVES IT BACK
@@ -389,12 +390,18 @@ test.describe("@redesign", () => {
       await refusedBesidePress("change how money is handled", before);
 
       // ── the ledger is not behind it: a prize is awarded on the completed tournament ──
+      // With Winners & money shown the winner is picked THERE (R8b); Prizes & side games draws the offer only.
       await setStatus("completed");
       await screen.open(stages[0].id);
-      await screen.winnerOf(cat).selectOption(players[0].id);
+      await expect(page.getByLabel(`Winner of ${cat}`), "the winner picker is drawn on the offer screen too").toHaveCount(0);
+      const money = new MoneyScreen(page);
+      await money.open(stages[0].id);
+      await money.winnerOf(cat).selectOption(players[0].id);
       await expect
         .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: cat } })).winnerId, { timeout: 20_000, message: "awarding a prize was refused on a completed tournament (the ledger is not locked)" })
         .toBe(players[0].id);
+      await page.reload();
+      await expect(money.winnerOf(cat), "the award is not on Winners & money after a reload").toHaveValue(players[0].id);
 
       // ── Reopen, and the offer works again, and is kept ──
       await pressReopen(page);
