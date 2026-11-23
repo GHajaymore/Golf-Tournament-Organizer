@@ -46,6 +46,39 @@ describe("the tabs follow the sidebar's own rule for Teams and Cup", () => {
   });
 });
 
+describe("the sidebar's stage counts and the tabs' counts are one predicate each", () => {
+  // `layout.tsx` adopts `teamAndCupCounts` at its next Core change; until then this holds its two counts to the same predicates.
+  const read = (p: string) => stripComments(readFileSync(join(process.cwd(), p), "utf8"));
+  const TEAM = /stage\.count\(\s*\{[^}]*format:\s*\{\s*in:\s*TEAM_FORMAT_NAMES\s*\}/;
+  const CUP = /stage\.count\(\s*\{[^}]*type:\s*"Team Session"/;
+
+  it("layout.tsx and team-cup-counts.ts count team rounds and cup sessions by the same two predicates", () => {
+    for (const file of ["src/app/(app)/layout.tsx", "src/lib/services/team-cup-counts.ts"]) {
+      expect(read(file), `${file}: team rounds`).toMatch(TEAM);
+      expect(read(file), `${file}: cup sessions`).toMatch(CUP);
+    }
+  });
+
+  it("no third file counts stages by either predicate", () => {
+    const own = new Set(["app/(app)/layout.tsx", "lib/services/team-cup-counts.ts"]);
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((n) => {
+        const p = join(dir, n);
+        if (n === "__tests__") return [];
+        return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) ? [p] : [];
+      });
+    const src = join(process.cwd(), "src");
+    const others = [...walk(join(src, "app")), ...walk(join(src, "lib/services"))]
+      .map((f) => f.slice(src.length + 1).replace(/\\/g, "/"))
+      .filter((f) => !own.has(f))
+      .filter((f) => {
+        const t = stripComments(readFileSync(join(src, f), "utf8"));
+        return TEAM.test(t) || CUP.test(t);
+      });
+    expect(others).toEqual([]);
+  });
+});
+
 describe("a tab's address", () => {
   const cup = PLAYER_TABS.find((t) => t.key === "cup")!;
   const entries = PLAYER_TABS.find((t) => t.key === "entries")!;
