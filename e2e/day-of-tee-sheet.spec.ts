@@ -199,4 +199,28 @@ test.describe("@redesign a late entry on Tee times & draw", () => {
       await expect(screen.section("teeTimes")).toContainText("The published sheet no longer matches the field");
     });
   });
+
+  test("the late entry is put in the group with room, and is still in it when the screen is opened again", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      await screen.open(day.round1);
+      const card = (await screen.openSection("teeTimes")).locator('section[aria-label="Put in a group"]');
+      // Group 1 holds four (read from the fixture): only Group 2 is offered.
+      await expect(card).toContainText("Not in a group yet (1)");
+      await card.getByLabel(`Group for ${day.unplaced.name}`).selectOption({ index: 1 });
+      await card.getByRole("button", { name: "Put in group" }).click();
+      await expect
+        .poll(async () => {
+          const row = await prisma.stage.findUnique({ where: { id: day.round1 }, select: { teeSheet: true } });
+          const groups = (JSON.parse(row?.teeSheet ?? "{}").groups ?? []) as { playerIds: string[] }[];
+          return groups[1]?.playerIds ?? [];
+        }, { timeout: 20_000, message: "the late entry was not put in Group 2" })
+        .toContain(day.unplaced.id);
+      // Look again, as the secretary would: the draw lists the late entry, and nobody is left waiting for a group.
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect(screen.section("draw")).toContainText(day.unplaced.name);
+      await expect((await screen.openSection("teeTimes")).locator('section[aria-label="Put in a group"]')).not.toContainText("Not in a group yet (1)");
+    });
+  });
 });

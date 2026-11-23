@@ -168,4 +168,25 @@ test.describe("@redesign the print door on Tee times & draw", () => {
       await expect(door).toHaveAttribute("href", new RegExp(`/print\\?round=${day.round1}&docs=cards`));
     });
   });
+
+  test("the door's Print kit records what was printed, and says so when it is opened again", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      await screen.open(day.round1);
+      await (await screen.openSection("paper")).getByRole("link", { name: /Print/ }).click();
+      await expect(page.getByRole("heading", { level: 1, name: "Print kit" })).toBeVisible();
+      await expect(page.getByText("Not printed yet").first(), "CONTROL: nothing is recorded as printed before the press").toBeVisible();
+      // The print dialog is not a page; the press reaches it and nothing more.
+      await page.evaluate(() => {
+        window.print = () => {};
+      });
+      await page.getByRole("button", { name: /^Print \d+ sheets?$/ }).click();
+      // The press stamps each page where it was pressed, once the record is made.
+      await expect(page.locator("#pk-pages .pk-stamp").first()).toContainText(/^Printed /, { timeout: 20_000 });
+      // Look again, as the secretary would: the kit remembers what went to paper.
+      await page.goto(`/print?round=${day.round1}`);
+      await expect(page.getByRole("heading", { level: 1, name: "Print kit" })).toBeVisible();
+      await expect(page.getByText(/^Printed · version \d+$|^\d+ of \d+ printed$/).first(), "the print was not recorded").toBeVisible();
+    });
+  });
 });

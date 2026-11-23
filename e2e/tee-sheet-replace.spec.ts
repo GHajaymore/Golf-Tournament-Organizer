@@ -197,4 +197,24 @@ test.describe("@redesign replacing a player on Tee times & draw", () => {
       await expect(screen.section("draw").getByRole("button", { name: `Replace ${day.placed[0].name}` })).toBeVisible();
     });
   });
+
+  test("a player is replaced by the member in no group, and the draw still shows the swap when the screen is opened again", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      const out = day.placed[0];
+      const sub = day.unplaced;
+      await screen.open(day.round1);
+      const draw = screen.section("draw");
+      await draw.getByRole("button", { name: `Replace ${out.name}`, exact: true }).click();
+      await draw.getByLabel(`Who replaces ${out.name}`, { exact: true }).selectOption({ value: sub.id });
+      await draw.getByRole("button", { name: `Replace ${out.name}`, exact: true }).click();
+      await expect(page.getByRole("status").filter({ hasText: `${sub.name} is in Group 1, 8:00 AM, in place of ${out.name}.` })).toBeVisible({ timeout: 20_000 });
+      // Look again, as the secretary would: the substitute holds the slot, and the absentee has no Replace left to press.
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect(screen.section("draw")).toContainText(sub.name);
+      await expect(screen.section("draw").getByRole("button", { name: `Replace ${sub.name}`, exact: true }), "the swap was not kept").toBeVisible();
+      await expect(screen.section("draw").getByRole("button", { name: `Replace ${out.name}`, exact: true })).toHaveCount(0);
+    });
+  });
 });
