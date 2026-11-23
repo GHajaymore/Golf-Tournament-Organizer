@@ -15,6 +15,10 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, scopeLockFor } from "@/lib/services/tournament-status";
+import { playersRoomFor } from "@/lib/services/players-room";
+import { cupTeamsHome } from "@/lib/domain/players-tabs";
+import { PlayersTabs } from "@/components/players/PlayersTabs";
+import { CupTeamsTab } from "@/components/players/CupTeamsTab";
 
 /**
  * Drawing sides for the team formats.
@@ -28,10 +32,24 @@ export const metadata = screenMetadata("/teams");
 export default async function TeamsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ round?: string }>;
+  searchParams: Promise<{ round?: string; tab?: string }>;
 }) {
   const session = await requireScreen("teams");
   const params = await searchParams;
+  const room = await playersRoomFor(session);
+
+  // THE CUP TEAMS TAB (R6): while Players is shown and the tournament has a cup, `?tab=cup` is where the cup's two
+  // teams are made and filled (`cupTeamsHome`); the cup page stops drawing them by the same answer.
+  if (room && params.tab === "cup" && room.tabs.some((t) => t.key === "cup") && cupTeamsHome(true) === "players") {
+    return (
+      <>
+        <p className="kicker">Set up</p>
+        <h1 className="page-title">Players</h1>
+        <PlayersTabs tabs={room.tabs} active="cup" search={room.search} />
+        <CupTeamsTab eventId={session.eventId} isAdmin={session.viewRole === "admin"} />
+      </>
+    );
+  }
 
   const stages = await prisma.stage.findMany({
     where: { eventId: session.eventId },
@@ -47,6 +65,7 @@ export default async function TeamsPage({
       <>
         <p className="kicker">Set up</p>
         <h1 className="page-title">Teams &amp; pairs</h1>
+        {room && <PlayersTabs tabs={room.tabs} active="teams" search={room.search} />}
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title" style={{ fontSize: 15 }}>No team rounds yet</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
@@ -80,6 +99,7 @@ export default async function TeamsPage({
       <SetupFlowRail flow={flow} href="/teams" />
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
+      {room && <PlayersTabs tabs={room.tabs} active="teams" search={room.search} />}
       <ScopeLockBanner locks={sidesLock ? [sidesLock] : []} isAdmin={session.viewRole === "admin"} />
       {/* A side's handicap is made from its players' (lane N): one with no index in a round scored net is
           said here, as on Entries; the link only for somebody who may give strokes. */}

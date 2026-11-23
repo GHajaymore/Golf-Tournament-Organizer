@@ -35,6 +35,8 @@ import { fieldFactsFor } from "@/lib/services/field-change";
 import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, fieldLockSaid, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
 import { WithdrawnList } from "@/components/WithdrawnList";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
+import { playersRoomFor } from "@/lib/services/players-room";
+import { PlayersTabs } from "@/components/players/PlayersTabs";
 
 export const metadata = screenMetadata("/registration");
 
@@ -45,6 +47,7 @@ function clubClock(at: Date, zone: string, locale: string): string {
 
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");
+  const room = await playersRoomFor(session);
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   // The machine's lock on the field (PR 5b) — the one the entry terms ask (`refuseIfLocked(…, "field")`);
@@ -173,6 +176,8 @@ export default async function RegistrationPage() {
   return (
     <>
       <SetupFlowRail flow={flow} href="/registration" />
+      {/* THE PLAYERS ROOM (R6): the tab strip, only while Players is shown; the page below is unchanged. */}
+      {room && <PlayersTabs tabs={room.tabs} active="entries" search={room.search} />}
       {/* Every door on this screen (the roster pick, a late entry, a CSV import, an approval) lands its
           player here, so the note is said here, after the write, for as long as it is true (lane N). */}
       <NeedsStrokesNote note={await needsStrokesNoteFor(session.eventId, session.viewRole === "admin" || session.viewRole === "assistant")} />

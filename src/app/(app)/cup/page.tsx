@@ -10,6 +10,9 @@ import { CupOtherPoints } from "@/components/CupOtherPoints";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screenLocksFor } from "@/lib/services/tournament-status";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
+import { headers } from "next/headers";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
 
 export const metadata = screenMetadata("/cup");
 
@@ -36,6 +39,10 @@ export default async function CupPage() {
   const locks = isStaff ? await screenLocksFor(session.eventId, ["cup", "rounds"]) : { locks: [], correction: null };
   const teamsLocked = locks.locks.some((l) => l.scope === "cup");
   const settingsLocked = locks.locks.some((l) => l.scope === "rounds");
+  // THE CUP'S TEAMS HAVE ONE HOME (R6): here, or on Players' Cup teams tab while Players is shown (`cupTeamsHome`).
+  const playersShown = (await screensShownFor(session)).has("players");
+  const teamsHere = cupTeamsHome(playersShown) === "cup";
+  const teamsTabHref = playerTabHref(PLAYER_TABS.find((t) => t.key === "cup")!, (await headers()).get("x-search") ?? "");
 
   return (
     <>
@@ -50,8 +57,16 @@ export default async function CupPage() {
       {isStaff && <ScopeLockBanner locks={locks.locks} correction={locks.correction} isAdmin={session.viewRole === "admin"} />}
 
       {!result.ok && result.reason === "teams" && isStaff && (await flightCount(session.eventId)) === 0 ? (
-        // No flights at all: make the two teams right here, by name.
-        <CreateCupTeams locked={teamsLocked} />
+        // No flights at all: make the two teams right here, by name (on Players' Cup teams tab while that is shown).
+        teamsHere ? (
+          <CreateCupTeams locked={teamsLocked} />
+        ) : (
+          <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
+            <p style={{ margin: 0, lineHeight: 1.6 }}>
+              The cup&rsquo;s two teams are made on <Link href={teamsTabHref}>Players &rarr; Cup teams</Link>.
+            </p>
+          </div>
+        )
       ) : !result.ok ? (
         <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
           {result.reason === "teams" ? (
@@ -100,7 +115,7 @@ export default async function CupPage() {
               </Link>
             )}
           </p>
-          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
+          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsHere={teamsHere} teamsTabHref={teamsTabHref} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
         </>
       )}
     </>
@@ -115,12 +130,16 @@ async function flightCount(eventId: string): Promise<number> {
 async function StaffLineup({
   eventId,
   board,
+  teamsHere,
+  teamsTabHref,
   teamsLocked,
   settingsLocked,
   settingsLock,
 }: {
   eventId: string;
   board: CupBoard;
+  teamsHere: boolean;
+  teamsTabHref: string;
   teamsLocked: boolean;
   settingsLocked: boolean;
   settingsLock: ScopeLock | null;
@@ -150,15 +169,21 @@ async function StaffLineup({
       .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapSource: p.handicapSource, handicapType: p.handicapType }));
   return (
     <>
-    <CupTeams
-      teams={[
-        { id: board.teams[0].id, name: board.teams[0].name, captainId: captainOf(board.teams[0].id), players: roster(board.teams[0].id) },
-        { id: board.teams[1].id, name: board.teams[1].name, captainId: captainOf(board.teams[1].id), players: roster(board.teams[1].id) },
-      ]}
-      unplaced={unplaced}
-      inLineup={board.sessions.flatMap((s) => s.matches.flatMap((m) => m.playerIds))}
-      locked={teamsLocked}
-    />
+    {teamsHere ? (
+      <CupTeams
+        teams={[
+          { id: board.teams[0].id, name: board.teams[0].name, captainId: captainOf(board.teams[0].id), players: roster(board.teams[0].id) },
+          { id: board.teams[1].id, name: board.teams[1].name, captainId: captainOf(board.teams[1].id), players: roster(board.teams[1].id) },
+        ]}
+        unplaced={unplaced}
+        inLineup={board.sessions.flatMap((s) => s.matches.flatMap((m) => m.playerIds))}
+        locked={teamsLocked}
+      />
+    ) : (
+      <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+        Who is on each team is kept on <Link href={teamsTabHref}>Players &rarr; Cup teams</Link>.
+      </p>
+    )}
     <section aria-labelledby="lineups" style={{ marginTop: 8 }}>
       <h2 id="lineups" className="card-title" style={{ fontSize: 18, margin: "0 0 10px" }}>
         Lineups

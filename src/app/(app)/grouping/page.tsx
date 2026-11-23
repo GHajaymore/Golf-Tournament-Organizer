@@ -22,11 +22,14 @@ import { lockFactsFor } from "@/lib/services/tournament-facts";
 import { tournamentFamily } from "@/lib/domain/tournament-status";
 import { flagsUnplaced, unplacedWords } from "@/lib/domain/field-change";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
+import { playersRoomFor } from "@/lib/services/players-room";
+import { PlayersTabs } from "@/components/players/PlayersTabs";
 
 export const metadata = screenMetadata("/grouping");
 
 export default async function GroupingPage() {
   const session = await requireScreen("grouping");
+  const room = await playersRoomFor(session);
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   /**
@@ -106,6 +109,8 @@ export default async function GroupingPage() {
   return (
     <>
       <SetupFlowRail flow={flow} href="/grouping" />
+      {/* THE PLAYERS ROOM (R6): the tab strip, only while Players is shown; the page below is unchanged. */}
+      {room && <PlayersTabs tabs={room.tabs} active="flights" search={room.search} />}
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 className="page-title">Flights</h1>
