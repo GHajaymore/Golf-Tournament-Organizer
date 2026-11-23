@@ -348,9 +348,12 @@ test.describe("@redesign", () => {
       const scoring = page.locator("#scoring");
       const saveSettings = scoring.getByRole("button", { name: /^(Save settings|Saved)$/ });
       await expect(saveSettings, "Players & scoring is unsaved for tees Event already kept").toBeDisabled();
-      const playersMayEnter = scoring.getByLabel("Players may enter their own scores");
-      const target = (await playersMayEnter.isChecked()) ? "Organizers and assistants only" : "Players may enter their own scores";
-      await scoring.locator("label.seg-opt", { hasText: target }).click();
+      // "Who signs off a result": a setting with no side effect (unlike score entry, which can revoke round codes).
+      const organizerApproves = scoring.getByRole("radio", { name: "An organizer approves each card", exact: true });
+      const playersConfirm = scoring.getByRole("radio", { name: "Players confirm between themselves", exact: true });
+      const target = (await organizerApproves.isChecked()) ? playersConfirm : organizerApproves;
+      await target.click();
+      await expect(target).toBeChecked();
       await saveSettings.click();
       await expect(saveSettings).toHaveText(/Saved/);
       await page.reload();

@@ -27,7 +27,10 @@ export function EventVenues({
   /** Where the club adds a course (Courses), or null while that screen is not shown. */
   addHref: string | null;
 }) {
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(ownCourseId ? [...venueIds, ownCourseId] : venueIds));
+  // What is stored follows every refresh (a course added by the one Save included); only the press in flight is an overlay.
+  const stored = new Set([...venueIds, ownCourseId].filter(Boolean));
+  const [pick, setPick] = useState<Set<string> | null>(null);
+  const picked = pick ?? stored;
   const [error, setError] = useState("");
   const [said, setSaid] = useState("");
   const [pending, startTransition] = useTransition();
@@ -38,14 +41,13 @@ export function EventVenues({
     if (ownCourseId) next.add(ownCourseId);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    const before = picked;
-    setPicked(next);
+    setPick(next);
     setError("");
     setSaid("");
     startTransition(async () => {
       const res = await setEventCourses([...next]);
+      setPick(null);
       if (!res.ok) {
-        setPicked(before);
         setError(res.error ?? "Couldn't update the courses for this event.");
         return;
       }

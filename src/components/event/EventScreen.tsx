@@ -347,7 +347,6 @@ export function EventScreen(p: EventScreenProps) {
                   />
                   {several && (
                     <EventVenues
-                      key={p.venueIds.join(",")}
                       ownCourseId={snapshot.courseId}
                       courses={p.courses.map((c) => ({ id: c.id, name: c.name, city: c.city }))}
                       venueIds={p.venueIds}
