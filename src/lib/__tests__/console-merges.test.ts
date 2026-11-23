@@ -213,9 +213,9 @@ describe("a door moves only when every job behind it has a home its people may o
         checked++;
       }
     }
-    // Fourteen doors, 28 role-and-door pairs: a sweep over nothing would pass everything above.
-    expect(Object.keys(DOOR_JOBS)).toHaveLength(14);
-    expect(checked).toBe(28);
+    // Fifteen doors, 30 role-and-door pairs (R12 added closing a round): a sweep over nothing would pass everything above.
+    expect(Object.keys(DOOR_JOBS)).toHaveLength(15);
+    expect(checked).toBe(30);
   });
 
   it("the old doors name every role that may open them today (only a player's own group games are kept back)", () => {

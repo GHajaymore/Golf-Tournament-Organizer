@@ -17,7 +17,7 @@ import { PRE_LAUNCH_STATUSES, isLaunched } from "@/lib/domain/lifecycle-state";
  *
  *   - `STATUS_META` has no entry, and the lookup falls back to DRAFT, so every
  *     screen in the e2e suite showed "Draft" on a tournament with cards in it;
- *   - `nextLifecycleAction` returned null rather than "Complete tournament",
+ *   - `nextLifecycleAction` returned null rather than "Make results final",
  *     so the dashboard offered no way to finish and no test has ever pressed
  *     that control from the main fixture;
  *   - the live dot never appeared.

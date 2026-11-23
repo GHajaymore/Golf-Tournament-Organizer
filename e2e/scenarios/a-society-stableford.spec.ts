@@ -415,7 +415,7 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       const settle = async (button: string, want: string) => {
         // Completing goes through what the card offers now (e2e/end-early.ts): Complete once play is
         // over, after closing a round whose every card is in.
-        if (button === "Complete tournament") await pressComplete(page);
+        if (button === "Make results final") await pressComplete(page);
         else await page.getByRole("button", { name: button }).first().click();
         const dialog = page.getByRole("alertdialog");
         await expect(dialog).toBeVisible({ timeout: 15_000 });
@@ -425,9 +425,9 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
         await page.waitForTimeout(1500);
         note(`status after ${button}: ${want}`);
       };
-      await settle("Complete tournament", "completed");
+      await settle("Make results final", "completed");
       await settle("Reopen tournament", "live");
-      await settle("Complete tournament", "completed");
+      await settle("Make results final", "completed");
     });
     await test.step("prizes, as the society would award them", async () => {
       await open(page, "/prizes");

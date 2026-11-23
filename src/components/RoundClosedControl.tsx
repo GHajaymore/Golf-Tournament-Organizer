@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { setRoundClosed } from "@/app/actions/tournament";
 import { bringIntoView } from "@/lib/bring-into-view";
+import { closingWords } from "@/lib/domain/closing-words";
+import FieldInfo from "./FieldInfo";
 import { Icon } from "./Icon";
 import { RoundCloseAsk } from "./RoundCloseAsk";
 import { useAction } from "./useAction";
@@ -28,10 +30,17 @@ export function RoundClosedControl({
   closed,
   /** True on a points round, where closing changes nothing about who is ranked. */
   pointsBoard = false,
+  infoBehind,
 }: {
   stageId: string;
   closed: boolean;
   pointsBoard?: boolean;
+  /**
+   * REQUIRED (R12): the redesigned Score entry says what closing does behind an ⓘ and keeps one short line beside the
+   * tick; the old Rounds screen draws the whole paragraph exactly as it always did. The words are the same either way
+   * (`closingWords`), so the two screens cannot say different things about one press.
+   */
+  infoBehind: boolean;
 }) {
   const { pending, error, setError, startTransition } = useAction();
   /** The server's question — a card not yet approved or signed (`roundCloseCheck`) — while it is open. */
@@ -58,15 +67,18 @@ export function RoundClosedControl({
         <span>
           <span style={{ fontWeight: 500 }}>This round is finished</span>
           <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
-            {pointsBoard
-              ? // A missed week already costs a points player the points it was
-                // worth, so nothing about the board changes here. Saying so is
-                // better than a control whose effect is invisible.
-                "Marks the round as played. On a points round this changes nobody's position — a missed round already costs the points it was worth."
-              : "Tell the board the round is over, which makes its result official — the public board reads Final rather than All in. Anybody without a complete card for it is then shown without a place, the same as a card that stopped short — they have not completed the competition. Leave it unticked while cards are still coming in."}
+            {infoBehind ? closingWords(pointsBoard).short : closingWords(pointsBoard).whole}
           </span>
         </span>
       </label>
+
+      {infoBehind && (
+        <div>
+          <FieldInfo label="what closing a round does">
+            <p>{closingWords(pointsBoard).whole}</p>
+          </FieldInfo>
+        </div>
+      )}
 
       {closed && !pointsBoard && (
         <div
