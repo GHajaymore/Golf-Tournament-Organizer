@@ -9,6 +9,7 @@ import { CupTeams, CreateCupTeams } from "@/components/CupTeams";
 import { CupOtherPoints } from "@/components/CupOtherPoints";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screenLocksFor } from "@/lib/services/tournament-status";
+import { screensShownFor } from "@/lib/services/screens-shown";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 
 export const metadata = screenMetadata("/cup");
@@ -36,6 +37,8 @@ export default async function CupPage() {
   const locks = isStaff ? await screenLocksFor(session.eventId, ["cup", "rounds"]) : { locks: [], correction: null };
   const teamsLocked = locks.locks.some((l) => l.scope === "cup");
   const settingsLocked = locks.locks.some((l) => l.scope === "rounds");
+  // Whether Rounds & formats is shown to this request: it then holds the cup's points to win and holder (R4d), once.
+  const shown = await screensShownFor(session);
 
   return (
     <>
@@ -100,7 +103,7 @@ export default async function CupPage() {
               </Link>
             )}
           </p>
-          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
+          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsHere={!shown.has("rounds")} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
         </>
       )}
     </>
@@ -118,12 +121,14 @@ async function StaffLineup({
   teamsLocked,
   settingsLocked,
   settingsLock,
+  settingsHere,
 }: {
   eventId: string;
   board: CupBoard;
   teamsLocked: boolean;
   settingsLocked: boolean;
   settingsLock: ScopeLock | null;
+  settingsHere: boolean;
 }) {
   const [event, players, unplaced, captains] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
@@ -172,6 +177,7 @@ async function StaffLineup({
         holder={event?.cupHolderGroupId ?? ""}
         locked={settingsLocked}
         lockWhy={settingsLock}
+        settingsHere={settingsHere}
         sessions={board.sessions.map((s) => ({
           id: s.id,
           name: s.name,

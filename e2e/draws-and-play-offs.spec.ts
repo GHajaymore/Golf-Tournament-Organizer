@@ -15,6 +15,7 @@ import {
   saidBeside,
   pick,
 } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
 
 /**
  * THE MATCHES A COMMITTEE MAKES DURING A TOURNAMENT, made as the secretary
@@ -429,4 +430,49 @@ test("a result a player reported is turned down: nothing goes on the draw, and t
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * @redesign: A MATCH EVENT'S NEXT DRAW, ON THE REDESIGNED ROUNDS & FORMATS WITH TEE TIMES & DRAW SHOWN TOO (R4d). Both
+ * keys are on at the building address, and Tee times & draw does not yet build a round robin (`drawSections`), so the
+ * press stays on the round's column: the secretary presses Draw on Rounds, sees the matches, and after a reload the
+ * column says Redraw. Before R4d the column held a link to a tee sheet that has no draw.
+ */
+test.describe("@redesign a round robin's next draw on Rounds", () => {
+  test("Draw Round 2's matches is pressed on the column and survives a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("redesign-rr2", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      const { event, stages } = await makeEvent(club, "Winter Groups", {
+        status: "live",
+        stages: [
+          { type: "Round Robin", format: "Match Play", scoringBasis: "net" },
+          { type: "Round Robin", format: "Match Play", scoringBasis: "net" },
+        ],
+        players: 8,
+        flights: 2,
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const matches = () => prisma.match.count({ where: { eventId: event.id, stageId: stages[1].id } });
+      expect(await matches()).toBe(0);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      const column = screen.column("Round 2");
+      // The press is on the column, and no link to the tee sheet stands where it should be.
+      await expect(column.getByRole("link", { name: /Draw Round 2/ })).toHaveCount(0);
+      const draw = column.getByRole("button", { name: "Draw Round 2's matches", exact: true });
+      await centre(draw);
+      await draw.click();
+      await expect.poll(matches, { message: "Round 2 was not drawn as two round robins of six" }).toBe(12);
+      await page.reload();
+      await screen.column("Round 2").waitFor({ state: "visible" });
+      await expect(screen.column("Round 2").getByRole("button", { name: "Redraw Round 2's matches", exact: true }), "after a reload the column does not know it is drawn").toBeVisible();
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

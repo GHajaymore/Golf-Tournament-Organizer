@@ -3,6 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { RoundsScreen, type RoundsScreenProps } from "@/components/rounds/RoundsScreen";
 import type { StageView } from "@/components/StagesClient";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
+import type { ScreenKey } from "@/lib/domain/console-merges";
+import { roundDrawHref } from "@/lib/domain/round-draw-door";
+import { CupLineup } from "@/components/CupLineup";
+import { MatchTiebreakControl } from "@/components/MatchTiebreakControl";
+import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
 
 /**
  * THE REDESIGNED ROUNDS & FORMATS RENDERS WHAT THE MACHINE SAID (R4), and mounts each control that leaves it exactly once.
@@ -57,6 +62,7 @@ const screen = (over: Partial<RoundsScreenProps> = {}): RoundsScreenProps => ({
   lock: { locks: [], correction: null, isAdmin: true, open: null },
   shown: [],
   drawHref: {},
+  cup: null,
   ...over,
 });
 
@@ -146,5 +152,108 @@ describe("a control that leaves this screen is mounted once, whatever room is sh
     const there = render(launched(["scoreEntry"], {}));
     expect(here).toContain("Scoring window");
     expect(there).not.toContain("Scoring window");
+  });
+});
+
+describe("R4d: where a match round's next draw is made when Tee times & draw is shown too", () => {
+  const draws = (family: Parameters<typeof roundDrawHref>[1], type: string, format: string) => {
+    const href = roundDrawHref({ id: "r2", type, format }, family, "admin", new Set<ScreenKey>(["rounds", "teeTimes"]));
+    const html = render(
+      screen({
+        launched: true,
+        shown: ["rounds", "teeTimes"],
+        drawHref: { r2: href },
+        stages: [stage({ id: "r1", position: 0, type, format }), stage({ id: "r2", position: 1, type, format })],
+      }),
+    );
+    return { href, html };
+  };
+
+  it("a round robin of a match event: Tee times & draw does not build it, so the one DrawRound stays here", () => {
+    const { href, html } = draws("match", "Round Robin", "Match Play");
+    expect(href).toBe("/stages");
+    expect(count(html, "Draw Round 2&#x27;s matches")).toBe(1);
+    expect(html).not.toContain("/foursomes?round=r2");
+  });
+
+  it("CONTROL: a stroke round of a stroke event, which Tee times & draw does build, has its draw there and not here", () => {
+    const { href, html } = draws("stroke", "Stroke Play Round", "Stroke Play");
+    expect(href).toContain("/foursomes");
+    expect(count(html, "Give out Round 2")).toBe(0);
+  });
+
+  it("a knockout's third place stays here while its draw room does not build it", () => {
+    const { href } = draws("knockout", "Bracket Stage", "Match Play");
+    expect(href).toBe("/stages");
+    // And the play-off for third is DRAWN, once, on Rounds: a press with no home would strand the event.
+    const html = render(
+      screen({
+        launched: true,
+        shown: ["rounds", "teeTimes"],
+        drawHref: { r1: href },
+        stages: [stage({ id: "r1", position: 0, type: "Bracket Stage", format: "Match Play" })],
+        thirdPlaces: { r1: { on: false, problem: "", aName: "", bName: "", made: false } },
+      }),
+    );
+    expect(count(html, "Play-off for third place")).toBe(1);
+  });
+});
+
+describe("R4d: the cup's points to win and holder are drawn once, on Rounds or on the cup page", () => {
+  const teams: [{ id: string; name: string }, { id: string; name: string }] = [
+    { id: "a", name: "Oaks" },
+    { id: "b", name: "Pines" },
+  ];
+  const lineup = (settingsHere: boolean) =>
+    renderToStaticMarkup(
+      <CupLineup teams={teams.map((t) => ({ ...t, players: [] })) as never} sessions={[]} pointsToWin={14.5} holder="a" locked={false} lockWhy={null} settingsHere={settingsHere} />,
+    );
+  const mounts = (html: string) => count(html, 'id="cup-target"');
+
+  it("Rounds & formats not shown: the cup page holds the tile and Rounds draws none", () => {
+    expect(mounts(lineup(true))).toBe(1);
+    expect(mounts(render(screen({ cup: null })))).toBe(0);
+  });
+
+  it("Rounds & formats shown: Rounds holds the one tile, with the saved figures; the cup page says where it went", () => {
+    const rounds = render(screen({ cup: { teams, pointsToWin: 14.5, holder: "a" }, shown: ["rounds"] }));
+    expect(mounts(rounds)).toBe(1);
+    expect(rounds).toContain('value="14.5"');
+    const page = lineup(false);
+    expect(mounts(page)).toBe(0);
+    expect(page).toContain("data-cup-settings-moved");
+    expect(mounts(rounds) + mounts(page)).toBe(1);
+  });
+
+  it("a shut rounds scope greys Save on Rounds and says why beside it", () => {
+    const html = render(screen({ cup: { teams, pointsToWin: 0, holder: "" }, lock: { locks: [lock("launch")], correction: null, isAdmin: true, open: null } }));
+    expect(html).toContain("Locked because it is.");
+    expect(html).toContain("cup-settings-why");
+  });
+});
+
+describe("R4d: the explanations that left the face are behind an ⓘ on the new screen only", () => {
+  const tie = (redesign?: boolean) => renderToStaticMarkup(<MatchTiebreakControl selected={[]} holes={18} locked={false} redesign={redesign} />);
+  const words = "Tried in order, stopping at the first step that separates them.";
+
+  it("today's screen draws the sentence on the face", () => {
+    expect(tie()).toContain(words);
+    expect(tie(false)).toContain(words);
+  });
+
+  it("the redesigned screen draws an ⓘ that names it, and the sentence is read by opening it", () => {
+    const html = tie(true);
+    expect(html).not.toContain(words);
+    expect(html).toContain("More about if a match finishes all square");
+  });
+
+  it("the single match's rule explains itself the same way", () => {
+    const picker = (redesign?: boolean) =>
+      renderToStaticMarkup(
+        <SingleMatchRulePicker stageId="r1" rule={null} ruleLabel="" problem="" aName="" bName="" matchId={null} stale={false} rounds={[]} players={[]} locked={false} redesign={redesign} />,
+      );
+    expect(picker()).toContain("One match, and the two players are worked out");
+    expect(picker(true)).not.toContain("One match, and the two players are worked out");
+    expect(picker(true)).toContain("More about who plays this match");
   });
 });
