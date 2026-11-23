@@ -110,6 +110,28 @@ test.describe("@redesign", () => {
       await expect(screen.lockedOnce()).toHaveAttribute("data-locked-once", "locked");
       await expect(screen.nameInput(), "a locked event still offers the name box").toHaveCount(0);
       await expect(screen.section("what")).toContainText(`${mark} Renamed Medal`);
+      // The tees are not in the details lock: still a control after launch, kept by the same Save, details still text.
+      const course = await prisma.course.create({
+        data: {
+          organizationId: club.orgId,
+          name: `${mark} Hollins Moss`,
+          pars: JSON.stringify(new Array(18).fill(4)),
+          strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+          yards: JSON.stringify(new Array(18).fill(380)),
+        },
+      });
+      const tee = await prisma.tee.create({ data: { courseId: course.id, name: "White", gender: "any", courseRating: 69.8, slopeRating: 120, par: 72 } });
+      await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
+      await prisma.event.update({ where: { id: event.id }, data: { courseId: course.id, course: course.name } });
+      await screen.open();
+      await screen.teeSelect().selectOption(tee.id);
+      await screen.saveAndWait();
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.teeSelect(), "the tees were not kept after launch").toHaveValue(tee.id);
+      await expect(screen.nameInput()).toHaveCount(0);
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId).toBe(tee.id);
+
       await screen.lastDay().fill("2099-06-16");
       await screen.saveAndWait();
       await page.reload();

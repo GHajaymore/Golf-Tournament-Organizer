@@ -3,12 +3,13 @@ import { useState, useTransition, type ReactNode } from "react";
 import { saveEvent, setTournamentDates } from "@/app/actions/tournament";
 import { setEventDefaultTee } from "@/app/actions/courses";
 import { saveTournamentSettings } from "@/app/actions/settings";
+import { eventSavePlan, runSavePlan, type StepResult } from "./event-save-plan";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { playKindsFor } from "@/lib/domain/play-kind";
 import type { Mark } from "@/lib/domain/setup-field";
 import type { CorrectionFacts, ScopeLock } from "@/lib/domain/tournament-status";
-import { TEE_POLICY_LABEL, type TournamentSettings } from "@/lib/tournament-settings";
+import { type TournamentSettings } from "@/lib/tournament-settings";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { useGolfRegister } from "@/components/GolfTermsProvider";
 import { Icon } from "@/components/Icon";
@@ -118,7 +119,16 @@ export function EventScreen(p: EventScreenProps) {
   );
   const arrange = f.courseMode === "open";
 
-  const dirty = JSON.stringify(f) !== JSON.stringify(snapshot) || teeId !== keptTee || teePolicy !== keptPolicy;
+  const detailsDirty = JSON.stringify(f) !== JSON.stringify(snapshot);
+  const datesDirty =
+    f.startOn !== snapshot.startOn || f.endOn !== snapshot.endOn || f.datesTentative !== snapshot.datesTentative || f.dates !== snapshot.dates;
+  const teeDirty = teeId !== keptTee;
+  const policyDirty = teePolicy !== keptPolicy;
+  // The tees belong to the SAVED course: while the course is changed and not yet kept, the picker is shut.
+  const courseDirty = f.courseId !== snapshot.courseId || f.course !== snapshot.course || f.courseMode !== snapshot.courseMode;
+  const dirty = (p.locked ? datesDirty : detailsDirty) || teeDirty || policyDirty;
+  /** A change of course drops any tee picked for the old one. */
+  const courseChanged = () => setTeeId(keptTee);
 
   const set = <K extends keyof EventScreenForm>(k: K, v: EventScreenForm[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -130,6 +140,7 @@ export function EventScreen(p: EventScreenProps) {
 
   const onSelectCourse = (val: string, taken?: { name: string; city: string }) => {
     setCourseSelect(val);
+    courseChanged();
     if (val === "") setF((prev) => ({ ...prev, course: "", city: "", address: "", courseId: "", courseMode: "fixed" }));
     else if (val === "__other") setF((prev) => ({ ...prev, course: "", courseId: "", courseMode: "fixed" }));
     else {
@@ -139,6 +150,7 @@ export function EventScreen(p: EventScreenProps) {
   };
 
   const onArrange = (on: boolean) => {
+    courseChanged();
     if (on) {
       // An open event has no course until a card is entered, and a stale name would score every match against a venue nobody played.
       setCourseSelect("");
@@ -150,74 +162,69 @@ export function EventScreen(p: EventScreenProps) {
 
   const save = () => {
     setError("");
-    if (p.locked) {
-      // Locked: the days alone. The details are text, so there is nothing else to keep.
-      const sent = f;
-      startTransition(async () => {
-        try {
-          await setTournamentDates(sent.startOn, sent.endOn, sent.datesTentative, sent.dates);
-        } catch {
-          setError("That didn't save. Try again.");
-          return;
-        }
-        setSnapshot((prev) => ({ ...prev, startOn: sent.startOn, endOn: sent.endOn, dates: sent.dates, datesTentative: sent.datesTentative }));
-      });
-      return;
-    }
+    // ONE plan, run in order, stopping at the first failure: only what is left is sent, so a retry finishes the rest.
+    const plan = eventSavePlan({ locked: p.locked, details: detailsDirty, dates: datesDirty, tee: teeDirty && !courseDirty, policy: policyDirty });
     const name = f.name.trim();
-    if (!name) {
+    if (plan.includes("saveEvent") && !name) {
       setError("Name the tournament before saving.");
       return;
     }
     const sent = f;
+    const sentTee = teeId;
+    const sentPolicy = teePolicy;
     startTransition(async () => {
-      const result = caughtUp(
-        await saveEvent({
-          name,
-          playKind: sent.playKind,
-          dates: sent.dates,
-          datesTentative: sent.datesTentative,
-          startOn: sent.startOn,
-          endOn: sent.endOn,
-          format: sent.format,
-          course: sent.course,
-          courseId: sent.courseId,
-          city: sent.city,
-          address: sent.address,
-          playerCountMode: sent.playerCountMode,
-          courseMode: sent.courseMode,
-        }),
+      // A refusal or a throw both come back as words beside Save (`runSavePlan`); neither reaches the error page.
+      const { error: said } = await runSavePlan(
+        plan,
+        async (step): Promise<StepResult> => {
+          if (step === "saveEvent") {
+            const r = caughtUp(
+              await saveEvent({
+                name,
+                playKind: sent.playKind,
+                dates: sent.dates,
+                datesTentative: sent.datesTentative,
+                startOn: sent.startOn,
+                endOn: sent.endOn,
+                format: sent.format,
+                course: sent.course,
+                courseId: sent.courseId,
+                city: sent.city,
+                address: sent.address,
+                playerCountMode: sent.playerCountMode,
+                courseMode: sent.courseMode,
+              }),
+            );
+            if (r.ok) setSnapshot(sent);
+            return r;
+          }
+          if (step === "setTournamentDates") {
+            await setTournamentDates(sent.startOn, sent.endOn, sent.datesTentative, sent.dates);
+            setSnapshot((prev) => ({ ...prev, startOn: sent.startOn, endOn: sent.endOn, dates: sent.dates, datesTentative: sent.datesTentative }));
+            return { ok: true };
+          }
+          if (step === "tee") {
+            const r = await setEventDefaultTee(sentTee);
+            if (r.ok) setKeptTee(sentTee);
+            return r;
+          }
+          const r = await saveTournamentSettings({ teePolicy: sentPolicy });
+          if (r.ok) setKeptPolicy(sentPolicy);
+          return r;
+        },
+        p.locked,
       );
-      if (!result.ok) {
-        setError(result.error ?? "That didn't save. Try again.");
-        return;
-      }
-      setSnapshot(sent);
-      if (teeId !== keptTee) {
-        const tee = await setEventDefaultTee(teeId);
-        if (!tee.ok) {
-          setError(`The details were saved. The tees were not: ${tee.error ?? "try again."}`);
-          return;
-        }
-        setKeptTee(teeId);
-      }
-      if (teePolicy !== keptPolicy) {
-        const policy = await saveTournamentSettings({ teePolicy });
-        if (!policy.ok) {
-          setError(`The details were saved. Who may play other tees was not: ${policy.error ?? "try again."}`);
-          return;
-        }
-        setKeptPolicy(teePolicy);
-      }
+      if (said) setError(said);
     });
   };
 
-  const teeText = teeId ? (p.tees.find((t) => t.id === teeId)?.name ?? "Chosen tees") : "The first rated set at each round’s course";
-  const whereText = arrange
+  // The locked text reads what is STORED (`p.initial`), never what was typed and refused.
+  const storedArrange = p.initial.courseMode === "open";
+  const whereText = storedArrange
     ? "The players arrange their own"
-    : several
-      ? p.courses.filter((c) => p.venueIds.includes(c.id)).map((c) => c.name).join(", ") || f.course || "—"
-      : f.course || "—";
+    : p.where === "several"
+      ? p.courses.filter((c) => p.venueIds.includes(c.id)).map((c) => c.name).join(", ") || p.initial.course || "—"
+      : p.initial.course || "—";
 
   return (
     <div data-event-screen style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, maxWidth: 760 }}>
@@ -232,10 +239,10 @@ export function EventScreen(p: EventScreenProps) {
               {locked ? (
                 <>
                   <SetupField label="Tournament name" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
-                    {f.name}
+                    {p.initial.name}
                   </SetupField>
                   <SetupField label="What kind is this?" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
-                    {playKindsFor(register, f.playKind).find((k) => k.key === f.playKind)?.label ?? f.playKind}
+                    {playKindsFor(register, p.initial.playKind).find((k) => k.key === p.initial.playKind)?.label ?? p.initial.playKind}
                   </SetupField>
                 </>
               ) : (
@@ -263,7 +270,7 @@ export function EventScreen(p: EventScreenProps) {
               />
               {locked && (
                 <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-                  The days can still change after launch. Save keeps them.
+                  The days and the tees can still change after launch. Save keeps them.
                 </p>
               )}
             </div>
@@ -277,13 +284,20 @@ export function EventScreen(p: EventScreenProps) {
                 <>
                   <SetupField label="Where it is played" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
                     {whereText}
-                    {!arrange && f.city ? <span className="text-muted"> · {f.city}</span> : null}
+                    {!storedArrange && p.initial.city ? <span className="text-muted"> · {p.initial.city}</span> : null}
                   </SetupField>
-                  {!arrange && p.tees.length > 0 && (
-                    <SetupField label="Played from" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
-                      {teeText}
-                      <span className="text-muted"> · {TEE_POLICY_LABEL[teePolicy]}</span>
-                    </SetupField>
+                  {/* The tees are not in the details lock: they stay a control, shut only by the rounds rule (teesDoor). */}
+                  {!storedArrange && p.tees.length > 0 && (
+                    <EventTees
+                      tees={p.tees}
+                      teeId={teeId}
+                      teesDoor={p.teesDoor}
+                      teePolicy={teePolicy}
+                      canEdit={p.canEdit}
+                      pending={pending}
+                      onTee={setTeeId}
+                      onTeePolicy={setTeePolicy}
+                    />
                   )}
                 </>
               ) : arrange ? (
@@ -297,7 +311,7 @@ export function EventScreen(p: EventScreenProps) {
                     <span className="field-caption" id="event-where-count">How many courses?</span>
                     <div className="seg" role="radiogroup" aria-labelledby="event-where-count">
                       <label className="seg-opt">
-                        <input type="radio" name="event-where" checked={!several} onChange={() => setSeveral(false)} />
+                        <input type="radio" name="event-where" checked={!several} disabled={p.venueIds.length > 1} onChange={() => setSeveral(false)} />
                         One course
                       </label>
                       <label className="seg-opt">
@@ -305,6 +319,11 @@ export function EventScreen(p: EventScreenProps) {
                         More than one course
                       </label>
                     </div>
+                    {p.venueIds.length > 1 && (
+                      <p className="text-muted" data-one-course-shut style={{ fontSize: 13, margin: "4px 0 0" }}>
+                        Played on {p.venueIds.length} courses. Untick all but one to play on one course.
+                      </p>
+                    )}
                   </div>
                   <EventWhere
                     offerOpen={false}
@@ -328,11 +347,18 @@ export function EventScreen(p: EventScreenProps) {
                   />
                   {several && (
                     <EventVenues
+                      key={p.venueIds.join(",")}
+                      ownCourseId={snapshot.courseId}
                       courses={p.courses.map((c) => ({ id: c.id, name: c.name, city: c.city }))}
                       venueIds={p.venueIds}
                       disabled={!p.canEdit}
                       addHref={p.addCourseHref}
                     />
+                  )}
+                  {p.tees.length > 0 && courseDirty && (
+                    <p className="text-muted" data-course-first style={{ fontSize: 13, margin: 0 }}>
+                      Save the course first, then choose its tees.
+                    </p>
                   )}
                   {p.tees.length > 0 ? (
                     <EventTees
@@ -341,7 +367,7 @@ export function EventScreen(p: EventScreenProps) {
                       teesDoor={p.teesDoor}
                       teePolicy={teePolicy}
                       canEdit={p.canEdit}
-                      pending={pending}
+                      pending={pending || courseDirty}
                       onTee={setTeeId}
                       onTeePolicy={setTeePolicy}
                     />
@@ -360,7 +386,7 @@ export function EventScreen(p: EventScreenProps) {
               <div className="card elev-sm" style={{ gap: 12 }}>
                 {locked ? (
                   <SetupField label="Overall result" mark={null} dflt={null} isDefault={false} onChange={null} onUseDefault={null}>
-                    {overallResultLabel(f.format, [...p.roundFormats])}
+                    {overallResultLabel(p.initial.format, [...p.roundFormats])}
                   </SetupField>
                 ) : (
                   <>
@@ -396,7 +422,7 @@ export function EventScreen(p: EventScreenProps) {
 
             <StickySave
               dirty={dirty}
-              note={locked ? "Unsaved dates. The rest of the event is locked" : "Unsaved changes to the event"}
+              note={locked ? "Unsaved days or tees. The rest of the event is locked" : "Unsaved changes to the event"}
             >
               <button type="button" className="btn btn-primary" disabled={pending || !dirty || courseAdding || !p.canEdit} onClick={save}>
                 <Icon name="check" /> {courseAdding ? "Adding the course…" : pending ? "Saving…" : dirty ? "Save" : "Saved"}

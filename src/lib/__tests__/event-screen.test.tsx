@@ -113,16 +113,15 @@ describe("a locked event shows its details as text and keeps only the dates", ()
     expect(count(html, 'data-locked-once="locked"')).toBe(1);
   });
 
-  it("reads the name, the course and the tees as text, with no control for them", () => {
+  it("reads the name and the course as text, with no control for them", () => {
     expect(html).toContain("zz-Spring Medal");
     expect(html).not.toContain('placeholder="Name your tournament"');
-    expect(html).not.toContain('id="default-tee"');
     expect(html).not.toContain('name="event-where"');
   });
 
-  it("still lets the dates change", () => {
+  it("still lets the dates and the tees change", () => {
     expect(html).toContain('aria-label="Tournament dates, first day"');
-    expect(html).toContain("The days can still change after launch.");
+    expect(html).toContain("The days and the tees can still change after launch.");
   });
 });
 
@@ -146,14 +145,40 @@ describe("the page mounts the old screen or the new, never both", () => {
     expect(page).toMatch(/\{libraryHere && \(\s*<SettingsSectionAnchor id="courses">/);
   });
 
-  it("saves one way each: saveEvent while open, setTournamentDates alone while locked, never both in one press", () => {
+  it("runs the one plan (event-save-plan.test.ts holds what is in it)", () => {
     const screen = readSource("src/components/event/EventScreen.tsx");
-    const lockedBranch = screen.slice(screen.indexOf("if (p.locked)"), screen.indexOf("const name = f.name.trim()"));
-    expect(lockedBranch).toContain("setTournamentDates(");
-    expect(lockedBranch).not.toContain("saveEvent(");
-    expect(lockedBranch).toMatch(/return;\s*\}\s*$/);
-    const openBranch = screen.slice(screen.indexOf("const name = f.name.trim()"));
-    expect(openBranch).toContain("saveEvent(");
-    expect(openBranch).not.toContain("setTournamentDates(");
+    expect(screen).toMatch(/eventSavePlan\(\{/);
+    expect(screen).toMatch(/runSavePlan\(/);
+  });
+});
+
+describe("the review's states", () => {
+  it("the event's own course is ticked and shut among the venues", () => {
+    const h = draw({ where: "several", venueIds: ["c1", "c2"] });
+    const venues = h.slice(h.indexOf("data-event-venues"));
+    const own = venues.match(/<label[^>]*>(<input[^>]*>)<span[^>]*>zz Hollins Moss([\s\S]*?)<\/label>/);
+    expect(own, "the event's own course is not in the list").not.toBeNull();
+    expect(own![1]).toMatch(/checked/);
+    expect(own![1]).toMatch(/disabled/);
+    expect(own![2]).toMatch(/the event.{1,8}s course/);
+    // CONTROL: another course is neither ticked nor shut.
+    const other = venues.match(/<label[^>]*>(<input[^>]*>)<span[^>]*>zz Green Crest/);
+    expect(other![1]).not.toMatch(/disabled/);
+  });
+
+  it("'One course' is shut, and says why, while more than one venue is stored", () => {
+    const h = draw({ where: "several", venueIds: ["c1", "c2"] });
+    const radios = h.match(/<input[^>]*name="event-where"[^>]*>/g) ?? [];
+    expect(radios).toHaveLength(2);
+    expect(radios.filter((r) => /disabled/.test(r))).toHaveLength(1);
+    expect(radios.find((r) => /disabled/.test(r))).toMatch(/type="radio"/);
+    expect(h).toContain("Played on 2 courses. Untick all but one to play on one course.");
+    expect(draw()).not.toContain("data-one-course-shut");
+  });
+
+  it("a locked event keeps the tees as a control and reads the stored name, not a typed one", () => {
+    const h = draw({ locked: true, lock: { locks: [{ scope: "details", by: "launch", because: "x", wayOut: { says: "y", href: "/z" }, correctable: true }] as EventScreenProps["lock"]["locks"], correction: null, isAdmin: true, open: null } });
+    expect(h).toContain('id="default-tee"');
+    expect(h).toContain("zz-Spring Medal");
   });
 });

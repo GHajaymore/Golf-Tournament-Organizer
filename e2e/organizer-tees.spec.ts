@@ -342,6 +342,24 @@ test.describe("@redesign", () => {
       await expect(screen.teeSelect(), "the chosen tees were not kept").toHaveValue(white.id);
       expect((await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId).toBe(white.id);
 
+      // THE OLD CARD DOES NOT WRITE IT BACK: Players & scoring holds nothing unsaved after the tees were kept on Event, and
+      // pressing a real setting there and saving leaves the Event's tees (and who may play others) as they were.
+      const policyBefore = (await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } })).teePolicy;
+      const scoring = page.locator("#scoring");
+      const saveSettings = scoring.getByRole("button", { name: /^(Save settings|Saved)$/ });
+      await expect(saveSettings, "Players & scoring is unsaved for tees Event already kept").toBeDisabled();
+      const playersMayEnter = scoring.getByLabel("Players may enter their own scores");
+      const target = (await playersMayEnter.isChecked()) ? "Organizers and assistants only" : "Players may enter their own scores";
+      await scoring.locator("label.seg-opt", { hasText: target }).click();
+      await saveSettings.click();
+      await expect(saveSettings).toHaveText(/Saved/);
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.teeSelect(), "Players & scoring wrote the old tees back").toHaveValue(white.id);
+      const after = await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } });
+      expect(after.defaultTeeId).toBe(white.id);
+      expect(after.teePolicy).toBe(policyBefore);
+
       // And back to the rule's own default, by the same press.
       await screen.teeSelect().selectOption("");
       await screen.saveAndWait();

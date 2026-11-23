@@ -42,7 +42,7 @@ export const EVENT_GUIDE: GuideVariant = {
         { kind: "h", text: "After launch" },
         {
           kind: "p",
-          text: "Once the tournament is launched the name, the kind, the course and the tees read as text under one banner that says why and what to do. The **days** can still change: the same **Save** keeps them, and keeps nothing else.",
+          text: "Once the tournament is launched the name, the kind and the course read as text under one banner that says why and what to do. The **days** and the **tees** can still change (the tees are shut only once a round has cards): the same **Save** keeps them, and keeps nothing else. If one part is kept and another is refused, the screen says which, and **Save** finishes what is left.",
         },
         {
           kind: "tip",

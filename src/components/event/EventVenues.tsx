@@ -16,7 +16,10 @@ export function EventVenues({
   venueIds,
   disabled,
   addHref,
+  ownCourseId,
 }: {
+  /** The event's own course as it is STORED: always one of its venues, drawn ticked and shut, and always sent. */
+  ownCourseId: string;
   courses: Array<{ id: string; name: string; city: string }>;
   /** The courses this event is already played on. */
   venueIds: readonly string[];
@@ -24,13 +27,15 @@ export function EventVenues({
   /** Where the club adds a course (Courses), or null while that screen is not shown. */
   addHref: string | null;
 }) {
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(venueIds));
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(ownCourseId ? [...venueIds, ownCourseId] : venueIds));
   const [error, setError] = useState("");
   const [said, setSaid] = useState("");
   const [pending, startTransition] = useTransition();
 
   const toggle = (id: string) => {
+    if (id === ownCourseId) return;
     const next = new Set(picked);
+    if (ownCourseId) next.add(ownCourseId);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     const before = picked;
@@ -57,10 +62,11 @@ export function EventVenues({
         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
           {courses.map((c) => (
             <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, minWidth: 0, overflowWrap: "anywhere" }}>
-              <input type="checkbox" checked={picked.has(c.id)} disabled={disabled || pending} onChange={() => toggle(c.id)} />
+              <input type="checkbox" checked={picked.has(c.id)} disabled={disabled || pending || c.id === ownCourseId} onChange={() => toggle(c.id)} />
               <span style={{ minWidth: 0 }}>
                 {c.name}
                 {c.city ? <span className="text-muted"> · {c.city}</span> : null}
+                {c.id === ownCourseId ? <span className="text-muted"> · the event&rsquo;s course</span> : null}
               </span>
             </label>
           ))}
