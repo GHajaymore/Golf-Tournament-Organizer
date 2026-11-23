@@ -595,7 +595,8 @@ test.describe("@redesign", () => {
       const screen = new RoundsScreen(page);
       await screen.open();
       await page.getByRole("button", { name: /^Add a round/ }).click();
-      const words = "The type decides what gets drawn";
+      // A sentence only the explanation says: "the type decides what gets drawn" is also the builder's own prompt line (case-insensitive match).
+      const words = "Sequence as many as you like";
       await expect(page.getByText(words), "the explanation is still on the face").toHaveCount(0);
       const info = page.getByRole("button", { name: "More about adding a round" });
       await centre(info);
