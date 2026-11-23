@@ -67,6 +67,7 @@ export default async function MoneyPage({
   const sideGamesHref = await keepingPreview("/prizes#side-games");
   const setupHref = await keepingPreview("/prizes#money-setup");
   const offerHref = await keepingPreview("/prizes");
+  const groupGamesHref = await keepingPreview("/group-games");
   const mode = await previewModeNow();
   const carry = mode ? previewQuery(mode) : undefined;
   // The groups' games are drawn here only where the one rule says they moved here (`relocate`, through the door's helper); a tournament's
@@ -141,7 +142,7 @@ export default async function MoneyPage({
           <GroupGames session={session} round={params.round} asSection carry={carry} />
         ) : (
           <p className="text-muted" style={{ fontSize: 13.5 }}>
-            The groups&rsquo; side games are kept on <Link href="/group-games">Side games</Link>.
+            The groups&rsquo; side games are kept on <Link href={groupGamesHref}>Side games</Link>.
           </p>
         )}
       </div>
