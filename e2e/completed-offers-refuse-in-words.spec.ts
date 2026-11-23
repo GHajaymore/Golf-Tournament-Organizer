@@ -6,6 +6,7 @@ import { pressReopen } from "./end-early";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
+import { savedBeforeReload } from "./save-settled";
 
 /**
  * WHAT MONEY OFFERED IS REFUSED IN WORDS ONCE THE TOURNAMENT IS COMPLETED; THE LEDGER IS NOT; REOPEN GIVES IT BACK
@@ -418,6 +419,7 @@ test.describe("@redesign", () => {
       await page.getByLabel(/^Amount \(/).fill("10");
       await page.getByRole("button", { name: "Add", exact: true }).click();
       await expect.poll(() => rf.prisma.prize.count({ where: { eventId: event.id } }), { timeout: 20_000, message: "adding a prize did not work again after Reopen" }).toBe(2);
+      await savedBeforeReload(page);
       await page.reload();
       await expect(screen.amountFor(`${mark} Long drive`), "the prize is not on the new screen after a reload").toHaveValue("10");
     } finally {

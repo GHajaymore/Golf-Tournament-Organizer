@@ -6,6 +6,7 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
 import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
 import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
 import { PlayersPage } from "./console/players";
+import { savedBeforeReload } from "./save-settled";
 
 /**
  * A LOCKED SIDE IS REFUSED IN WORDS, NOT AN ERROR PAGE (state machine PR 5a; J10).
@@ -239,6 +240,9 @@ test.describe("@redesign players", () => {
       await expect(refused, "the locked refusal was not said in words").toBeVisible({ timeout: 20_000 });
       await expect(refused).toBeInViewport();
       expect(await rounds.team.count({ where: { eventId: event.id, name: "Zz Late Side" } }), "a locked tournament's side was made").toBe(0);
+      // The refusal is the server's answer; the press's own refresh is still coming back ("Saving…").
+      // A person reads it and waits, so the screen is let settle before it is loaded again.
+      await savedBeforeReload(page);
       await page.reload();
       await expect(room.current()).toHaveText("Teams");
       await expect(page.getByText(/committee correction/i).first(), "the banner does not offer the correction").toBeVisible();

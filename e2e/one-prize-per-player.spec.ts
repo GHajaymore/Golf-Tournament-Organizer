@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
+import { savedBeforeReload } from "./save-settled";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -167,6 +168,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: best } })).winnerId, { timeout: 20_000, message: "the award was not recorded" })
         .toBe(winner);
+      await savedBeforeReload(page);
       await page.reload();
       await expect(page.getByLabel("One prize per player", { exact: true }), "the rule did not survive a reload").toBeChecked();
       await expect(screen.winnerOf(best), "the winner is not on the new screen after a reload").toHaveValue(winner);

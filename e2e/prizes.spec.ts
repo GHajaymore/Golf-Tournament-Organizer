@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
+import { savedBeforeReload } from "./save-settled";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -153,6 +154,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.amount, { timeout: 20_000, message: "the prize was not stored" })
         .toBe(25);
+      await savedBeforeReload(page);
       await page.reload();
       await expect(screen.amountFor(cat), "the prize is not on the new screen after a reload").toHaveValue("25");
       // The settle half is still drawn on this screen until Winners & money is built: the line can be awarded here.
@@ -181,6 +183,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.event.findUniqueOrThrow({ where: { id: event.id } })).moneyMode, { timeout: 20_000, message: "the money mode was not stored" })
         .toBe("float");
+      await savedBeforeReload(page);
       await page.reload();
       await expect(screen.moneySetup().locator(":scope > button[aria-expanded]"), "the fold's line does not say the answer").toContainText("Money: Tournament kitty");
       const again = await screen.openMoneySetup();

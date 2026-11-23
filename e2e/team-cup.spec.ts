@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { openCorrectionFor, endCorrectionFor } from "./committee-correction";
 import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
 import { PlayersPage } from "./console/players";
+import { savedBeforeReload } from "./save-settled";
 
 /**
  * A TEAM CUP, PLAYED BY ITS PLAYERS — the Ryder Cup shape a golf trip runs,
@@ -672,6 +673,7 @@ test.describe("@redesign players", () => {
       await page.getByRole("button", { name: "Make the teams" }).click();
       const flightsMade = () => rounds.group.findMany({ where: { eventId: event.id, stageId: null, isCarrier: false }, orderBy: { position: "asc" } });
       await expect.poll(async () => (await flightsMade()).length, { message: "the two teams were not stored" }).toBe(2);
+      await savedBeforeReload(page);
       await page.reload();
       await expect(room.current()).toHaveText("Cup teams");
       const blues = page.getByRole("group", { name: "Team Blues" });
@@ -682,6 +684,7 @@ test.describe("@redesign players", () => {
         .poll(async () => rounds.player.count({ where: { eventId: event.id, groupId: bluesId } }), { message: "the player put on the team was not stored" })
         .toBe(1);
       const placed = await rounds.player.findFirstOrThrow({ where: { eventId: event.id, groupId: bluesId } });
+      await savedBeforeReload(page);
       await page.reload();
       await expect(room.current()).toHaveText("Cup teams");
       await expect(page.getByRole("group", { name: "Team Blues" }), "the player was not on the team after a reload").toContainText(placed.name);
@@ -719,6 +722,7 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => (await rounds.player.findUniqueOrThrow({ where: { id: late.id } })).groupId, { message: "the player put on the team was not stored" })
         .toBe(flights[0].id);
+      await savedBeforeReload(page);
       await page.reload();
       await expect(room.current()).toHaveText("Cup teams");
       await expect(page.getByRole("group", { name: "Team Flight A" }), "the player was not on the team after a reload").toContainText(late.name);
@@ -751,6 +755,7 @@ test.describe("@redesign players", () => {
       const refused = team.getByText(/change the cup’s teams/);
       await expect(refused, "the refusal was not said on the team that was pressed").toBeVisible({ timeout: 20_000 });
       expect((await rounds.player.findUniqueOrThrow({ where: { id: players[0].id } })).groupId, "a launched cup's team was changed").toBe(flights[0].id);
+      await savedBeforeReload(page);
       await page.reload();
       await expect(room.current()).toHaveText("Cup teams");
       await expect(page.getByText(/committee correction/i).first(), "the banner does not offer the correction").toBeVisible();
