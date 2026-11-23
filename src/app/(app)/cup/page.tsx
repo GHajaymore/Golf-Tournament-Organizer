@@ -44,7 +44,8 @@ export default async function CupPage() {
   // (R4d), and Players then holds the cup's teams on its Cup teams tab (R6).
   const shown = await screensShownFor(session);
   // THE CUP'S TEAMS HAVE ONE HOME (R6): here, or on Players' Cup teams tab while Players is shown (`cupTeamsHome`).
-  const teamsHere = cupTeamsHome(shown.has("players")) === "cup";
+  const playersShown = shown.has("players");
+  const teamsHere = cupTeamsHome(playersShown) === "cup";
   const teamsTabHref = playerTabHref(PLAYER_TABS.find((t) => t.key === "cup")!, (await headers()).get("x-search") ?? "");
 
   return (
