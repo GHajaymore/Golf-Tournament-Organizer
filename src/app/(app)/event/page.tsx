@@ -26,6 +26,7 @@ import { isMatch } from "@/lib/tournament-shape";
 import { soleVenueCourse } from "@/lib/services/course-resolution";
 import { fieldCapFor } from "@/lib/services/limits";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
+import { screensShownFor } from "@/lib/services/screens-shown";
 
 
 export const metadata = screenMetadata("/event");
@@ -45,6 +46,12 @@ export default async function EventPage({
   searchParams: Promise<{ course?: string }>;
 }) {
   const session = await requireScreen("event");
+  /**
+   * WHERE EACH LIFTED BLOCK IS DRAWN (R3-1). A block that has a redesigned room of its own is drawn
+   * there and not in this old body, by ONE boolean per block from the one question `screensShownFor`.
+   * With the redesign switch off, every room is not shown and every block is drawn here, as ever.
+   */
+  const shown = await screensShownFor(session);
 
   /**
    * EVERYTHING THIS SCREEN NEEDS THAT ONLY NEEDS THE SESSION, AT ONCE.
@@ -383,6 +390,9 @@ export default async function EventPage({
           }))}
           defaultTeeId={e.defaultTeeId}
           teesDoor={teesDoor}
+          howInHere={!shown.has("players")}
+          shareHere={!shown.has("home")}
+          teesHere={!shown.has("event")}
         />
       </SettingsSectionAnchor>
 

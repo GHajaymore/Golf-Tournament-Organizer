@@ -215,6 +215,8 @@ const THIS_TOURNAMENT_MARKS: Record<string, string> = {
   "src/components/AccessClient.tsx": "the tournament's staff (addAccount, setAccountRole, removeAccount)",
   "src/components/MoneySetup.tsx": "Money in this tournament (setEventMoneyMode, setExpenseEntry); the club's own mode on Club settings is unmarked",
   "src/components/PlaySettings.tsx": "the tournament's Players & scoring (in tournament mode only; the club's house defaults stay open)",
+  "src/components/event/RoundCodes.tsx": "the tournament's Round Codes, lifted out of Players & scoring (drawn in tournament mode only)",
+  "src/components/event/ShareLinks.tsx": "the tournament's public leaderboard link, lifted out of Players & scoring (drawn in tournament mode only)",
 };
 
 function sourceFiles(dir: string): string[] {

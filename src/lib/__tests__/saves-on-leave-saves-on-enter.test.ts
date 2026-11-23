@@ -27,7 +27,7 @@ import { readSource } from "./source";
 const ENTER_IS_NOT_FOR_IT: Record<string, string> = {
   "src/components/RegistrationClient.tsx#2": "the invitation is a paragraph: Enter is a new line in it",
   "src/components/TeamsClient.tsx#1": "a dropdown, which closes itself when it is left; choosing is what acts",
-  "src/components/EventSetupClient.tsx#0": "looks a zip code up as a convenience; the screen's own Save keeps it",
+  "src/components/event/EventWhere.tsx#0": "looks a zip code up as a convenience; the screen's own Save keeps it",
   "src/components/NewMatchForm.tsx#0": "Enter here records the match (its handler is written after the blur line)",
   "src/components/FlightBoard.tsx#0": "Enter here renames the flight (its handler is written after the blur line)",
   "src/components/CoursePicker.tsx#0": "Enter here picks the highlighted course (its handler is written after the blur line)",

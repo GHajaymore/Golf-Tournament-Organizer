@@ -263,6 +263,10 @@ export default async function OrganizationPage() {
           mode="organization"
           settings={houseDefaultsOf(org)}
           canEdit={canEdit}
+          // The club's own defaults are drawn whole: no redesigned room takes a block from them (R3-1).
+          howInHere
+          shareHere
+          teesHere
         />
       </SettingsTabPanel>
 
