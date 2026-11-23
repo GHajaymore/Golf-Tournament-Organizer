@@ -573,7 +573,8 @@ test.describe("@redesign", () => {
       await expect.poll(async () => (await stored()).format, { message: "the format chosen was not stored" }).toBe("Stableford");
       await pick(screen.holesGroup("Round 1"), "9");
       await expect.poll(async () => (await stored()).holes, { message: "nine holes was not stored" }).toBe(9);
-      await screen.open();
+      await page.reload();
+      await screen.column("Round 1").waitFor({ state: "visible" });
       await expect(screen.formatSelect("Round 1"), "the format did not survive a reload").toHaveValue("Stableford");
     } finally {
       await dropClub(mark);

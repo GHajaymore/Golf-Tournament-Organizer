@@ -467,7 +467,8 @@ test.describe("@redesign a round robin's next draw on Rounds", () => {
       await centre(draw);
       await draw.click();
       await expect.poll(matches, { message: "Round 2 was not drawn as two round robins of six" }).toBe(12);
-      await screen.open();
+      await page.reload();
+      await screen.column("Round 2").waitFor({ state: "visible" });
       await expect(screen.column("Round 2").getByRole("button", { name: "Redraw Round 2's matches", exact: true }), "after a reload the column does not know it is drawn").toBeVisible();
     } finally {
       await dropClub(mark);

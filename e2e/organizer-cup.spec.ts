@@ -221,7 +221,8 @@ test.describe("@redesign the cup's settings on Rounds & formats", () => {
         .toBe(2.5);
 
       // After a reload the card says what was kept, and holds one tile only.
-      await screen.open();
+      await page.reload();
+      await expect(screen.cupSettings()).toBeVisible();
       await expect(screen.cupSettings().getByLabel("Points to win"), "the points did not survive a reload").toHaveValue("2.5");
       await expect(screen.cupSettings().getByLabel(/^Holder/)).toHaveValue(flights[1].id);
       await expect(page.locator("#cup-target")).toHaveCount(1);

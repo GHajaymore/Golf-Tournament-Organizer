@@ -185,6 +185,17 @@ describe("R4d: where a match round's next draw is made when Tee times & draw is 
   it("a knockout's third place stays here while its draw room does not build it", () => {
     const { href } = draws("knockout", "Bracket Stage", "Match Play");
     expect(href).toBe("/stages");
+    // And the play-off for third is DRAWN, once, on Rounds: a press with no home would strand the event.
+    const html = render(
+      screen({
+        launched: true,
+        shown: ["rounds", "teeTimes"],
+        drawHref: { r1: href },
+        stages: [stage({ id: "r1", position: 0, type: "Bracket Stage", format: "Match Play" })],
+        thirdPlaces: { r1: { on: false, problem: "", aName: "", bName: "", made: false } },
+      }),
+    );
+    expect(count(html, "Play-off for third place")).toBe(1);
   });
 });
 
