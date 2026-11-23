@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { readSource } from "./source";
 import { SCREEN_KEYS } from "../domain/console-merges";
 import { canAccessScreen } from "../roles";
-import { previewModeOf, consoleUrl } from "../console-url";
+import { previewModeOf, consoleUrl, memberHistoryHref } from "../console-url";
 import { consoleScreens, switchedOffScreens } from "../../../e2e/routes";
 import { SCREENS_BUILT } from "../../../e2e/console";
 
@@ -72,9 +72,33 @@ describe("a member's history is mounted once, by one boolean", () => {
     const roster = readSource("src", "app", "(app)", "roster", "page.tsx");
     expect(roster).toContain('requireOrgScreen("roster")');
     const history = readSource("src", "components", "club", "MemberHistory.tsx");
-    expect(history).toMatch(/loadRoster\(organizationId\)/);
+    // The id is looked up ONLY in the roster it was handed, and the component reads no roster of its own.
     expect(history).toMatch(/members\.find\(\(m\) => m\.id === memberId\)/);
+    expect(history).not.toMatch(/loadRoster/);
     expect(history).toMatch(/memberHistory\(organizationId, selected\.id\)/);
+    // Each page reads the club's roster once and hands it over.
+    for (const page of ["member", "roster"]) {
+      const src = readSource("src", "app", "(app)", page, "page.tsx");
+      expect((src.match(/loadRoster\(/g) ?? []).length, `${page} reads the roster more than once`).toBe(1);
+      expect(src).toMatch(/<MemberHistory[^>]*members=\{members\}/);
+    }
+  });
+
+  it("the roster's name is a link to the history only while Members is shown, through the one address builder", () => {
+    const client = readSource("src", "components", "RosterClient.tsx");
+    expect(client).toMatch(/history \? <Link href=\{memberHistoryHref\(m\.id, "\/roster", history\.mode\)\}>/);
+    expect(client).toMatch(/\bhistory: \{ mode: ConsoleMode \| null \} \| null;/);
+    const roster = readSource("src", "app", "(app)", "roster", "page.tsx");
+    expect(roster).toMatch(/history=\{historyHere \? \{ mode: await previewModeNow\(\) \} : null\}/);
+    // No second template string for the address.
+    expect(readSource("src", "components", "club", "MemberHistory.tsx")).toMatch(/memberHistoryHref\(id, base, previewMode\)/);
+    expect(readSource("src", "components", "club", "MemberHistory.tsx")).not.toMatch(/\?member=\$\{/);
+  });
+
+  it("builds the address once: plain, in a preview, and as a section of the roster", () => {
+    expect(memberHistoryHref("a b", "/member", null)).toBe("/member?member=a%20b");
+    expect(memberHistoryHref("x", "/roster", null)).toBe("/roster?member=x#history");
+    expect(memberHistoryHref("x", "/roster", "build")).toBe("/roster?member=x&stepper=1&build=1#history");
   });
 });
 

@@ -76,7 +76,7 @@ export default async function MemberHistoryPage({
           </Link>
         }
       />
-      <MemberHistory organizationId={organizationId} memberId={selected?.id} base="/member" previewMode={null} />
+      <MemberHistory organizationId={organizationId} members={members} memberId={selected?.id} base="/member" previewMode={null} />
     </>
   );
 }

@@ -19,12 +19,12 @@ export const MEMBERS_GUIDE: GuideVariant = {
           kind: "p",
           text: "**Members** is the club's list of the people it keeps, read by every tournament of the club. Under the list, **Member history** shows what one member has played: every tournament they entered, and the handicap each was played off, as it stood then and not as it is today.",
         },
-        { kind: "where", text: "Club → Members → Member history" },
+        { kind: "where", text: "Club → Members → a member's name" },
         {
           kind: "steps",
           items: [
-            "Open **Member history** under the list.",
-            "Press a member's name. Their tournaments, dates, whether they played and the handicap each was played off are listed.",
+            "Press a member's name in the list. **Member history** opens under the list.",
+            "Read their tournaments, dates, whether they played and the handicap each was played off.",
             "A member who has met others in a match also has a **Match record**: press an opponent's name to read their history in turn.",
           ],
         },

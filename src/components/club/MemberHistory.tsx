@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { consoleUrl, type ConsoleMode } from "@/lib/console-url";
-import { loadRoster, memberHistory } from "@/lib/services/roster";
+import { memberHistoryHref, type ConsoleMode } from "@/lib/console-url";
+import { memberHistory, type RosterMember } from "@/lib/services/roster";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { meetingsFor } from "@/lib/services/head-to-head";
 import { recordAgainst, recordLine, recordVerdict } from "@/lib/domain/head-to-head";
@@ -38,17 +38,19 @@ const ENTRY_STATUS: Record<string, string> = {
  */
 export async function MemberHistory({
   organizationId,
+  members,
   memberId,
   base,
   previewMode,
 }: {
   organizationId: string;
+  /** THIS club's roster, read ONCE by the page (`loadRoster`); the id is looked up in it and nowhere else. */
+  members: RosterMember[];
   memberId: string | undefined;
   base: "/member" | "/roster";
   /** The preview the request is in, so a link inside a previewed screen stays inside it (`previewModeNow`). */
   previewMode: ConsoleMode | null;
 }) {
-  const members = await loadRoster(organizationId);
   const selected = members.find((m) => m.id === memberId) ?? null;
   const history = selected ? await memberHistory(organizationId, selected.id) : [];
   /**
@@ -58,10 +60,7 @@ export async function MemberHistory({
    */
   const records = selected && history.length ? recordAgainst(selected.id, await meetingsFor(organizationId, selected.id)) : [];
   const nameOfMember = new Map(members.map((m) => [m.id, m.name]));
-  const hrefOf = (id: string) => {
-    const href = `${base}?member=${encodeURIComponent(id)}${base === "/roster" ? "#history" : ""}`;
-    return previewMode ? consoleUrl(href, previewMode) : href;
-  };
+  const hrefOf = (id: string) => memberHistoryHref(id, base, previewMode);
 
   return (
     <>
@@ -78,6 +77,11 @@ export async function MemberHistory({
             they enter.
           </p>
         </section>
+      ) : !selected && base === "/roster" ? (
+        /* The list above already holds every name: no second list of them here (R7 review P2). */
+        <p className="text-muted" style={{ margin: 0 }}>
+          Press a member&rsquo;s name in the list above to see what they have played.
+        </p>
       ) : !selected ? (
         <section className="card">
           <h2 style={{ marginTop: 0, fontSize: 16 }}>Choose a member</h2>

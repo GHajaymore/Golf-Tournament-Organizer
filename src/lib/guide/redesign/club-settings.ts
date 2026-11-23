@@ -31,7 +31,7 @@ export const CLUB_SETTINGS_GUIDE: GuideVariant = {
         },
         {
           kind: "p",
-          text: "You can manage a tournament's helpers if you are its {organizer}, even if you are not on the club's own staff. Changing the club's staff, or any other club setting, needs an owner or admin of the club, and a screen you may only read says so at the top. The only {organizer} of a tournament cannot be moved down or removed until somebody else is promoted, and the screen says that beside the button you pressed.",
+          text: "You can manage a tournament's helpers if you are its {organizer}, even if you are not on the club's own staff. Changing the club's staff, or any other club setting, needs an owner or admin of the club, and a list you may only read has its buttons greyed, and says why under the button. The only {organizer} of a tournament cannot be moved down or removed until somebody else is promoted, and the screen says that beside the button you pressed.",
         },
       ],
     },

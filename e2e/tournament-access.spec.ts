@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { consoleUrl } from "../src/lib/console-url";
 import { openStaffAndAccess, openAccessSection } from "./console/clubSettings";
 
 /**
@@ -221,6 +222,14 @@ test.describe("@redesign", () => {
       await expect(refusal, "the refusal is not said in words").toBeVisible({ timeout: 20_000 });
       await expect(refusal, "the refusal is printed where the person who pressed cannot see it").toBeInViewport();
       expect((await prisma.account.findUniqueOrThrow({ where: { id: ownerAccount.id } })).role, "the only organizer was made a player").toBe("admin");
+
+      // ── the old address lands on the same list, the preview kept, the tab chosen, the list drawn once ─
+      await desk.goto(consoleUrl("/access", "build"));
+      await desk.waitForLoadState("networkidle").catch(() => {});
+      expect(new URL(desk.url()).pathname, "/access did not land on Club settings").toBe("/organization");
+      await expect(desk.getByRole("tab", { name: /^Staff & access\b/ }), "the Staff & access tab is not the one chosen").toHaveAttribute("aria-selected", "true");
+      section = await openAccessSection(desk, "event");
+      await expect(row(section, helperEmail), "the helper is not listed once on the section /access sends to").toHaveCount(1);
 
       // ── removed: asked first ────────────────────────────────────────────
       section = await events();

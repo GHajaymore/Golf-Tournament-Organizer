@@ -13,12 +13,12 @@ export default async function AccessPage() {
   await requireScreen("access");
   const session = await getSession();
   if (!session) redirect("/");
-  const state = await loadEventState(session.eventId);
-  if (!state) redirect("/");
   // R7: while Club settings is shown, this event's helpers are its "On this event" section, drawn there
   // and only there (`MOVES`, `/access` → `/organization#access`). One boolean, so the list is never drawn twice.
   const shown = await screensShownFor(session);
   if (shown.has("clubSettings")) redirect(await keepingPreview("/organization#access"));
+  const state = await loadEventState(session.eventId);
+  if (!state) redirect("/");
   // The club's word for who runs it — organizer or organiser (`golf-terms.ts`).
   const { organizers } = await golfTermsForEvent(session.eventId);
 

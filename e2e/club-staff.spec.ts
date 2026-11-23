@@ -6,7 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { openSettingsTab } from "./settings-tabs";
 import { signedInNow } from "../scripts/session-cookie.mjs";
-import { makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { makeClub, dropClub, makeEvent, signIn, signInWith, sessionOf } from "./rounds-fixture";
 import { openStaffAndAccess, openAccessSection, openClubTab } from "./console/clubSettings";
 
 /**
@@ -309,6 +309,62 @@ test.describe("@redesign", () => {
       expect(errors, "a screen threw").toEqual([]);
     } finally {
       await closeAll(desk);
+      await dropClub(mark);
+    }
+  });
+
+  test("an Admin taken off the staff while their screen is open is refused in words where they pressed Add staff, and the screen is read-only after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    const mark = `zz-r7refused-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    const device = testInfo.project.use;
+    const ctx = await browser.newContext({ ...device, baseURL, storageState: undefined });
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", { stages: [{}] });
+      // Set-up: a club Admin (with the Commissioner already in the club) who also runs this tournament.
+      const admin = await prisma.user.create({
+        data: { email: `${mark}-admin@example.invalid`, name: "Quinn Clubadmin", password: "x:unusable", emailVerifiedAt: new Date() },
+      });
+      await prisma.organizationMember.create({ data: { organizationId: club.orgId, userId: admin.id, role: "admin" } });
+      await prisma.account.create({ data: { eventId: event.id, email: admin.email, name: admin.name, role: "admin" } });
+      await signInWith(ctx, baseURL!, sessionOf(admin.id), event.id);
+      const page = await ctx.newPage();
+      watchPageErrors(page, errors, "club admin");
+      const newcomer = `${mark}-newcomer@example.invalid`;
+      const WORDS = "Only a Commissioner or Admin can manage staff.";
+
+      await openStaffAndAccess(page);
+      let staff = await openAccessSection(page, "club");
+      const add = staff.locator(".card", { has: page.locator(".card-title", { hasText: /^Add staff$/ }) }).last();
+      await expect(add.getByLabel("Email"), "CONTROL: the Admin cannot type in Add staff before anything changes").toBeEnabled();
+      await add.getByLabel("Name").fill("Casey Newcomer");
+      await add.getByLabel("Email").fill(newcomer);
+
+      // The Commissioner takes them off the staff while their screen is open (set-up, not the thing under test).
+      await prisma.organizationMember.deleteMany({ where: { organizationId: club.orgId, userId: admin.id } });
+
+      await add.getByRole("button", { name: "Add staff" }).click();
+      const refusal = staff.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: WORDS });
+      await expect(refusal, "the stale press is not refused in words where it was pressed").toBeVisible({ timeout: 20_000 });
+      await expect(refusal).toBeInViewport();
+      expect(await prisma.user.count({ where: { email: newcomer } }), "an account was made for the stale press").toBe(0);
+      expect(
+        await prisma.organizationMember.count({ where: { organizationId: club.orgId, user: { email: newcomer } } }),
+        "somebody was added to the staff by a stale press",
+      ).toBe(0);
+
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await openStaffAndAccess(page);
+      staff = await openAccessSection(page, "club");
+      const button = staff.getByRole("button", { name: "Add staff" });
+      await expect(button, "Add staff is still offered after a reload").toBeDisabled();
+      await expect(button).toHaveAccessibleDescription(WORDS);
+
+      expect(errors, "a screen threw").toEqual([]);
+    } finally {
+      await closeAll(ctx);
       await dropClub(mark);
     }
   });

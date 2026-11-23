@@ -159,6 +159,7 @@ export default async function RosterPage({
       handicapPolicy={policy}
       indexesReadable={policy === "club" ? true : await handicapReadable(organizationId)}
       eventName={event?.name ?? ""}
+      history={historyHere ? { mode: await previewModeNow() } : null}
       fieldLocked={fieldLocked}
       fieldSize={fieldSizeOf(entered)}
       unlinkedCount={unlinked.length}
@@ -177,7 +178,7 @@ export default async function RosterPage({
       >
         {/* Read for the roster's own roles (admin and assistant, `requireOrgScreen("roster")` above), and
             for THIS club only: `MemberHistory` checks the id against the club's roster before using it. */}
-        <MemberHistory organizationId={organizationId} memberId={params.member} base="/roster" previewMode={await previewModeNow()} />
+        <MemberHistory organizationId={organizationId} members={members} memberId={params.member} base="/roster" previewMode={await previewModeNow()} />
       </SectionFold>
     )}
     </>
