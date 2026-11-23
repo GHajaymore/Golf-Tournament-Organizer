@@ -27,6 +27,9 @@ import { soleVenueCourse } from "@/lib/services/course-resolution";
 import { fieldCapFor } from "@/lib/services/limits";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
 import { screensShownFor } from "@/lib/services/screens-shown";
+import { EventScreen } from "@/components/event/EventScreen";
+import { whereOf } from "@/lib/domain/event-where";
+import { markOf } from "@/lib/domain/setup-field";
 
 
 export const metadata = screenMetadata("/event");
@@ -204,11 +207,27 @@ export default async function EventPage({
    * `/organization`, the other screen with one of these, never had the fault —
    * seven sections, not one of them called "Club settings".
    */
+  /**
+   * WHERE THE COURSE LIBRARY IS DRAWN (R3). With Event shown, the screen picks the course itself (one, or more than one) and
+   * the club's own courses live on Courses, so the library is drawn here only while Courses is not shown to take it: a
+   * club can never be left with no way to add a course.
+   */
+  const eventShown = shown.has("event");
+  const libraryHere = !eventShown || !shown.has("courses");
   const sections: SettingsSection[] = [
-    { id: "details", label: "Tournament identity" },
-    { id: "courses", label: "Courses" },
+    { id: "details", label: eventShown ? "What, when, where" : "Tournament identity" },
+    ...(libraryHere ? [{ id: "courses", label: "Courses" }] : []),
     { id: "scoring", label: "Players & scoring" },
   ];
+  // The redesigned Event's reads, all from what is stored and from the machine (markOf, whereOf).
+  const venueIds = courses.filter((c) => c.inEvent).map((c) => c.id);
+  const where = whereOf(e, venueIds.length);
+  const status = told?.status ?? null;
+  const marks = {
+    name: status ? markOf("name", status, e.name, null) : null,
+    dates: status ? markOf("dates", status, e.startOn, null) : null,
+    where: status ? markOf("course", status, where === "unset" ? "" : where, null) : null,
+  };
   // Every step's verdict from the STATE MACHINE, which the rail above draws
   // too, so the list under the rail cannot disagree with the rail above it.
   const checklist = statusChecklist(told?.status.setup.steps ?? [], {
@@ -242,7 +261,8 @@ export default async function EventPage({
       </div>
 
 
-      <ScopeLockBanner locks={details.locks} correction={details.correction} isAdmin={session.viewRole === "admin"} />
+      {/* With Event shown the banner is drawn once, inside the screen (LockedOnce). */}
+      {!eventShown && <ScopeLockBanner locks={details.locks} correction={details.correction} isAdmin={session.viewRole === "admin"} />}
 
       {/* The checklist stays, but only once the guided rail above has stopped
           rendering — which it does the moment setup is complete.
@@ -265,75 +285,121 @@ export default async function EventPage({
       <SettingsNav sections={sections} />
 
       <SettingsSectionAnchor id="details">
-      <EventSetupClient
-        key={e.id}
-        isMatch={matchEvent}
-        hasBracket={hasKnockoutStage(state.stages)}
-        roundFormats={state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.format)}
-        setup={
-          flow
-            ? {
-                doneCount: flow.doneCount,
-                total: flow.steps.length,
-                complete: flow.complete,
-                // WHICH are done, so the journey card can mark them. The
-                // count alone left five identical chips under "3 of 5 done".
-                doneHrefs: flow.steps.filter((s) => s.done).map((s) => s.href),
-                // Every step this tournament HAS, so the journey shows Teams &
-                // pairs exactly when the flow does — see `setupScreens`.
-                hrefs: flow.steps.map((s) => s.href),
-                // WHICH ONE IS NEXT. Ticks alone said what was finished and
-                // left every remaining chip identical, so the card answered
-                // "how far am I" and not "what do I do now" — which is the
-                // question somebody opens a setup screen with. `flow.current`
-                // is the first unfinished step and is what the rail on this
-                // same screen already calls "Now"; taking it from there rather
-                // than recomputing is what stops the two disagreeing.
-                currentHref: flow.current?.href ?? "",
-              }
-            : null
-        }
-        // Where the tournament is — the state machine's own answer (PR 3), not
-        // a phase this page or the card works out from the status and a count
-        // of cards.
-        journey={told?.status.journey ?? "setup"}
-        locale={fmt.locale}
-        locked={locked}
-        fieldCap={await fieldCapFor(e.organizationId)}
-        initial={{
-          name: e.name, playKind: e.playKind, startOn: e.startOn, endOn: e.endOn, dates: e.dates, datesTentative: e.datesTentative,
-          format: e.format, course: e.course || inheritedVenue?.name || "", city: e.city || inheritedVenue?.city || "",
-          address: e.address, regDeadline: e.regDeadline, regOpens: e.regOpens, capacity: e.capacity,
-          playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
-          courseMode: e.courseMode, courseId: e.courseId ?? inheritedVenue?.id ?? "",
-        }}
-        playersCount={state.confirmed.length}
-        // The id travels now. It was dropped here, which is the whole reason
-        // the tournament's venue was the one thing in the app picked by
-        // typing a name — the screen never had anything else to pick by.
-        courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "", cardNote: c.cardNote }))}
-      />
-        {/* HOW THIS ONE WRITES ITS DATES AND ITS MONEY.
-            In the identity section because that is what it is: the same kind
-            of fact as the name and the venue, and the section a reader is
-            already in when they notice a date reads wrong. Almost every
-            tournament leaves both following the club — see the component. */}
-        <div className="card elev-sm" style={{ marginTop: 16 }}>
-          <span className="card-kicker">Dates and money</span>
-          <TournamentFormatting
-            localeOverride={e.localeOverride}
-            currencyOverride={e.currencyOverride}
-            clubLocale={org?.locale ?? ""}
-            clubCurrency={org?.currency ?? ""}
-            canEdit={session.viewRole === "admin"}
-          />
-        </div>
+      {eventShown ? (
+        <EventScreen
+          key={e.id}
+          initial={{
+            name: e.name, playKind: e.playKind, startOn: e.startOn, endOn: e.endOn, dates: e.dates, datesTentative: e.datesTentative,
+            format: e.format, course: e.course || inheritedVenue?.name || "", city: e.city || inheritedVenue?.city || "",
+            address: e.address, courseMode: e.courseMode, courseId: e.courseId ?? inheritedVenue?.id ?? "",
+            playerCountMode: e.playerCountMode,
+          }}
+          locale={fmt.locale}
+          locked={locked}
+          canEdit={session.viewRole === "admin"}
+          courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "", cardNote: c.cardNote }))}
+          venueIds={venueIds}
+          where={where}
+          tees={eventTees.map((t) => ({
+            id: t.id,
+            courseName: t.courseName,
+            name: t.name,
+            courseRating: t.courseRating,
+            slopeRating: t.slopeRating,
+            rated: t.rated,
+          }))}
+          defaultTeeId={e.defaultTeeId}
+          teesDoor={teesDoor}
+          teePolicy={settingsOf(e).teePolicy}
+          roundFormats={state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.format)}
+          marks={marks}
+          lock={{ locks: details.locks, correction: details.correction, isAdmin: session.viewRole === "admin", open: null }}
+          addCourseHref={shown.has("courses") ? "/courses" : null}
+          coursesAnchor={!libraryHere}
+          formatting={
+            <TournamentFormatting
+              localeOverride={e.localeOverride}
+              currencyOverride={e.currencyOverride}
+              clubLocale={org?.locale ?? ""}
+              clubCurrency={org?.currency ?? ""}
+              canEdit={session.viewRole === "admin"}
+            />
+          }
+        />
+      ) : (
+        <>
+        <EventSetupClient
+          key={e.id}
+          isMatch={matchEvent}
+          hasBracket={hasKnockoutStage(state.stages)}
+          roundFormats={state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.format)}
+          setup={
+            flow
+              ? {
+                  doneCount: flow.doneCount,
+                  total: flow.steps.length,
+                  complete: flow.complete,
+                  // WHICH are done, so the journey card can mark them. The
+                  // count alone left five identical chips under "3 of 5 done".
+                  doneHrefs: flow.steps.filter((s) => s.done).map((s) => s.href),
+                  // Every step this tournament HAS, so the journey shows Teams &
+                  // pairs exactly when the flow does — see `setupScreens`.
+                  hrefs: flow.steps.map((s) => s.href),
+                  // WHICH ONE IS NEXT. Ticks alone said what was finished and
+                  // left every remaining chip identical, so the card answered
+                  // "how far am I" and not "what do I do now" — which is the
+                  // question somebody opens a setup screen with. `flow.current`
+                  // is the first unfinished step and is what the rail on this
+                  // same screen already calls "Now"; taking it from there rather
+                  // than recomputing is what stops the two disagreeing.
+                  currentHref: flow.current?.href ?? "",
+                }
+              : null
+          }
+          // Where the tournament is — the state machine's own answer (PR 3), not
+          // a phase this page or the card works out from the status and a count
+          // of cards.
+          journey={told?.status.journey ?? "setup"}
+          locale={fmt.locale}
+          locked={locked}
+          fieldCap={await fieldCapFor(e.organizationId)}
+          initial={{
+            name: e.name, playKind: e.playKind, startOn: e.startOn, endOn: e.endOn, dates: e.dates, datesTentative: e.datesTentative,
+            format: e.format, course: e.course || inheritedVenue?.name || "", city: e.city || inheritedVenue?.city || "",
+            address: e.address, regDeadline: e.regDeadline, regOpens: e.regOpens, capacity: e.capacity,
+            playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
+            courseMode: e.courseMode, courseId: e.courseId ?? inheritedVenue?.id ?? "",
+          }}
+          playersCount={state.confirmed.length}
+          // The id travels now. It was dropped here, which is the whole reason
+          // the tournament's venue was the one thing in the app picked by
+          // typing a name — the screen never had anything else to pick by.
+          courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "", cardNote: c.cardNote }))}
+        />
+          {/* HOW THIS ONE WRITES ITS DATES AND ITS MONEY.
+              In the identity section because that is what it is: the same kind
+              of fact as the name and the venue, and the section a reader is
+              already in when they notice a date reads wrong. Almost every
+              tournament leaves both following the club — see the component. */}
+          <div className="card elev-sm" style={{ marginTop: 16 }}>
+            <span className="card-kicker">Dates and money</span>
+            <TournamentFormatting
+              localeOverride={e.localeOverride}
+              currencyOverride={e.currencyOverride}
+              clubLocale={org?.locale ?? ""}
+              clubCurrency={org?.currency ?? ""}
+              canEdit={session.viewRole === "admin"}
+            />
+          </div>
+        </>
+      )}
       </SettingsSectionAnchor>
 
       {/* Always available, never a blocker here. A tournament may not need
           course data to score — gross match play doesn't — and still want it,
           because printed scorecards carry par, yardage and stroke index next
           to the club's logo. */}
+      {libraryHere && (
       <SettingsSectionAnchor id="courses">
         <CourseLibrary
           courses={courses}
@@ -351,6 +417,7 @@ export default async function EventPage({
           openCourseId={openCourseId}
         />
       </SettingsSectionAnchor>
+      )}
 
       {/* The event-level "Course card" section used to sit here, and it was
           the same job done twice on one screen — worse, done twice into two

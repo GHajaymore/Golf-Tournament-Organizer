@@ -56,7 +56,12 @@ describe("the guide with the redesign's registry", () => {
     expect(courses.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "clubcourses"]);
     // Today's guide is not edited: every base section is still there, untouched.
     expect(courses.slice(0, GUIDE_STEPS.length)).toEqual(GUIDE_STEPS);
-    expect(guideFor(GUIDE_STEPS, ["event"], US)).toEqual(GUIDE_STEPS);
+    // R3: Event adds its own section after the base, and edits none of it.
+    const event = guideFor(GUIDE_STEPS, ["event"], US);
+    expect(event.map((s) => s.id)).toEqual([...GUIDE_STEPS.map((s) => s.id), "eventscreen"]);
+    expect(event.slice(0, GUIDE_STEPS.length)).toEqual(GUIDE_STEPS);
+    // A screen with no variant yet is drawn as today's guide (Leaderboard: no variant yet; Score entry has R12's).
+    expect(guideFor(GUIDE_STEPS, ["leaderboard"], US)).toEqual(GUIDE_STEPS);
   });
 
   it("draws Staff & access and Members' history only while their screens are shown, replacing nothing (R7)", () => {

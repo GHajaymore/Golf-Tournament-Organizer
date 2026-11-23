@@ -33,7 +33,10 @@ export function EventWhere({
   onCity,
   onAddress,
   onPlaceFound,
+  offerOpen = true,
 }: {
+  /** Whether "No fixed course" is a row of the picker. Event (R3) asks it as its own answer and passes false. */
+  offerOpen?: boolean;
   courses: CourseOption[];
   /** The picker's row: an id, "__other" (typed by hand), "__open" (players choose) or "". */
   courseSelect: string;
@@ -144,10 +147,14 @@ export function EventWhere({
           // A society playing somewhere new every month should not have to go and add the course
           // somewhere else first, then come back.
           onEnterNew={onEnterNew}
-          extras={[
-            { id: "__other", label: "Other (enter manually)" },
-            { id: "__open", label: "No fixed course — players choose" },
-          ]}
+          extras={
+            offerOpen
+              ? [
+                  { id: "__other", label: "Other (enter manually)" },
+                  { id: "__open", label: "No fixed course — players choose" },
+                ]
+              : [{ id: "__other", label: "Other (enter manually)" }]
+          }
         />
         {courseSelect === "__open" && (
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
