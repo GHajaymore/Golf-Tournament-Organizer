@@ -573,8 +573,38 @@ test.describe("@redesign", () => {
       await expect.poll(async () => (await stored()).format, { message: "the format chosen was not stored" }).toBe("Stableford");
       await pick(screen.holesGroup("Round 1"), "9");
       await expect.poll(async () => (await stored()).holes, { message: "nine holes was not stored" }).toBe(9);
-      await screen.open();
+      await page.reload();
+      await screen.column("Round 1").waitFor({ state: "visible" });
       await expect(screen.formatSelect("Round 1"), "the format did not survive a reload").toHaveValue("Stableford");
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  // R4d: what the round builder says about types and formats left the face for an ⓘ on this screen (today's screen keeps it).
+  test("the round builder's explanation is behind its ⓘ and reads the same words when opened", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = markFor("redesign-info", testInfo.project.name);
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", { stages: [{}] });
+      await signIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      await page.getByRole("button", { name: /^Add a round/ }).click();
+      const words = "The type decides what gets drawn";
+      await expect(page.getByText(words), "the explanation is still on the face").toHaveCount(0);
+      const info = page.getByRole("button", { name: "More about adding a round" });
+      await centre(info);
+      await info.click();
+      await expect(page.getByText(words)).toBeVisible();
+      await expect(page.getByText("How it's scored is the format on each round")).toBeVisible();
+      // Writing control of this describe's first test (format and holes) keeps the round; here the ⓘ closes again.
+      await info.click();
+      await expect(page.getByText(words)).toHaveCount(0);
     } finally {
       await dropClub(mark);
     }

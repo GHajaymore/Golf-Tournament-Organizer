@@ -17,6 +17,9 @@ export const ROUNDS_GUIDE: GuideVariant = {
         { kind: "p", text: "Each round is one column with the same rows in the same order: **Day**, **Course** (only when the event has more than one course, or the round is nine holes, where the tee is chosen), **Format**, **Holes** and **Handicap**. A round that is still being set up shows how many of its settings are in place (“2 of 3 set”); a round that has begun shows its state instead." },
         { kind: "h", text: "The event's scoring, once" },
         { kind: "p", text: "The **Scoring** card above the rounds says whether players may enter their own scores and who keeps the card in each round. The answer to **Can players enter scores?** is the event's: when players may not, the committee keeps every card, whatever a round says. **Change** opens Players & scoring on Event." },
+        { kind: "h", text: "A team cup's settings" },
+        { kind: "p", text: "In a team cup the **Points to win** and who **holds the cup** on a tie are set here, in the card above the rounds, because they decide how the rounds are scored. Press **Save** to keep them. The lineups, the teams and the captains are still on the Team cup screen." },
+        { kind: "tip", text: "Where a short explanation sits behind the ⓘ beside a setting (what a cut ranks on, how a match is decided when it finishes all square, who plays a single match), tap the ⓘ to read it." },
         { kind: "h", text: "Add a round" },
         {
           kind: "steps",
@@ -34,7 +37,7 @@ export const ROUNDS_GUIDE: GuideVariant = {
         { kind: "p", text: "**More** on each round holds the rest: the allowance and team shares, how scores are recorded, who keeps the card in this round, how players keep their matches, ties and points, the play-by date and the weekly sign-up." },
         { kind: "h", text: "When a round is locked" },
         { kind: "p", text: "A round that has scores shows its settings as text with one line, **This round has scores, so its settings are locked.** A completed event shows every round as text under one banner and draws no control. The banner says why and what to do, once, at the top." },
-        { kind: "tip", text: "The draw, a round's handicaps and closing a round stay on this screen until Tee times & draw and Score entry are switched on, and then move there with a link where they were." },
+        { kind: "tip", text: "The draw, a round's handicaps and closing a round stay on this screen until Tee times & draw and Score entry are switched on, and then move there with a link where they were. A draw moves only for a round that Tee times & draw builds; a match round's next draw and a knockout's third place stay here." },
       ],
     },
   ],

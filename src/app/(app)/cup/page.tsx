@@ -9,10 +9,10 @@ import { CupTeams, CreateCupTeams } from "@/components/CupTeams";
 import { CupOtherPoints } from "@/components/CupOtherPoints";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screenLocksFor } from "@/lib/services/tournament-status";
+import { screensShownFor } from "@/lib/services/screens-shown";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { headers } from "next/headers";
 import { cupTeamsPropsFor } from "@/lib/services/cup-teams";
-import { screensShownFor } from "@/lib/services/screens-shown";
 import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
 
 export const metadata = screenMetadata("/cup");
@@ -40,9 +40,11 @@ export default async function CupPage() {
   const locks = isStaff ? await screenLocksFor(session.eventId, ["cup", "rounds"]) : { locks: [], correction: null };
   const teamsLocked = locks.locks.some((l) => l.scope === "cup");
   const settingsLocked = locks.locks.some((l) => l.scope === "rounds");
+  // Which screens are shown to this request, asked once: Rounds & formats then holds the cup's points to win and holder
+  // (R4d), and Players then holds the cup's teams on its Cup teams tab (R6).
+  const shown = await screensShownFor(session);
   // THE CUP'S TEAMS HAVE ONE HOME (R6): here, or on Players' Cup teams tab while Players is shown (`cupTeamsHome`).
-  const playersShown = (await screensShownFor(session)).has("players");
-  const teamsHere = cupTeamsHome(playersShown) === "cup";
+  const teamsHere = cupTeamsHome(shown.has("players")) === "cup";
   const teamsTabHref = playerTabHref(PLAYER_TABS.find((t) => t.key === "cup")!, (await headers()).get("x-search") ?? "");
 
   return (
@@ -116,7 +118,7 @@ export default async function CupPage() {
               </Link>
             )}
           </p>
-          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsHere={teamsHere} teamsTabHref={teamsTabHref} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
+          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsHere={teamsHere} teamsTabHref={teamsTabHref} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsHere={!shown.has("rounds")} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
         </>
       )}
     </>
@@ -136,6 +138,7 @@ async function StaffLineup({
   teamsLocked,
   settingsLocked,
   settingsLock,
+  settingsHere,
 }: {
   eventId: string;
   board: CupBoard;
@@ -144,6 +147,7 @@ async function StaffLineup({
   teamsLocked: boolean;
   settingsLocked: boolean;
   settingsLock: ScopeLock | null;
+  settingsHere: boolean;
 }) {
   const [event, cupTeams] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
@@ -177,6 +181,7 @@ async function StaffLineup({
         holder={event?.cupHolderGroupId ?? ""}
         locked={settingsLocked}
         lockWhy={settingsLock}
+        settingsHere={settingsHere}
         sessions={board.sessions.map((s) => ({
           id: s.id,
           name: s.name,
