@@ -117,7 +117,9 @@ test.describe("@redesign closing a team event round on Score entry", () => {
 
   test("the tick closes the four-ball round, no cards-to-come list is drawn, and it reads closed after a reload", async ({ browser, baseURL }, testInfo) => {
     test.setTimeout(120_000);
-    await withScoreEntry(browser, baseURL!, testInfo, built.day, async (screen) => {
+    await withScoreEntry(browser, baseURL!, testInfo, built.day, async (screen, page) => {
+      // The control: this is the strokes screen, not the tapped view.
+      await expect(page.getByText("Kept by tapping who won each hole")).toHaveCount(0);
       const section = await screen.openClose();
       // The team branch drew the section: its tick, its window, and none of an individual round's cards to come.
       await expect(screen.closeLine()).toContainText("Close ");
@@ -151,7 +153,9 @@ test.describe("@redesign closing a cup session on Score entry", () => {
 
   test("a disputed match refuses the close where the tick was pressed, and once settled the tick closes it, kept after a reload", async ({ browser, baseURL }, testInfo) => {
     test.setTimeout(150_000);
-    await withScoreEntry(browser, baseURL!, testInfo, built.day, async (screen) => {
+    await withScoreEntry(browser, baseURL!, testInfo, built.day, async (screen, page) => {
+      // The control: a cup session kept on stroke cards is not the tapped view.
+      await expect(page.getByText("Kept by tapping who won each hole")).toHaveCount(0);
       const section = await screen.openClose();
       // The refusal, said in the section the press was in.
       await screen.finishedTick(section).click();
