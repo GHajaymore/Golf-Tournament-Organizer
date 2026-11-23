@@ -125,6 +125,7 @@ export default async function TeamsPage({
         unassigned={unassigned}
         matchCount={matchCount}
         drawsMatches={generatesPairings(active.type)}
+        matchesHere={false}
         league={isLeaguePointsSystem(leagueEvent?.leaguePoints)}
       />
 
