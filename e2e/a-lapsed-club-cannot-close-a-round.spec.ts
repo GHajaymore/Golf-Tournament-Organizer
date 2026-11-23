@@ -3,6 +3,8 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { seedScoreEntryDay, dropScoreEntryDay, withScoreEntry, lapseTheClub, type ScoreEntryDay } from "./console/scoreEntry";
+import { prisma as fixturePrisma } from "./rounds-fixture";
 
 /**
  * CLOSING A ROUND IN AN ARCHIVE CANNOT BE PRESSED, AND NEVER REACHES THE ERROR SCREEN (2026-11-09).
@@ -104,4 +106,42 @@ test("Close the round in an archived tournament is disabled under the archive's 
     if (ids.user) await prisma.user.deleteMany({ where: { id: ids.user } });
     await prisma.$disconnect();
   }
+});
+
+/**
+ * @redesign: THE SAME REFUSAL, ON THE REDESIGNED SCORE ENTRY (R12). Closing a round moved from the dashboard card and Rounds &
+ * formats to the section under the cards. In an archive that section's tick is disabled like every control of the screen; it is
+ * pressed anyway, nothing is sent, and after a RELOAD the round is still open and the tick still unchecked. The fixture says
+ * which round and which player (`round1`, `missing`). Service workers blocked. Memory: one context, one page, about 150 MB.
+ */
+test.describe("@redesign closing a round in an archive, on Score entry", () => {
+  const REDESIGN_MARK = "zz-rd-lapsed";
+  let day: ScoreEntryDay;
+  test.beforeAll(async () => {
+    day = await seedScoreEntryDay(REDESIGN_MARK, "UTC", { windowShut: false });
+    await lapseTheClub(day);
+  });
+  test.afterAll(async () => {
+    await dropScoreEntryDay(REDESIGN_MARK);
+  });
+
+  test("the tick is disabled, a press sends nothing, and the round is still open after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withScoreEntry(browser, baseURL!, testInfo, day, async (screen, page) => {
+      const section = await screen.openClose();
+      const tick = screen.finishedTick(section);
+      await expect(tick, "Close the round is pressable in an archive").toBeDisabled({ timeout: 15_000 });
+      // Pressed anyway: a disabled control takes no click.
+      await tick.click({ force: true });
+      await expect(page.getByText("This screen didn't load"), "the error screen came up").toHaveCount(0);
+
+      await page.reload();
+      await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
+      const again = await screen.openClose();
+      await expect(screen.finishedTick(again)).not.toBeChecked();
+      await expect(screen.closeLine()).not.toContainText("is closed");
+      const stage = await fixturePrisma.stage.findUniqueOrThrow({ where: { id: day.round1 }, select: { closedAt: true } });
+      expect(stage.closedAt, "the round was closed in an archive").toBeNull();
+    });
+  });
 });

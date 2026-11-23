@@ -41,6 +41,10 @@ import { AttendanceReport } from "@/components/AttendanceReport";
 import { cupResult, TEAM_SESSION } from "@/lib/services/cup";
 import { cupPoints, cupResultNote } from "@/lib/domain/cup";
 import { Icon } from "@/components/Icon";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { tournamentStatusFor } from "@/lib/services/tournament-status";
+import { ReleaseResults } from "@/components/results/ReleaseResults";
+import { releaseView } from "@/lib/domain/release-results";
 
 /**
  * D8 of the 2026-08-12 audit. This page called `standingRows` unconditionally
@@ -397,6 +401,19 @@ export default async function ReportsPage({
     ];
   }
 
+  /**
+   * THE ONE VERB FOR RELEASING (R12), drawn only while Results is shown (`screensShownFor`; "building", so a build preview
+   * only). `releaseView` chooses the words from the state machine's own answer, on the club's day; the press stays the
+   * machine's (`nextAction`). Today's screen draws nothing new.
+   */
+  const releasing =
+    !casual && (await screensShownFor(session)).has("results")
+      ? await (async () => {
+          const told = await tournamentStatusFor(session.eventId, loaded.today);
+          return told ? releaseView(told.status.step, told.status.nextAction) : null;
+        })()
+      : null;
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -423,6 +440,7 @@ export default async function ReportsPage({
             </span>
           )}
         </div>
+        {releasing && <ReleaseResults view={releasing} />}
         {choices.length > 1 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             <span className="text-muted" style={{ fontSize: 13 }}>

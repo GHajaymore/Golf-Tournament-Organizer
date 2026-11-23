@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { completeControl } from "./end-early";
+import { seedScoreEntryDay, dropScoreEntryDay, withScoreEntry, type ScoreEntryDay } from "./console/scoreEntry";
 
 /**
  * COMPLETING ASKS ABOUT A ROUND NOBODY HAS PLAYED (2026-10-31), as the organizer meets it.
@@ -116,4 +117,51 @@ test("completing with a round nobody has played asks first, and only the answer 
     if (ids.user) await prisma.user.deleteMany({ where: { id: ids.user } });
     await prisma.$disconnect();
   }
+});
+
+/**
+ * @redesign: CLOSING ASKS FIRST, ON THE REDESIGNED SCORE ENTRY (R12). The question the dashboard asks about a round nobody played
+ * is asked of a CARD nobody has signed off when the round is closed from the section under the cards, and is answered where it is
+ * asked: Keep it open leaves the round open (after a RELOAD too), Close anyway closes it (and a reload reads it closed). The
+ * fixture's three returned cards are left unapproved on purpose (`cardStatus`), so the question is the one under test.
+ * Service workers blocked. Memory: one context, one page, about 150 MB.
+ */
+test.describe("@redesign closing a round asks about a card nobody has approved, on Score entry", () => {
+  const REDESIGN_MARK = "zz-rd-asks";
+  let day: ScoreEntryDay;
+  test.beforeAll(async () => {
+    day = await seedScoreEntryDay(REDESIGN_MARK, "UTC", { windowShut: false, cardStatus: "entered" });
+  });
+  test.afterAll(async () => {
+    await dropScoreEntryDay(REDESIGN_MARK);
+  });
+
+  test("Keep it open leaves the round open, and Close anyway closes it, each seen after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    await withScoreEntry(browser, baseURL!, testInfo, day, async (screen, page) => {
+      const section = await screen.openClose();
+      await screen.finishedTick(section).click();
+      // The question, first, in the machine's words, beside the tick; nothing is closed yet.
+      await expect(section).toContainText("Close Round 1 anyway?");
+      await expect(section.getByRole("button", { name: "Close anyway" })).toBeVisible();
+      const ask = section.getByRole("group", { name: "Close the round anyway?" });
+      await ask.getByRole("button", { name: "Keep it open" }).click();
+      await expect(section.getByRole("button", { name: "Close anyway" })).toHaveCount(0);
+
+      await page.reload();
+      await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
+      await expect(screen.closeLine()).not.toContainText("is closed");
+      const again = await screen.openClose();
+      await expect(screen.finishedTick(again)).not.toBeChecked();
+
+      // Now the other answer.
+      await screen.finishedTick(again).click();
+      await again.getByRole("button", { name: "Close anyway" }).click();
+      await expect(screen.finishedTick(again)).toBeChecked();
+
+      await page.reload();
+      await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
+      await expect(screen.closeLine()).toContainText("Round 1 is closed");
+    });
+  });
 });

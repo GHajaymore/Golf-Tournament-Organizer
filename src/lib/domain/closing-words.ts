@@ -1,3 +1,13 @@
+import { standingsUnit } from "../format-chain";
+
+/**
+ * Whether a round has the "This round is finished" tick at all: not a bracket, and not a round of match points, where
+ * there is no place for closing to take (the question `RoundOnTheDay` has always asked, said once for both screens).
+ */
+export function closingTickShown(stage: { type: string; format: string; scoringBasis: string }): boolean {
+  return stage.type !== "Bracket Stage" && standingsUnit(stage.format, stage.scoringBasis) !== "match points";
+}
+
 /**
  * WHAT CLOSING A ROUND SAYS ABOUT ITSELF (R12), in one place with no directive so the old Rounds screen, the redesigned
  * Score entry and a test all read the same words.
