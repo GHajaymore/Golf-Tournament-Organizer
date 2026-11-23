@@ -22,6 +22,7 @@ import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { potsOfGroup, roundPotKey, type SkinsScope } from "@/lib/domain/skins-pot";
+import { fieldGamesHome } from "@/lib/domain/money-parts";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -78,6 +79,11 @@ export default async function GroupGamesPage({
    * bent to fit the other.
    */
   const casual = isMatch(state.event.shape);
+  /**
+   * THE FIELD'S OWN POTS AND CONTESTS ARE DRAWN HERE ONLY FOR A CASUAL ROUND (R8a). A tournament offers them once, on
+   * Prizes & side games, and `fieldGamesHome` is the one answer both pages ask, so a field's game is never mounted twice.
+   */
+  const fieldGamesHere = fieldGamesHome({ casual }) === "group-games";
   const terms = await golfTermsForEvent(session.eventId);
 
   /**
@@ -460,7 +466,7 @@ export default async function GroupGamesPage({
 
       {/* The whole round's pot. Everyone playing is in it. Once it is a game
           being played — otherwise it is under "Add a game" below. */}
-      {roundPot && week && potOn && (
+      {fieldGamesHere && roundPot && week && potOn && (
         <SkinsPotClient locked={moneyLocked}
           rounds={rounds}
           activeStageId={week.id}
@@ -486,7 +492,7 @@ export default async function GroupGamesPage({
       {/* The round's own side games, for a casual round. Contests are empty on
           purpose: a closest-to-the-pin is a thing a club puts on for a field,
           and this screen belongs to the people playing. */}
-      {casual && week && sideOn && (
+      {fieldGamesHere && week && sideOn && (
         <ContestsClient locked={moneyLocked}
           roundLabel="this round"
           stageId={week.id}
@@ -549,7 +555,7 @@ export default async function GroupGamesPage({
       {/* EVERY GAME NOT BEING PLAYED, ONE FOLD (casual — see `potOn`). Open
           when nothing is on yet, because then adding one is the only thing
           this screen is for. */}
-      {casual && week && !noPerPlayerPot && (
+      {fieldGamesHere && week && !noPerPlayerPot && (
         <details open={!potOn && !sideOn} style={{ marginTop: 16 }}>
           <summary
             className="touch-target"
