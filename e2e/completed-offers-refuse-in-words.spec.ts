@@ -405,7 +405,6 @@ test.describe("@redesign", () => {
       await page.getByRole("button", { name: "Add", exact: true }).click();
       await expect.poll(() => rf.prisma.prize.count({ where: { eventId: event.id } }), { timeout: 20_000, message: "adding a prize did not work again after Reopen" }).toBe(2);
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(screen.amountFor(`${mark} Long drive`), "the prize is not on the new screen after a reload").toHaveValue("10");
     } finally {
       await rf.dropClub(mark);

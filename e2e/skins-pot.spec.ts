@@ -195,7 +195,6 @@ test.describe("@redesign", () => {
         })
         .toBe(500);
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(screen.skinsCard().getByLabel(/^Buy-in \(/), "the stake did not survive a reload").toHaveValue(/^5(\.00)?$/);
     } finally {
       await rf.dropClub(mark);

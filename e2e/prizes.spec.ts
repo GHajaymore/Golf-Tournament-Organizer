@@ -154,7 +154,6 @@ test.describe("@redesign", () => {
         .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.amount, { timeout: 20_000, message: "the prize was not stored" })
         .toBe(25);
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(screen.amountFor(cat), "the prize is not on the new screen after a reload").toHaveValue("25");
       // The settle half is still drawn on this screen until Winners & money is built: the line can be awarded here.
       await expect(screen.winnerOf(cat), "no control to award the prize is drawn anywhere").toBeVisible();
@@ -183,7 +182,6 @@ test.describe("@redesign", () => {
         .poll(async () => (await rf.prisma.event.findUniqueOrThrow({ where: { id: event.id } })).moneyMode, { timeout: 20_000, message: "the money mode was not stored" })
         .toBe("float");
       await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => {});
       await expect(screen.moneySetup().locator(":scope > button[aria-expanded]"), "the fold's line does not say the answer").toContainText("Money: Tournament kitty");
       const again = await screen.openMoneySetup();
       await expect(again.getByRole("radio", { name: /Tournament kitty/ }), "the choice did not survive a reload").toBeChecked();
