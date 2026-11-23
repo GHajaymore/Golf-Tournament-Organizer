@@ -158,6 +158,8 @@ export function RegistrationClient({
   underWay = null,
   flights = [],
   unplacedFlag = "",
+  placeUnplacedHere = true,
+  cupTeamsHref = null,
   addFlight = null,
   offerReserve = false,
   isAdmin,
@@ -236,6 +238,10 @@ export function RegistrationClient({
   flights?: Array<{ id: string; label: string }>;
   /** Who is in the field but in no flight, in the panel's words (`unplacedWords`); "" for nobody (J04). */
   unplacedFlag?: string;
+  /** Whether an unplaced player is put in a flight on this screen (`unplacedPlacedOn`); false in a cup while Players is shown (R6). */
+  placeUnplacedHere?: boolean;
+  /** The Cup teams tab, where an unplaced player is put on a team when `placeUnplacedHere` is false; null where there is none. */
+  cupTeamsHref?: string | null;
   /** The add form's flight (`addFlightPick`): offered, required (a launched round robin), or not drawn. */
   addFlight?: "offered" | "required" | null;
   /** A knockout whose draw is made takes a reserve on the waiting list instead (`reserveOffered`). */
@@ -967,7 +973,11 @@ export function RegistrationClient({
                       {/* A LATE ENTRANT IN NO FLIGHT is offered one here (day-of field
                           changes, PR A) — offered, not forced. Only an unplaced
                           player: moving a placed one is the Flights board's act. */}
-                      {!p.flight && flights.length > 0 && !doors["place-in-flight"] ? (
+                      {!p.flight && !placeUnplacedHere && cupTeamsHref ? (
+                        <span className="text-muted" style={{ fontSize: 13 }}>
+                          No team yet. <a href={cupTeamsHref}>Put them on one on Cup teams</a>
+                        </span>
+                      ) : !p.flight && flights.length > 0 && !doors["place-in-flight"] ? (
                         <select
                           className="input"
                           aria-label={`Flight for ${p.name}`}
