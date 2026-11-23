@@ -4,7 +4,7 @@ import { loadEventState } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { golfTermsForEvent } from "@/lib/services/organization";
-import { screensShownFor } from "@/lib/services/screens-shown";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import { EventHelpers } from "@/components/club/EventHelpers";
 
 export const metadata = screenMetadata("/access");
@@ -18,7 +18,7 @@ export default async function AccessPage() {
   // R7: while Club settings is shown, this event's helpers are its "On this event" section, drawn there
   // and only there (`MOVES`, `/access` → `/organization#access`). One boolean, so the list is never drawn twice.
   const shown = await screensShownFor(session);
-  if (shown.has("clubSettings")) redirect("/organization#access");
+  if (shown.has("clubSettings")) redirect(await keepingPreview("/organization#access"));
   // The club's word for who runs it — organizer or organiser (`golf-terms.ts`).
   const { organizers } = await golfTermsForEvent(session.eventId);
 

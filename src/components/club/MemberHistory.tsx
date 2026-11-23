@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { consoleUrl, type ConsoleMode } from "@/lib/console-url";
 import { loadRoster, memberHistory } from "@/lib/services/roster";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { meetingsFor } from "@/lib/services/head-to-head";
@@ -39,10 +40,13 @@ export async function MemberHistory({
   organizationId,
   memberId,
   base,
+  previewMode,
 }: {
   organizationId: string;
   memberId: string | undefined;
   base: "/member" | "/roster";
+  /** The preview the request is in, so a link inside a previewed screen stays inside it (`previewModeNow`). */
+  previewMode: ConsoleMode | null;
 }) {
   const members = await loadRoster(organizationId);
   const selected = members.find((m) => m.id === memberId) ?? null;
@@ -54,7 +58,10 @@ export async function MemberHistory({
    */
   const records = selected && history.length ? recordAgainst(selected.id, await meetingsFor(organizationId, selected.id)) : [];
   const nameOfMember = new Map(members.map((m) => [m.id, m.name]));
-  const hrefOf = (id: string) => `${base}?member=${encodeURIComponent(id)}${base === "/roster" ? "#history" : ""}`;
+  const hrefOf = (id: string) => {
+    const href = `${base}?member=${encodeURIComponent(id)}${base === "/roster" ? "#history" : ""}`;
+    return previewMode ? consoleUrl(href, previewMode) : href;
+  };
 
   return (
     <>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { loadRoster } from "@/lib/services/roster";
-import { screensShownFor } from "@/lib/services/screens-shown";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import { MemberHistory } from "@/components/club/MemberHistory";
 
 /**
@@ -53,7 +53,7 @@ export default async function MemberHistoryPage({
   const params = await searchParams;
   const shown = await screensShownFor(session);
   if (shown.has("members")) {
-    redirect(params.member ? `/roster?member=${encodeURIComponent(params.member)}#history` : "/roster#history");
+    redirect(await keepingPreview(params.member ? `/roster?member=${encodeURIComponent(params.member)}#history` : "/roster#history"));
   }
 
   const members = await loadRoster(organizationId);
@@ -76,7 +76,7 @@ export default async function MemberHistoryPage({
           </Link>
         }
       />
-      <MemberHistory organizationId={organizationId} memberId={selected?.id} base="/member" />
+      <MemberHistory organizationId={organizationId} memberId={selected?.id} base="/member" previewMode={null} />
     </>
   );
 }

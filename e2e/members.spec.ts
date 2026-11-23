@@ -1,7 +1,10 @@
 import { createHmac } from "node:crypto";
-import { test, expect, type Page } from "./coverage";
+import { test, expect, closeAll, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSession } from "./rounds-fixture";
+import { consoleUrl } from "../src/lib/console-url";
+import { openMembers, openHistory } from "./console/members";
 
 /**
  * THE CLUB'S MEMBERS LIST, KEPT BY HAND AND FROM A SPREADSHEET.
@@ -274,4 +277,75 @@ test("the secretary adds, corrects, retires, imports and enters members from the
   });
 
   expect(errors, "a screen threw").toEqual([]);
+});
+
+/**
+ * MEMBERS WITH THEIR HISTORY, ON ONE SCREEN (R7, behind the redesign switch).
+ *
+ * In a club of this spec's own the Commissioner adds a member on Members; opens her history in the section under
+ * the list (the address `/member` used to be); and, once she has entered a tournament, reads it there after a
+ * reload. A player of the same club is then turned away from the screen and never sees her name. The entry is
+ * set up with Prisma (the history is read from entries, which Registration makes); the add is the press.
+ */
+test.describe("@redesign", () => {
+  test("a member is added on Members, her history opens under the list and is read again after a reload, and a player is turned away", async ({ browser, baseURL }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "one project: the list is a table at desktop width");
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    const mark = "zz-r7members";
+    const theirs = await makeClub(mark);
+    const desk = await browser.newContext({ baseURL, storageState: undefined });
+    const stranger = await browser.newContext({ baseURL, storageState: undefined });
+    try {
+      const { event } = await makeEvent(theirs, "Spring Medal", { stages: [{}], players: 0 });
+      await signIn(desk, baseURL!, theirs, event.id);
+      const page = await desk.newPage();
+      watchPageErrors(page, errors, "commissioner");
+      const name = `Ada Quillfeather ${STAMP}`;
+      const email = `${mark}-ada@example.invalid`;
+      const stored = () => prisma.member.findFirst({ where: { organizationId: theirs.orgId, email } });
+
+      // ── adds her on Members; kept after a reload ──────────────────────────
+      await openMembers(page);
+      await page.getByRole("button", { name: "Add member" }).click();
+      await page.getByLabel("Name", { exact: true }).fill(name);
+      await page.getByLabel("Handicap index").fill("12.4");
+      await page.getByLabel(/^Email/).fill(email);
+      await page.getByRole("button", { name: "Add member" }).click();
+      await expect.poll(async () => (await stored())?.name, { timeout: 20_000, message: "the member was not added" }).toBe(name);
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(page.locator("tbody tr").filter({ hasText: name }).first(), "the member is not listed after a reload").toBeVisible();
+
+      // ── her history opens under the list, on the same screen ──────────────
+      let history = await openHistory(page);
+      await history.getByRole("link", { name }).click();
+      await expect(page, "a name in the history did not open that member").toHaveURL(/[?&]member=/);
+      history = await openHistory(page);
+      await expect(history.getByText(/has not entered any of the club.s tournaments yet/)).toBeVisible();
+
+      // She enters a tournament (set up directly: the history reads entries), and the screen is read again.
+      const member = await stored();
+      await prisma.player.create({ data: { eventId: event.id, name, email, handicap: 12.4, seed: 1, status: "confirmed", memberId: member!.id } });
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      history = await openHistory(page);
+      await expect(history.locator("tbody tr").filter({ hasText: `${mark} Spring Medal` }), "her tournament is not in her history after a reload").toContainText("Played");
+
+      // ── a player of the same club is turned away and never sees her ───────
+      const player = await memberSession(event.id, `${mark}-player@example.invalid`, "Pat Player");
+      await signInWith(stranger, baseURL!, player.session, event.id);
+      const away = await stranger.newPage();
+      watchPageErrors(away, errors, "player");
+      await away.goto(consoleUrl(`/roster?member=${member!.id}`, "build"));
+      await away.waitForLoadState("networkidle").catch(() => {});
+      expect(new URL(away.url()).pathname, "a player was let into the club's members").not.toBe("/roster");
+      expect(await away.content(), "a member's name was sent to a player").not.toContain(name);
+
+      expect(errors, "a screen threw").toEqual([]);
+    } finally {
+      await closeAll(desk, stranger);
+      await dropClub(mark);
+    }
+  });
 });
