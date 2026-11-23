@@ -31,7 +31,7 @@ export const PRIZES_GUIDE: GuideVariant = {
         },
         {
           kind: "p",
-          text: "Once the tournament is completed what you offered is shut (the prize list, a pot or contest's definition and stake, how money is handled) and [[Reopen tournament]] is the way out. Winners, who has paid in, the kitty and settling up are never locked: they are recorded after the result is final, and until Winners & money is built they are still lower on this screen.",
+          text: "Once the tournament is completed what you offered is shut (the prize list, a pot or contest's definition and stake, how money is handled) and [[Reopen tournament]] is the way out. Winners, who has paid in, the kitty and settling up are never locked: they are recorded after the result is final, on Winners & money once it is shown (and lower on this screen until then). A pot's and a contest's own card keeps who is in it and who has paid.",
         },
       ],
     },

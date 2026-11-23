@@ -8,7 +8,7 @@ import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./round
 import { withTeeTimesAs } from "./console/teeTimes";
 import { consoleUrl } from "../src/lib/console-url";
 import { PlayersPage } from "./console/players";
-import { savedBeforeReload } from "./save-settled";
+import { savedBeforeReload, teamsBar } from "./save-settled";
 
 /**
  * TEAMS & PAIRS, AS ITS SECRETARY USES IT ON A LIVE FOUR-BALL (2026-10-20).
@@ -244,7 +244,7 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Slicers" } }), { message: "the side made was not stored" })
         .toBe(1);
-      await savedBeforeReload(page);
+      await savedBeforeReload(teamsBar(page));
       await page.reload();
       await expect(room.current()).toHaveText("Teams");
       const name = page.getByRole("textbox", { name: "Name of Slicers" });
@@ -253,7 +253,7 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => rounds.team.count({ where: { eventId: event.id, name: "Faders" } }), { message: "the new name was not stored" })
         .toBe(1);
-      await savedBeforeReload(page);
+      await savedBeforeReload(teamsBar(page));
       await page.reload();
       await expect(room.current()).toHaveText("Teams");
       await expect(page.getByRole("textbox", { name: "Name of Faders" }), "the side lost its name after a reload").toHaveValue("Faders");

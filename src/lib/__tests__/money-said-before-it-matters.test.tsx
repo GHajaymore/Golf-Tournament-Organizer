@@ -118,7 +118,7 @@ describe("where the prizes screen puts it", () => {
     const src = page();
     const at = (s: string) => src.indexOf(s);
     expect(at("<MoneyModeLine"), "the statement is gone").toBeGreaterThan(-1);
-    for (const after of ["<PrizesClient", "<SkinsPotClient", "<FloatClient", "<OrganizerLedger", "{newScreen && moneySetup", "{!newScreen && moneySetup"]) {
+    for (const after of ["<PrizesClient", "<SkinsPotClient", "<SettleHalf", "{newScreen && moneySetup", "{!newScreen && moneySetup"]) {
       expect(at("<MoneyModeLine"), `${after} is above the statement`).toBeLessThan(at(after));
     }
   });

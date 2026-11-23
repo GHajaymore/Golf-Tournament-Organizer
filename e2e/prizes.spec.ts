@@ -5,7 +5,8 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
-import { savedBeforeReload } from "./save-settled";
+import { MoneyScreen } from "./console/money";
+import { savedBeforeReload, prizesCard } from "./save-settled";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -133,7 +134,7 @@ test.describe("@redesign", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
   const WALKED = ["desktop", "phone"];
 
-  test("a prize is added on the new screen and is there after a reload", async ({ page, context, baseURL }, testInfo) => {
+  test("a prize is added on the new screen, awarded on Winners & money, and both are there after a reload", async ({ page, context, baseURL }, testInfo) => {
     test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
     const errors: string[] = [];
     watchPageErrors(page, errors);
@@ -154,11 +155,29 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.amount, { timeout: 20_000, message: "the prize was not stored" })
         .toBe(25);
-      await savedBeforeReload(page);
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(screen.amountFor(cat), "the prize is not on the new screen after a reload").toHaveValue("25");
-      // The settle half is still drawn on this screen until Winners & money is built: the line can be awarded here.
-      await expect(screen.winnerOf(cat), "no control to award the prize is drawn anywhere").toBeVisible();
+      // With Winners & money shown the winner is picked THERE, never here: the line is offered on this screen and awarded on that one.
+      await expect(page.getByLabel(`Winner of ${cat}`), "the winner picker is drawn on the offer screen too").toHaveCount(0);
+      // The way to it is a link in this screen's own words (the menu keeps `stepper=1` and not `build=1`, so a building screen is not in it yet).
+      await page.locator("p.page-sub").getByRole("link", { name: "Winners & money" }).click();
+      await expect(page.locator("[data-money-screen]"), "the link did not open Winners & money").toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Winners & money" })).toBeVisible();
+      const money = new MoneyScreen(page);
+      await money.expectNoOfferControls();
+      // The field's pots and contests are one card, kept on Prizes & side games: this screen says how far they have got and links to them.
+      await expect(page.locator("[data-pot-status]")).toHaveText("No contests or stakes have been set up yet.");
+      await expect(page.getByRole("link", { name: "Open the pots and contests" })).toHaveAttribute("href", /#side-games/);
+      const winner = await money.winnerOf(cat).locator("option").nth(1).getAttribute("value");
+      expect(winner, "nobody is offered as a winner").toBeTruthy();
+      await money.winnerOf(cat).selectOption(winner!);
+      await expect
+        .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.winnerId, { timeout: 20_000, message: "the award was not recorded" })
+        .toBe(winner);
+      await savedBeforeReload(page.locator("[data-money-screen]"));
+      await page.reload();
+      await expect(money.winnerOf(cat), "the winner is not on Winners & money after a reload").toHaveValue(winner!);
     } finally {
       await rf.dropClub(mark);
     }
@@ -183,7 +202,6 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.event.findUniqueOrThrow({ where: { id: event.id } })).moneyMode, { timeout: 20_000, message: "the money mode was not stored" })
         .toBe("float");
-      await savedBeforeReload(page);
       await page.reload();
       await expect(screen.moneySetup().locator(":scope > button[aria-expanded]"), "the fold's line does not say the answer").toContainText("Money: Tournament kitty");
       const again = await screen.openMoneySetup();

@@ -5,7 +5,6 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
-import { savedBeforeReload } from "./save-settled";
 
 /**
  * A CONTEST'S WINNER AND ITS SPONSOR, ON THE BOARD A CLUB SENDS ITS MEMBERS (2026-10-17).
@@ -151,7 +150,6 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.contest.findUniqueOrThrow({ where: { id: kp.id }, select: { sponsorUrl: true } })).sponsorUrl, { timeout: 20_000, message: "the sponsor was not stored" })
         .toBe("https://zz-sponsor.example/");
-      await savedBeforeReload(page);
       await page.reload();
       await expect(card().getByText(`${mark} Motors`), "the sponsor is not on the new screen after a reload").toBeVisible({ timeout: 20_000 });
     } finally {
