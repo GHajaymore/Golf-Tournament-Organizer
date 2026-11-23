@@ -147,6 +147,37 @@ describe("the cup's teams have ONE home (mounted once)", () => {
   });
 });
 
+describe("how players get in has ONE home (mounted once)", () => {
+  it("for each state of the switch, exactly one of Entries and Event draws it", async () => {
+    const { howInHome } = await import("@/lib/domain/players-tabs");
+    for (const playersShown of [true, false]) {
+      const home = howInHome(playersShown);
+      expect([home === "entries", home === "event"].filter(Boolean), `players shown: ${playersShown}`).toHaveLength(1);
+    }
+    expect(howInHome(true)).toBe("entries");
+    expect(howInHome(false)).toBe("event");
+  });
+
+  it("the Event page's boolean and the Entries tab's card both ask it, and only those two mount the pieces", () => {
+    const read = (p: string) => stripComments(readFileSync(join(process.cwd(), p), "utf8"));
+    expect(read("src/app/(app)/event/page.tsx")).toContain('howInHere={!shown.has("players")}');
+    const entries = read("src/app/(app)/registration/page.tsx");
+    expect(entries).toContain("howInHome(room !== null)");
+    expect(entries.match(/<EntriesHowInCard/g)).toHaveLength(1);
+    const files = (dir: string): string[] =>
+      readdirSync(dir).flatMap((n) => {
+        const p = join(dir, n);
+        if (n === "__tests__") return [];
+        return statSync(p).isDirectory() ? files(p) : /\.tsx$/.test(n) ? [p] : [];
+      });
+    const mounters = files(join(process.cwd(), "src"))
+      .filter((f) => /<EntriesHowIn\b|<EntriesWeeklySignUp\b/.test(stripComments(readFileSync(f, "utf8"))))
+      .map((f) => f.slice(join(process.cwd(), "src").length + 1).replace(/\\/g, "/"))
+      .sort();
+    expect(mounters).toEqual(["components/PlaySettings.tsx", "components/players/EntriesHowInCard.tsx"]);
+  });
+});
+
 describe("the guide's Players variant", () => {
   it("is registered for the players key and replaces nothing", () => {
     const v = REDESIGN_GUIDE.filter((g) => g.screen === "players");

@@ -60,6 +60,14 @@ export function unplacedPlacedOn(playersShown: boolean, family: Family): "entrie
 }
 
 /**
+ * WHERE "HOW PLAYERS GET IN" (how players sign in, the weekly sign-up) IS SET: the Entries tab while Players is shown, the Event
+ * page's Players & scoring card otherwise. The ONE answer both pages ask, so it is mounted once for either state of the switch.
+ */
+export function howInHome(playersShown: boolean): "entries" | "event" {
+  return playersShown ? "entries" : "event";
+}
+
+/**
  * WHERE THE CUP'S TEAMS ARE MADE: the Players room's Cup teams tab while Players is shown, the cup page
  * otherwise. The ONE answer both pages ask, so the two never mount them together and never neither.
  */

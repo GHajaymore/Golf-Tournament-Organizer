@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { clubToday } from "../src/lib/domain/club-clock";
+import { makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { pressRadio } from "./press-radio";
+import { openScreen } from "./console";
+import { PlayersPage } from "./console/players";
 
 /**
  * THE ENTRY TERMS ARE ONE CARD ON ENTRIES: OPEN, CLOSE, WHEN, HOW MANY.
@@ -194,4 +198,40 @@ test("the secretary sets the entry terms and opens, closes and reopens entries f
   } finally {
     await organizer.close();
   }
+});
+
+// R6 (after R3-1): how players get in, on the Players room's Entries tab, deleted at R17 with the old screen.
+test.describe("@redesign players", () => {
+  test("how players sign in, changed on Entries, is kept after a reload and is not drawn on Event", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    const mark = `zz-r6-howin-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event } = await makeEvent(club, "Spring Medal", { stages: [{}], players: 2 });
+      await signIn(context, baseURL!, club, event.id);
+      const room = new PlayersPage(page);
+      await room.open("Entries");
+      const signInGroup = page.getByRole("group", { name: "How players sign in" });
+      await expect(signInGroup, "Entries does not draw how players sign in").toBeVisible();
+      await pressRadio(signInGroup.getByRole("radio", { name: "Either email or access code" }));
+      const save = page.getByRole("button", { name: /Save how players get in|Saved/ });
+      await save.click();
+      await expect(save, "the save was not answered").toHaveText(/Saved/, { timeout: 20_000 });
+      await page.reload();
+      await expect(room.current()).toHaveText("Entries");
+      await expect(
+        page.getByRole("group", { name: "How players sign in" }).getByRole("radio", { name: "Either email or access code" }),
+        "the choice did not survive a reload",
+      ).toBeChecked();
+      // Event stops drawing it while Players is shown: one home.
+      await openScreen(page, "/event");
+      await expect(page.getByLabel("Tournament name")).toBeVisible();
+      await expect(page.getByRole("group", { name: "How players sign in" }), "Event still draws how players sign in").toHaveCount(0);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

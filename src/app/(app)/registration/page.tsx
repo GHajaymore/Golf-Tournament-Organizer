@@ -36,7 +36,9 @@ import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, fieldLockSaid, f
 import { WithdrawnList } from "@/components/WithdrawnList";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
 import { playersRoomFor } from "@/lib/services/players-room";
-import { PLAYER_TABS, playerTabHref, unplacedPlacedOn } from "@/lib/domain/players-tabs";
+import { EntriesHowInCard } from "@/components/players/EntriesHowInCard";
+import { strandedEntrantCount } from "@/lib/services/round-codes";
+import { PLAYER_TABS, howInHome, playerTabHref, unplacedPlacedOn } from "@/lib/domain/players-tabs";
 import { PlayersTabs } from "@/components/players/PlayersTabs";
 
 export const metadata = screenMetadata("/registration");
@@ -49,6 +51,7 @@ function clubClock(at: Date, zone: string, locale: string): string {
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");
   const room = await playersRoomFor(session);
+  const howIn = howInHome(room !== null);
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   // The machine's lock on the field (PR 5b) — the one the entry terms ask (`refuseIfLocked(…, "field")`);
@@ -249,6 +252,15 @@ export default async function RegistrationPage() {
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
+      {/* HOW PLAYERS GET IN (R6, from R3-1): here while Players is shown (`howInHome`); the Event page stops drawing it by the same answer. */}
+      {howIn === "entries" && (
+        <EntriesHowInCard
+          settings={settingsOf(state.event)}
+          strandedCount={await strandedEntrantCount(session.eventId)}
+          askedWeekly={state.stages.length > 1 || settingsOf(state.event).attendanceMode !== "everyone"}
+          canEdit={session.viewRole === "admin"}
+        />
+      )}
       {/* THE COMMITTEE'S RULING (2026-10-08). Only once play has begun —
           there is nothing to be disqualified from before it — and outside the
           setup lock, since that is when the lock is on. */}
