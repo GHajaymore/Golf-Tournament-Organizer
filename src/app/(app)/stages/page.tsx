@@ -32,7 +32,7 @@ import { cleanIsoDate, datedSaid, proposedDayWords, proposedRoundDays } from "@/
 import { formatDay } from "@/lib/domain/locale";
 import { formattingForEvent } from "@/lib/services/organization";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
-import { resolveThirdPlace } from "@/lib/domain/third-place";
+import { thirdPlaceViewFor } from "@/lib/services/third-place-view";
 import type { ThirdPlaceView } from "@/components/StagesClient";
 import type { CutTieOnCard } from "@/components/CutReadyCard";
 import { roundRobinCutOf } from "@/lib/services/regroup";
@@ -189,19 +189,8 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
    */
   const thirdPlaces: Record<string, ThirdPlaceView> = {};
   for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {
-    // In flights there is no play-off for third at all (see `setThirdPlace`), and the reason is said
-    // where the control is rather than discovered by pressing it.
-    const r = state.brackets.draws
-      ? { problem: "A knockout in several flights has no play-off for third: each flight's beaten semi-finalists share third.", pairing: null }
-      : resolveThirdPlace(state.brackets.winners);
-    const made = await prisma.match.count({ where: { eventId: session.eventId, stageId: s.id, round: 0 } });
-    thirdPlaces[s.id] = {
-      on: s.thirdPlace,
-      problem: r.problem,
-      aName: r.pairing?.a.name ?? "",
-      bName: r.pairing?.b.name ?? "",
-      made: made > 0,
-    };
+    // `thirdPlaceViewFor` is the one reader (Tee times & draw hands the same control the same answer).
+    thirdPlaces[s.id] = await thirdPlaceViewFor(session.eventId, s, state.brackets);
   }
 
   /**

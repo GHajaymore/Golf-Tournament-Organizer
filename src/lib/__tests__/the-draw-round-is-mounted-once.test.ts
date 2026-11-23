@@ -14,8 +14,8 @@ import { readSource } from "./source";
  * later round and each step of the tournament, exactly one of {Rounds' button, Rounds' link} is drawn, and the link is
  * drawn exactly when Tee times mounts the button.
  *
- * Rounds' side is R4d's `roundDrawHref`, which also asks `drawSections(...).built`: a family NOT built (a knockout, a
- * cup, until R9c) keeps the button on Rounds. So every family is held here, built or not.
+ * Rounds' side is R4d's `roundDrawHref`, which also asks `drawSections(...).built`: a family NOT built (a casual round,
+ * since R9c built the knockout and the cup) keeps the button on Rounds. So every family is held here, built or not.
  */
 
 const FAMILIES: Family[] = ["stroke", "stableford", "match", "roundRobinFlights", "knockout", "flightedKnockout", "teamCup", "league", "casual"];

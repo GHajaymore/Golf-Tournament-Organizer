@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { drawSections, drawControlsOf, matchGeneratorPlace, needsYouSection, DRAW_SECTION_KEYS, type DrawRound } from "../draw-sections";
+import { drawSections, drawControlsOf, matchGeneratorPlace, knockoutSetupOf, knockoutSetupPlace, cupLineupPlace, needsYouSection, DRAW_SECTION_KEYS, type DrawRound } from "../draw-sections";
 import type { Family } from "../tournament-status";
 import { STAGE_TYPES } from "../../stage-types";
 
@@ -26,27 +26,28 @@ describe("drawSections", () => {
     expect(drawSections(round("Stroke Play Round", false), "stroke")).toEqual({ built: true, keys: ["whoIn", "draw", "teeTimes", "onTheDay"] });
   });
 
-  it("every family x every stage type: only a knockout, a flighted knockout, a cup and a casual round are left to today's tee sheet; the rest are built with the same five sections", () => {
+  it("every family x every stage type: only a casual round is left to today's tee sheet; the rest (R9c built the knockout, the knockout in flights and the cup) have the same five sections", () => {
     for (const family of FAMILIES) {
       for (const type of STAGE_TYPES) {
         const out = drawSections(round(type, true, type === "Stroke Play Round" ? STROKE_FORMAT : MATCH_FORMAT), family);
-        const built = !["knockout", "flightedKnockout", "teamCup", "casual"].includes(family);
+        const built = family !== "casual";
         expect(out.built, `${family} / ${type}`).toBe(built);
         if (out.built) {
           expect(out.keys, `${family} / ${type}`).toEqual(["whoIn", "draw", "teeTimes", "onTheDay", "paper"]);
         } else {
           expect(out.keys, `${family} / ${type}`).toEqual([]);
-          expect(out.lane, `${family} / ${type}`).toBe(family === "casual" ? "none" : "R9c");
+          expect(out.lane, `${family} / ${type}`).toBe("none");
         }
       }
     }
   });
 
-  it("a tournament of THREE rounds is answered round by round, and a match round among stroke rounds is built like the others", () => {
-    const rounds = [round("Stroke Play Round"), round("Single Match Stage", true, MATCH_FORMAT), round("Stroke Play Round")];
-    expect(rounds.map((r) => drawSections(r, "stroke").built)).toEqual([true, true, true]);
-    // ...and in a cup the same three rounds are all left to R9c.
-    expect(rounds.map((r) => drawSections(r, "teamCup").built)).toEqual([false, false, false]);
+  it("a tournament of THREE rounds is answered round by round, in every family: a qualifier, the bracket and a third round are all built", () => {
+    const rounds = [round("Stroke Play Round"), round("Bracket Stage", true, MATCH_FORMAT), round("Single Match Stage", true, MATCH_FORMAT)];
+    for (const family of ["stroke", "knockout", "flightedKnockout", "teamCup"] as const) {
+      expect(rounds.map((r) => drawSections(r, family).built), family).toEqual([true, true, true]);
+    }
+    expect(rounds.map((r) => drawSections(r, "casual").built)).toEqual([false, false, false]);
   });
 
   it("a sided round of a stroke tournament, a league week, a round robin and a match are each built", () => {
@@ -104,6 +105,34 @@ describe("drawControlsOf (R9b): which draw controls a round has", () => {
     expect(drawControlsOf(rr, { ...live, isFirst: true }).nextRound).toBe(false);
     expect(drawControlsOf(rr, { ...live, completed: true }).nextRound).toBe(false);
     expect(drawControlsOf({ type: "Bracket Stage", format: "Match Play" }, live).nextRound).toBe(false);
+  });
+});
+
+describe("knockoutSetupOf and the places (R9c): the knockout's and the cup's set-up is on exactly one screen", () => {
+  const rounds = [
+    { type: "Stroke Play Round", format: STROKE_FORMAT },
+    { type: "Bracket Stage", format: MATCH_FORMAT },
+    { type: "Team Session", format: MATCH_FORMAT },
+  ];
+
+  it("the play-off for third and the play-by dates are the bracket's own round's, the flights only while the knockout is in flights, a lineup a session's", () => {
+    expect(knockoutSetupOf(rounds[0], "flights")).toEqual({ thirdPlace: false, playBy: false, flights: false, lineup: false });
+    expect(knockoutSetupOf(rounds[1], "single")).toEqual({ thirdPlace: true, playBy: true, flights: false, lineup: false });
+    expect(knockoutSetupOf(rounds[1], "flights")).toEqual({ thirdPlace: true, playBy: true, flights: true, lineup: false });
+    expect(knockoutSetupOf(rounds[2], "split")).toEqual({ thirdPlace: false, playBy: false, flights: false, lineup: true });
+  });
+
+  it("every family, three rounds, both switch states: Tee times & draw while it is shown and builds the family, the old screen otherwise", () => {
+    for (const family of FAMILIES) {
+      const built = family !== "casual";
+      for (const r of rounds) {
+        const round: DrawRound = { ...r, hasSavedSheet: false };
+        expect(knockoutSetupPlace(round, family, true), `${family} / ${r.type}, shown`).toBe(built ? "teeTimes" : "bracket");
+        expect(knockoutSetupPlace(round, family, false), `${family} / ${r.type}, not shown`).toBe("bracket");
+        expect(cupLineupPlace(round, family, true), `${family} / ${r.type}, shown`).toBe(built ? "teeTimes" : "cup");
+        expect(cupLineupPlace(round, family, false), `${family} / ${r.type}, not shown`).toBe("cup");
+      }
+    }
   });
 });
 
