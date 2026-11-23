@@ -6913,7 +6913,7 @@ export async function settleCutTie(
   });
   if (!feeder) return { ok: false, error: "That round isn't in this tournament." };
   const stroke = await strokeCutOutcomeOf(eventId, feeder.id);
-  if (stroke && feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it on Rounds & formats to change who went through." };
+  if (stroke && feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it to change who went through." };
   const made = stroke ?? (await roundRobinCutAfter(eventId, feeder.id));
   if (!made) return { ok: false, error: "There is no cut out of this round." };
   if (!stroke && (await enteredCardCount(eventId, made.next.id)) > 0) {

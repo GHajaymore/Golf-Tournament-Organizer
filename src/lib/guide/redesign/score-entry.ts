@@ -18,7 +18,7 @@ export const SCORE_ENTRY_GUIDE: GuideVariant = {
         { kind: "where", text: "On the day → Score entry → Close Round n" },
         {
           kind: "p",
-          text: "Closing a round and its scoring window are on Score entry now, under the round you are scoring, and no longer on Rounds & formats. Wherever the guide says to close a round on Rounds & formats, read Score entry. The **Close Round n** button on What's next still lands on Rounds & formats for now: open Score entry from the menu to close the round. Every round has it, a side's round and a cup session as much as a medal. On a phone the section is one line (**Close Round 2 · 3 cards to come**); it is open, and marked **Needs you**, while a card is still to come.",
+          text: "Closing a round and its scoring window are on Score entry now, under the round you are scoring, and no longer on Rounds & formats. Wherever the guide says to close a round on Rounds & formats, read Score entry. The **Close Round n** button on What's next opens Score entry at that round. Every round has it, a side's round and a cup session as much as a medal. On a phone the section is one line (**Close Round 2 · 3 cards to come**); it is open, and marked **Needs you**, while a card is still to come.",
         },
         { kind: "h", text: "Cards still to come" },
         {

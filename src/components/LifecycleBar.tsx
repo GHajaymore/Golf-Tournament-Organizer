@@ -537,7 +537,7 @@ export function LifecycleBar({
             <div className="dialog-body" id="status-dialog-body">
               {confirmingStatus === "completed"
                 ? "The result becomes final: every round still open is closed, and the boards read Final. You can reopen it from here to correct a card."
-                : "The boards stop reading Final. Rounds stay closed — re-open one on Rounds & formats to change its cards — and you can complete the tournament again afterwards."}
+                : "The boards stop reading Final. Rounds stay closed — re-open the round you need to change its cards — and you can complete the tournament again afterwards."}
             </div>
             <div className="dialog-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setConfirmingStatus(null)}>Cancel</button>
