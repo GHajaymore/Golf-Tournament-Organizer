@@ -186,8 +186,8 @@ test("a Stableford says the same thing on every panel through setup and launch (
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
-      home: { text: "Every round closed · results not released", action: "Complete tournament" },
-      nextAction: "Complete tournament",
+      home: { text: "Every round closed · results not released", action: "Make results final" },
+      nextAction: "Make results final",
       refused: null,
       setup: null,
       journey: "Play",
@@ -197,7 +197,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
     // ── completed, then reopened by the press: the round is still closed, so play is over again ──
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await pressComplete(page);
-    await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: /^(Make results final|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null, setup: null, journey: "Finish" });
     await pressReopen(page);

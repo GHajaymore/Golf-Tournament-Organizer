@@ -317,7 +317,7 @@ export function cutProgress(
   return { final: played - cutBlockers(cards, staffApproves).total, total: played };
 }
 
-function hasAnyStroke(json: string): boolean {
+export function hasAnyStroke(json: string): boolean {
   try {
     return (JSON.parse(json) as unknown[]).some((v) => typeof v === "number" && v > 0);
   } catch {

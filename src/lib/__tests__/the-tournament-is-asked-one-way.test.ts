@@ -328,7 +328,7 @@ describe("class B — the old modules' live rules are asked only by the machine"
 
 describe("class D — a tournament's stored status is not compared by hand", () => {
   it("CONTROL C1: the deleted twin's own line is seen", () => {
-    expect(handCompared(`if (facts.status === "live") return { label: "Complete tournament", kind: "status", to: "completed" };`)).toHaveLength(1);
+    expect(handCompared(`if (facts.status === "live") return { label: "Make results final", kind: "status", to: "completed" };`)).toHaveLength(1);
   });
 
   it("CONTROL C5: on any receiver, either way round, and as a list asked .includes", () => {

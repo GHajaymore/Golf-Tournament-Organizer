@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { jobHref, type NeedsYouItem, type ClubJob } from "@/lib/domain/needs-you-now";
 import { enterTournament } from "@/app/actions/auth";
 import { Icon } from "./Icon";
+import { relocate, type ScreenKey } from "@/lib/domain/console-merges";
 
 /**
  * "NEEDS YOU NOW" — the organizer's to-do list, at the top of the dashboard
@@ -73,11 +74,14 @@ export function WhatsNext({
   jobs,
   mayAct,
   openEventId,
+  shown,
   children,
 }: {
   jobs: ClubJob[];
   mayAct: boolean;
   openEventId: string;
+  /** The redesigned screens shown to this request (`screensShownFor`): a job whose door moved (Close Round n) follows its room. Optional: absent, every link is today's. */
+  shown?: ReadonlySet<ScreenKey>;
   children?: ReactNode;
 }) {
   return (
@@ -113,8 +117,8 @@ export function WhatsNext({
             {mayAct &&
               (job.eventId === openEventId ? (
                 <Link
-                  // A job on one round ("Close Round 2") opens that round on Rounds & formats.
-                  href={jobHref(job)}
+                  // A job on one round ("Close Round 2") opens that round on Rounds & formats, or on Score entry while that is shown.
+                  href={shown ? relocate({ href: jobHref(job), job: job.key, role: "admin", roundId: job.roundId }, shown) : jobHref(job)}
                   className="btn btn-secondary"
                   style={{ minHeight: 44 }}
                 >

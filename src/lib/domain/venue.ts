@@ -61,6 +61,17 @@ export function needsVenue(
 }
 
 /**
+ * DOES SCORE ENTRY ASK WHERE A ROUND OR MATCH WAS PLAYED? (R12; phase 1 §3: "Played at" is a fact learnt on the day, not a
+ * set-up question.) On the redesigned screen (`onlyForOpenCourse`) only for an open-course event, where each pairing arranges
+ * its own venue and whoever enters the card names it; a fixed course was answered once at set-up and its tees have one home.
+ * The old screen asks as it always did. One question for the match's picker and the round's, so they cannot differ; the
+ * round's "no course set" block is NOT this: a round with nowhere to score against must still be told (`RoundVenue`).
+ */
+export function scoreEntryAsksWhere(p: { onlyForOpenCourse: boolean; openCourse: boolean }): boolean {
+  return !p.onlyForOpenCourse || p.openCourse;
+}
+
+/**
  * Which nine, when only nine are played.
  *
  * Front and back are different golf: different pars, different stroke index,

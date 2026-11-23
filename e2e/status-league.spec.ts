@@ -176,8 +176,8 @@ test("a league needs only its next week dated, and a medal of the same rounds is
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
-      home: { text: "Every round closed · results not released", action: "Complete tournament" },
-      nextAction: "Complete tournament",
+      home: { text: "Every round closed · results not released", action: "Make results final" },
+      nextAction: "Make results final",
       refused: null,
     } as const;
     await expectTournamentSays(page, over);
@@ -185,7 +185,7 @@ test("a league needs only its next week dated, and a medal of the same rounds is
     // Completed, then reopened by the press: the weeks are still closed, so play is over again.
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await pressComplete(page);
-    await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: /^(Make results final|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
     await pressReopen(page);

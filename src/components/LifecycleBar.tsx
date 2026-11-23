@@ -53,7 +53,7 @@ export function LifecycleBar({
    * THE TOURNAMENT'S ONE BUTTON (`tournamentJob`; the panel's ruling on the stepper, 9 Nov; for
    * everyone, the PM, 10 Nov). A job that MOVES the status (Launch, Complete, Reopen) is pressed here
    * as the machine's next action; any other is a link to where it is done ("Open score entry",
-   * "Close Round 1") or, waiting, no button at all — never "Complete tournament" while golf remains
+   * "Close Round 1") or, waiting, no button at all — never "Make results final" while golf remains
    * to be played. Absent (a test that hands none), the card offers `nextAction` as before.
    */
   job?: TournamentJob | null;
@@ -537,7 +537,7 @@ export function LifecycleBar({
             <div className="dialog-body" id="status-dialog-body">
               {confirmingStatus === "completed"
                 ? "The result becomes final: every round still open is closed, and the boards read Final. You can reopen it from here to correct a card."
-                : "The boards stop reading Final. Rounds stay closed — re-open one on Rounds & formats to change its cards — and you can complete the tournament again afterwards."}
+                : "The boards stop reading Final. Rounds stay closed — re-open the round you need to change its cards — and you can complete the tournament again afterwards."}
             </div>
             <div className="dialog-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setConfirmingStatus(null)}>Cancel</button>
@@ -554,7 +554,7 @@ export function LifecycleBar({
                   });
                 }}
               >
-                {confirmingStatus === "completed" ? "Complete tournament" : "Reopen tournament"}
+                {confirmingStatus === "completed" ? "Make results final" : "Reopen tournament"}
               </button>
             </div>
           </div>

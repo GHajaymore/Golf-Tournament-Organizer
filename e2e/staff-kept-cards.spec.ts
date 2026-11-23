@@ -2,6 +2,8 @@ import { test, expect, type Page, type Browser } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { keepCardOf } from "./keep-on-play";
+import { seedScoreEntryDay, dropScoreEntryDay, withScoreEntry, type ScoreEntryDay } from "./console/scoreEntry";
+import { CARD_PARS, prisma as fixturePrisma } from "./rounds-fixture";
 
 /**
  * A ROUND CODE ON A TOURNAMENT WHOSE CARDS THE CLUB KEEPS (2026-10-24).
@@ -203,4 +205,58 @@ test("CONTROL: a medal the players keep draws the card's buttons, and no club-ke
   } finally {
     await ctx.close();
   }
+});
+
+/**
+ * @redesign: THE CLUB KEEPS A CARD, THEN CLOSES THE ROUND WHERE THE CARDS ARE (R12). Staff enter the missing player's card on
+ * Score entry, the screen is opened again, and the round is closed from the section under the cards, with the question about a
+ * card nobody has approved asked and answered where the press was. The round then reads closed after a reload. Which card the
+ * fixture leaves out is read from the fixture (`missing`); whether the question comes is read from the stored card's status,
+ * never assumed. Service workers blocked. Memory: one context, one page, about 150 MB.
+ */
+test.describe("@redesign the club keeps a card and closes the round on Score entry", () => {
+  const REDESIGN_MARK = "zz-rd-keptcards";
+  let day: ScoreEntryDay;
+  test.beforeAll(async () => {
+    // The window left open: this spec is about the card, and a shut window is the other spec's.
+    day = await seedScoreEntryDay(REDESIGN_MARK, "UTC", { windowShut: false });
+  });
+  test.afterAll(async () => {
+    await dropScoreEntryDay(REDESIGN_MARK);
+  });
+
+  test("the missing card is typed in, the round is closed over it, and it reads closed after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    await withScoreEntry(browser, baseURL!, testInfo, day, async (screen, page) => {
+      // The club keeps the card: the player is picked by name and the 18 holes typed, as the secretary does it.
+      const picker = page.getByLabel("Player", { exact: true });
+      const value = await picker.locator("option", { hasText: day.missing.name }).first().getAttribute("value");
+      await picker.selectOption(value!);
+      const full = page.getByRole("button", { name: "Full card" });
+      if (await full.count()) await full.click();
+      for (const [i, par] of CARD_PARS.entries()) await page.getByLabel(`Hole ${i + 1}, par ${par}`).fill(String(par + 1));
+      await page.getByRole("button", { name: /^Save scorecard/ }).click();
+      await expect(page.getByText(/Saved/).first()).toBeVisible({ timeout: 20_000 });
+
+      // Opened again: the card is in, so nobody is owed one.
+      await screen.open(day.round1);
+      await expect(screen.closeLine()).toContainText("Cards are in");
+      const section = await screen.openClose();
+      await expect(screen.missingLine(section, day.missing.id)).toHaveCount(0);
+
+      await screen.finishedTick(section).click();
+      // A card nobody has approved is ASKED about, naming whose; the answer is given where the question is.
+      const stored = await fixturePrisma.scorecard.findFirstOrThrow({ where: { stageId: day.round1, playerId: day.missing.id }, select: { status: true } });
+      // A card typed in by the club is stored as entered, not approved, so the question comes: a fixed step, not a branch.
+      expect(stored.status, "a staff-entered card is stored as entered").toBe("entered");
+      await section.getByRole("button", { name: "Close anyway" }).click();
+      await expect(screen.finishedTick(section)).toBeChecked();
+
+      await page.reload();
+      await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
+      await expect(screen.closeLine()).toContainText("Round 1 is closed");
+      const again = await screen.openClose();
+      await expect(screen.finishedTick(again)).toBeChecked();
+    });
+  });
 });
