@@ -18,7 +18,7 @@ import { readSource } from "./source";
  */
 
 /** Uses of `networkidle` in e2e code (comments stripped), measured 23 Nov 2026. NEVER RAISE: lower it as uses go. */
-export const NETWORKIDLE_CAP = 430;
+export const NETWORKIDLE_CAP = 428;
 
 const E2E = join(process.cwd(), "e2e");
 
