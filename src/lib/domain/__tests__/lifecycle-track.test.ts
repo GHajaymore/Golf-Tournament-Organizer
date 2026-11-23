@@ -10,7 +10,7 @@ import { FAMILIES, FAMILY_FIXTURES, completed, facts, launched, playedOut, round
  * THE LIFECYCLE STEPPER (B03) — ONE ANSWER WITH THE DASHBOARD AND THE HOME.
  *
  * The panel's ruling of 9 Nov: the stepper, the dashboard card's button and What's next's first line
- * for a tournament are ONE job (`tournamentJob`), and never "Complete tournament" while golf is being
+ * for a tournament are ONE job (`tournamentJob`), and never "Make results final" while golf is being
  * played. Three blocks:
  *
  *   the table      a two-round medal walked the way an organizer walks it — set up, refused, ready,
@@ -184,10 +184,10 @@ describe("the button, the stop and the count, phase by phase (a two-round medal)
     expect(cur(s).state).toBe("now");
   });
 
-  it("6. play over: Complete tournament, with the machine's line", () => {
+  it("6. play over: Make results final, with the machine's line", () => {
     const s = see(playedOut(medal()));
     expect(s.job.key).toBe("results");
-    expect(s.job.action).toBe("Complete tournament");
+    expect(s.job.action).toBe("Make results final");
     expect(s.job.text).toBe("Every round closed · results not released");
     expect(cur(s).label).toBe("Results");
     expect(s.track.phases[3].title).toBe("Results");

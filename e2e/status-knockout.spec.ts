@@ -130,9 +130,9 @@ test("a knockout says the same thing on every panel from the draw to the Final (
       chip: "Play over",
       lock: "live",
       chipDetail: "Final decided · results not released",
-      nextAction: "Complete tournament",
+      nextAction: "Make results final",
       refused: null,
-      home: { text: "Final decided · results not released", action: "Complete tournament" },
+      home: { text: "Final decided · results not released", action: "Make results final" },
     });
     const rounds = await prisma.stage.findMany({ where: { eventId: f.eventId }, select: { closedAt: true } });
     expect(rounds.every((r) => r.closedAt === null), "a Bracket Stage was closed by something other than Complete").toBe(true);
@@ -140,7 +140,7 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     // Complete it, on the dashboard where the status card draws the button.
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await pressComplete(page);
-    await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: /^(Make results final|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
 
@@ -151,7 +151,7 @@ test("a knockout says the same thing on every panel from the draw to the Final (
       chip: "Play over",
       lock: "live",
       chipDetail: "Final decided · results not released",
-      nextAction: "Complete tournament",
+      nextAction: "Make results final",
       refused: null,
     });
     expect(errors).toEqual([]);

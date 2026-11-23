@@ -294,7 +294,7 @@ test("five H", async ({ page, context, baseURL }, testInfo) => {
         }
         await open(page, "/dashboard");
         await pressComplete(page);
-        await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
+        await page.getByRole("alertdialog").getByRole("button", { name: "Make results final" }).click();
         await expect.poll(async () => (await eventFacts(G_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       }
       await read(page, `/live/${facts.shareToken}`, "live-final", 2500);

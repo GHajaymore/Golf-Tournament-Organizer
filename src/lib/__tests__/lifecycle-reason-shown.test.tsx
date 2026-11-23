@@ -51,7 +51,7 @@ describe("the reason a phase is not available", () => {
 
   it("refuses the button in place — focusable, and described by its reason", () => {
     const html = bar(1);
-    const button = html.match(/<button[^>]*aria-disabled="true"[^>]*>[\s\S]*?Complete tournament/);
+    const button = html.match(/<button[^>]*aria-disabled="true"[^>]*>[\s\S]*?Make results final/);
     expect(button, "the refused Complete button").not.toBeNull();
     const describedBy = button![0].match(/aria-describedby="([^"]+)"/)?.[1];
     expect(describedBy, "the button names no reason").toBeTruthy();
@@ -64,6 +64,6 @@ describe("the reason a phase is not available", () => {
     expect(html).not.toContain("Not yet");
     expect(html).not.toContain("disputed");
     expect(html).not.toContain('aria-disabled="true"');
-    expect(html).toMatch(/<button[^>]*class="btn btn-primary"[^>]*>[\s\S]*?Complete tournament/);
+    expect(html).toMatch(/<button[^>]*class="btn btn-primary"[^>]*>[\s\S]*?Make results final/);
   });
 });

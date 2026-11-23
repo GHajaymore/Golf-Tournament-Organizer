@@ -169,7 +169,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await setRoundFormat(stages[0].id, "Match Play");
     await dialog.getByRole("button", { name: "Launch tournament" }).click();
     await expect(dialog.getByRole("alert")).toContainText("Not launched. Round 1 cannot be scored in the format it is set to", { timeout: 20_000 });
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Make results final" })).toHaveCount(0);
     await setRoundFormat(stages[0].id, "Stroke Play");
     await dialog.getByRole("button", { name: "Launch tournament" }).click();
     await expectLaunched(page);

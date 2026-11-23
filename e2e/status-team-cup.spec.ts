@@ -132,14 +132,14 @@ test("a team cup says the same thing on every panel from the teams to the last s
       chip: "Play over",
       lock: "live",
       chipDetail: "Every session closed · results not released",
-      home: { text: "Every session closed · results not released", action: "Complete tournament" },
-      nextAction: "Complete tournament",
+      home: { text: "Every session closed · results not released", action: "Make results final" },
+      nextAction: "Make results final",
       refused: null,
     });
 
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await pressComplete(page);
-    await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: /^(Make results final|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, home: null });
 
@@ -150,8 +150,8 @@ test("a team cup says the same thing on every panel from the teams to the last s
       chip: "Play over",
       lock: "live",
       chipDetail: "Every session closed · results not released",
-      home: { text: "Every session closed · results not released", action: "Complete tournament" },
-      nextAction: "Complete tournament",
+      home: { text: "Every session closed · results not released", action: "Make results final" },
+      nextAction: "Make results final",
       refused: null,
     });
     expect(errors).toEqual([]);
