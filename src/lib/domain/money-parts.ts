@@ -5,7 +5,7 @@
  * SETTLED (who has paid, who won, the kitty, the costs, settling up) is done once the result is final on Winners & money
  * (R8b). A control is in exactly ONE part; a control in both is a second copy, and a control in neither is one nobody
  * can reach. Every action that asks the `money` scope is in the offer (shut at completion) and the settle side never
- * asks it (`docs/claude/lock-scopes.md`); two controls ask no lock at all: a contest's sponsor is drawn with its contest, and a bet's
+ * asks it (`docs/claude/lock-scopes.md`); three controls ask no lock at all: a contest's sponsor is drawn with its contest, who may add a cost with the money mode, and a bet's
  * name with the ledger.
  *
  * A "control" is named by the server action it presses, so the split is held to the actions themselves
@@ -35,6 +35,9 @@ export const OFFER_CONTROLS = [
   "removeSideGame",
   "setEventMoneyMode",
   "setPotEntryMode",
+  // Who may write a shared cost down is asked beside the money mode, in the same fold, and decided before play: drawn with the mode.
+  // It asks no lock (a cost is added after the day, so the action stays open), like a contest's sponsor.
+  "setExpenseEntry",
 ] as const;
 
 /** What is done once the result is final: winners, who has paid, the kitty, the costs, settling up. */
@@ -53,7 +56,6 @@ export const SETTLE_CONTROLS = [
   "requestSideGameEntry",
   "confirmSideGameEntry",
   "setPotExcluded",
-  "setExpenseEntry",
   "addFundLine",
   "removeFundLine",
   "addExpense",

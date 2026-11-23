@@ -310,13 +310,21 @@ export default async function PrizesPage({
             be handed over. It goes back to being a results screen the moment
             setup is finished. The redesigned screen is the offer half only,
             so it is always "Set up" (step 3 §4.1). */}
-        <div className="page-kicker">{newScreen || (flow && !flow.complete) ? "Set up" : "Results"}</div>
+        <div className="page-kicker">
+          {newScreen
+            ? flow && !flow.complete && !moneyLocked
+              ? "Set up"
+              : "Prizes & money"
+            : flow && !flow.complete
+              ? "Set up"
+              : "Results"}
+        </div>
         <h1 className="page-title">{newScreen ? "Prizes & side games" : "Prizes & payouts"}</h1>
         {newScreen ? (
           <p className="page-sub" style={{ marginTop: 6 }}>
-            What is offered, before play: the prize list, pots and contests.{" "}
+            The prize list, pots and contests you offer. Winners and who has paid are below until Winners &amp; money opens.{" "}
             <strong>TourneyHQ works out and records who is owed what. It does not pay anyone.</strong>{" "}
-            {fieldGamesHere && <a href="#side-games">Side games</a>}
+            {fieldGamesHere && <a href="#side-games">Jump to side games</a>}
           </p>
         ) : (
           /* One line, the rest an ⓘ away (2026-10-05). */
@@ -344,7 +352,7 @@ export default async function PrizesPage({
         <SectionFold
           id="money-setup"
           title="How money works here"
-          state={`Money: ${MONEY_MODE_LABEL[moneyMode]}. A change keeps your prize list and side games.`}
+          state={`Money: ${moneyMode === "none" ? "costs outside the app" : MONEY_MODE_LABEL[moneyMode]}. A change keeps your prize list and side games.`}
           needsYou={!moneyAnswered}
           openOnPhone={!moneyAnswered}
         >
