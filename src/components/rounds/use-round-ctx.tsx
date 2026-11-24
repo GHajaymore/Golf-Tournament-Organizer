@@ -26,6 +26,7 @@ import { type RoundFacts } from "@/lib/rounds-timeline";
 import type { RoundStepView } from "@/lib/domain/timeline-step";
 import { useFormatting } from "@/components/CurrencyProvider";
 import { writeScoreInput } from "@/components/rounds/RoundScoreInput";
+import { roundUnderWay } from "@/lib/domain/round-under-way";
 import { SetupLocked, ServerToday, Launched, isIsoDate, ROUND_PALETTE, ROUND_TEXT, type RefusedAt, type SaveAnswer } from "@/components/rounds/shared";
 import type { StageView, Arrangement, ThirdPlaceView, ScoringValues, QualValues } from "@/components/StagesClient";
 
@@ -59,6 +60,8 @@ export interface RoundCardProps {
   singleMatch?: SingleMatchView | null;
   /** For a Bracket Stage: whether it plays off for third, and who would. */
   thirdPlace?: ThirdPlaceView | null;
+  /** This round's draw is made on Tee times & draw (R9c: its door has moved), so the old column draws no draw of its own. */
+  drawMoved?: boolean;
   isFirst: boolean;
   /** Whether this round's configuration is open. */
   expanded: boolean;
@@ -133,6 +136,7 @@ export function useRoundCtx(props: RoundCardProps) {
   onToggle,
   singleMatch,
   thirdPlace,
+  drawMoved = false,
   canSetVenue = true,
   hasResult = false,
   sharedWithAll = null,
@@ -163,7 +167,7 @@ export function useRoundCtx(props: RoundCardProps) {
   const dayHasCome = !stage.playedOn || !today || stage.playedOn <= today;
   // An UNDATED round is under way only when it is the round in play: a knockout three
   // weeks off showed "Scoring window · Open" the day the tournament went live (2026-10-16).
-  const underWay = hasResult || stage.closed || (launched && (stage.playedOn ? dayHasCome : standing === "active"));
+  const underWay = roundUnderWay({ hasResult, closed: stage.closed, launched, playedOn: stage.playedOn, today, isActiveRound: standing === "active" });
   /** "Round 3" — the tournament's own count; empty for a stage the field does not play. */
   const thisRound = roundLabelOf(allStages, stage.id);
   const [deadline, setDeadline] = useState(stage.deadline);
@@ -680,6 +684,7 @@ export function useRoundCtx(props: RoundCardProps) {
     onToggle,
     singleMatch,
     thirdPlace,
+    drawMoved,
     canSetVenue,
     hasResult,
     sharedWithAll,

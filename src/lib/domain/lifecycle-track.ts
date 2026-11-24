@@ -345,7 +345,7 @@ export const END_EARLY = "End this event early…";
  * ENDING EARLY, IN THE CARD'S OVERFLOW — never a "Complete" button while golf remains to be played.
  *
  * The panel (9 Nov) and the PM (10 Nov): between rounds — the Saturday night of a two-day event — is the
- * exact moment a routine "Complete tournament" beside the job ends a tournament one press before day 2.
+ * exact moment a routine "Make results final" beside the job ends a tournament one press before day 2.
  * But ending early is a real need (Round 2 rained off), so it stays, as a deliberately named action
  * behind a quiet "More": "End this event early…". It is the machine's own Complete — its refusal and
  * way out, and its question naming the rounds nobody played (`completingCheckFor`) — under a name that

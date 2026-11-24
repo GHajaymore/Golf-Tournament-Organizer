@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { MARK } from "./fixture.mjs";
 import { seedRich, teardownRich, setWithheld, setReportSettings } from "./report-rich-fixture.mjs";
 import { pressRadio } from "./press-radio";
+import { ResultsPage } from "./console/results";
 
 /**
  * THE REPORT'S SETTINGS AND A WITHHELD NAME, AS A CLUB AND A VISITOR MEET THEM
@@ -112,4 +113,43 @@ test("the organizer reads the settings as one line, changes them, and sees the p
     await setReportSettings(eventId, { reportVisibility: "board", reportAmounts: "players" });
   }
   expect(errors).toEqual([]);
+});
+
+/**
+ * @redesign: THE REPORT'S SETTINGS, REACHED FROM THE REDESIGNED RESULTS (R12). The organizer opens Results on its building
+ * address and follows its link to the report, which is where the settings line is; Change, the two radios and Save report settings
+ * are the same presses as above, and the line is read again after a RELOAD. The settings are put back in a `finally`. Read from
+ * the fixture: `seeded.events.stableford`. Memory: one page, about 150 MB.
+ */
+test.describe("@redesign the report's settings, reached from Results", () => {
+  test("Change and Save are kept after a reload", async ({ page, baseURL }) => {
+    test.setTimeout(150_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const { organizer, eventId } = seeded.events.stableford;
+    await page.context().addCookies([
+      { name: "ng_session", value: organizer.session, url: baseURL! },
+      { name: "ng_active_event", value: organizer.event, url: baseURL! },
+    ]);
+    try {
+      const results = new ResultsPage(page);
+      await results.open();
+      await expect(results.releaseCard()).toBeVisible();
+      // The report is the screen's own link, whichever words it carries for the tournament's state.
+      await page.locator('main a[href="/reports/final"]').first().click();
+      await page.waitForURL(/\/reports\/final$/);
+      const line = page.locator("[data-report-settings-line]");
+      await page.getByRole("button", { name: "Change" }).click();
+      await pressRadio(page.getByRole("radio", { name: "Players in this tournament" }));
+      await pressRadio(page.getByRole("radio", { name: "Nobody sees amounts — winners only" }));
+      await page.getByRole("button", { name: "Save report settings" }).click();
+      await expect(line).toHaveText("Only the players in this tournament can see this report · Side-game amounts: nobody — winners only");
+
+      await page.reload();
+      await expect(line, "the settings are not kept after a reload").toHaveText("Only the players in this tournament can see this report · Side-game amounts: nobody — winners only");
+    } finally {
+      await setReportSettings(eventId, { reportVisibility: "board", reportAmounts: "players" });
+    }
+    expect(errors).toEqual([]);
+  });
 });

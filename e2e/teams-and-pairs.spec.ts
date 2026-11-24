@@ -5,6 +5,8 @@ import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { makeCommitteeCorrection } from "./committee-correction";
 import { prisma as rounds, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { withTeeTimesAs } from "./console/teeTimes";
+import { consoleUrl } from "../src/lib/console-url";
 import { PlayersPage } from "./console/players";
 
 /**
@@ -150,6 +152,75 @@ test("a secretary renames a side, takes a player out and puts them back, and is 
   await expect(page.getByRole("textbox", { name: "Name of Spare Side" })).toHaveCount(0, { timeout: 20_000 });
 
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * @redesign: "GENERATE MATCHES" ON TEE TIMES & DRAW (R9b). A round robin of four-ball sides is a round of matches, so
+ * the redesigned screen builds it and the generator moves from Teams & pairs into the draw section. As the secretary:
+ * generate the round's matches, see them after a reload (the button now says Regenerate, and the database holds each
+ * pair once), press it again, answer the confirm, and see a NEW set. Teams & pairs, opened at the same address, no
+ * longer offers the button: the one control is on one screen. Three sides are made by the fixture (set-up, never the
+ * thing under test); the number of matches is worked from them (n sides, each pair once). The event is a draft, as
+ * the sides are locked once it is live. Service workers blocked; memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign tee times", () => {
+  test("the secretary generates a four-ball round robin's matches on Tee times & draw, sees them after a reload, and replaces them", async ({ browser, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "two sizes: a third seeding proves nothing more");
+    test.setTimeout(180_000);
+    const mark = `zz-rd-matches-${testInfo.project.name}`;
+    const fx = await makeClub(mark);
+    try {
+      const made = await makeEvent(fx, "Four-Ball Pairs", { status: "draft", stages: [{ type: "Round Robin", format: "Four-Ball" }], players: 6 });
+      const round = made.stages[0];
+      const SIDES = 3;
+      for (let s = 0; s < SIDES; s++) {
+        const side = await prisma.team.create({ data: { eventId: made.event.id, stageId: round.id, name: `zz-Side ${s + 1}`, seed: s + 1 } });
+        for (const [position, p] of made.players.slice(s * 2, s * 2 + 2).entries()) {
+          await prisma.teamMember.create({ data: { teamId: side.id, playerId: p.id, position } });
+        }
+      }
+      const pairs = (SIDES * (SIDES - 1)) / 2;
+      const matchIds = async () =>
+        (await prisma.match.findMany({ where: { eventId: made.event.id, stageId: round.id }, select: { id: true } })).map((m) => m.id).sort();
+      expect(await matchIds(), "CONTROL: the round already has matches").toEqual([]);
+
+      await withTeeTimesAs(browser, baseURL!, testInfo, { club: fx, eventId: made.event.id }, async (screen, page) => {
+        await screen.open(round.id);
+        const generate = (await screen.openSection("draw")).locator("[data-team-matches]").getByRole("button", { name: "Generate matches", exact: true });
+        await generate.scrollIntoViewIfNeeded();
+        await generate.click();
+        await expect.poll(async () => (await matchIds()).length, { message: `the round was not paired: ${SIDES} sides play ${pairs} matches` }).toBe(pairs);
+        const first = await matchIds();
+
+        // After a reload the screen knows the round is drawn.
+        await page.reload();
+        const drawn = (await screen.openSection("draw")).locator("[data-team-matches]");
+        const again = drawn.getByRole("button", { name: "Regenerate matches", exact: true });
+        await expect(again, "after a reload the draw section does not know the matches exist").toBeVisible();
+
+        // Replace: asked first, answered, and a new set stands.
+        await again.scrollIntoViewIfNeeded();
+        await again.click();
+        await expect(drawn.getByText("Replace this round's matches?")).toBeVisible();
+        await drawn.getByRole("button", { name: "Replace them", exact: true }).click();
+        await expect
+          .poll(async () => {
+            const now = await matchIds();
+            return now.length === pairs && !now.some((id) => first.includes(id));
+          }, { message: "the matches were not replaced by a new set" })
+          .toBe(true);
+        await page.reload();
+        await expect((await screen.openSection("draw")).locator("[data-team-matches]").getByRole("button", { name: "Regenerate matches", exact: true })).toBeVisible();
+
+        // The one control is on one screen: Teams & pairs, opened the same way, does not offer it.
+        await page.goto(consoleUrl(`/teams?round=${round.id}`, "build"));
+        await expect(page.getByRole("button", { name: /Draw sides automatically/ }), "Teams & pairs did not draw").toBeVisible();
+        await expect(page.getByRole("button", { name: /Generate matches|Regenerate matches/ })).toHaveCount(0);
+      });
+    } finally {
+      await dropClub(mark);
+    }
+  });
 });
 
 // R6: the same sides through the Players room's Teams tab, deleted at R17 with the old screen.

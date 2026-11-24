@@ -18,11 +18,11 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  *   setting up        Launch tournament; the stepper on Launch
  *   launched          Publish the tee sheet (a link to the tee sheet); then, the sheet out, NO button —
  *                     "Round 1 tees off …"
- *   day 1             Open score entry, "Round 1 · 4 of 6 cards in" — and never Complete tournament,
+ *   day 1             Open score entry, "Round 1 · 4 of 6 cards in" — and never Make results final,
  *                     which the machine offers from the first card
  *   every card in     Close Round 1, which opens that round on Rounds & formats
  *   between rounds    Round 2's tee sheet, on Round 2's stop
- *   day 2 → over      Complete tournament, on Results. Before it there is never a Complete button: ending
+ *   day 2 → over      Make results final, on Results. Before it there is never a Complete button: ending
  *                     early is "End this event early…" behind the card's More (the PM, 10 Nov), and
  *                     between rounds — the Saturday night — opening it shows that, and nothing else
  *
@@ -47,7 +47,7 @@ async function noSidewaysScroll(page: Page, where: string) {
 
 /** While golf remains to be played: no Complete button anywhere, and the card's More holds ending early. */
 async function noCompleteButMore(page: Page) {
-  await expect(page.getByRole("button", { name: "Complete tournament" }), "a Complete button while golf remains to be played").toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Make results final" }), "a Complete button while golf remains to be played").toHaveCount(0);
   await expect(statusCard(page).getByRole("button", { name: "More actions", exact: true })).toBeVisible();
 }
 
@@ -158,9 +158,9 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     await more.click();
     await expect(more).toHaveAttribute("aria-expanded", "true");
     await expect(statusCard(page).getByRole("button", { name: END_EARLY })).toBeEnabled();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Make results final" })).toHaveCount(0);
 
-    // DAY 2, THEN PLAY OVER: every card in and closed — now, and only now, Complete tournament.
+    // DAY 2, THEN PLAY OVER: every card in and closed — now, and only now, Make results final.
     await prisma.stage.update({ where: { id: r2 }, data: { playedOn: today, teeSheetPublished: true } });
     for (const playerId of f.playerIds) {
       await prisma.scorecard.create({
@@ -174,7 +174,7 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     d = await dashboard(page);
     await expect(d.current).toContainText("Results");
     await expect(d.stepper).toContainText("Every round closed · results not released");
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Make results final" })).toBeVisible();
 
     // Reading never changed the tournament.
     expect(await f.status()).toBe("live");

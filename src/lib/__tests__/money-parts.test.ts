@@ -1,7 +1,23 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { readSource } from "./source";
-import { OFFER_CONTROLS, SETTLE_CONTROLS, moneyPartOf, moneyPartProblems, fieldGamesHome } from "../domain/money-parts";
+import { groupGamesMovedTo } from "../domain/group-games-door";
+import { mergesShown, MOVES, type ScreenKey } from "../domain/console-merges";
+import { canAccessScreen, type Role } from "../roles";
+import { screenAppliesToMatch } from "../nav";
+import { potStatusLine } from "../domain/pot-status";
+import {
+  OFFER_CONTROLS,
+  SETTLE_CONTROLS,
+  SETTLE_ON_THE_PLAYERS_SCREEN,
+  SETTLE_ON_WINNERS_AND_MONEY,
+  fieldGamesHome,
+  moneyPartOf,
+  moneyPartProblems,
+  moneyScreenOf,
+  moneyScreenProblems,
+  prizeTableHalf,
+} from "../domain/money-parts";
 
 /**
  * THE TWO HALVES OF MONEY, AND WHERE A FIELD'S GAMES ARE OFFERED (R8a).
@@ -91,7 +107,7 @@ describe("every money control is in exactly one part", () => {
 
 describe("a field's pots and contests are mounted once", () => {
   const prizesPage = readSource("src", "app", "(app)", "prizes", "page.tsx");
-  const gamesPage = readSource("src", "app", "(app)", "group-games", "page.tsx");
+  const gamesPage = readSource("src", "components", "money", "GroupGames.tsx");
 
   it("a tournament offers them on Prizes; a casual round keeps them on its one screen, whichever screens are shown", () => {
     for (const casual of [false, true]) {
@@ -107,7 +123,7 @@ describe("a field's pots and contests are mounted once", () => {
     expect(gamesPage).toContain('fieldGamesHome({ casual }) === "group-games"');
     // Prizes: every pot and contest mount sits between the first fieldGamesHere guard and the season's skins that follows them.
     const from = prizesPage.indexOf("fieldGamesHere && week && perPlayerPotRefusal");
-    const to = prizesPage.indexOf("<SkinsSeason");
+    const to = prizesPage.indexOf("<SettleHalf");
     expect(from).toBeGreaterThan(-1);
     for (const m of prizesPage.matchAll(/<(SkinsPotClient|ContestsClient)\b/g)) {
       expect(m.index!, `${m[1]} is mounted on Prizes outside the field-games guard`).toBeGreaterThan(from);
@@ -125,5 +141,148 @@ describe("a field's pots and contests are mounted once", () => {
     expect((prizesPage.match(/<MoneySetup\b/g) ?? []).length).toBe(1);
     expect(prizesPage).toMatch(/\{newScreen && moneySetup && \(\s*<SectionFold/);
     expect(prizesPage).toMatch(/\{!newScreen && moneySetup && \(/);
+  });
+});
+
+/**
+ * WINNERS & MONEY, THE SETTLE HALF (R8b). Each control is drawn on ONE screen once it is shown, each mount is behind the one
+ * boolean (`shown.has("money")`), and the groups' own games are drawn once for each person in each state.
+ */
+describe("every money control is drawn on exactly one screen (R8b)", () => {
+  const ALL = [...OFFER_CONTROLS, ...SETTLE_CONTROLS] as string[];
+
+  it("the two settle-screen lists have no control twice, in both, or empty", () => {
+    expect(moneyScreenProblems(SETTLE_ON_WINNERS_AND_MONEY, SETTLE_ON_THE_PLAYERS_SCREEN)).toEqual([]);
+  });
+
+  it("CONTROL: a planted control on both screens, listed twice or empty is caught", () => {
+    expect(moneyScreenProblems([...SETTLE_ON_WINNERS_AND_MONEY, "addExpense"], SETTLE_ON_THE_PLAYERS_SCREEN)).toEqual([
+      "addExpense is drawn on Winners & money and on the player's screen",
+    ]);
+    expect(moneyScreenProblems([...SETTLE_ON_WINNERS_AND_MONEY, "recordSettlement"], [])).toEqual(["a control is listed twice for Winners & money"]);
+    expect(moneyScreenProblems([""], [])).toEqual(["an empty control for Winners & money"]);
+  });
+
+  it("every control has a screen, and only a settle control is drawn off Prizes & side games", () => {
+    for (const c of ALL) expect(["prizes", "money", "player"], c).toContain(moneyScreenOf(c));
+    for (const c of OFFER_CONTROLS) expect(moneyScreenOf(c), `${c} is offered and must be drawn on Prizes & side games`).toBe("prizes");
+    for (const c of SETTLE_ON_WINNERS_AND_MONEY) expect(moneyScreenOf(c), c).toBe("money");
+    for (const c of SETTLE_ON_THE_PLAYERS_SCREEN) expect(moneyScreenOf(c), c).toBe("player");
+    expect(() => moneyScreenOf("notAControl")).toThrow(/no part/);
+  });
+
+  it("the controls drawn on Winners & money are the ones its components import, and no page draws a second copy", () => {
+    const component = (name: string) => readSource("src", "components", `${name}.tsx`);
+    const drawnBy: Record<string, string> = {
+      setPrizeWinner: "PrizesClient",
+      addFundLine: "FloatClient",
+      removeFundLine: "FloatClient",
+      recordSettlement: "OrganizerLedger",
+      removeSettlement: "OrganizerLedger",
+    };
+    for (const c of SETTLE_ON_WINNERS_AND_MONEY) {
+      expect(drawnBy[c], `${c} has no component named for it here`).toBeTruthy();
+      expect(component(drawnBy[c]), `${drawnBy[c]} does not draw ${c}`).toMatch(new RegExp(`\\b${c}\\b`));
+    }
+    // The settle components reach a page only through `SettleHalf` and the prize table's `settle` half.
+    const half = readSource("src", "components", "money", "SettleHalf.tsx");
+    for (const c of ["SkinsSeason", "FloatClient", "OrganizerLedger"]) expect(half, `${c} is not drawn by SettleHalf`).toContain(`<${c}`);
+    for (const page of ["prizes", "money"]) {
+      const src = readSource("src", "app", "(app)", page, "page.tsx");
+      for (const c of ["<FloatClient", "<OrganizerLedger", "<SkinsSeason"]) expect(src, `${page} draws ${c} on its own, a second copy of the settle half`).not.toContain(c);
+    }
+  });
+});
+
+describe("Winners & money's settle half is mounted once, by one boolean (R8b)", () => {
+  const prizesPage = readSource("src", "app", "(app)", "prizes", "page.tsx");
+  const moneyPage = readSource("src", "app", "(app)", "money", "page.tsx");
+  const gamesPage = readSource("src", "app", "(app)", "group-games", "page.tsx");
+
+  it("prizeTableHalf: Winners & money draws the winners, Prizes the lines, and the old screen the whole table", () => {
+    expect(prizeTableHalf("money", true)).toBe("settle");
+    expect(prizeTableHalf("prizes", true)).toBe("offer");
+    expect(prizeTableHalf("prizes", false)).toBe("both");
+    // Whatever the switch, a prize's winner picker is on one screen and its amount box on one screen.
+    for (const moneyShown of [false, true]) {
+      const halves = [prizeTableHalf("prizes", moneyShown), ...(moneyShown ? [prizeTableHalf("money", true)] : [])];
+      const winnerScreens = halves.filter((h) => h !== "offer");
+      const amountScreens = halves.filter((h) => h !== "settle");
+      expect(winnerScreens.length, `moneyShown=${moneyShown}: a winner picker on ${winnerScreens.length} screens`).toBe(1);
+      expect(amountScreens.length, `moneyShown=${moneyShown}: an amount box on ${amountScreens.length} screens`).toBe(1);
+    }
+  });
+
+  it("Prizes reads the settle half only while it draws it, and mounts SettleHalf once behind that", () => {
+    expect(prizesPage).toContain('const moneyShown = shown.has("money");');
+    expect(prizesPage).toMatch(/const settle = moneyShown\s*\? null\s*: await settleHalfFor\(/);
+    expect((prizesPage.match(/<SettleHalf\b/g) ?? []).length).toBe(1);
+    expect(prizesPage).toMatch(/\{settle && \(\s*<SettleHalf/);
+    expect(prizesPage).toContain('part={prizeTableHalf("prizes", moneyShown)}');
+  });
+
+  it("Winners & money opens on the switch's own guard, draws each half once, and asks the same readers", () => {
+    expect(moneyPage).toMatch(/const session = await requireScreen\("prizes"\);\s*const shown = await screensShownFor\(session\);\s*if \(!shown\.has\("money"\)\) redirect\("\/prizes"\);/);
+    expect((moneyPage.match(/<PrizesClient\b/g) ?? []).length).toBe(1);
+    expect(moneyPage).toContain('part={prizeTableHalf("money", true)}');
+    expect((moneyPage.match(/<SettleHalf\b/g) ?? []).length).toBe(1);
+    expect(moneyPage).toMatch(/<GroupGames session=\{session\} round=\{params\.round\} asSection\b/);
+    expect(moneyPage).toContain("settleHalfFor(");
+    expect(moneyPage).toContain("prizeFieldFor(state)");
+    expect(prizesPage).toContain("prizeFieldFor(state)");
+    // The statement of how money works is above what it decides, here as on Prizes.
+    for (const after of ["<PrizesClient", "<SettleHalf", "<GroupGames"]) expect(moneyPage.indexOf("<MoneyModeLine"), after).toBeLessThan(moneyPage.indexOf(after));
+  });
+
+  it("outside the groups' section, the money page offers no control to change what is offered", () => {
+    for (const offer of OFFER_CONTROLS) expect(moneyPage, `Winners & money mentions the offer control ${offer}`).not.toMatch(new RegExp(`\\b${offer}\\b`));
+    for (const c of ["<MoneySetup", "<SkinsPotClient", "<ContestsClient"]) expect(moneyPage, `${c} is mounted on Winners & money, a second copy of the offer's card`).not.toContain(c);
+  });
+
+  it("the groups' games are drawn once for every person and state of the switch, by the rules that decide it", () => {
+    const BUILD = mergesShown("stepper=1&build=1", { owner: false }, "development");
+    const OFF = new Set<ScreenKey>();
+    for (const role of ["admin", "assistant", "player"] as Role[]) {
+      for (const casual of [false, true]) {
+        for (const shown of [OFF, BUILD]) {
+          // `/group-games` draws its body unless the one rule (`relocate`) says the door moved.
+          const bodyOnOldDoor = groupGamesMovedTo(role, casual, shown) === null;
+          // `/money` is opened by the REAL gates: `requireScreen("prizes")` (the role's access; a casual round is sent to its one screen),
+          // its switch guard, and then the same rule. Nothing here restates the rule's own conditions.
+          const moneyOpens = shown.has("money") && canAccessScreen(role, "prizes") && (screenAppliesToMatch("prizes") || !casual);
+          const sectionOnMoney = moneyOpens && groupGamesMovedTo(role, false, shown) !== null;
+          const mounts = (bodyOnOldDoor ? 1 : 0) + (sectionOnMoney ? 1 : 0);
+          const canSee = canAccessScreen(role, "group-games");
+          expect(mounts, `role=${role} casual=${casual} money shown=${shown.has("money")}: the groups' games are drawn ${mounts} times`).toBe(canSee ? 1 : 0);
+        }
+      }
+    }
+  });
+
+  it("CONTROL: the rule is the MOVES row, and loosening it (a casual round let through) is seen", () => {
+    const BUILD = mergesShown("stepper=1&build=1", { owner: false }, "development");
+    expect(groupGamesMovedTo("admin", false, BUILD)).toMatch(/^\/money/);
+    expect(groupGamesMovedTo("admin", true, BUILD)).toBeNull();
+    expect(groupGamesMovedTo("player", false, BUILD)).toBeNull();
+    expect(groupGamesMovedTo("admin", false, new Set<ScreenKey>())).toBeNull();
+    const row = MOVES.find((m) => m.from === "/group-games");
+    expect(row?.notCasual, "the MOVES row no longer keeps a casual round on its one screen").toBe(true);
+  });
+
+  it("/group-games opens (200) and points at the section, asking the rule; /money gates the section on the same rule", () => {
+    expect(gamesPage).toMatch(/groupGamesMovedTo\(session\.viewRole, isMatch\(event\?\.shape\), shown, params\.round\)/);
+    expect(gamesPage).not.toMatch(/redirect\(/);
+    expect(gamesPage).toContain("<GroupGames session={session} round={params.round} asSection={false} />");
+    expect(moneyPage).toMatch(/const groupsHere = groupGamesMovedTo\(session\.viewRole, false, shown, params\.round\) !== null;/);
+    expect(moneyPage).toMatch(/\{groupsHere \? \(\s*<GroupGames /);
+  });
+
+  it("says how far the field's pots and contests have got, in stored counts", () => {
+    expect(potStatusLine({ contests: 3, contestsWithWinner: 2, stakes: 12, stakesPaid: 5 })).toBe("2 of 3 contests have a winner. 5 of 12 stakes paid.");
+    expect(potStatusLine({ contests: 1, contestsWithWinner: 0, stakes: 1, stakesPaid: 1 })).toBe("0 of 1 contest has a winner. 1 of 1 stake paid.");
+    expect(potStatusLine({ contests: 0, contestsWithWinner: 0, stakes: 0, stakesPaid: 0 })).toBe("No contests or stakes have been set up yet.");
+    // A count of rows, not an amount: the line has no currency or decimal figure.
+    expect(potStatusLine({ contests: 3, contestsWithWinner: 2, stakes: 12, stakesPaid: 5 })).not.toMatch(/[$£€]|\d\.\d/);
+    expect(moneyPage).toContain("potStatusLine(await potStatusFor(session.eventId))");
   });
 });

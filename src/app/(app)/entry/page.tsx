@@ -10,6 +10,7 @@ import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { distanceUnitFor } from "@/lib/services/round-card";
 import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
+import { hasAnyStroke } from "@/lib/domain/cut-ready";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -26,7 +27,7 @@ import {
 import type { HoleResult } from "@/lib/domain";
 import { storedMatchLine } from "@/lib/domain/match-line";
 import { needsTeams, entryModeFor, findFormat } from "@/lib/formats";
-import { generatesPairings, isHeadToHead, isKnockoutRound } from "@/lib/stage-types";
+import { generatesPairings, isHeadToHead, isKnockoutRound, isIndividualStrokeRound, isPlayingRound } from "@/lib/stage-types";
 import { isMatch } from "@/lib/tournament-shape";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
@@ -52,6 +53,7 @@ import { flightLabel } from "@/lib/domain/flight-label";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { roundRefusalsFor } from "@/lib/services/round-change";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { MatchKeeper } from "@/components/MatchKeeper";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { matchCardFor } from "@/lib/services/match-card";
@@ -61,6 +63,16 @@ import { resolveMatch, matchIsOver } from "@/lib/domain/match";
 import { ConfirmMatchResult, ReopenMatchResult } from "@/components/ConfirmMatchResult";
 import { scoreEntryTies, thirdPlaceCard } from "@/lib/domain/knockout-ties";
 import { bracketDraws } from "@/lib/domain/my-tie";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { strokeCutField } from "@/lib/services/stroke-cut";
+import { CloseThisRound } from "@/components/entry/CloseThisRound";
+import { closingTickShown } from "@/lib/domain/closing-words";
+import { playersWithNoCard } from "@/lib/domain/missing-cards";
+import { isLaunched } from "@/lib/domain/lifecycle-state";
+import { roundUnderWay } from "@/lib/domain/round-under-way";
+import { fieldDoors } from "@/lib/domain/field-change";
+import { fieldFactsFor } from "@/lib/services/field-change";
+import { isStablefordRound } from "@/lib/domain/week-basis";
 
 export const metadata = screenMetadata("/entry");
 
@@ -75,6 +87,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
   // A quick round, not a tournament. Read once: three things on this screen
   // turn on it and a second call would be a second answer waiting to differ.
   const casualRound = isMatch(state.event.shape);
+  // Which redesigned screens this request shows (`screensShownFor`, the one question): Score entry takes closing and the window.
+  const shown = await screensShownFor(session);
   /**
    * The person holding the phone, in this round's field — so the mic beside
    * the hole knows who "me" is ("Sam five, me four"). A casual round's host is
@@ -197,6 +211,70 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
   const cupNav = cup.sessions.length ? (
     <CupSessionNav sessions={cup.sessions} current={activeStage?.id ?? ""} />
   ) : null;
+
+  /**
+   * CLOSING THE ROUND AND ITS SCORING WINDOW, where the cards are (R12) — drawn only while this key is shown, for staff, on a
+   * tournament round that has play to speak of (`roundUnderWay`, the one rule the Rounds screens ask too, told the CLUB's day:
+   * `state.today`, `clubToday`). EVERY staff branch below carries it (a team round, a cup session and a match kept by tapping
+   * as much as the individual card), because the Rounds screens stop drawing the tick and the window while this key is shown:
+   * a branch that left it out would leave its round closable nowhere (`closing-a-round-has-one-home.test.tsx` holds it).
+   * The cards still to come are asked only of an individual stroke or Stableford round (a match is a result, a side's card is
+   * the side's), of the round's own field (after a cut, the players it left in; never those marked out for the week) and of
+   * the cards that hold a stroke (`hasAnyStroke`, the close check's own line).
+   */
+  const closingFor = async (markedOut: readonly string[]): Promise<ReactNode> => {
+    if (!shown.has("scoreEntry") || !isStaff || casualRound || !activeStage || !isPlayingRound(activeStage.type)) return null;
+    const launched = isLaunched(state.event.status);
+    if (
+      !roundUnderWay({
+        hasResult: state.roundsWithResults.has(activeStage.id),
+        closed: activeStage.closedAt !== null,
+        launched,
+        playedOn: activeStage.playedOn,
+        today: state.today,
+        isActiveRound: state.activeStage?.id === activeStage.id,
+      })
+    ) {
+      return null;
+    }
+    // The FIELD rule, not the setup lock: after launch Withdraw stays open on the day (`fieldDoors`, the Entries screen's own answer).
+    // Before launch a withdrawal with no history DELETES the player, so it is not offered as WD here.
+    const fieldFacts = await fieldFactsFor(session.eventId);
+    const withdrawDoor = !launched
+      ? "Withdrawing is offered here once the tournament is launched; before that, remove the player on Players."
+      : fieldFacts
+        ? fieldDoors(fieldFacts).withdraw
+        : null;
+    const individual = isIndividualStrokeRound(activeStage);
+    let missing: { id: string; name: string }[] = [];
+    if (individual) {
+      const cutField = await strokeCutField(session.eventId, activeStage.id);
+      const cards = await prisma.scorecard.findMany({
+        where: { eventId: session.eventId, stageId: activeStage.id },
+        select: { playerId: true, strokes: true },
+      });
+      missing = playersWithNoCard(
+        state.confirmed.filter((p) => !cutField || cutField.has(p.id)).map((p) => ({ id: p.id, name: p.name })),
+        new Set(cards.filter((c) => hasAnyStroke(c.strokes)).map((c) => c.playerId)),
+        new Set(markedOut),
+      );
+    }
+    return (
+      <CloseThisRound
+        stageId={activeStage.id}
+        label={roundLabel(state.stages, activeStage.id) || activeStage.description}
+        closed={activeStage.closedAt !== null}
+        tick={closingTickShown(activeStage)}
+        cardsCounted={individual}
+        pointsBoard={isStablefordRound(activeStage.scoringBasis, activeStage.format)}
+        deadline={activeStage.deadline}
+        deadlineOverride={activeStage.deadlineOverride}
+        today={state.today}
+        missing={missing}
+        withdrawDoor={withdrawDoor}
+      />
+    );
+  };
 
   // The tournament's own current round can be a cup session still in draft —
   // the organizer is building Saturday's lineup while Friday is played. A
@@ -341,6 +419,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
             />
           </DistanceUnitProvider>
         )}
+        {await closingFor([])}
       </>
     );
   };
@@ -667,6 +746,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
           />
         )}
         {teamEntry}
+        {await closingFor([])}
       </>
     );
   }
@@ -1323,6 +1403,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       rounds={rounds}
       voice={voice}
       openCourse={courseMode === "open"}
+      // "Played at" and the round's tee picker are asked here only for an open course while Score entry is shown (R12): a
+      // fixed course was answered at set-up, and its tees have one home. The old screen asks as it always did.
+      playedAtOnlyOpen={shown.has("scoreEntry")}
       courseLibrary={clubLibrary.map((c) => ({
         id: c.id,
         name: c.name,
@@ -1370,6 +1453,12 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       venueIsHome={!!brand?.homeCourseId && brand.homeCourseId === (soleVenue?.id ?? "")}
     />
   );
+  const entryWithClosing = (
+    <>
+      {entry}
+      {await closingFor(absentByStage[activeStage?.id ?? ""] ?? [])}
+    </>
+  );
   // A casual round is one screen, with the card on it. See `CasualRoundScreen`.
   return casualRound ? (
     <CasualRoundScreen
@@ -1381,6 +1470,6 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       {entry}
     </CasualRoundScreen>
   ) : (
-    entry
+    entryWithClosing
   );
 }
