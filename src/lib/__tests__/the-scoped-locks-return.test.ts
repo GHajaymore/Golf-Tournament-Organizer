@@ -185,7 +185,30 @@ describe("adding a round asks ONE rule, in both doors (TD ruling on 5a, Q2)", ()
 
   it("the rule itself refuses only a completed tournament's rounds lock", () => {
     const domain = readSource("src/lib/domain/tournament-status.ts");
-    expect(domain).toMatch(/export function addRoundLockOf\(locks: Record<LockScope, Lock>\): ScopeLock \| null \{\s*const l = scopeLockOf\(locks, "rounds"\);\s*return l && l\.by === "completed" \? l : null;/);
+    // Through the ONE completion-only reader (B115), which keeps only a lock held by completion.
+    expect(domain).toMatch(/export function addRoundLockOf\(locks: Record<LockScope, Lock>\): ScopeLock \| null \{\s*return completionLockOf\(locks, "rounds"\);/);
+    expect(domain).toMatch(/export function completionLockOf\(locks: Record<LockScope, Lock>, scope: LockScope\): ScopeLock \| null \{\s*const l = scopeLockOf\(locks, scope\);\s*return l && l\.by === "completed" \? l : null;/);
+  });
+});
+
+describe("drawing a league week is refused only once completed (B115)", () => {
+  const LEAGUE = "src/app/actions/league.ts";
+
+  it("drawLeagueWeek asks the sides lock COMPLETION-ONLY, returns it, and before it reads or writes anything else", () => {
+    const b = body(LEAGUE, "drawLeagueWeek");
+    expect(b).toMatch(/const locked = await refuseIfCompleted\(eventId, "sides", "draw a league week"\);\s*if \(locked\) return locked;/);
+    expect(b.indexOf("refuseIfCompleted("), "asked after a read").toBeLessThan(b.indexOf("leagueSeason("));
+    expect(b.indexOf("refuseIfCompleted("), "asked after a write").toBeLessThan(b.search(FIRST_WRITE));
+  });
+
+  it("no league action asks the launch-held lock: a live league is drawn every week (refuseIfLocked would refuse it)", () => {
+    expect(readSource(LEAGUE)).not.toMatch(/refuseIfLocked\(/);
+  });
+
+  it("the service's completion reader goes through completionLockOf, with no copy of its test", () => {
+    const svc = readSource("src/lib/services/tournament-status.ts");
+    expect(svc).toMatch(/completionLockOf\(locksFor\(facts\), scope\)/);
+    expect(svc).not.toMatch(/by === "completed"/);
   });
 });
 

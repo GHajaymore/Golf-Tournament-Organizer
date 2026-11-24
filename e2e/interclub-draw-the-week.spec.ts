@@ -82,4 +82,84 @@ test.describe("@redesign interclub: Draw this week on Tee times & draw", () => {
       await dropClub(mark);
     }
   });
+
+  /**
+   * B115: A COMPLETED LEAGUE IS NOT REDRAWN (the Principal Engineer's design, 24 Nov). A live league is drawn every week, so
+   * launch refuses nothing here; completion does, and Reopen is the way out. The secretary's screen is drawn while the league
+   * is live and its week is drawn; the tournament is completed "in another tab" (the database, as the locked-setup spec does);
+   * Redraw is pressed on the stale screen and refused in words beside the press; after a reload the four-balls are the same
+   * rows, the banner is up and the button is shut; reopened, the same press replaces the week.
+   */
+  test("a completed league's week is not redrawn: refused in words beside the press, the same four-balls after a reload, drawn again once reopened", async ({ browser, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "two sizes: a third seeding proves nothing more");
+    test.setTimeout(180_000);
+    const mark = `zz-interclub-done-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const made = await makeEvent(club, "Thursday Interclub", {
+        status: "live",
+        stages: [{ type: "Round Robin", format: "Four-Ball", playedOn: addDays(dayIn(""), 7) }],
+        players: 8,
+        event: { leaguePoints: "match", leaguePairs: 2 },
+      });
+      const round = made.stages[0];
+      for (const [c, name] of ["Ardlui", "Balfron"].entries()) {
+        const g = await prisma.group.create({ data: { eventId: made.event.id, name: `${mark} ${name}`, position: c } });
+        const own = made.players.slice(c * 4, c * 4 + 4);
+        await prisma.player.updateMany({ where: { id: { in: own.map((p) => p.id) } }, data: { groupId: g.id } });
+        for (const k of [0, 1]) {
+          await prisma.team.create({
+            data: {
+              eventId: made.event.id,
+              stageId: round.id,
+              name: `${name} pair ${k + 1}`,
+              seed: k + 1,
+              clubGroupId: g.id,
+              members: { create: own.slice(k * 2, k * 2 + 2).map((p, position) => ({ playerId: p.id, position })) },
+            },
+          });
+        }
+      }
+      const matchIds = async () =>
+        (await prisma.match.findMany({ where: { eventId: made.event.id, stageId: round.id }, select: { id: true }, orderBy: { id: "asc" } })).map((m) => m.id);
+      const setStatus = (status: "live" | "completed") => prisma.event.update({ where: { id: made.event.id }, data: { status } });
+
+      await withTeeTimesAs(browser, baseURL!, testInfo, { club, eventId: made.event.id }, async (screen, page) => {
+        await screen.open(round.id);
+        const draw = await screen.openSection("draw");
+        await draw.getByRole("button", { name: "Draw this week", exact: true }).click();
+        await expect.poll(async () => (await matchIds()).length, { message: "the week's four-balls were not stored" }).toBe(2);
+        const drawnIds = await matchIds();
+        await page.reload();
+        const live = await screen.openSection("draw");
+        await expect(live.getByRole("button", { name: "Redraw this week" }), "CONTROL: a live, launched league offers the redraw").toBeEnabled();
+
+        // Completed in another tab: this screen is stale and still offers the button.
+        await setStatus("completed");
+        await live.getByRole("button", { name: "Redraw this week" }).click();
+        const refusal = live.locator('[role="alert"]').filter({ hasText: /Locked because the tournament is completed\..*draw a league week/ });
+        await expect(refusal, "the refusal is not said beside the press").toBeVisible();
+        await expect(refusal).toContainText("Reopen it on the dashboard");
+        expect(await matchIds(), "a refused press changed the four-balls").toEqual(drawnIds);
+
+        await page.reload();
+        const shut = await screen.openSection("draw");
+        await expect(shut.locator('[data-locked-once="locked"]'), "the banner is not up after the reload").toBeVisible();
+        await expect(shut.getByRole("button", { name: "Redraw this week" }), "the button is still open on a completed league").toBeDisabled();
+        expect(await matchIds(), "the four-balls changed").toEqual(drawnIds);
+
+        // Reopen (the dashboard's button sets the status back); the same press now asks to replace, and replaces.
+        await setStatus("live");
+        await page.reload();
+        const reopened = await screen.openSection("draw");
+        await expect(reopened.getByRole("button", { name: "Redraw this week" })).toBeEnabled();
+        await reopened.getByRole("button", { name: "Redraw this week" }).click();
+        await reopened.getByRole("button", { name: "Replace them" }).click();
+        await expect.poll(async () => (await matchIds()).some((id) => drawnIds.includes(id)), { message: "the week was not redrawn after Reopen" }).toBe(false);
+        expect(await matchIds()).toHaveLength(2);
+      });
+    } finally {
+      await dropClub(mark);
+    }
+  });
 });

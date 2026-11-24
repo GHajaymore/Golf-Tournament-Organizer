@@ -71,7 +71,8 @@ describe("the two pages ask the one answer", () => {
   it("Teams hides its LeagueDraw exactly while `drawMoved`, which the page takes from `leagueDrawPlace`", () => {
     const section = readSource("src", "components", "LeagueSection.tsx");
     expect(section).toMatch(/\{drawMoved \? \(/);
-    expect(section).toMatch(/\) : \(\s*<LeagueDraw stageId=\{stageId\} drawn=\{drawn\} \/>\s*\)\}/);
+    // B115: handed the sides' COMPLETION lock (`completionLockFor`), so a completed league's Redraw is shut.
+    expect(section).toMatch(/\) : \(\s*<LeagueDraw stageId=\{stageId\} drawn=\{drawn\} locked=\{\(await completionLockFor\(eventId, "sides"\)\) !== null\} \/>\s*\)\}/);
     const teams = readSource("src", "app", "(app)", "teams", "page.tsx");
     expect(teams).toMatch(/leagueDrawPlace\(roundForPlace, told\.status\.family, teeTimesShown\) === "teeTimes"/);
     expect(teams).toMatch(/drawMoved=\{leagueDrawMoved\}/);
@@ -81,7 +82,10 @@ describe("the two pages ask the one answer", () => {
     const tee = readSource("src", "app", "(app)", "foursomes", "page.tsx");
     expect(tee).toMatch(/isStaff && controls\.leagueWeek \? await flightsIn\(/);
     expect(tee).toMatch(/leagueClubs\.length > 0 && leagueDrawPlace\([^)]*true\) === "teeTimes"/);
-    expect(tee).toMatch(/<LeagueDraw stageId=\{stage\.id\} drawn=\{roundMatches\} \/>/);
+    // B115: the sides' completion lock, in the section's one banner and handed to the control.
+    expect(tee).toMatch(/const leagueLock = leagueDrawHere \? await completionLockFor\(session\.eventId, "sides"\) : null;/);
+    expect(tee).toMatch(/<LeagueDraw stageId=\{stage\.id\} drawn=\{roundMatches\} locked=\{leagueLock !== null\} \/>/);
+    expect(tee).toMatch(/\.\.\.\(leagueLock \? \[leagueLock\] : \[\]\)/);
     expect(tee).toMatch(/league: isLeaguePointsSystem\(state\.event\.leaguePoints\)/);
     // In the draw section, once, and says where the pairs are nominated.
     expect(tee.split("{leagueWeekPointer}").length - 1).toBe(1);

@@ -14,7 +14,7 @@ import { BUILD_PREVIEW } from "@/lib/domain/console-merges";
 import { STEPPER_PREVIEW } from "@/lib/domain/lifecycle-track";
 import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import { openTournamentJob } from "@/lib/services/whats-next";
-import { scopeLockFor, screenLocksFor, tournamentStatusFor } from "@/lib/services/tournament-status";
+import { scopeLockFor, completionLockFor, screenLocksFor, tournamentStatusFor } from "@/lib/services/tournament-status";
 import { isKnockoutRound } from "@/lib/stage-types";
 import { roundHandicapsFor } from "@/lib/services/round-handicap";
 import { courseDayOf } from "@/lib/domain/timeline-step";
@@ -585,8 +585,12 @@ export default async function FoursomesPage({
     // requires. Nominating the pairs stays on Teams & pairs, under Players, and is said here with a link. (The name is the
     // old pointer's: the JSX below is unchanged.)
     const leagueClubs = isStaff && controls.leagueWeek ? await flightsIn(session.eventId) : [];
+    const leagueDrawHere =
+      leagueClubs.length > 0 && leagueDrawPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes";
+    // The sides' lock read COMPLETION-ONLY (B115): a live league is drawn every week, a finished one is not (Reopen). The section's one banner draws it.
+    const leagueLock = leagueDrawHere ? await completionLockFor(session.eventId, "sides") : null;
     const leagueWeekPointer =
-      leagueClubs.length > 0 && leagueDrawPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes" ? (
+      leagueDrawHere ? (
         <div data-league-week="" style={{ display: "grid", gap: 8, minWidth: 0 }}>
           <p data-league-pairs-pointer="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
             The week&rsquo;s pairs are nominated on{" "}
@@ -595,7 +599,7 @@ export default async function FoursomesPage({
             </a>
             ; draw the week&rsquo;s four-balls from them here.
           </p>
-          <LeagueDraw stageId={stage.id} drawn={roundMatches} />
+          <LeagueDraw stageId={stage.id} drawn={roundMatches} locked={leagueLock !== null} />
         </div>
       ) : null;
     const sidesLock = generatorHere ? await scopeLockFor(session.eventId, "sides") : null;
@@ -679,7 +683,7 @@ export default async function FoursomesPage({
       return <CupLineup {...lineup} locked={roundsShut} lockWhy={roundsFacts.locks[0] ?? null} settingsHere={!shown.has("rounds")} />;
     })();
     // The section's banner: the flights' lock first (it sits above the flights panel), then the sheet's, the sides' and the rounds'.
-    const sectionLocks = [...(flightsLock ? [flightsLock] : []), ...(sheetLock ? [sheetLock] : []), ...(sidesLock ? [sidesLock] : []), ...roundsFacts.locks];
+    const sectionLocks = [...(flightsLock ? [flightsLock] : []), ...(sheetLock ? [sheetLock] : []), ...(sidesLock ? [sidesLock] : []), ...(leagueLock ? [leagueLock] : []), ...roundsFacts.locks];
     const groupsOf = savedSheet?.groups ?? [];
     const who = membersAskEl || weekFieldEl || cutWaiting || handicapRows.length > 0;
     return (
@@ -730,12 +734,12 @@ export default async function FoursomesPage({
             node: (
               <>
                 {nextRoundEl}
-                {leagueWeekPointer}
                 {pairingEl}
                 {/* ONE banner for the section (one banner id per page): the flights', the sheet's, the sides' while the generator is here and the rounds' while a control that asks them is. */}
                 <LockedOnce locks={sectionLocks} isAdmin={isAdmin} correction={bracketControls || lineupHere ? roundsFacts.correction : null} open={null}>
                   {() => (
                     <>
+                      {leagueWeekPointer}
                       {/* The knockout's set-up and a cup session's lineup (R9c), each on its own round and nowhere else, under the section's one banner. */}
                       {lineupEl}
                       {knockoutEl}

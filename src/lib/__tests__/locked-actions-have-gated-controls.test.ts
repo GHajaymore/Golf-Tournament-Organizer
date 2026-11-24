@@ -45,7 +45,7 @@ function lockRefusingActions(): Map<string, string> {
       // lock (`refuseIfLocked`, PR 5a) RETURNS its refusal rather than throwing,
       // but a live control that can only be refused is still an invitation to a
       // refused press, so its controls must know the lock all the same.
-      if (/\b(assertUnlocked|refuseIfLocked)\(/.test(part)) out.set(name, relative(ROOT, f));
+      if (/\b(assertUnlocked|refuseIfLocked|refuseIfCompleted)\(/.test(part)) out.set(name, relative(ROOT, f));
     }
   }
   return out;

@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
+import { refuseIfCompleted } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
 import { isLeaguePlayoffSize } from "@/lib/domain/league-playoff";
@@ -326,6 +328,8 @@ export type LeagueDrawResult =
   | {
       ok: false;
       error: string;
+      /** Set when the tournament is completed: the screen catches up with it (`useCaughtUp`). */
+      lock?: ScopeLock;
       needsConfirm?: boolean;
       existing?: number;
       /** Season meetings that were never played, when that is what is being asked about. */
@@ -368,6 +372,9 @@ export async function drawLeagueWeek(
     select: { id: true, position: true, format: true, holes: true },
   });
   if (!stage) return { ok: false, error: "Round not found." };
+  // COMPLETED ONLY, NEVER LAUNCH (B115): a live league is drawn every week, so the sides' lock is read completion-only.
+  const locked = await refuseIfCompleted(eventId, "sides", "draw a league week");
+  if (locked) return locked;
   if (!needsTeams(stage.format)) {
     return {
       ok: false,

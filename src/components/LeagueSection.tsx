@@ -15,6 +15,7 @@ import { LeaguePlayoffs } from "@/components/LeaguePlayoffs";
 import { PlayoffDecision, type DecidableMeeting } from "@/components/PlayoffDecision";
 import { leagueMeetings as meetingsOfRound } from "@/lib/services/league";
 import { keepingPreview } from "@/lib/services/screens-shown";
+import { completionLockFor } from "@/lib/services/tournament-status";
 
 /**
  * AN INTERCLUB LEAGUE, ON THE SCREEN THAT ALREADY OWNS SIDES.
@@ -187,7 +188,7 @@ export async function LeagueSection({
           .
         </p>
       ) : (
-        <LeagueDraw stageId={stageId} drawn={drawn} />
+        <LeagueDraw stageId={stageId} drawn={drawn} locked={(await completionLockFor(eventId, "sides")) !== null} />
       )}
 
       <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>

@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import { drawLeagueWeek } from "@/app/actions/league";
 import { Icon } from "@/components/Icon";
+import { ScopeLockMark } from "@/components/ScopeLockBanner";
+import { useCaughtUp } from "@/components/useAction";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 /**
  * DRAW THIS WEEK: which clubs meet, and pair against pair.
@@ -18,7 +21,8 @@ import { Icon } from "@/components/Icon";
  * press — a play-off round already drawn, off a season a week short — so what
  * has been agreed to is remembered across them rather than held as one flag.
  */
-export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number }) {
+export function LeagueDraw({ stageId, drawn, locked }: { stageId: string; drawn: number; locked: boolean }) {
+  const caughtUp = useCaughtUp();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   /** The question on the screen, if there is one. */
@@ -32,7 +36,7 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
     setNote("");
     setAgreed(yes);
     startTransition(async () => {
-      const res = await drawLeagueWeek(stageId, yes.replace, yes.shortSeason);
+      const res = caughtUp(await drawLeagueWeek(stageId, yes.replace, yes.shortSeason));
       if (!res.ok) {
         if (res.needsConfirm) {
           setAsked(res.missing ? { kind: "short", missing: res.missing } : { kind: "replace" });
@@ -61,15 +65,17 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
-      <button
-        type="button"
-        className="btn btn-primary"
-        disabled={pending}
-        onClick={() => run({ replace: false, shortSeason: false })}
-        style={{ alignSelf: "flex-start" }}
-      >
-        <Icon name="shuffle" /> {drawn > 0 ? "Redraw this week" : "Draw this week"}
-      </button>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        {locked && <ScopeLockMark />}
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={pending || locked}
+          onClick={() => run({ replace: false, shortSeason: false })}
+        >
+          <Icon name="shuffle" /> {drawn > 0 ? "Redraw this week" : "Draw this week"}
+        </button>
+      </div>
       <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
         Clubs meet on a round-robin rotation across the weeks, and pairs play in the order each
         club nominated them — first pair against first pair.
@@ -115,7 +121,7 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
       )}
 
       {error && (
-        <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
+        <p role="alert" ref={bringIntoView} style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
           {error}
         </p>
       )}
