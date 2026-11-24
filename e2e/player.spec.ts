@@ -147,7 +147,8 @@ test("a second tap just after the card moves on leaves the next hole unscored", 
     }
     await expect(scored).toHaveCount(before);
     // The clears must reach the server too, or the shared fixture keeps the holes.
-    for (const h of [n + 1, n]) await expect(chip(h)).toHaveAttribute("data-sync", "sent");
+    // A cleared, saved hole reads "none" (holeSyncs, pending-card.ts), never "sent".
+    for (const h of [n + 1, n]) await expect(chip(h)).toHaveAttribute("data-sync", "none");
     await page.reload();
     await expect(scored, "the fixture kept a hole this test scored").toHaveCount(before);
   }
