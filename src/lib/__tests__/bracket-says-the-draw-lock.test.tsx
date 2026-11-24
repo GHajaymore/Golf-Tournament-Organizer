@@ -64,8 +64,19 @@ describe("the Bracket's draw lock", () => {
     const src = readSource("src/app/(app)/bracket/page.tsx");
     expect(src).toMatch(/scopeLockFor\(session\.eventId, "draw"\)/);
     expect(src).toMatch(/<ScopeLockBanner locks=\{drawLock \? \[drawLock\] : \[\]\}/);
-    // The panel is told what the lock says, never `drawFrozen` (a second copy of "has a result").
-    expect(src).toMatch(/lockBy=\{drawLock\?\.by/);
+    // The panel is told what the lock says, never `drawFrozen` (a second copy of "has a result"). Since R9c the props are
+    // `bracketFlightsPropsOf`'s, the one reader for the Bracket and Tee times & draw: the page hands it the lock it read, and it sets `lockBy` from it.
+    expect(src).toMatch(/bracketFlightsPropsOf\(state, \{ isAdmin, drawLock \}\)/);
+    expect(src).not.toMatch(/drawFrozen/);
+    const props = readSource("src/lib/services/bracket-flights-props.ts");
+    expect(props).toMatch(/lockBy: who\.drawLock\?\.by === "results" \|\| who\.drawLock\?\.by === "completed" \? who\.drawLock\.by : null/);
+    expect(props).not.toMatch(/drawFrozen/);
+  });
+
+  it("Tee times & draw hands the same panel the same machine lock, asked only for the flights of a knockout (R9c)", () => {
+    const src = readSource("src/app/(app)/foursomes/page.tsx");
+    expect(src).toMatch(/bracketFlightsPropsOf\(state, \{ isAdmin, drawLock: flightsLock \}\)/);
+    expect(src).toMatch(/scopeLockFor\(session\.eventId, "draw"\)/);
     expect(src).not.toMatch(/drawFrozen/);
   });
 });

@@ -4,8 +4,8 @@ import type { GuideVariant } from "./index";
  * THE GUIDE AS IT WILL BE, FOR TEE TIMES & DRAW (R9a): shown only while the screen is (`REDESIGN_GUIDE`,
  * `screen: "teeTimes"`). It ADDS a section (`replaces: []`) rather than replacing Part 5, which also holds
  * Flights and Teams: at R16, when the screens go on, this takes the Tee sheet and Print kit paragraphs of
- * "draw" into one place. Written for every round R9a and R9b build: the stroke and Stableford round, a match, a round robin of
- * flights, a league week and a sided round; the knockout and cup rounds (R9c) keep today's tee sheet, and the guide says so.
+ * "draw" into one place. Written for every round R9a, R9b and R9c build: the stroke and Stableford round, a match, a round robin of
+ * flights, a league week, a sided round, a knockout (in flights or not) and a cup session.
  */
 export const TEE_TIMES_GUIDE: GuideVariant = {
   screen: "teeTimes",
@@ -19,7 +19,7 @@ export const TEE_TIMES_GUIDE: GuideVariant = {
       { kind: "where", text: "This event → Tee times & draw" },
       {
         kind: "p",
-        text: "One screen per round, for a medal, a Stableford, a match, a round robin, a league week or a team round. The round is picked at the top (each one carries its state: **Not drawn yet**, **No tee times**, **In play**, **Played**), and **This round needs** lists what is missing, each line a link to the section that puts it right. If the tournament's one button is this round's tee sheet, that section says **Needs you**.",
+        text: "One screen per round, for a medal, a Stableford, a match, a round robin, a league week, a team round, a knockout or a cup session. The round is picked at the top (each one carries its state: **Not drawn yet**, **No tee times**, **In play**, **Played**), and **This round needs** lists what is missing, each line a link to the section that puts it right. If the tournament's one button is this round's tee sheet, that section says **Needs you**.",
       },
       {
         kind: "steps",
@@ -38,7 +38,7 @@ export const TEE_TIMES_GUIDE: GuideVariant = {
       },
       {
         kind: "p",
-        text: "A knockout or a cup round still opens today's Bracket or Team cup; those move to this screen next. A league's club pairs and the interclub **Draw the week** stay on Teams & pairs for now: the draw section says so, with a link, and Teams & pairs says where **Generate matches** went.",
+        text: "A knockout's set-up is in **The draw** of the knockout's own round: the **flights** of a knockout in flights (divide the field, move a player, rename or reseed a flight), the **Play-off for third place** (switch it on, and make the match once the semi-finals are played) and the **Play-by dates** (one day for each round, the final last). A cup session's own round holds its **lineup**: pick a pair or a player from each team and press Add match, then announce the session. The Bracket keeps the draw itself and the results, and says where the rest went; the Team cup keeps the score, the teams and the outside points, and says where the lineups went. A league's club pairs and the interclub **Draw the week** stay on Teams & pairs for now: the draw section says so, with a link, and Teams & pairs says where **Generate matches** went.",
       },
     ],
   },
