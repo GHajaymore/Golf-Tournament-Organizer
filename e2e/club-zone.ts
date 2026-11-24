@@ -15,7 +15,7 @@
  * adoption itself or the server's day. Nothing imports anything, so a unit test can read this.
  */
 export function defaultClubZone(
-  env: { E2E_TZ?: string } = process.env,
+  env: Record<string, string | undefined> = process.env,
   machineZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
 ): string {
   return (env.E2E_TZ || machineZone || "").trim();
