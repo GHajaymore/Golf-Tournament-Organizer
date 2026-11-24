@@ -288,6 +288,7 @@ export function HoleByHoleCard({
   const advanceFrom = (from: number) => {
     cancelAdvance();
     if (from >= holes - 1) return;
+    settle.stamp();
     advance.current = setTimeout(() => {
       advance.current = null;
       settle.markAdvanced();
@@ -589,6 +590,7 @@ export function HoleByHoleCard({
               onPick={(v, moveOn) => set(players[0].id, v, moveOn)}
               onDone={() => advanceFrom(hole)}
               live={live}
+              holding={settle.holding}
             />
             {onPickUp && (
               <PickUpToggle
@@ -596,6 +598,7 @@ export function HoleByHoleCard({
                 hole={holeNumber(hole, firstHole)}
                 on={pickedUp?.[players[0].id]?.[hole] === true}
                 live={live}
+                holding={settle.holding}
                 onToggle={(on) => {
                   if (settle.refused()) return;
                   onPickUp(players[0].id, hole, on);
@@ -765,6 +768,7 @@ function PickUpToggle({
   onToggle,
   compact = false,
   live = true,
+  holding = false,
 }: {
   name: string;
   hole: number;
@@ -773,6 +777,8 @@ function PickUpToggle({
   compact?: boolean;
   /** False until the page's script is running: a tap before then is lost. */
   live?: boolean;
+  /** B117: the card has just moved on; the pad is not taking taps for a moment (aria-disabled, never disabled). */
+  holding?: boolean;
 }) {
   return (
     <button
@@ -781,6 +787,7 @@ function PickUpToggle({
       aria-pressed={on}
       aria-label={`${name} picked up on hole ${hole}`}
       disabled={!live}
+      aria-disabled={holding ? "true" : undefined}
       onClick={() => onToggle(!on)}
       style={{
         marginTop: compact ? 6 : 12,
@@ -805,6 +812,7 @@ function SoloPad({
   onDone,
   firstHole = 1,
   live,
+  holding = false,
 }: {
   player: CardPlayer;
   hole: number;
@@ -818,6 +826,8 @@ function SoloPad({
   onDone?: () => void;
   /** False until the page's script is running: a tap before then is lost. */
   live: boolean;
+  /** B117: see `PickUpToggle`. */
+  holding?: boolean;
 }) {
   /**
    * ONE ID PER CARD (2026-11-05): "hbh-other" was a constant, so a page holding
@@ -873,6 +883,7 @@ function SoloPad({
               // still there, deliberately, by emptying "Other".
               onClick={() => onPick(n)}
               disabled={!live}
+              aria-disabled={holding ? "true" : undefined}
               aria-pressed={chosen}
               style={{
                 // 56px: above the 44px touch minimum, with a glove on.

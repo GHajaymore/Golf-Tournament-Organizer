@@ -9,8 +9,10 @@ import { readSource } from "./source";
  *
  * The card moves on 160ms after a score is set, so the second half of a
  * double-tap landed on the next hole's pad and scored a hole nobody had
- * played. A pad tap inside 400ms of the new hole appearing is now dropped.
- * The rule is `useAdvanceSettle`; both cards ask it.
+ * played. The window runs 400ms from the TAP that set the score and is armed
+ * when the card moves (the PE's ruling, which also resolves B119: a scorer
+ * who aims at the new hole is never inside it). The rule is
+ * `useAdvanceSettle`; both cards ask it.
  */
 
 function settleWith(clock: { t: number }) {
@@ -23,44 +25,99 @@ function settleWith(clock: { t: number }) {
   return api;
 }
 
-describe("the settle window after the card moves on", () => {
+/** A tap at `t0` sets a score; the card moves 160ms later. Returns the hook, clock at the move. */
+function tapAndAdvance(clock: { t: number }) {
+  const settle = settleWith(clock);
+  settle.stamp();
+  clock.t += 160;
+  settle.markAdvanced();
+  return settle;
+}
+
+describe("the settle window, from the tap that set the score", () => {
   it("is 400ms", () => {
     expect(ADVANCE_SETTLE_MS).toBe(400);
   });
 
-  it("holds a tap that comes inside it, from the moment the new hole appears", () => {
+  it("drops a tap on the new hole at 300ms and at 399ms, from the first tap", () => {
     const clock = { t: 1_000 };
-    const settle = settleWith(clock);
-    expect(settle.settling(), "before any advance a tap is a tap").toBe(false);
-    settle.markAdvanced();
-    clock.t += 1;
-    expect(settle.settling()).toBe(true);
-    clock.t += 250;
-    expect(settle.settling(), "a double-tap's second half, 250ms in").toBe(true);
-    clock.t += ADVANCE_SETTLE_MS - 252;
-    expect(settle.settling(), "the last millisecond of the window").toBe(true);
+    const settle = tapAndAdvance(clock);
+    clock.t = 1_000 + 300;
+    expect(settle.settling(), "a double-tap's second touch, 300ms after the first").toBe(true);
+    clock.t = 1_000 + 399;
+    expect(settle.settling(), "the last millisecond").toBe(true);
   });
 
-  it("lets a deliberate tap after it score", () => {
-    const clock = { t: 5_000 };
-    const settle = settleWith(clock);
-    settle.markAdvanced();
-    clock.t += ADVANCE_SETTLE_MS;
-    expect(settle.settling()).toBe(false);
-    clock.t += 5_000;
+  it("takes a tap at 400ms from the first tap", () => {
+    const clock = { t: 1_000 };
+    const settle = tapAndAdvance(clock);
+    clock.t = 1_000 + ADVANCE_SETTLE_MS;
     expect(settle.settling()).toBe(false);
   });
 
-  it("starts again at the next advance", () => {
+  it("takes a tap before the card has moved (same hole: a correction or the same score)", () => {
     const clock = { t: 0 };
     const settle = settleWith(clock);
-    settle.markAdvanced();
-    clock.t += 1_000;
+    settle.stamp();
+    clock.t = 100;
+    expect(settle.settling()).toBe(false);
+  });
+
+  it("drops only the new hole's first ~240ms: an aimed tap 250ms after it appears is taken", () => {
+    const clock = { t: 0 };
+    const settle = tapAndAdvance(clock); // the card moved at 160
+    clock.t = 160 + 250;
+    expect(settle.settling()).toBe(false);
+  });
+
+  it("clear() (strip, Next, swipe) lets the very next tap through", () => {
+    const clock = { t: 0 };
+    const settle = tapAndAdvance(clock);
+    clock.t = 200;
+    expect(settle.settling()).toBe(true);
+    settle.clear();
+    expect(settle.settling()).toBe(false);
+  });
+
+  it("starts again at the next tap", () => {
+    const clock = { t: 0 };
+    const settle = tapAndAdvance(clock);
+    clock.t = 5_000;
+    settle.stamp();
+    clock.t += 160;
     settle.markAdvanced();
     clock.t += 100;
     expect(settle.settling()).toBe(true);
   });
 });
+
+describe("the pad says it is held (aria-disabled, never disabled)", () => {
+  const byHole = readSource("src/components/HoleByHoleCard.tsx");
+  const result = readSource("src/components/HoleResultCard.tsx");
+
+  it("the stroke pad and Picked up read `holding`, and are never disabled by it", () => {
+    expect(byHole.match(/aria-disabled=\{holding \? "true" : undefined\}/g)?.length).toBe(2);
+    expect(byHole).toMatch(/holding=\{settle\.holding\}/);
+    expect(byHole).not.toMatch(/(?<!aria-)disabled=\{[^}]*holding/);
+  });
+
+  it("the match card's three answers read it too", () => {
+    expect(result).toMatch(/aria-disabled=\{settle\.holding \? "true" : undefined\}/);
+    expect(result).not.toMatch(/(?<!aria-)disabled=\{[^}]*holding/);
+  });
+
+  it("the hook's holding is on for the armed window and off by clear()", () => {
+    const src = readSource("src/components/useAdvanceSettle.ts");
+    expect(src).toMatch(/setHolding\(left > 0\)/);
+    expect(src).toMatch(/clear: \(\) => \{[^}]*stopHolding\(\)/);
+  });
+
+  it("every tap that starts an advance stamps it", () => {
+    expect(byHole).toMatch(/settle\.stamp\(\);\s*advance\.current = setTimeout/);
+    expect(result).toMatch(/settle\.stamp\(\);\s*advance\.current = setTimeout/);
+  });
+});
+
 
 describe("both cards ask it, and only their own advance starts it", () => {
   const byHole = readSource("src/components/HoleByHoleCard.tsx");
@@ -90,18 +147,6 @@ describe("both cards ask it, and only their own advance starts it", () => {
       expect(go).toContain("settle.clear()");
       expect(go).not.toContain("markAdvanced");
     }
-  });
-});
-
-describe("a deliberate move ends the window", () => {
-  it("clear() lets the very next tap through", () => {
-    const clock = { t: 0 };
-    const settle = settleWith(clock);
-    settle.markAdvanced();
-    clock.t += 50;
-    expect(settle.settling()).toBe(true);
-    settle.clear();
-    expect(settle.settling()).toBe(false);
   });
 });
 

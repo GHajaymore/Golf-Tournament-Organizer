@@ -74,27 +74,39 @@ test("entering a hole advances and updates the running score", async ({ page }) 
  * nothing said. Walked on a member's phone: her first two holes, gone.
  */
 test("a double-tap on a score keeps it", async ({ page }) => {
+  // The page's own clock is held (B117), so "a second tap 80ms later, before the card moves" is
+  // exact and not the runner's speed: the card moves on at 160ms, a plain second click could
+  // otherwise wait out the pad and score the NEXT hole.
+  await page.clock.install();
   await page.goto("/me/card");
-  await page.waitForLoadState("networkidle");
+  await page.clock.pauseAt(new Date(Date.now() + 5_000));
   const scored = page.locator('[aria-label*=", complete"]');
   const before = await scored.count();
 
   const hole = await page.getByRole("textbox", { name: /^Strokes on hole \d+$/ }).getAttribute("aria-label");
+  const n = hole!.replace(/\D+/g, "");
+  const chip = page.getByRole("button", { name: new RegExp(`^Hole ${n},`) });
   const par = page.getByRole("button", { name: /^\d+\s*Par$/ }).first();
-  await par.click();
-  await par.click();
   try {
+    await par.click();
+    await page.clock.runFor(80);
+    await par.click({ force: true }); // the same hole: the card has not moved yet
     // Past the advance and the save's debounce.
-    await page.waitForTimeout(1500);
+    await page.clock.runFor(1500);
+    await page.clock.resume();
     await expect(scored, "the second tap cleared the hole the first one set").toHaveCount(before + 1);
+    await expect(chip).toHaveAttribute("data-sync", "sent");
   } finally {
     // Put the shared fixture back — the other projects read "thru 9" off it.
     // Cleared the deliberate way: back to that hole, empty "Other".
-    const n = hole!.replace(/\D+/g, "");
-    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
+    await page.clock.resume();
+    await chip.click();
     await page.getByRole("textbox", { name: `Strokes on hole ${n}` }).fill("");
-    await page.waitForTimeout(1500);
     await expect(scored).toHaveCount(before);
+    // The clear must reach the server too: a cleared, saved hole reads "none".
+    await expect(chip).toHaveAttribute("data-sync", "none");
+    await page.reload();
+    await expect(scored, "the fixture kept the hole this test scored").toHaveCount(before);
   }
 });
 
@@ -103,8 +115,9 @@ test("a double-tap on a score keeps it", async ({ page }) => {
  * moves on 160ms after a tap; a second tap just after landed on the NEXT
  * hole's pad and scored a hole nobody played. The page's own clock is held
  * (`page.clock`, as honest-card.spec.ts does), so the gaps are exact and not
- * the runner's speed: a tap 100ms into the new hole is dropped and says so; a
- * tap 400ms in scores; then reload and look at what the server kept.
+ * the runner's speed. The window runs 400ms from the TAP: a tap 260ms after it
+ * (100ms into the new hole) finds the pad aria-disabled and is dropped, with
+ * its note; a tap 460ms after it scores; then reload and look at the server.
  */
 test("a second tap just after the card moves on leaves the next hole unscored", async ({ page }) => {
   await page.clock.install();
@@ -122,12 +135,15 @@ test("a second tap just after the card moves on leaves the next hole unscored", 
     await page.clock.runFor(160); // the card's own advance
     await expect(page.getByRole("textbox", { name: `Strokes on hole ${n + 1}` })).toBeVisible();
 
-    await page.clock.runFor(100); // inside the 400ms window
-    await par().click();
+    await page.clock.runFor(100); // 260ms after the tap: inside the 400ms window
+    await expect(par(), "the pad did not say it was holding").toHaveAttribute("aria-disabled", "true");
+    // force: a person does not wait for the pad, and a plain click would wait for it under the held clock.
+    await par().click({ force: true });
     await expect(page.getByTestId("tap-not-taken"), "a dropped tap said nothing").toContainText(`Hole ${n + 1}`);
     await expect(chip(n + 1), "the second tap scored the next hole").toHaveAttribute("aria-label", /not scored/);
 
-    await page.clock.runFor(400); // past the window: a deliberate tap scores
+    await page.clock.runFor(200); // 460ms after the tap: past the window, a deliberate tap scores
+    await expect(par()).toBeEnabled();
     await par().click();
     await expect(chip(n + 1)).toHaveAttribute("aria-label", /complete/);
 

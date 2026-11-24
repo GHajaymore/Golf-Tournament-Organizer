@@ -143,6 +143,7 @@ export function HoleResultCard({
     cancelAdvance();
     if (!clearing && hole < count - 1) {
       const from = hole;
+      settle.stamp();
       advance.current = setTimeout(() => {
         advance.current = null;
         settle.markAdvanced();
@@ -265,6 +266,7 @@ export function HoleResultCard({
               aria-pressed={value === a.v}
               aria-label={a.aria}
               disabled={!live}
+              aria-disabled={settle.holding ? "true" : undefined}
               onClick={() => press(a.v)}
             >
               {a.label}
