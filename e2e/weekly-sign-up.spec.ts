@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { savedBeforeReload } from "./save-settled";
 import {
   prisma,
   makeClub,
@@ -220,6 +221,7 @@ test.describe("@redesign the week's list and groups on Tee times & draw", () => 
         await expect
           .poll(groupsOnSheet, { message: "the sheet is not the three who are in this week" })
           .toEqual(inThisWeek.map((p) => p.id).sort());
+        await savedBeforeReload(draw); // "Save sheet" reads "Saving…" until the refresh is back (FoursomeMaker)
         await page.reload();
         const kept = await screen.openSection("draw");
         await expect(kept, "after a reload the draw section does not hold the saved sheet").toContainText("Saved as a draft");

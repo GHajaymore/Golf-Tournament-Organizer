@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { test, expect, closeAll, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { savedBeforeReload } from "./save-settled";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSession } from "./rounds-fixture";
 import { consoleUrl } from "../src/lib/console-url";
@@ -316,6 +317,8 @@ test.describe("@redesign", () => {
       await page.getByLabel(/^Email/).fill(email);
       await page.getByRole("button", { name: "Add member" }).click();
       await expect.poll(async () => (await stored())?.name, { timeout: 20_000, message: "the member was not added" }).toBe(name);
+      // The form's button reads "Saving…" until the refresh is back (RosterClient).
+      await savedBeforeReload(page.locator(".card", { has: page.getByLabel("Handicap index") }));
       await page.reload();
       await page.getByRole("heading", { level: 1, name: "Members" }).waitFor({ state: "visible" });
       await expect(page.locator("tbody tr").filter({ hasText: name }).first(), "the member is not listed after a reload").toBeVisible();
