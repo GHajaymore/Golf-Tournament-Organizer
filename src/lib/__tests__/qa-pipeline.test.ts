@@ -70,7 +70,7 @@ describe("rounds by tier (item A)", () => {
 
 describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
   it("a change inside one area is targeted at it, with its specs, scenarios and the crawl — and waits for the nightly", () => {
-    const p = roundPlan(["src/components/BracketFlights.tsx", "e2e/bracket-sections.spec.ts", "src/lib/__tests__/qa-pipeline.test.ts", "docs/testing.md"]);
+    const p = roundPlan(["src/components/BracketReports.tsx", "e2e/bracket-sections.spec.ts", "src/lib/__tests__/qa-pipeline.test.ts", "docs/testing.md"]);
     expect([p.tier, p.rounds, p.target?.area, p.crawl, p.nightly]).toEqual(["function", 1, "bracket", true, true]);
     expect(p.target?.scenarios).toEqual(["e"]);
     expect(p.countries).toBe("trio");
@@ -85,20 +85,20 @@ describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
       return p;
     };
     // core, money, the schema, the workflows, the framework, an e2e helper, package files, two areas, an unnamed screen
-    expect(full(["src/components/BracketFlights.tsx", "prisma/schema.prisma"]).tier).toBe("core");
-    expect(full(["src/components/BracketFlights.tsx", "src/lib/domain/money.ts"]).rounds).toBe(3);
-    expect(full(["src/components/BracketFlights.tsx", ".github/workflows/round.yml"]).fullBecause).toContain(".github/workflows/round.yml");
-    expect(full(["src/components/BracketFlights.tsx", "scripts/qa/layers.mjs"]).fullBecause).toContain("scripts/qa/layers.mjs");
-    expect(full(["src/components/BracketFlights.tsx", "e2e/fixture.mjs"]).fullBecause).toContain("e2e/fixture.mjs");
-    expect(full(["src/components/BracketFlights.tsx", "package.json"]).tier).toBe("core");
-    expect(full(["src/components/BracketFlights.tsx", "src/app/owner/page.tsx"]).fullBecause).toContain("more than one area");
+    expect(full(["src/components/BracketReports.tsx", "prisma/schema.prisma"]).tier).toBe("core");
+    expect(full(["src/components/BracketReports.tsx", "src/lib/domain/money.ts"]).rounds).toBe(3);
+    expect(full(["src/components/BracketReports.tsx", ".github/workflows/round.yml"]).fullBecause).toContain(".github/workflows/round.yml");
+    expect(full(["src/components/BracketReports.tsx", "scripts/qa/layers.mjs"]).fullBecause).toContain("scripts/qa/layers.mjs");
+    expect(full(["src/components/BracketReports.tsx", "e2e/fixture.mjs"]).fullBecause).toContain("e2e/fixture.mjs");
+    expect(full(["src/components/BracketReports.tsx", "package.json"]).tier).toBe("core");
+    expect(full(["src/components/BracketReports.tsx", "src/app/owner/page.tsx"]).fullBecause).toContain("more than one area");
     expect(full(["src/components/RosterClient.tsx"]).fullBecause).toContain("in no area");
-    expect(full(["src/components/BracketFlights.tsx", "e2e/print-kit.spec.ts"]).fullBecause).toContain("more than one area");
-    expect(full(["src/components/BracketFlights.tsx", "src/app/page.tsx"]).fullBecause).toContain("front door");
+    expect(full(["src/components/BracketReports.tsx", "e2e/print-kit.spec.ts"]).fullBecause).toContain("more than one area");
+    expect(full(["src/components/BracketReports.tsx", "src/app/page.tsx"]).fullBecause).toContain("front door");
     // A full function round is the round it got before targeting existed (and, since 2026-11-01, waits for the nightly).
     expect(full(["src/components/RosterClient.tsx"])).toMatchObject({ tier: "function", rounds: 1, countries: "trio", nightly: true });
     // Swept out of their areas for being imported from outside them (#982 review): full rounds.
-    for (const shared of ["src/components/BracketClient.tsx", "src/lib/services/messaging.ts", "src/lib/services/waitlist.ts", "src/components/CommentaryFeed.tsx", "src/lib/services/event-report.ts", "src/lib/bracket-visibility.ts"]) {
+    for (const shared of ["src/components/BracketClient.tsx", "src/components/BracketFlights.tsx", "src/lib/services/messaging.ts", "src/lib/services/waitlist.ts", "src/components/CommentaryFeed.tsx", "src/lib/services/event-report.ts", "src/lib/bracket-visibility.ts"]) {
       expect(full([shared]).fullBecause, shared).toContain("in no area");
     }
     expect(tierOf("src/lib/owner.ts")).toBe("core");
@@ -393,7 +393,7 @@ describe("the deploy gate (item C)", () => {
   });
 
   it("EVERY function commit waits for a clean nightly, targeted or full — and a later manifest change cannot release one", () => {
-    const targetedFiles = ["src/components/BracketFlights.tsx", "e2e/bracket-sections.spec.ts"];
+    const targetedFiles = ["src/components/BracketReports.tsx", "e2e/bracket-sections.spec.ts"];
     expect(roundPlan(targetedFiles).target?.area).toBe("bracket");
     expect(nightlyWait(targetedFiles)).toBe("function");
     // A function commit whose round was FULL waits too.

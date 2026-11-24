@@ -88,7 +88,7 @@ describe("the screens and writes that offer a per-player pot", () => {
 
   it("is asked by every screen that offers one", () => {
     for (const screen of [
-      "src/app/(app)/group-games/page.tsx",
+      "src/components/money/GroupGames.tsx",
       "src/app/(app)/prizes/page.tsx",
     ]) {
       expect(asks(screen), `${screen} offers a pot without asking`).toMatch(
@@ -140,7 +140,7 @@ describe("the screens and writes that offer a per-player pot", () => {
      * Pinned as CONDITIONS rather than as the symbol appearing, for the reason
      * the block above this one gives: presence is not reachability.
      */
-    const src = asks("src/app/(app)/group-games/page.tsx");
+    const src = asks("src/components/money/GroupGames.tsx");
     expect(src, "the answer is no longer resolved once").toMatch(
       /const noPerPlayerPot = week \? perPlayerPotRefusal\(week\.format\) : null/,
     );

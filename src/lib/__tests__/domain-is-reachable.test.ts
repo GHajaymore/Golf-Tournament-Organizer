@@ -181,9 +181,10 @@ const KNOWN_DEAD: string[] = [
   "components/TeeSheetPrint.tsx:TeeSheetPrint",
   // REDESIGN R4 (22 Nov 2026) mounted the kit R1a/R1b built (SetupField, markOf, RoundColumn, LockedOnce, roundRing) and R4b-1's keepingShown
   // on the redesigned Rounds & formats, so those lines left this list.
-  // REDESIGN R8a (23 Nov 2026): the question "which half is this control drawn in" is asked by its test now and by Winners & money
-  // (R8b), which moves the settle half out of Prizes; it leaves this list when R8b mounts it.
-  "lib/domain/money-parts.ts:moneyPartOf",
+  // REDESIGN R8b (23 Nov 2026): "which screen is this control drawn on" (`moneyScreenOf`) is asked by `money-parts.test.ts`, which
+  // holds every control to exactly one part and one screen; the pages ask the booleans that answer it (`prizeTableHalf`,
+  // `fieldGamesHome`). It is the audit of the answer, not a caller of it, so it stays here.
+  "lib/domain/money-parts.ts:moneyScreenOf",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
   "lib/domain/bracket.ts:splitBrackets",

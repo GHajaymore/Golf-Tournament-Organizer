@@ -85,6 +85,19 @@ export function fromFinal(view: Pick<BracketView, "rounds">, roundIndex: number)
   return view.rounds.length - 1 - roundIndex;
 }
 
+/**
+ * THE ROUNDS THE PLAY-BY FORM ASKS A DAY FOR (R9c): those of the LONGEST draw, since one set of dates serves every flight
+ * (counted back from each flight's final). The Bracket page and Tee times & draw both hand the form this, so a knockout in
+ * flights is dated the same on either.
+ */
+export function playByFormRounds(
+  draws: ReadonlyArray<{ view: BracketView }>,
+  fallback: BracketView,
+): Array<{ fromFinal: number; label: string }> {
+  const longest = draws.reduce((a, d) => (d.view.rounds.length > a.rounds.length ? d.view : a), draws[0]?.view ?? fallback);
+  return longest.rounds.map((r, i) => ({ fromFinal: fromFinal(longest, i), label: r.label }));
+}
+
 export interface PlayBy {
   /** ISO day. */
   iso: string;
