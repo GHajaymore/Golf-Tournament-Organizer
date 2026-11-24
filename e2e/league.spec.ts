@@ -2,6 +2,8 @@ import { test, expect, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { overflowing } from "./overflow";
+import { prisma, makeClub, dropClub, makeEvent, addDays, dayIn } from "./rounds-fixture";
+import { withTeeTimesAs } from "./console/teeTimes";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
 const league = data.league as {
@@ -121,5 +123,64 @@ test.describe("what a club's member sees", () => {
     }
 
     await fitsTheViewport(page, "/week");
+  });
+});
+
+/**
+ * @redesign: A LEAGUE'S WEEK ON TEE TIMES & DRAW (R9b). A league is built by the redesigned screen, titled for the
+ * week ("This week"), with the same draw section as a medal. Unlike the read-only walks above, which share the
+ * seeded interclub league, this one writes, so it has a throwaway weekly league of its own (a zz- club, deleted
+ * after): the secretary makes the week's groups, sees them after a reload, and the match generator, which a league
+ * never has (its sides are nominated), is not on the screen. Service workers blocked; memory: one browser context
+ * and one page, about 150 MB.
+ */
+test.describe("@redesign the league week on Tee times & draw", () => {
+  const WALKED = ["desktop", "phone"];
+  test.afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test("the secretary makes the week's groups for the whole field, kept after a reload, and no match generator is offered", async ({ browser, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "two sizes: a third seeding proves nothing more");
+    test.setTimeout(180_000);
+    const mark = `zz-league-rd-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const today = dayIn("");
+      const made = await makeEvent(club, "Thursday League", {
+        status: "live",
+        stages: [
+          { playedOn: addDays(today, 7), format: "Stroke Play" },
+          { playedOn: addDays(today, 14), format: "Stroke Play" },
+        ],
+        players: 4,
+        event: { attendanceMode: "opt-out" },
+      });
+      const round = made.stages[0];
+      const sheet = async () => {
+        const row = await prisma.stage.findUniqueOrThrow({ where: { id: round.id }, select: { teeSheet: true } });
+        return ((JSON.parse(row.teeSheet || "{}").groups ?? []) as { playerIds: string[] }[]).flatMap((g) => g.playerIds).sort();
+      };
+      expect(await sheet(), "CONTROL: the week already has a sheet").toEqual([]);
+
+      await withTeeTimesAs(browser, baseURL!, testInfo, { club, eventId: made.event.id }, async (screen, page) => {
+        await screen.open(round.id);
+        await expect(page.locator(".page-kicker").first()).toHaveText("This week");
+        const draw = await screen.openSection("draw");
+        await expect(draw.locator("[data-team-matches]"), "a league was offered Generate matches").toHaveCount(0);
+        await draw.getByRole("button", { name: /^Balanced handicap/ }).click();
+        await draw.getByLabel("First tee").fill("07:30");
+        await draw.getByRole("button", { name: /^Save sheet/ }).click();
+        await expect
+          .poll(sheet, { message: "the week's sheet is not the four in the field" })
+          .toEqual(made.players.map((p) => p.id).sort());
+        await page.reload();
+        const kept = await screen.openSection("draw");
+        await expect(kept, "after a reload the draw section does not hold the week's sheet").toContainText("Saved as a draft");
+        for (const p of made.players) await expect(kept).toContainText(p.name);
+      });
+    } finally {
+      await dropClub(mark);
+    }
   });
 });

@@ -254,7 +254,7 @@ describe("the screens hand their controls the lock the actions ask (PR L)", () =
     for (const c of ["PrizesClient", "SkinsPotClient", "ContestsClient", "MoneySetup"]) {
       expect(prizes, `${c} on Prizes & payouts is not handed the lock`).toMatch(new RegExp(`<${c}[\\s\\S]*?locked=\\{moneyLocked\\}`));
     }
-    const games = readSource("src", "app", "(app)", "group-games", "page.tsx");
+    const games = readSource("src", "components", "money", "GroupGames.tsx");
     expect(games).toMatch(/screenLocksFor\(session\.eventId, \["money"\]\)/);
     const drawn = games.match(/<(SkinsPotClient|ContestsClient|SideBetStart)\b/g)?.length ?? 0;
     const handed = games.match(/<(SkinsPotClient|ContestsClient|SideBetStart) locked=\{moneyLocked\}/g)?.length ?? 0;

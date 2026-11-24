@@ -1,7 +1,8 @@
 "use client";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState } from "react";
-import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
+import { sideAddBlock } from "@/lib/domain/draw-readiness";
+import { TeamMatchesControl } from "./TeamMatchesControl";
 import { ScopeLockMark } from "./ScopeLockBanner";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
@@ -16,7 +17,6 @@ import {
   addTeamMember,
   removeTeamMember,
   autoDrawTeams,
-  generateTeamMatches,
 } from "@/app/actions/teams";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -91,6 +91,8 @@ export function TeamsClient({
   unassigned,
   matchCount,
   drawsMatches,
+  matchesHere,
+  teeTimesHref,
   league = false,
   locked = false,
 }: {
@@ -101,6 +103,18 @@ export function TeamsClient({
    * (2026-10-20); a bracket and a single match make their own.
    */
   drawsMatches: boolean;
+  /**
+   * TRUE WHEN "GENERATE MATCHES" IS DRAWN IN THE DRAW SECTION OF TEE TIMES & DRAW INSTEAD (R9b): that screen is shown
+   * and builds this round (`matchGeneratorPlace`, the one answer both pages ask). ONE boolean, so the one control is
+   * never drawn twice and never by neither. Required, so a caller says; the page sets it from `screensShownFor`.
+   */
+  matchesHere: boolean;
+  /**
+   * WHERE TEE TIMES & DRAW IS for this round, already carrying the preview (`keepingPreview`, B114): a viewer in a
+   * preview lands on the redesigned screen, not today's. Built by the server page, since a client component cannot read
+   * the request. Required, so a caller says.
+   */
+  teeTimesHref: string;
   /**
    * The sides are locked (the machine's `locks.sides`, drawn above this by
    * `ScopeLockBanner`). Every action here that changes a side refuses it —
@@ -146,25 +160,7 @@ export function TeamsClient({
   const [confirmDraw, setConfirmDraw] = useState(false);
   // Said after a draw that also gave the same sides to rounds that had none.
   const [drawNote, setDrawNote] = useState("");
-  const [confirmMatches, setConfirmMatches] = useState(false);
   const [addingTo, setAddingTo] = useState("");
-
-  // Why matches cannot be drawn yet, or null. Rendered under the button rather
-  // than hidden in a `title`.
-  const sideBlock = sideDrawReadiness({ sideCount: teams.length });
-
-  const makeMatches = (replace: boolean) => {
-    setError("");
-    startTransition(async () => {
-      const res = caughtUp(await generateTeamMatches(activeRoundId, replace));
-      if (res.needsConfirm) {
-        setConfirmMatches(true);
-        return;
-      }
-      setConfirmMatches(false);
-      if (!res.ok) setError(res.error ?? "Couldn't save that.");
-    });
-  };
 
   /**
    * Taking somebody out of a side they have already scored for.
@@ -358,63 +354,22 @@ export function TeamsClient({
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => draw(false)}>
           <Icon name="shuffle" /> Draw sides automatically
         </button>
-        {drawsMatches && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={busy || !!sideBlock}
-            onClick={() => makeMatches(false)}
-          >
-            <Icon name="arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
-          </button>
-        )}
         {/* A side's name saves when its box is left, and a player when picked —
             said here, as self-saving controls do. */}
         <SaveState status={saveStatus} />
       </div>
 
-      {/* The reason the button above is dead, on the page rather than in a
-          `title` — which never appears on a touch device and is not announced.
-          The last surviving instance of that pattern, flagged in the
-          2026-08-18 session record and left for whoever was next in this file.
-
-          No link: both ways out are controls on this screen, so it names them
-          by the words on them instead of pointing somewhere. */}
-      {drawsMatches && sideBlock && (
-        <p
-          style={{
-            fontSize: 13,
-            margin: 0,
-            lineHeight: 1.5,
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-            padding: "9px 11px",
-            borderRadius: 9,
-            background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
-          }}
-        >
-          <Icon name="info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
-          <span>{sideBlock.problem}</span>
+      {drawsMatches && matchesHere && (
+        <p data-matches-moved="" className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          Generate matches is in the draw section of{" "}
+          <a href={teeTimesHref} style={{ display: "inline-block", minHeight: 48 }}>
+            Tee times &amp; draw
+          </a>
+          .
         </p>
       )}
-
-      {confirmMatches && (
-        <div className="card elev-sm" style={{ gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
-          <span className="card-title" style={{ fontSize: 14 }}>Replace this round&apos;s matches?</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            This round already has {matchCount} {matchCount === 1 ? "match" : "matches"}. Regenerating
-            discards them and pairs the sides again.
-          </p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => makeMatches(true)}>
-              Replace them
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setConfirmMatches(false)}>
-              Keep them
-            </button>
-          </div>
-        </div>
+      {drawsMatches && !matchesHere && (
+        <TeamMatchesControl roundId={activeRoundId} matchCount={matchCount} sideCount={teams.length} locked={locked} otherBusy={pending} />
       )}
       <p className="text-muted" style={{ fontSize: 13, margin: "-8px 0 0" }}>
         An automatic draw balances the sides by handicap, pairing stronger players with weaker ones —

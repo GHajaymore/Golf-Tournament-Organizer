@@ -1,7 +1,9 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
-import { scopeLockFor } from "@/lib/services/tournament-status";
-import { isFinished } from "@/lib/domain/lifecycle-state";
+import { scopeLockFor, tournamentStatusFor } from "@/lib/services/tournament-status";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
+import { bracketFlightsPropsOf } from "@/lib/services/bracket-flights-props";
+import { knockoutSetupPlace } from "@/lib/domain/draw-sections";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { prisma } from "@/lib/db";
@@ -13,8 +15,6 @@ import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { BracketFlights } from "@/components/BracketFlights";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
-import { FLIGHT_CRITERIA, proposeShapes } from "@/lib/domain/bracket-flights";
-import { indexLabel } from "@/lib/domain/handicap-label";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 import { plateEntrants, byeLine } from "@/lib/domain/bracket";
@@ -27,7 +27,7 @@ import { toParText } from "@/lib/domain/stroke";
 import { pts } from "@/lib/format";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { drawsSeeded, qualifyingPlayed as qualifyingWasPlayed } from "@/lib/domain/draw-seeding";
-import { parsePlayBy, roundPlayBy, toPlay, fromFinal } from "@/lib/domain/knockout-play-by";
+import { parsePlayBy, roundPlayBy, toPlay, playByFormRounds } from "@/lib/domain/knockout-play-by";
 import { formattingForEvent } from "@/lib/services/organization";
 import { KnockoutToPlay } from "@/components/KnockoutToPlay";
 import { KnockoutPlayByForm } from "@/components/KnockoutPlayByForm";
@@ -132,6 +132,19 @@ export default async function BracketPage() {
    * and played as a match; the draw said nothing about it at all.
    */
   const koStage = firstKnockout >= 0 ? state.stages[firstKnockout] : null;
+  /**
+   * WHERE THE KNOCKOUT'S SET-UP IS DRAWN (R9c): the flights, the play-by dates and the note about the play-off for third
+   * are Tee times & draw's while that screen is shown and builds the round (`knockoutSetupPlace`, the one answer both
+   * pages ask), and staff are told where they went. A player keeps the read-only flights here. The division itself is
+   * `bracketFlightsPropsOf`'s, the one reader for both.
+   */
+  const shown = await screensShownFor(session);
+  const told = koStage && isStaff ? await tournamentStatusFor(session.eventId, state.today) : null;
+  const setupMoved =
+    isStaff &&
+    !!koStage &&
+    !!told &&
+    knockoutSetupPlace({ type: koStage.type, format: koStage.format, hasSavedSheet: false }, told.status.family, shown.has("teeTimes")) === "teeTimes";
   const third =
     koStage?.thirdPlace && !state.brackets.draws
       ? {
@@ -148,7 +161,6 @@ export default async function BracketPage() {
   const playByDates = parsePlayBy(koStage?.knockoutPlayBy);
   const playBy = Object.fromEntries(draws.map((d) => [d.view.kind, roundPlayBy(d.view, playByDates, state.today, locale)]));
   const ready = toPlay(draws, playByDates, state.today, locale);
-  const longest = draws.reduce((a, d) => (d.view.rounds.length > a.rounds.length ? d.view : a), draws[0]?.view ?? state.brackets.winners);
   const toPlayPanel =
     isStaff && koStage ? (
       <>
@@ -161,11 +173,7 @@ export default async function BracketPage() {
             ties: g.ties.map((m) => ({ key: m.key, a: { id: m.a.playerId!, name: m.a.name }, b: { id: m.b.playerId!, name: m.b.name } })),
           }))}
         />
-        <KnockoutPlayByForm
-          stageId={koStage.id}
-          rounds={longest.rounds.map((r, i) => ({ fromFinal: fromFinal(longest, i), label: r.label }))}
-          dates={playByDates}
-        />
+        {!setupMoved && <KnockoutPlayByForm stageId={koStage.id} rounds={playByFormRounds(draws, state.brackets.winners)} dates={playByDates} />}
       </>
     ) : undefined;
   /** Every qualifier's place in the qualifying order — the seed a player keeps in any draw. */
@@ -291,42 +299,17 @@ export default async function BracketPage() {
       })()
     : null;
 
-  /**
-   * SEVERAL FLIGHTS: what the panel that divides the field is handed.
-   *
-   * Which criteria this tournament can use is decided here, where the field is
-   * known, and each one that cannot be used says why in the place it would be
-   * chosen: "by qualifying score" with no qualifying round, "by your flights"
-   * with none made or with somebody in none.
-   */
-  const playerRow = new Map(state.players.map((p) => [p.id, p]));
-  const flightless = state.qualifiers.filter((q) => !playerRow.get(q.id)?.groupId).length;
-  const flightChoices = FLIGHT_CRITERIA.map((c) => ({
-    ...c,
-    unavailable:
-      c.key === "qualifying" && straight
-        ? "This knockout has no qualifying round before it."
-        : c.key === "flights" && state.groups.length === 0
-          ? "This tournament has no flights yet. Make them on the Flights screen first."
-          : c.key === "flights" && flightless > 0
-            ? `${flightless} of the field ${flightless === 1 ? "is" : "are"} in no flight yet.`
-            : "",
-  }));
-  const flightSummaries = state.flights
-    ? state.flights.plan.brackets.map((b) => ({
-        name: b.name,
-        size: b.size,
-        byes: b.byes,
-        rounds: b.rounds,
-        players: b.playerIds.map((id) => {
-          const row = playerRow.get(id);
-          return { id, name: row?.name ?? "A player who has left", index: row ? indexLabel(row) : "" };
-        }),
-      }))
-    : null;
-
   return (
     <>
+      {setupMoved && koStage && (
+        <p data-knockout-setup-moved="" className="text-muted" style={{ margin: "0 0 12px", fontSize: 14, lineHeight: 1.5, maxWidth: "62ch" }}>
+          {mode === "flights" ? "The flights, the" : "The"} play-by dates and the play-off for third are set on{" "}
+          <Link href={await keepingPreview(`/foursomes?round=${koStage.id}`)} style={{ display: "inline-block", minHeight: 48 }}>
+            Tee times &amp; draw
+          </Link>
+          .
+        </p>
+      )}
       {/* The rounds' lock (PR 5b) — the one `setBracketMode` asks (`refuseIfLocked(…, "rounds")`), and the one
           the same picker on Rounds & formats draws. Never the draw's: a knockout in flights keeps that open while live. */}
       <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={(await scopeLockFor(session.eventId, "rounds")) !== null} />
@@ -334,21 +317,8 @@ export default async function BracketPage() {
       {/* THE DRAW'S LOCK, SAID WITH ITS WAY OUT (J13 finding 2). Open after launch, shut at the first result: the
           machine's own `locks.draw` answer (`scopeLockFor`), never worked out here. The flights panel keeps its
           sentence beside the control it greys; this is the way out. */}
-      {mode === "flights" && <ScopeLockBanner locks={drawLock ? [drawLock] : []} isAdmin={isAdmin} />}
-      {mode === "flights" && (
-        <BracketFlights
-          fieldSize={state.qualifiers.length}
-          criteria={flightChoices}
-          shapes={proposeShapes(state.qualifiers.length)}
-          criterion={state.flights?.plan.criterion ?? null}
-          flights={flightSummaries}
-          unplaced={(state.flights?.unplaced ?? []).map((p) => ({ id: p.id, name: p.name }))}
-          departed={(state.flights?.departedIds ?? []).map((id) => state.players.find((p) => p.id === id)?.name ?? "A player")}
-          lockBy={drawLock?.by === "results" || drawLock?.by === "completed" ? drawLock.by : null}
-          readOnly={!isAdmin}
-          finished={isFinished(state.event.status)}
-        />
-      )}
+      {mode === "flights" && !setupMoved && <ScopeLockBanner locks={drawLock ? [drawLock] : []} isAdmin={isAdmin} />}
+      {mode === "flights" && !setupMoved && <BracketFlights {...bracketFlightsPropsOf(state, { isAdmin, drawLock })} />}
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}
@@ -381,7 +351,7 @@ export default async function BracketPage() {
             {third.made
               ? "The play-off is made. Its result goes in on Score entry."
               : third.pairing
-                ? "Make the play-off on the knockout's card on Rounds & formats, then enter its result on Score entry."
+                ? `Make the play-off on ${setupMoved ? "Tee times & draw" : "the knockout's card on Rounds & formats"}, then enter its result on Score entry.`
                 : "They play off for third once both semi-finals have a winner."}
           </p>
         </div>

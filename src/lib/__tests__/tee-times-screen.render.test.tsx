@@ -123,7 +123,11 @@ describe("the page: one panel of handicaps, one set of tabs", () => {
     // `locksOf` puts `draw` in BLANKET, so on a launched stroke event it is locked by "launch"; only flight actions ask it.
     // The sheet's writers ask `teeSheetChangeAllowed`, which refuses only a COMPLETED event: that is the `teeSheet` scope.
     expect(page).toMatch(/scopeLockFor\(session\.eventId, "teeSheet"\)/);
-    expect(page).not.toMatch(/scopeLockFor\([^)]*"draw"\)/);
+    // The one place the page may ask `draw` is the FLIGHTS of a knockout in flights (R9c: the division IS that draw, and the
+    // machine keeps it open while live, `lockFactsFor`), on the line that says so; a stroke or match round never asks it.
+    const asksDraw = page.match(/^.*scopeLockFor\([^)]*"draw"\).*$/gm) ?? [];
+    expect(asksDraw.length, "the flights lock is read once").toBe(1);
+    expect(asksDraw[0], "a `draw` lock read that is not for the flights panel").toMatch(/bracketHere && setup\.flights/);
   });
 
   it("the pairing requests stand outside the banner (setPairingRequest asks no lock), and the teeSheet need goes to the draw section", () => {

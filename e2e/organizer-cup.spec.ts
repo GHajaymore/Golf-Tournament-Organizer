@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { prisma, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
 import { RoundsScreen } from "./console/rounds";
+import { TeeTimesPage } from "./console/teeTimes";
 import { openScreen } from "./console";
 
 /**
@@ -231,6 +232,57 @@ test.describe("@redesign the cup's settings on Rounds & formats", () => {
       await openScreen(page, "/cup");
       await expect(page.locator("[data-cup-settings-moved]")).toContainText("set on Rounds & formats");
       await expect(page.locator("#cup-target")).toHaveCount(0);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+});
+
+/**
+ * @redesign: A CUP SESSION'S LINEUP, BUILT ON TEE TIMES & DRAW (R9c). Each session is a round of the cup, so its lineup is
+ * the draw of that round: the organizer opens the session's own round, picks a player from each team (the two teams are the
+ * fixture's two flights, read from it) and presses Add match, sees the match listed, and after a reload it is still there.
+ * The Team cup page says where the lineups went and draws no second copy. One session, four players, a throwaway club
+ * dropped in `finally`. One page, about 150 MB.
+ */
+test.describe("@redesign a cup session's lineup on Tee times & draw", () => {
+  test("a match is added on the session's own round, kept after a reload, and the Team cup page draws no lineup", async ({ page, context, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-oc-redesign-lineup-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event, stages, players, flights } = await makeEvent(club, "Autumn Cup", {
+        stages: [{ type: "Team Session", format: "Match Play", scoringBasis: "net" }],
+        players: 4,
+        flights: 2,
+        event: { format: "match" },
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const matches = () => prisma.match.count({ where: { eventId: event.id, stageId: stages[0].id } });
+      expect(await matches(), "CONTROL: the session already has a match").toBe(0);
+
+      // One player from each team: the first of the first flight against the first of the second (read from the fixture).
+      const [a, b] = [players[0], players[2]];
+      const screen = new TeeTimesPage(page);
+      await screen.open(stages[0].id);
+      const lineup = (await screen.openSection("draw")).getByRole("region", { name: /lineup$/ });
+      await expect(lineup, "the session's lineup is not in the draw section").toBeVisible();
+      await lineup.getByLabel(new RegExp(`^${flights[0].name} player 1`)).selectOption({ label: a.name });
+      await lineup.getByLabel(new RegExp(`^${flights[1].name} player 1`)).selectOption({ label: b.name });
+      await lineup.getByRole("button", { name: "Add match", exact: true }).click();
+      await expect.poll(matches, { message: "the match was not added to the session" }).toBe(1);
+
+      await page.reload();
+      const after = (await screen.openSection("draw")).getByRole("region", { name: /lineup$/ });
+      await expect(after.getByRole("listitem", { name: `${a.name} v ${b.name}` }), "after a reload the lineup does not hold the match").toBeVisible();
+
+      // The Team cup page points here instead of drawing a second lineup.
+      await openScreen(page, "/cup");
+      await expect(page.locator("[data-cup-lineup-moved]")).toContainText("Tee times & draw");
+      await expect(page.getByRole("region", { name: /lineup$/ }), "the Team cup page still draws the lineup").toHaveCount(0);
     } finally {
       await dropClub(mark);
     }

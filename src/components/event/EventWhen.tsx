@@ -34,7 +34,8 @@ export function EventWhen({
   onStart: (v: string) => void;
   onEnd: (v: string) => void;
   onTentative: (v: boolean) => void;
-  onSaveDates: () => void;
+  /** The dates' own Save, or null where the screen has ONE Save for everything (Event, R3). */
+  onSaveDates: (() => void) | null;
 }) {
   const register = useGolfRegister();
   const words = eventWords(playKind, register);
@@ -67,7 +68,7 @@ export function EventWhen({
         {/* ITS OWN SAVE, because the dates outlive the setup lock. A tentative date becomes a fixed one
             weeks later, by which time the tournament is live and `saveEvent` refuses every field on
             this screen. `setTournamentDates` is not behind the lock, for the reason written beside it. */}
-        {dirty && (
+        {dirty && onSaveDates !== null && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
             <button
               type="button"

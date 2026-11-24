@@ -3,6 +3,8 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { prisma as rfPrisma, makeClub as rfMakeClub, dropClub as rfDropClub, makeEvent as rfMakeEvent, signIn as rfSignIn, CARD_PARS } from "./rounds-fixture";
+import { EventScreen } from "./console/event";
 
 /**
  * THE ORGANIZER DECIDES THE TEES — TOURNAMENT, THEN FLIGHT, THEN ONE PLAYER —
@@ -294,4 +296,83 @@ test("the organizer sets the tees for the tournament, a flight and one player, a
   }
   // Used only to keep the round in hand for the fixture above.
   expect(stage.id).toBeTruthy();
+});
+
+// R3: the tournament's tees are chosen beside the course on Event. Deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test.describe.configure({ timeout: 150_000 });
+  test.afterAll(async () => {
+    await rfPrisma.$disconnect();
+  });
+
+  test("the tournament's tees are picked beside the course and kept by the one Save", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    const mark = `zz-tees-event-${testInfo.project.name.replace(/[^a-z]/gi, "").toLowerCase()}`;
+    const club = await rfMakeClub(mark);
+    try {
+      const { event } = await rfMakeEvent(club, "Seniors Open", { stages: [{ playedOn: "2099-06-12" }], event: { startOn: "2099-06-12", endOn: "2099-06-12", dates: "Jun 12, 2099" } });
+      // The course the club plays, with two sets of tees. Read from the fixture's own rows below, never assumed.
+      const course = await rfPrisma.course.create({
+        data: {
+          organizationId: club.orgId,
+          name: `${mark} Hollins Moss`,
+          pars: JSON.stringify(CARD_PARS),
+          strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+          yards: JSON.stringify(new Array(18).fill(380)),
+        },
+      });
+      const blue = await rfPrisma.tee.create({ data: { courseId: course.id, name: "Blue", gender: "any", courseRating: 71.5, slopeRating: 125, par: 72 } });
+      const white = await rfPrisma.tee.create({ data: { courseId: course.id, name: "White", gender: "any", courseRating: 69.8, slopeRating: 120, par: 72 } });
+      await rfPrisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
+      await rfPrisma.event.update({ where: { id: event.id }, data: { courseId: course.id, course: course.name } });
+      await rfSignIn(context, baseURL!, club, event.id);
+
+      const screen = new EventScreen(page);
+      await screen.open();
+      // BESIDE THE COURSE: the tees are a control of the Where section, not of a card further down.
+      await expect(screen.teeSelect(), "the tees are not beside the course").toBeVisible();
+      await expect(screen.teeSelect()).toHaveValue("");
+
+      // PRESSED as the secretary would: choose the White set and keep it with the one Save.
+      await screen.teeSelect().selectOption(white.id);
+      await screen.saveAndWait();
+
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.teeSelect(), "the chosen tees were not kept").toHaveValue(white.id);
+      expect((await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId).toBe(white.id);
+
+      // THE OLD CARD DOES NOT WRITE IT BACK: Players & scoring holds nothing unsaved after the tees were kept on Event, and
+      // pressing a real setting there and saving leaves the Event's tees (and who may play others) as they were.
+      const policyBefore = (await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } })).teePolicy;
+      const scoring = page.locator("#scoring");
+      const saveSettings = scoring.getByRole("button", { name: /^(Save settings|Saved)$/ });
+      await expect(saveSettings, "Players & scoring is unsaved for tees Event already kept").toBeDisabled();
+      // "Who signs off a result": a setting with no side effect (unlike score entry, which can revoke round codes).
+      const organizerApproves = scoring.getByRole("radio", { name: "An organizer approves each card", exact: true });
+      const playersConfirm = scoring.getByRole("radio", { name: "Players confirm between themselves", exact: true });
+      const target = (await organizerApproves.isChecked()) ? playersConfirm : organizerApproves;
+      await target.click();
+      await expect(target).toBeChecked();
+      await saveSettings.click();
+      await expect(saveSettings).toHaveText(/Saved/);
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.teeSelect(), "Players & scoring wrote the old tees back").toHaveValue(white.id);
+      const after = await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } });
+      expect(after.defaultTeeId).toBe(white.id);
+      expect(after.teePolicy).toBe(policyBefore);
+
+      // And back to the rule's own default, by the same press.
+      await screen.teeSelect().selectOption("");
+      await screen.saveAndWait();
+      await page.reload();
+      await page.locator("[data-event-screen]").waitFor({ state: "visible" });
+      await expect(screen.teeSelect()).toHaveValue("");
+      expect((await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId).toBeNull();
+      expect(blue.id).not.toBe(white.id);
+    } finally {
+      await rfDropClub(mark).catch(() => {});
+    }
+  });
 });

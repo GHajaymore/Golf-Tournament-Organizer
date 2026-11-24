@@ -170,9 +170,9 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
   expect(errors, "the screen threw in the browser").toEqual([]);
 });
 
-// R8a: a named bet is still re-priced where the groups' games are kept while the new Prizes screen is shown (they move with Winners & money, R8b).
+// R8a/R8b: with the redesign shown, a named bet is re-priced in the groups' games, a section of Winners & money.
 test.describe("@redesign", () => {
-  test("a named birdie pot's stake is re-priced with Prizes & side games shown, and the stake is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
+  test("a named birdie pot's stake is re-priced in the groups' games on Winners & money, and the stake is kept after a reload", async ({ page, context, baseURL }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "one walk of the flow");
     test.setTimeout(120_000);
     const errors: string[] = [];
@@ -185,7 +185,11 @@ test.describe("@redesign", () => {
       await rf.prisma.sideGameEntry.createMany({ data: players.slice(0, 3).map((p) => ({ sideGameId: bet.id, playerId: p.id, confirmed: true })) });
       await rf.signIn(context, baseURL!, own, event.id);
       await page.goto(consoleUrl("/group-games", "build"));
-      const card = () => page.locator("section.card, div.card", { has: page.locator(".card-title", { hasText: `${NAME} — side game` }) });
+      // With Winners & money shown the old door still OPENS (on its own path) and points at the groups' games there (R8b); press the link.
+      await expect(page, "the old door did not open on its own path").toHaveURL(/\/group-games\?/);
+      await page.getByRole("link", { name: /Groups.+ side games/ }).first().click();
+      await expect(page, "the link did not lead to the groups' games on Winners & money").toHaveURL(/\/money\?.*#groups/);
+      const card =() => page.locator("section.card, div.card", { has: page.locator(".card-title", { hasText: `${NAME} — side game` }) });
       await expect(card(), "the named bet has no card on Side games").toHaveCount(1, { timeout: 30_000 });
       const stake = card().getByLabel("Stake");
       await expect(stake).toHaveValue(/^5(\.00)?$/);

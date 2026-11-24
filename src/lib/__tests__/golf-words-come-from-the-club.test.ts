@@ -48,7 +48,7 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
     banned: [/The organi[sz]ers /, /Cart fees/, /buggies/i, /carts with/i, /a cart fee/i],
   },
   {
-    file: "src/app/(app)/group-games/page.tsx",
+    file: "src/components/money/GroupGames.tsx",
     banned: [/a fourball&rsquo;s/, /a foursome&rsquo;s/],
   },
   {

@@ -128,6 +128,6 @@ describe("the writer and the reader ask the one function", () => {
   });
 
   it("the money screen reads the round's pot under roundPotKey", () => {
-    expect(readSource("src/app/(app)/group-games/page.tsx")).toContain("roundPotKey(week)");
+    expect(readSource("src/components/money/GroupGames.tsx")).toContain("roundPotKey(week)");
   });
 });

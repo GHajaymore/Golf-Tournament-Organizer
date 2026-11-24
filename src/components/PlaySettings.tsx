@@ -27,6 +27,7 @@ import { MoreInfo } from "./MoreInfo";
 import { Choice, Group } from "./SettingsChoice";
 import { EntriesHowIn, EntriesWeeklySignUp } from "./players/EntriesHowIn";
 import { EventTees, type TeeOption } from "./event/EventTees";
+import { playSettingsDirty, playSettingsToSave } from "./event/event-save-plan";
 import { BoardVisibility } from "./event/BoardVisibility";
 import { ShareLinks } from "./event/ShareLinks";
 import { RoundCodes, type RoundCode } from "./event/RoundCodes";
@@ -112,9 +113,9 @@ export function PlaySettings({
   // The tee is saved by the SAME button as everything else. Two save models
   // on one screen is how a club changes something, presses Save, and finds
   // half of it kept.
-  const teeDirty = isTournament && teeId !== defaultTeeId;
-  const dirty =
-    (Object.keys(form) as (keyof TournamentSettings)[]).some((k) => form[k] !== settings[k]) || teeDirty;
+  // Only while this card draws the tees: Event's own Save keeps them when it does, and a stale copy here would write them back.
+  const teeDirty = isTournament && teesHere && teeId !== defaultTeeId;
+  const dirty = playSettingsDirty(form, settings, teesHere) || teeDirty;
 
   const set = <K extends keyof TournamentSettings>(key: K, value: TournamentSettings[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -125,7 +126,7 @@ export function PlaySettings({
     setError("");
     startTransition(async () => {
       const result = isTournament
-        ? await saveTournamentSettings(form)
+        ? await saveTournamentSettings(playSettingsToSave(form, teesHere))
         : await saveOrganizationDefaults(form);
       if (!result.ok) {
         setError(result.error ?? "Couldn't save.");

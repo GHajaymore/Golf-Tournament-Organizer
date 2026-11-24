@@ -9,7 +9,8 @@ import { LockedOnce } from "@/components/setup/LockedOnce";
 import { roundLabel } from "@/lib/domain/round-label";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { chainIssues, issuesForRound } from "@/lib/format-chain";
-import { isKnockoutRound, isPlayingRound, nextPlayingStage, seededFromQualifiers } from "@/lib/stage-types";
+import { isKnockoutRound, isPlayingRound, nextPlayingStage } from "@/lib/stage-types";
+import { drawControlsOf } from "@/lib/domain/draw-sections";
 import { shortDate } from "@/lib/domain/round-dates";
 import type { RoundRing } from "@/lib/domain/round-ring";
 import type { Mark } from "@/lib/domain/setup-field";
@@ -251,7 +252,7 @@ function RoundView({
           )}
 
           {/* WHERE A CONTROL THAT LEAVES THIS SCREEN STAYS UNTIL ITS ROOM IS SHOWN: one boolean decides, never two copies, never neither. */}
-          {!completed && launched && !isFirst && !seededFromQualifiers(stage.type) &&
+          {drawControlsOf(stage, { launched, isFirst, completed }).nextRound &&
             (drawMoved ? (
               <Link href={drawHref} style={{ color: "var(--color-accent-200)", minHeight: 44, display: "inline-flex", alignItems: "center" }}>
                 Draw {label}&apos;s matches
