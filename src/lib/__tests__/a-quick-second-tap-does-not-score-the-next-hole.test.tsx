@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ADVANCE_SETTLE_MS, useAdvanceSettle } from "@/components/useAdvanceSettle";
+import { TapNotTaken } from "@/components/TapNotTaken";
 import { readSource } from "./source";
 
 /**
@@ -65,20 +66,51 @@ describe("both cards ask it, and only their own advance starts it", () => {
   const byHole = readSource("src/components/HoleByHoleCard.tsx");
   const result = readSource("src/components/HoleResultCard.tsx");
 
-  it("the stroke card drops a pad tap inside the window and marks the advance", () => {
-    expect(byHole).toMatch(/if \(moveOn && settle\.settling\(\)\) return;/);
-    expect(byHole).toMatch(/settle\.markAdvanced\(\);\s*setHole\(\(h\) => \(h === from \? from \+ 1 : h\)\)/);
+  const advance = /settle\.markAdvanced\(\);\s*setHole\(\(h\) => \(h === from \? from \+ 1 : h\)\)/;
+
+  it("the stroke card drops a pad tap inside the window, flashes, and marks the advance", () => {
+    expect(byHole).toMatch(/if \(moveOn && settle\.refused\(\)\) return;/);
+    expect(byHole).toMatch(advance);
+    expect(byHole).toMatch(/<TapNotTaken show=\{settle\.flash\}/);
   });
 
-  it("the match card drops a press inside the window and marks the advance", () => {
-    expect(result).toMatch(/if \(settle\.settling\(\)\) return;/);
-    expect(result).toMatch(/settle\.markAdvanced\(\);\s*setHole\(\(h\) => \(h === from \? from \+ 1 : h\)\)/);
+  it("Picked up is guarded too, so a double-tap cannot pick up the next hole", () => {
+    expect(byHole).toMatch(/onToggle=\{\(on\) => \{\s*if \(settle\.refused\(\)\) return;\s*onPickUp\(/);
   });
 
-  it("the strip and Next (go) never start it", () => {
+  it("the match card drops a press inside the window, flashes, and marks the advance", () => {
+    expect(result).toMatch(/if \(settle\.refused\(\)\) return;/);
+    expect(result).toMatch(advance);
+    expect(result).toMatch(/<TapNotTaken show=\{settle\.flash\}/);
+  });
+
+  it("the strip, Next and a swipe (go) end the window and never start it", () => {
     for (const src of [byHole, result]) {
       const go = src.slice(src.indexOf("const go = "), src.indexOf("const go = ") + 200);
+      expect(go).toContain("settle.clear()");
       expect(go).not.toContain("markAdvanced");
     }
+  });
+});
+
+describe("a deliberate move ends the window", () => {
+  it("clear() lets the very next tap through", () => {
+    const clock = { t: 0 };
+    const settle = settleWith(clock);
+    settle.markAdvanced();
+    clock.t += 50;
+    expect(settle.settling()).toBe(true);
+    settle.clear();
+    expect(settle.settling()).toBe(false);
+  });
+});
+
+describe("the dropped tap is seen", () => {
+  it("the note names the hole, uses theme tokens, and takes no room when not shown", () => {
+    const shown = renderToStaticMarkup(<TapNotTaken show hole={11} />);
+    expect(shown).toContain("Hole 11");
+    expect(shown).toContain("var(--color-warning)");
+    expect(shown).not.toMatch(/#[0-9a-fA-F]{3,6}/);
+    expect(renderToStaticMarkup(<TapNotTaken show={false} hole={11} />)).not.toContain("<p");
   });
 });

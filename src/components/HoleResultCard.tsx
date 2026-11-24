@@ -4,6 +4,7 @@ import { useDistanceWords } from "./DistanceUnitProvider";
 import { Icon } from "./Icon";
 import { usePageIsLive } from "./usePageIsLive";
 import { useAdvanceSettle } from "./useAdvanceSettle";
+import { TapNotTaken } from "./TapNotTaken";
 
 /** A second press of the same answer this soon is a double-tap, not a decision to clear. */
 const DOUBLE_TAP_MS = 400;
@@ -120,16 +121,17 @@ export function HoleResultCard({
     advance.current = null;
   };
   useEffect(() => cancelAdvance, []);
+  // B117: a press in the first 400ms of the new hole is the second half of a double-tap.
+  const settle = useAdvanceSettle();
   const go = (i: number) => {
     cancelAdvance();
+    settle.clear(); // a deliberate move ends the window
     setHole(Math.max(0, Math.min(count - 1, i)));
   };
   const value = holes[hole] ?? null;
 
-  // B117: a press in the first 400ms of the new hole is the second half of a double-tap.
-  const settle = useAdvanceSettle();
   const press = (v: "A" | "B" | "H") => {
-    if (settle.settling()) return;
+    if (settle.refused()) return;
     const clearing = value === v;
     const now = Date.now();
     const doubled = clearing && lastPress.current?.hole === hole && now - lastPress.current.at < DOUBLE_TAP_MS;
@@ -221,6 +223,7 @@ export function HoleResultCard({
         ))}
       </div>
 
+      <TapNotTaken show={settle.flash} hole={n} />
       <div className="card elev-sm" style={{ padding: "14px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div>

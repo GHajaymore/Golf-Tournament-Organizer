@@ -100,34 +100,51 @@ test("a double-tap on a score keeps it", async ({ page }) => {
 
 /**
  * A QUICK SECOND TAP DOES NOT SCORE THE NEXT HOLE (B117, 2026-11-23). The card
- * moves on 160ms after a tap; a second tap at ~250ms landed on the NEXT hole's
- * pad and scored a hole nobody played. Press, wait inside the settle window,
- * press again, reload, and look: only the hole tapped is scored.
+ * moves on 160ms after a tap; a second tap just after landed on the NEXT
+ * hole's pad and scored a hole nobody played. The page's own clock is held
+ * (`page.clock`, as honest-card.spec.ts does), so the gaps are exact and not
+ * the runner's speed: a tap 100ms into the new hole is dropped and says so; a
+ * tap 400ms in scores; then reload and look at what the server kept.
  */
 test("a second tap just after the card moves on leaves the next hole unscored", async ({ page }) => {
+  await page.clock.install();
   await page.goto("/me/card");
-  await page.waitForLoadState("networkidle");
+  await page.clock.pauseAt(new Date(Date.now() + 5_000));
   const scored = page.locator('[aria-label*=", complete"]');
   const before = await scored.count();
 
   const first = await page.getByRole("textbox", { name: /^Strokes on hole \d+$/ }).getAttribute("aria-label");
   const n = Number(first!.replace(/\D+/g, ""));
-  await page.getByRole("button", { name: /^\d+\s*Par$/ }).first().click();
-  // Past the 160ms advance, inside the 400ms settle window.
-  await expect(page.getByRole("textbox", { name: `Strokes on hole ${n + 1}` })).toBeVisible();
-  await page.getByRole("button", { name: /^\d+\s*Par$/ }).first().click();
+  const chip = (h: number) => page.getByRole("button", { name: new RegExp(`^Hole ${h},`) });
+  const par = () => page.getByRole("button", { name: /^\d+\s*Par$/ }).first();
   try {
-    await expect(scored).toHaveCount(before + 1);
-    // Let the save go out, then look at what the server kept.
-    await expect(page.getByText(/sent/i).first()).toBeVisible();
+    await par().click();
+    await page.clock.runFor(160); // the card's own advance
+    await expect(page.getByRole("textbox", { name: `Strokes on hole ${n + 1}` })).toBeVisible();
+
+    await page.clock.runFor(100); // inside the 400ms window
+    await par().click();
+    await expect(page.getByTestId("tap-not-taken"), "a dropped tap said nothing").toContainText(`Hole ${n + 1}`);
+    await expect(chip(n + 1), "the second tap scored the next hole").toHaveAttribute("aria-label", /not scored/);
+
+    await page.clock.runFor(400); // past the window: a deliberate tap scores
+    await par().click();
+    await expect(chip(n + 1)).toHaveAttribute("aria-label", /complete/);
+
+    // Let the saves go out, wait on hole n+1's own "sent", then look at the server's copy.
+    await page.clock.resume();
+    await expect(chip(n + 1)).toHaveAttribute("data-sync", "sent");
+    await expect(chip(n)).toHaveAttribute("data-sync", "sent");
     await page.reload();
-    await page.waitForLoadState("networkidle");
-    await expect(scored, "the second tap scored the next hole").toHaveCount(before + 1);
-    await expect(page.getByRole("button", { name: new RegExp(`^Hole ${n + 1},.*not scored`) })).toBeVisible();
+    await expect(scored, "holes n and n+1 scored, nothing else").toHaveCount(before + 2);
+    await expect(chip(n + 2)).toHaveAttribute("aria-label", /not scored/);
   } finally {
-    // Put the shared fixture back: clear hole n the deliberate way.
-    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
-    await page.getByRole("textbox", { name: `Strokes on hole ${n}` }).fill("");
+    // Put the shared fixture back: clear both holes the deliberate way.
+    await page.clock.resume();
+    for (const h of [n + 1, n]) {
+      await chip(h).click();
+      await page.getByRole("textbox", { name: `Strokes on hole ${h}` }).fill("");
+    }
     await expect(scored).toHaveCount(before);
   }
 });
