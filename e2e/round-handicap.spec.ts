@@ -254,4 +254,25 @@ test.describe("@redesign the round's handicaps on Tee times & draw", () => {
       await expect(who.getByLabel(`Change ${day.placed[0].name}'s handicap`)).toBeVisible();
     });
   });
+
+  test("a player's strokes are set for the round, and the row still says so when the screen is opened again", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      const name = day.placed[1].name;
+      await screen.open(day.round1);
+      const who = await screen.openSection("whoIn");
+      await who.getByRole("button", { name: "Change a player's handicap" }).click();
+      await who.getByRole("button", { name: `Change ${name}'s handicap`, exact: true }).click();
+      await who.getByLabel(/^Strokes in /).fill("+2");
+      await who.getByRole("button", { name: /^Save for / }).click();
+      await expect(page.getByRole("status").filter({ hasText: `Done. ${name} plays off +2 in ` })).toBeVisible({ timeout: 20_000 });
+      // Look again, as the secretary would: opened afresh, the row says the strokes were set for this round.
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      const again = await screen.openSection("whoIn");
+      await again.getByRole("button", { name: "Change a player's handicap" }).click();
+      const line = again.locator("div").filter({ has: page.locator("span", { hasText: name }) }).filter({ hasText: "plays off" }).last();
+      await expect(line, "the strokes set for the round were not kept").toContainText(/plays off \+2 .*set for this round/);
+    });
+  });
 });

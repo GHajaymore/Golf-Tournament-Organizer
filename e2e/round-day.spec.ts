@@ -181,4 +181,21 @@ test.describe("@redesign the round day on Tee times & draw", () => {
       await expect(onTheDay.getByText("Time allowed", { exact: true })).toBeVisible();
     });
   });
+
+  test("the time allowed is changed, and the round still has it when the screen is opened again", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(120_000);
+    await withTeeTimes(browser, baseURL!, testInfo, day, async (screen, page) => {
+      await screen.open(day.round1);
+      const pace = (await screen.openSection("onTheDay")).getByLabel("Time allowed");
+      await expect(pace, "CONTROL: the round starts on the club's default time").toHaveValue("0");
+      await pace.selectOption("255");
+      await expect
+        .poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: day.round1 }, select: { paceMinutes: true } })).paceMinutes, { timeout: 20_000, message: "the time allowed never reached the round" })
+        .toBe(255);
+      // Look again, as the secretary would.
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect((await screen.openSection("onTheDay")).getByLabel("Time allowed"), "the time allowed was not kept").toHaveValue("255");
+    });
+  });
 });

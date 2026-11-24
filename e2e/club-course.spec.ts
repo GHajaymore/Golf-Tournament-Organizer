@@ -175,6 +175,12 @@ test.describe("@redesign", () => {
     await listed().getByRole("button", { name: "Verify card" }).click();
     await expect.poll(async () => !!(await storedHere())?.verifiedAt, { timeout: 20_000, message: "checking the card was not stored" }).toBe(true);
 
+    // Looked at again: the course and its checked mark are what the club's library holds after a reload, not only what the screen drew.
+    await page.reload();
+    await expect(page.locator("h1").first()).toBeVisible();
+    await expect(listed(), "the added course is not in the list after a reload").toBeVisible({ timeout: 20_000 });
+    await expect(listed().getByRole("img", { name: /^Card checked by / }), "the checked mark did not survive a reload").toBeVisible({ timeout: 20_000 });
+
     courses = await openCourses(page);
     await listed().getByRole("button", { name: "Remove", exact: true }).click();
     expect(await storedHere(), "one press removed a course without asking").not.toBeNull();
