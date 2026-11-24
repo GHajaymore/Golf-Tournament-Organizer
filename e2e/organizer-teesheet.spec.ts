@@ -269,7 +269,8 @@ test.describe("@redesign the draw on Tee times & draw", () => {
       await page.reload();
       await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
       await expect(screen.section("draw")).toContainText(day.unplaced.name);
-      await expect((await screen.openSection("teeTimes")).locator('section[aria-label="Put in a group"]')).not.toContainText("Not in a group yet (1)");
+      // With nobody left in no group the card is not drawn at all (the first run showed "element(s) not found"), so count it.
+      await expect(screen.section("teeTimes").locator('section[aria-label="Put in a group"]')).toHaveCount(0);
     });
   });
 });
