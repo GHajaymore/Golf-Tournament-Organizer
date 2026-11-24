@@ -85,7 +85,8 @@ export const AREAS = {
   // actions/messaging, actions/draft-message; and the whole commentary area.
   bracket: {
     name: "Brackets and knockouts (the Bracket screen)",
-    paths: ["src/app/(app)/bracket/", "src/components/BracketFlights.tsx", "src/components/BracketReports.tsx"],
+    // BracketFlights.tsx left this list when Tee times & draw mounted it (R9c): a file imported outside its area is in no area.
+    paths: ["src/app/(app)/bracket/", "src/components/BracketReports.tsx"],
     specs: [
       "e2e/bracket-sections.spec.ts",
       "e2e/organizer-knockout.spec.ts",
@@ -375,6 +376,7 @@ export const FULL_ONLY = [
   "e2e/hydration-recorder.spec.ts",
   // The form controls no test changed, the most important first: handicap type, two stakes, the scoring picker, a selection — each changed, its effect read.
   "e2e/important-controls-are-changed.spec.ts",
+  "e2e/interclub-draw-the-week.spec.ts",
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",

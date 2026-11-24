@@ -183,20 +183,25 @@ describe("R4d: where a match round's next draw is made when Tee times & draw is 
     expect(count(html, "Give out Round 2")).toBe(0);
   });
 
-  it("a knockout's third place stays here while its draw room does not build it", () => {
+  it("a knockout's third place moves to Tee times & draw with its draw (R9c builds it): Rounds draws it once only while the room is not shown", () => {
     const { href } = draws("knockout", "Bracket Stage", "Match Play");
-    expect(href).toBe("/stages");
-    // And the play-off for third is DRAWN, once, on Rounds: a press with no home would strand the event.
-    const html = render(
-      screen({
-        launched: true,
-        shown: ["rounds", "teeTimes"],
-        drawHref: { r1: href },
-        stages: [stage({ id: "r1", position: 0, type: "Bracket Stage", format: "Match Play" })],
-        thirdPlaces: { r1: { on: false, problem: "", aName: "", bName: "", made: false } },
-      }),
-    );
-    expect(count(html, "Play-off for third place")).toBe(1);
+    expect(href).toContain("/foursomes?round=r2");
+    const rounds = (hrefOf: string, shown: ScreenKey[]) =>
+      render(
+        screen({
+          launched: true,
+          shown,
+          drawHref: { r1: hrefOf },
+          stages: [stage({ id: "r1", position: 0, type: "Bracket Stage", format: "Match Play" })],
+          thirdPlaces: { r1: { on: false, problem: "", aName: "", bName: "", made: false } },
+        }),
+      );
+    // Tee times & draw shown and building the round: the play-off for third is DRAWN THERE (the-knockout-and-cup-setup-is-mounted-once), not here.
+    expect(count(rounds("/foursomes?round=r1", ["rounds", "teeTimes"]), "Play-off for third place")).toBe(0);
+    // Not shown: the door stays on Rounds & formats, which draws it once, so a press is never without a home.
+    const stays = roundDrawHref({ id: "r1", type: "Bracket Stage", format: "Match Play" }, "knockout", "admin", new Set<ScreenKey>(["rounds"]));
+    expect(stays).toBe("/stages");
+    expect(count(rounds(stays, ["rounds"]), "Play-off for third place")).toBe(1);
   });
 });
 

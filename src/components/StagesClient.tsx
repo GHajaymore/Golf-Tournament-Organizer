@@ -269,7 +269,7 @@ function StageCard(props: RoundCardProps & { onTheDayHere: boolean }) {
           above; this is the same line for a medal or a Stableford, which had no
           control at all until 2026-10-13 — and a field under thirty may play at
           100% (Appendix C). */}
-      {launched && !isFirst && !seededFromQualifiers(stage.type) && (
+      {launched && !isFirst && !seededFromQualifiers(stage.type) && !ctx.drawMoved && (
         <DrawRound stage={stage} label={thisRound || "this round"} />
       )}
       <RoundAllowanceBlock ctx={ctx} />
@@ -837,6 +837,7 @@ export function StagesClient({
   roundsWithResults = [],
   singleMatches,
   thirdPlaces,
+  drawMoved,
   canSetVenue = true,
   locked = false,
   launched = false,
@@ -925,6 +926,8 @@ export function StagesClient({
   singleMatches?: Record<string, SingleMatchView>;
   /** Third-place views, by Bracket Stage id. */
   thirdPlaces?: Record<string, ThirdPlaceView>;
+  /** Rounds whose draw is made on Tee times & draw (R9c), by id: the old column draws no DrawRound for them. */
+  drawMoved?: Record<string, boolean>;
 }) {
   /**
    * Which round is open. One at a time, and none when there are several.
@@ -1020,6 +1023,7 @@ export function StagesClient({
             allStages={stages}
             singleMatch={singleMatches?.[s.id] ?? null}
             thirdPlace={thirdPlaces?.[s.id] ?? null}
+            drawMoved={drawMoved?.[s.id] ?? false}
             hasResult={roundsWithResults.includes(s.id)}
             sharedWithAll={shared}
             arrangement={arrangement}

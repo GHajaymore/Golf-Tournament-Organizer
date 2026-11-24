@@ -74,27 +74,106 @@ test("entering a hole advances and updates the running score", async ({ page }) 
  * nothing said. Walked on a member's phone: her first two holes, gone.
  */
 test("a double-tap on a score keeps it", async ({ page }) => {
+  // The page's own clock is held (B117), so "a second tap 80ms later, before the card moves" is
+  // exact and not the runner's speed: the card moves on at 160ms, a plain second click could
+  // otherwise wait out the pad and score the NEXT hole.
+  await page.clock.install();
   await page.goto("/me/card");
-  await page.waitForLoadState("networkidle");
+  await page.clock.pauseAt(new Date(Date.now() + 5_000));
   const scored = page.locator('[aria-label*=", complete"]');
   const before = await scored.count();
 
   const hole = await page.getByRole("textbox", { name: /^Strokes on hole \d+$/ }).getAttribute("aria-label");
+  const n = hole!.replace(/\D+/g, "");
+  const chip = page.getByRole("button", { name: new RegExp(`^Hole ${n},`) });
   const par = page.getByRole("button", { name: /^\d+\s*Par$/ }).first();
-  await par.click();
-  await par.click();
   try {
+    await par.click();
+    await page.clock.runFor(80);
+    await par.click({ force: true }); // the same hole: the card has not moved yet
     // Past the advance and the save's debounce.
-    await page.waitForTimeout(1500);
+    await page.clock.runFor(1500);
+    await page.clock.resume();
     await expect(scored, "the second tap cleared the hole the first one set").toHaveCount(before + 1);
+    await expect(chip).toHaveAttribute("data-sync", "sent");
   } finally {
     // Put the shared fixture back — the other projects read "thru 9" off it.
     // Cleared the deliberate way: back to that hole, empty "Other".
-    const n = hole!.replace(/\D+/g, "");
-    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
+    await page.clock.resume();
+    await chip.click();
     await page.getByRole("textbox", { name: `Strokes on hole ${n}` }).fill("");
-    await page.waitForTimeout(1500);
     await expect(scored).toHaveCount(before);
+    // The clear must reach the server too: a cleared, saved hole reads "none".
+    await expect(chip).toHaveAttribute("data-sync", "none");
+    await page.reload();
+    await expect(scored, "the fixture kept the hole this test scored").toHaveCount(before);
+  }
+});
+
+/**
+ * A QUICK SECOND TAP DOES NOT SCORE THE NEXT HOLE (B117, 2026-11-23). The card
+ * moves on 160ms after a tap; a second tap just after landed on the NEXT
+ * hole's pad and scored a hole nobody played. The page's own clock is held
+ * (`page.clock`, as honest-card.spec.ts does), so the gaps are exact and not
+ * the runner's speed. The window runs 400ms from the TAP: a tap 260ms after it
+ * (100ms into the new hole) finds the pad aria-disabled and is dropped, with
+ * its note; a tap 460ms after it scores; then reload and look at the server.
+ */
+test("a second tap just after the card moves on leaves the next hole unscored", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/me/card");
+  await page.clock.pauseAt(new Date(Date.now() + 5_000));
+  const scored = page.locator('[aria-label*=", complete"]');
+  const before = await scored.count();
+
+  const first = await page.getByRole("textbox", { name: /^Strokes on hole \d+$/ }).getAttribute("aria-label");
+  const n = Number(first!.replace(/\D+/g, ""));
+  const chip = (h: number) => page.getByRole("button", { name: new RegExp(`^Hole ${h},`) });
+  const par = () => page.getByRole("button", { name: /^\d+\s*Par$/ }).first();
+  try {
+    await par().click();
+    await page.clock.runFor(160); // the card's own advance
+    await expect(page.getByRole("textbox", { name: `Strokes on hole ${n + 1}` })).toBeVisible();
+
+    await page.clock.runFor(100); // 260ms after the tap: inside the 400ms window
+    await expect(par(), "the pad did not say it was holding").toHaveAttribute("aria-disabled", "true");
+    const padBefore = await par().boundingBox();
+    // A person does not wait for the pad, and a plain click would wait for it under the held clock.
+    // The click event goes to the button itself, not to a coordinate (a short phone's fixed tab bar
+    // can sit over the pad's position), so it lands inside the window without actionability.
+    await par().dispatchEvent("click");
+    await expect(page.getByTestId("tap-not-taken"), "a dropped tap said nothing").toContainText(`Hole ${n + 1}`);
+    const padAfter = await par().boundingBox();
+    expect(padAfter?.y, "the note pushed the pad down under the player's thumb").toBe(padBefore?.y);
+    await expect(chip(n + 1), "the second tap scored the next hole").toHaveAttribute("aria-label", /not scored/);
+
+    await page.clock.runFor(200); // 460ms after the tap: past the window, a deliberate tap scores
+    await expect(par()).toBeEnabled();
+    await par().click();
+    await expect(chip(n + 1)).toHaveAttribute("aria-label", /complete/);
+
+    // Let the saves go out, wait on hole n+1's own "sent", then look at the server's copy.
+    await page.clock.resume();
+    await expect(chip(n + 1)).toHaveAttribute("data-sync", "sent");
+    await expect(chip(n)).toHaveAttribute("data-sync", "sent");
+    await page.reload();
+    await expect(scored, "holes n and n+1 scored, nothing else").toHaveCount(before + 2);
+    await expect(chip(n + 2)).toHaveAttribute("aria-label", /not scored/);
+  } finally {
+    // Put the shared fixture back: clear both holes the deliberate way. Start from the card
+    // itself, whatever page a failed step left the browser on.
+    await page.clock.resume();
+    await page.goto("/me/card");
+    for (const h of [n + 1, n]) {
+      await chip(h).click();
+      await page.getByRole("textbox", { name: `Strokes on hole ${h}` }).fill("");
+    }
+    await expect(scored).toHaveCount(before);
+    // The clears must reach the server too, or the shared fixture keeps the holes.
+    // A cleared, saved hole reads "none" (holeSyncs, pending-card.ts), never "sent".
+    for (const h of [n + 1, n]) await expect(chip(h)).toHaveAttribute("data-sync", "none");
+    await page.reload();
+    await expect(scored, "the fixture kept a hole this test scored").toHaveCount(before);
   }
 });
 

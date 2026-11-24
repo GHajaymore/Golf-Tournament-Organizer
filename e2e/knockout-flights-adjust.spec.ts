@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { pressRadio } from "./press-radio";
+import { TeeTimesPage } from "./console/teeTimes";
+import { openScreen } from "./console";
 
 /**
  * A KNOCKOUT IN FLIGHTS, ADJUSTED BY HAND BEFORE ANYBODY PLAYS (2026-10-21).
@@ -203,4 +205,47 @@ test("Start again undoes the division: the field is undivided, stored and on scr
   await expect(page.getByText("Nothing is drawn until the field is divided into flights.")).toBeVisible();
   await expect(page.getByRole("button", { name: /Marsh/ }), "a tie is drawn on an undivided field").toHaveCount(0);
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * @redesign: A KNOCKOUT IN FLIGHTS IS DIVIDED ON TEE TIMES & DRAW (R9c). The division of the field IS the knockout's draw, so
+ * its panel is in the draw section of the bracket's round. The secretary divides the field of six into two flights of three
+ * by handicap (the fixture's own handicaps, read from the stored plan), the division is kept after a reload, and the Bracket
+ * says where the panel went instead of drawing a second one. One page, about 150 MB.
+ */
+test.describe("@redesign dividing a knockout into flights on Tee times & draw", () => {
+  test("the field is divided in the draw section, the division is kept after a reload, and the Bracket draws no panel", async ({ page }) => {
+    test.setTimeout(150_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "secretary");
+    await prisma.bracketWinner.deleteMany({ where: { eventId: ids.event } });
+    await prisma.event.update({ where: { id: ids.event }, data: { bracketDraw: "" } });
+    const stage = await prisma.stage.findFirstOrThrow({ where: { eventId: ids.event, type: "Bracket Stage" } });
+    expect(await storedFlights(), "CONTROL: the field is already divided").toBeNull();
+
+    const screen = new TeeTimesPage(page);
+    await screen.open(stage.id);
+    const draw = await screen.openSection("draw");
+    await expect(draw.getByRole("heading", { name: "Divide the field of 6" })).toBeVisible();
+    await pressRadio(draw.getByRole("radio", { name: "Your own sizes" }));
+    await draw.getByLabel("Players in each flight, top flight first, separated by commas").fill("3, 3");
+    await expect(draw.getByText("2 flights, 6 players.")).toBeVisible();
+    await draw.getByRole("button", { name: "Divide the field" }).click();
+    await expect.poll(storedFlights, { message: "the field was not divided by handicap" }).toEqual([
+      ["Alder", "Briar", "Cedar"],
+      ["Dune", "Elm", "Fern"],
+    ]);
+
+    await page.reload();
+    await expect(
+      (await screen.openSection("draw")).getByRole("heading", { name: "2 flights · by handicap" }),
+      "after a reload the draw section does not show the division",
+    ).toBeVisible();
+
+    // The Bracket points here instead of drawing a second panel.
+    await openScreen(page, "/bracket");
+    await expect(page.locator("[data-knockout-setup-moved]")).toContainText("flights");
+    await expect(page.getByRole("heading", { name: "2 flights · by handicap" }), "the Bracket still draws the flights panel").toHaveCount(0);
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });
