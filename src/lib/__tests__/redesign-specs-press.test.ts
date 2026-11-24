@@ -35,8 +35,8 @@ export const KNOWN_READ_ONLY: readonly string[] = [];
 /** The list's size today (0, dated 24 Nov 2026, owner G1b): B105 parts 1 and 2 gave all fourteen blocks a press and a reload. NEVER RAISE: every @redesign block now presses and looks again. */
 export const KNOWN_READ_ONLY_CAP = 0;
 
-/** The least number of `@redesign` blocks there are today (54: measured with R3, R4d, R6, R7, R8a, R8b, R9b, R9c, R12 and B110 on one head). Raise it as screens land, never lower it. */
-export const MIN_BLOCKS = 54;
+/** The least number of `@redesign` blocks there are today (57: measured on this head, main's 54 plus B107's three). Raise it as screens land, never lower it. */
+export const MIN_BLOCKS = 57;
 
 const WRITE_PRESS = /\.(click|fill|check|selectOption|press)\(/;
 const NOT_A_WRITE = /getByRole\(\s*["']link["']|openSection\(|openFold\(|sectionLine\(|aria-expanded|\.locator\(\s*["']a\b/;

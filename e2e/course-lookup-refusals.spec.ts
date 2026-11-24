@@ -74,12 +74,29 @@ test("Look up a course: 'nothing matching' and 'directory not reachable' are ale
     const search = await openLookup(page);
 
     // A REAL reply, to borrow the build's framing from.
-    const real = page.waitForResponse(
-      (r) => r.request().method() === "POST" && "next-action" in r.request().headers() && (r.request().postData() ?? "").includes(word),
-      { timeout: 20_000 },
-    );
+    // The body is read INSIDE the response handler, the moment the reply arrives: a body read after the
+    // page has navigated or refreshed is gone (G682: "Response body is not available for a response that
+    // was navigated away from"). Armed before the fill, so the reply cannot be missed.
+    const real = new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        page.off("response", onReply);
+        reject(new Error("the lookup's real reply never arrived in 20 s"));
+      }, 20_000);
+      const onReply = async (r: import("@playwright/test").Response) => {
+        const q = r.request();
+        if (q.method() !== "POST" || !("next-action" in q.headers()) || !(q.postData() ?? "").includes(word)) return;
+        page.off("response", onReply);
+        clearTimeout(timer);
+        try {
+          resolve(await r.text());
+        } catch (e) {
+          reject(e);
+        }
+      };
+      page.on("response", onReply);
+    });
     await search.fill(word);
-    const template = await (await real).text();
+    const template = await real;
     await expect(page.getByRole("option").filter({ hasText: word })).toBeVisible({ timeout: 20_000 });
     const frame = template.split("\n").find((l) => l.startsWith("0:"));
     expect(frame, "CONTROL: the real reply had no first line to borrow").toBeTruthy();

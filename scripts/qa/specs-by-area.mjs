@@ -241,6 +241,7 @@ export const AREAS = {
       "e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts", "e2e/report-rich.spec.ts", "e2e/report-settings.spec.ts",
       // R12: a round is closed where the cards are (the entry page has no area of its own), at a club a day ahead of the server's.
       "e2e/closing-a-round-where-the-cards-are.spec.ts",
+      "e2e/closing-team-cup-and-tap-rounds.spec.ts",
     ],
     scenarios: [],
     // A report writes the event's dates.

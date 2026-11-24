@@ -7,6 +7,7 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
 import { MoneyScreen } from "./console/money";
+import { savedBeforeReload, prizesCard } from "./save-settled";
 
 /**
  * WHAT MONEY OFFERED IS REFUSED IN WORDS ONCE THE TOURNAMENT IS COMPLETED; THE LEDGER IS NOT; REOPEN GIVES IT BACK
@@ -418,6 +419,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: cat } })).winnerId, { timeout: 20_000, message: "awarding a prize was refused on a completed tournament (the ledger is not locked)" })
         .toBe(players[0].id);
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(money.winnerOf(cat), "the award is not on Winners & money after a reload").toHaveValue(players[0].id);
 
@@ -429,6 +431,7 @@ test.describe("@redesign", () => {
       await page.getByLabel(/^Amount \(/).fill("10");
       await page.getByRole("button", { name: "Add", exact: true }).click();
       await expect.poll(() => rf.prisma.prize.count({ where: { eventId: event.id } }), { timeout: 20_000, message: "adding a prize did not work again after Reopen" }).toBe(2);
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(screen.amountFor(`${mark} Long drive`), "the prize is not on the new screen after a reload").toHaveValue("10");
     } finally {
