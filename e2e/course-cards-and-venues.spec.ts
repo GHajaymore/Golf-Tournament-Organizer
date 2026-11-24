@@ -431,6 +431,11 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => !!(await prisma.course.findFirstOrThrow({ where: { id: made.id } })).verifiedAt, { message: "the card was not marked checked", timeout: 20_000 })
         .toBe(true);
+      // Looked at again: the course is still in the club's library, marked checked, after a reload.
+      await page.reload();
+      await expect(page.locator("h1").first()).toBeVisible();
+      await expect(row, "the pasted course is not listed after a reload").toBeVisible({ timeout: 20_000 });
+      await expect(row.getByRole("img", { name: /^Card checked by / }), "the checked mark did not survive a reload").toBeVisible({ timeout: 20_000 });
     } finally {
       await dropClub(mark);
     }

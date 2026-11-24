@@ -265,6 +265,12 @@ test.describe("@redesign the draw on Tee times & draw", () => {
       // The refresh after the action keeps the new screen: the old Tee sheet is not what comes back.
       await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
       await expect(page).toHaveURL(/stepper=1/);
+      // Look again, as the secretary would: the draw still lists the player, and nobody waits for a group.
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect(screen.section("draw")).toContainText(day.unplaced.name);
+      // With nobody left in no group the card is not drawn at all (the first run showed "element(s) not found"), so count it.
+      await expect(screen.section("teeTimes").locator('section[aria-label="Put in a group"]')).toHaveCount(0);
     });
   });
 });
