@@ -2,6 +2,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { expect, type BrowserContext, type Locator, type Page } from "./coverage";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { clubZoneFor } from "./club-zone";
 
 /**
  * A THROWAWAY CLUB FOR ONE TEST, BUILT IN THE STATE THE TEST NEEDS.
@@ -59,11 +60,12 @@ export function dayIn(zone: string, at = new Date()): string {
 
 export async function makeClub(
   mark: string,
-  opts: { plan?: string; planTermsApply?: boolean; timeZone?: string } = {},
+  /** `timeZone` omitted: the club has the run's zone (`club-zone.ts`, B120). `null`: it has none. */
+  opts: { plan?: string; planTermsApply?: boolean; timeZone?: string | null } = {},
 ): Promise<Club> {
   await dropClub(mark);
   const org = await prisma.organization.create({
-    data: { name: `${mark} Golf Society`, kind: "club", themeAppearance: "auto", timeZone: opts.timeZone ?? "" },
+    data: { name: `${mark} Golf Society`, kind: "club", themeAppearance: "auto", timeZone: clubZoneFor(opts.timeZone) },
   });
   await prisma.subscription.create({
     data: { organizationId: org.id, plan: opts.plan ?? "society", planTermsApply: opts.planTermsApply ?? false },
