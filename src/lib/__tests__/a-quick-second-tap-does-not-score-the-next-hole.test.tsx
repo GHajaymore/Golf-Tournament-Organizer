@@ -113,4 +113,10 @@ describe("the dropped tap is seen", () => {
     expect(shown).not.toMatch(/#[0-9a-fA-F]{3,6}/);
     expect(renderToStaticMarkup(<TapNotTaken show={false} hole={11} />)).not.toContain("<p");
   });
+
+  it("is never a second role=status on the card, shown or not (every spec finds the card's line by that role)", () => {
+    for (const show of [true, false]) {
+      expect(renderToStaticMarkup(<TapNotTaken show={show} hole={11} />)).not.toMatch(/role="status"/);
+    }
+  });
 });

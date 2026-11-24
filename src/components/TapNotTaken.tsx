@@ -7,7 +7,9 @@
  */
 export function TapNotTaken({ show, hole }: { show: boolean; hole: number }) {
   return (
-    <div role="status" aria-live="polite" data-testid="tap-not-taken">
+    // aria-live and NO role="status": the card's own status line stays the one
+    // status region on the screen (specs and readers find it by that role).
+    <div aria-live="polite" data-testid="tap-not-taken">
       {show && (
         <p
           style={{
