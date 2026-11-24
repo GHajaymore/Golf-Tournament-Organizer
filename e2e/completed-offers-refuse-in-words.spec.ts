@@ -341,7 +341,10 @@ test.describe("@redesign", () => {
     const errors: string[] = [];
     watchPageErrors(page, errors, "organizer");
     const mark = `zz-r8a-done-${testInfo.project.name}`;
-    const club = await rf.makeClub(mark);
+    // The club HAS a time zone. A club with none makes the console layout draw `ClubClockAdopter`, which on mount posts `adoptClubTimeZone`;
+    // that action `revalidatePath`s the layout, so its response carries a fresh render of THIS page. On WebKit it takes ~0.5 s, lands after the
+    // database says "completed" and before the press, and the screen is locked with Add disabled (G687). Hiding the tab cannot stop it.
+    const club = await rf.makeClub(mark, { timeZone: "Europe/London" });
     try {
       const { event, stages, players } = await rf.makeEvent(club, "Spring Medal", {
         status: "live",
@@ -362,7 +365,8 @@ test.describe("@redesign", () => {
       /**
        * THE SCREEN IS HELD STALE, so the press is the server's to refuse. `LiveRefresh` polls `router.refresh()` only while the tab is
        * visible (`document.visibilityState`); on a slow shard that poll lands between the database change and the press, the screen
-       * learns it is locked and Add is disabled, or the refusal is replaced as it is said (G681). The page's own visibility is told
+       * learns it is locked and Add is disabled, or the refusal is replaced as it is said (G681). (The other path to a fresh render, the club-clock
+       * adopter's server action, is closed by giving the club a time zone, below.) The page's own visibility is told
        * "hidden" from here (no app seam), and `letTheScreenCatchUp` gives it back and wakes the page, as a person returning to the tab does.
        */
       const holdTheScreenStale = () => page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }));
