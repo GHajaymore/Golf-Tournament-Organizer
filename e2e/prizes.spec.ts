@@ -6,6 +6,7 @@ import { watchPageErrors } from "./page-errors";
 import * as rf from "./rounds-fixture";
 import { PrizesScreen } from "./console/prizes";
 import { MoneyScreen } from "./console/money";
+import { savedBeforeReload, prizesCard } from "./save-settled";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -154,6 +155,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.amount, { timeout: 20_000, message: "the prize was not stored" })
         .toBe(25);
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(screen.amountFor(cat), "the prize is not on the new screen after a reload").toHaveValue("25");
       // With Winners & money shown the winner is picked THERE, never here: the line is offered on this screen and awarded on that one.
@@ -173,6 +175,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.prize.findFirst({ where: { eventId: event.id, category: cat } }))?.winnerId, { timeout: 20_000, message: "the award was not recorded" })
         .toBe(winner);
+      await savedBeforeReload(prizesCard(page));
       await page.reload();
       await expect(money.winnerOf(cat), "the winner is not on Winners & money after a reload").toHaveValue(winner!);
     } finally {
