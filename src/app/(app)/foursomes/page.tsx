@@ -12,12 +12,22 @@ import { staleSentence } from "@/lib/domain/print-kit";
 import type { ConsoleMode } from "@/lib/console-url";
 import { BUILD_PREVIEW } from "@/lib/domain/console-merges";
 import { STEPPER_PREVIEW } from "@/lib/domain/lifecycle-track";
-import { screensShownFor } from "@/lib/services/screens-shown";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import { openTournamentJob } from "@/lib/services/whats-next";
-import { scopeLockFor, tournamentStatusFor } from "@/lib/services/tournament-status";
+import { scopeLockFor, screenLocksFor, tournamentStatusFor } from "@/lib/services/tournament-status";
+import { isKnockoutRound } from "@/lib/stage-types";
 import { roundHandicapsFor } from "@/lib/services/round-handicap";
 import { courseDayOf } from "@/lib/domain/timeline-step";
-import { drawSections, drawControlsOf, matchGeneratorPlace, needsYouSection } from "@/lib/domain/draw-sections";
+import { drawSections, drawControlsOf, matchGeneratorPlace, needsYouSection, knockoutSetupOf, knockoutSetupPlace, cupLineupPlace } from "@/lib/domain/draw-sections";
+import { BracketFlights } from "@/components/BracketFlights";
+import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
+import { KnockoutPlayByForm } from "@/components/KnockoutPlayByForm";
+import { CupLineup } from "@/components/CupLineup";
+import { bracketFlightsPropsOf } from "@/lib/services/bracket-flights-props";
+import { thirdPlaceViewFor } from "@/lib/services/third-place-view";
+import { cupLineupPropsFor } from "@/lib/services/cup-teams";
+import { playByFormRounds, parsePlayBy } from "@/lib/domain/knockout-play-by";
+import { bracketDraws } from "@/lib/domain/my-tie";
 import { roundRobinCutOf } from "@/lib/services/regroup";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { DrawRound } from "@/components/DrawRound";
@@ -30,6 +40,10 @@ import { TeeTimesScreen } from "@/components/teetimes/TeeTimesScreen";
 import { CutWaitingCard } from "@/components/teetimes/CutWaitingCard";
 import { SheetDriftCard } from "@/components/teetimes/SheetDriftCard";
 import { PrintDoor } from "@/components/teetimes/PrintDoor";
+import { LeagueDraw } from "@/components/LeagueDraw";
+import { leagueDrawPlace } from "@/lib/domain/draw-sections";
+import { flightsIn } from "@/lib/services/league-nomination";
+import { consoleUrl } from "@/lib/console-url";
 import { requestOrigin } from "@/lib/request-origin";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -40,7 +54,7 @@ import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { replaceWorldFor } from "@/lib/services/tee-sheet-replace";
-import { TEAM_SESSION } from "@/lib/services/cup";
+import { TEAM_SESSION, cupBoard } from "@/lib/services/cup";
 import { sheetFieldFor } from "@/lib/services/sheet-field";
 import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn } from "@/lib/domain/tee-sheet";
 import { clubWallClock } from "@/lib/domain/club-clock";
@@ -522,9 +536,9 @@ export default async function FoursomesPage({
   ) : null;
 
   /**
-   * THE REDESIGNED SCREEN (R9a), for a stroke or Stableford round, behind the redesign switch (OFF for everybody
-   * but a preview). `screensShownFor` is the one question; `drawSections` says whether this round has the new
-   * screen yet (a knockout, a cup and a casual round still draw the tee sheet below).
+   * THE REDESIGNED SCREEN (R9a, R9b, R9c), behind the redesign switch (OFF for everybody but a preview).
+   * `screensShownFor` is the one question; `drawSections` says whether this round has the new screen yet (every
+   * family but a casual round does; a casual round still draws the tee sheet below).
    */
   const told = await tournamentStatusFor(session.eventId, state.today);
   const shown = await screensShownFor(session);
@@ -557,6 +571,7 @@ export default async function FoursomesPage({
       // As Rounds & formats reads it: the first of ALL the stages (a cut marker counts), never of the playing rounds.
       isFirst: state.stages[0]?.id === stage.id,
       completed: told.status.step === "completed",
+      league: isLeaguePointsSystem(state.event.leaguePoints),
     });
     const roundMatches = state.matches.filter((m) => m.stageId === stage.id).length;
     const generatorHere =
@@ -564,18 +579,24 @@ export default async function FoursomesPage({
       controls.teamMatches &&
       !isLeaguePointsSystem(state.event.leaguePoints) &&
       matchGeneratorPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes";
-    // An interclub league's week of four-balls is drawn on Teams & pairs (`LeagueDraw`, which writes the matches), not
-    // here: this screen holds the player groups. Said on the page until the TD rules whether it moves. The same
-    // question `LeagueSection` asks, `isLeaguePointsSystem`.
+    // AN INTERCLUB LEAGUE'S "DRAW THIS WEEK" IS DRAWN HERE (B110; the TD's ruling of 23 Nov): the week's four-balls
+    // (`LeagueDraw`, which writes the matches) in the week's draw section, mounted only while this screen builds the round
+    // (`leagueDrawPlace`, the one answer `LeagueSection` asks to hide its own) and the league has clubs, as `LeagueSection`
+    // requires. Nominating the pairs stays on Teams & pairs, under Players, and is said here with a link. (The name is the
+    // old pointer's: the JSX below is unchanged.)
+    const leagueClubs = isStaff && controls.leagueWeek ? await flightsIn(session.eventId) : [];
     const leagueWeekPointer =
-      isStaff && isLeaguePointsSystem(state.event.leaguePoints) ? (
-        <p data-league-week-pointer="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-          The week&rsquo;s matches between clubs are drawn on{" "}
-          <a href={`/teams?round=${stage.id}`} style={{ display: "inline-block", minHeight: 48 }}>
-            Teams &amp; pairs
-          </a>
-          ; this is where the players go out together.
-        </p>
+      leagueClubs.length > 0 && leagueDrawPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes" ? (
+        <div data-league-week="" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+          <p data-league-pairs-pointer="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+            The week&rsquo;s pairs are nominated on{" "}
+            <a href={previewMode ? consoleUrl(`/teams?round=${stage.id}`, previewMode) : `/teams?round=${stage.id}`} style={{ display: "inline-block", minHeight: 48 }}>
+              Teams &amp; pairs
+            </a>
+            ; draw the week&rsquo;s four-balls from them here.
+          </p>
+          <LeagueDraw stageId={stage.id} drawn={roundMatches} />
+        </div>
       ) : null;
     const sidesLock = generatorHere ? await scopeLockFor(session.eventId, "sides") : null;
     const nextRoundEl = await (async () => {
@@ -603,6 +624,62 @@ export default async function FoursomesPage({
     // THE ONE ROUND-HANDICAPS PANEL: here while this screen is shown, on Rounds & formats while it is not.
     const handicapRows = isStaff && stage.scoringBasis !== "gross" ? await roundHandicapsFor(session.eventId, stage.id) : [];
     const isAdmin = session.role === "admin";
+    /**
+     * THE KNOCKOUT'S AND THE CUP'S SET-UP (R9c), each mounted here only while this screen builds the round: the flights of a
+     * knockout in flights, the play-off for third and the play-by dates on the bracket's own round, and a cup session's lineup
+     * on the session's own round. `knockoutSetupOf` says which a round has, `knockoutSetupPlace` / `cupLineupPlace` where
+     * (the Bracket and Team cup pages ask the same two, so each control is on exactly one screen). The readers are the pages'
+     * own: `bracketFlightsPropsOf`, `thirdPlaceViewFor`, `playByFormRounds`, `cupLineupPropsFor`.
+     */
+    // The bracket's one ladder is the FIRST bracket round (as the Bracket reads it), so its play-by dates and flights are drawn there once.
+    const firstKnockoutId = state.stages.find((s) => isKnockoutRound(s.type))?.id;
+    const setup = knockoutSetupOf(stage, state.event.bracketMode, firstKnockoutId === stage.id);
+    const roundForPlace = { type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet };
+    const bracketHere = isStaff && knockoutSetupPlace(roundForPlace, family, true) === "teeTimes";
+    const lineupHere = isStaff && setup.lineup && cupLineupPlace(roundForPlace, family, true) === "teeTimes";
+    const bracketControls = bracketHere && (setup.thirdPlace || setup.playBy || setup.flights);
+    // The rounds scope, with its correction, whenever a control here asks it (`setThirdPlace`, the cup's settings): the section's ONE banner says why and the way out.
+    const roundsFacts = bracketControls || lineupHere ? await screenLocksFor(session.eventId, ["rounds"]) : { locks: [], correction: null };
+    const roundsShut = roundsFacts.locks.length > 0;
+    const flightsLock = bracketHere && setup.flights ? await scopeLockFor(session.eventId, "draw") : null;
+    // Flights first (they ARE the draw), then the play-by dates (set once, early), then the play-off for third (a late job).
+    const knockoutEl = bracketControls ? (
+      <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+        {setup.flights && <BracketFlights {...bracketFlightsPropsOf(state, { isAdmin, drawLock: flightsLock })} />}
+        {setup.playBy && (
+          <KnockoutPlayByForm
+            stageId={stage.id}
+            rounds={playByFormRounds(bracketDraws(state.brackets), state.brackets.winners)}
+            dates={parsePlayBy(stage.knockoutPlayBy)}
+          />
+        )}
+        {setup.thirdPlace && (
+          <div className="card elev-sm" data-third-place="">
+            <ThirdPlaceControl stageId={stage.id} {...(await thirdPlaceViewFor(session.eventId, stage, state.brackets))} locked={roundsShut} />
+          </div>
+        )}
+      </div>
+    ) : null;
+    const lineupEl = await (async () => {
+      if (!lineupHere) return null;
+      const cup = await cupBoard(session.eventId, { staff: true });
+      if (!cup.ok) {
+        return (
+          <p data-cup-lineup-needs="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+            A cup is played between two teams. Make them on the{" "}
+            <a href={await keepingPreview("/cup")} style={{ display: "inline-block", minHeight: 48 }}>
+              Team cup page
+            </a>{" "}
+            and the lineup for this session is set here.
+          </p>
+        );
+      }
+      if (!cup.board.sessions.some((s) => s.id === stage.id)) return null;
+      const { lineup } = await cupLineupPropsFor(session.eventId, cup.board, stage.id);
+      return <CupLineup {...lineup} locked={roundsShut} lockWhy={roundsFacts.locks[0] ?? null} settingsHere={!shown.has("rounds")} />;
+    })();
+    // The section's banner: the flights' lock first (it sits above the flights panel), then the sheet's, the sides' and the rounds'.
+    const sectionLocks = [...(flightsLock ? [flightsLock] : []), ...(sheetLock ? [sheetLock] : []), ...(sidesLock ? [sidesLock] : []), ...roundsFacts.locks];
     const groupsOf = savedSheet?.groups ?? [];
     const who = membersAskEl || weekFieldEl || cutWaiting || handicapRows.length > 0;
     return (
@@ -655,10 +732,13 @@ export default async function FoursomesPage({
                 {nextRoundEl}
                 {leagueWeekPointer}
                 {pairingEl}
-                {/* ONE banner for the section: the sheet's lock, and the sides' while the generator is here (one banner id per page). */}
-                <LockedOnce locks={[...(sheetLock ? [sheetLock] : []), ...(sidesLock ? [sidesLock] : [])]} isAdmin={isAdmin} correction={null} open={null}>
+                {/* ONE banner for the section (one banner id per page): the flights', the sheet's, the sides' while the generator is here and the rounds' while a control that asks them is. */}
+                <LockedOnce locks={sectionLocks} isAdmin={isAdmin} correction={bracketControls || lineupHere ? roundsFacts.correction : null} open={null}>
                   {() => (
                     <>
+                      {/* The knockout's set-up and a cup session's lineup (R9c), each on its own round and nowhere else, under the section's one banner. */}
+                      {lineupEl}
+                      {knockoutEl}
                       {generatorHere && (
                         <TeamMatchesControl roundId={stage.id} matchCount={roundMatches} sideCount={teams.length} locked={sidesLock !== null} otherBusy={false} />
                       )}
