@@ -51,6 +51,7 @@ export function RoundVenue({
   canSearchDirectory = true,
   casual = false,
   teesDoor,
+  pickersHere = true,
 }: {
   stageId: string;
   /**
@@ -62,6 +63,8 @@ export function RoundVenue({
    * G594-1, 10 Nov: Tees offered on a scored medal, every pick refused).
    */
   teesDoor: string | null;
+  /** False on the redesigned Score entry for a fixed course (`scoreEntryAsksWhere`): the "Played at" picker is not drawn there (the round's Tees stay: nothing else sets them). Optional in the type because the old render tests build this without it and may not be edited. */
+  pickersHere?: boolean;
   /** The venue set on the round itself. "" means it inherits. */
   courseId: string;
   /** Every venue this tournament may be played on. */
@@ -214,6 +217,9 @@ export function RoundVenue({
     );
   }
 
+  // The redesigned Score entry draws no "Played at" picker for a fixed course (the round's tees stay: nothing else sets them) (`scoreEntryAsksWhere`); a round with nowhere to score against still is told.
+  const drawPickers = pickersHere || noVenue;
+  if (!pickersHere && !setsToChooseFrom && !missingCard && !noVenue) return null;
   if (venues.length < 2 && !elsewhereToPlay && !missingCard && !noVenue && !setsToChooseFrom) {
     return null;
   }
@@ -275,7 +281,7 @@ export function RoundVenue({
           three letters reaches the whole catalogue and adds what it finds to
           the library on the way past. A picker with an empty local list is
           the right control here; a hidden one is not. */}
-      {(venues.length > 1 || library.length > 0 || noVenue) && (
+      {drawPickers && (venues.length > 1 || library.length > 0 || noVenue) && (
         <CoursePicker
           label="Played at"
           /* THIS is where a round's venue is chosen, so it reaches the whole
@@ -357,7 +363,7 @@ export function RoundVenue({
       {/* WHY BOTH ARE SHUT, said under them before anybody presses (J12, PR 7b): the rounds
           rule's own sentence, the one `setStageCourse` would refuse with. Said wherever either
           control is drawn — the venue picker alone on a course with one set. */}
-      {shutBy !== null && (teesHere.length > 1 || venues.length > 1 || library.length > 0 || noVenue) && (
+      {shutBy !== null && (drawPickers ? teesHere.length > 1 || venues.length > 1 || library.length > 0 || noVenue : teesHere.length > 1) && (
         <p id={`tees-door-${stageId}`} data-testid="tees-door" className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
           <Icon name="lock-simple" /> {shutBy}
         </p>

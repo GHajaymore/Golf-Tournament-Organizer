@@ -39,7 +39,7 @@ describe("the lifecycle bar of a finished tournament", () => {
 
   it("CONTROL: a live tournament offers Complete, as the primary button", () => {
     const html = bar("live");
-    expect(html).toMatch(/<button[^>]*class="btn btn-primary"[^>]*>[\s\S]*?Complete tournament/);
+    expect(html).toMatch(/<button[^>]*class="btn btn-primary"[^>]*>[\s\S]*?Make results final/);
     expect(html).not.toContain("Reopen tournament");
   });
 });

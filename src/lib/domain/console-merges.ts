@@ -182,6 +182,7 @@ export type DoorJob =
   | "offer-side-games"
   | "award-prizes"
   | "draw-a-round"
+  | "close-a-round"
   | "print-the-days-paper"
   | "read-a-members-history";
 
@@ -214,6 +215,7 @@ export const DOOR_JOBS: Readonly<Record<string, Partial<Record<Role, readonly Do
   "/prizes": { admin: PRIZES_STAFF, assistant: PRIZES_STAFF },
   "/prizes@payout": { admin: ["award-prizes"], assistant: ["award-prizes"] },
   "/stages@draw": { admin: ["draw-a-round"], assistant: ["draw-a-round"] },
+  "/stages@close": { admin: ["close-a-round"], assistant: ["close-a-round"] },
   "/print": { admin: ["print-the-days-paper"], assistant: ["print-the-days-paper"] },
   "/member": { admin: ["read-a-members-history"], assistant: ["read-a-members-history"] },
 };
@@ -287,6 +289,8 @@ const roundOf = (path: string) => (l: OldLink) => (l.roundId ? `${path}?round=${
 export const MOVES: readonly Move[] = [
   // The draw is made on Tee times & draw, one round at a time (step 3 §2; phase 1 §2.1 row 6).
   { from: "/stages", job: "draw", roles: ["admin", "assistant"], homes: { "draw-a-round": "teeTimes" }, room: "teeTimes", to: roundOf("/foursomes") },
+  // A round is closed where its cards are, on Score entry (R12; phase 1 D3): What's next's "Close Round n" and the status card's press.
+  { from: "/stages", job: "close", roles: ["admin", "assistant"], homes: { "close-a-round": "scoreEntry" }, room: "scoreEntry", to: roundOf("/entry") },
   // A reported knockout result is approved on its tie, on Score entry (step 3 §2.4).
   { from: "/bracket", job: "knockouts", roles: ["admin", "assistant"], homes: { "approve-a-reported-result": "scoreEntry" }, room: "scoreEntry", to: roundOf("/entry") },
   // The bracket is a view of the board for everybody; staff's other jobs went to the draw and Score

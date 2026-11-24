@@ -337,7 +337,7 @@ test("five B", async ({ page, context, baseURL }, testInfo) => {
         await page.waitForTimeout(3000);
       }
       await pressComplete(page);
-      await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Make results final" }).click();
       await expect.poll(async () => (await eventFacts(B_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       await page.waitForTimeout(1500);
       note(`status: ${(await eventFacts(B_NAME))!.status}`);

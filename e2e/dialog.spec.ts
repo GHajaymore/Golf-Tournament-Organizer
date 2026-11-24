@@ -215,7 +215,7 @@ test.describe("the complete-and-delete dialog", () => {
 
       await page.goto("/dashboard");
       await page.waitForLoadState("networkidle");
-      await page.getByRole("button", { name: /^complete tournament$/i }).first().click();
+      await page.getByRole("button", { name: /^make results final$/i }).first().click();
 
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toBeVisible();

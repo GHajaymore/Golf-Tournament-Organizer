@@ -43,8 +43,8 @@ export const KNOWN_READ_ONLY: readonly string[] = [
 /** The list's size today (7, lowered from 14 on 23 Nov 2026 when R2's and R4's blocks were given a press and a reload, B105; owner G1b). NEVER RAISE: it may only shrink, and lowering this as entries go is the point. */
 export const KNOWN_READ_ONLY_CAP = 7;
 
-/** The least number of `@redesign` blocks there are today (34 with R4d, R6, R8a and R7's four; R3 is still to come). Raise it as screens land, never lower it. */
-export const MIN_BLOCKS = 34;
+/** The least number of `@redesign` blocks there are today (54: measured with R3, R4d, R6, R7, R8a, R8b, R9b, R9c, R12 and B110 on one head). Raise it as screens land, never lower it. */
+export const MIN_BLOCKS = 54;
 
 const WRITE_PRESS = /\.(click|fill|check|selectOption|press)\(/;
 const NOT_A_WRITE = /getByRole\(\s*["']link["']|openSection\(|openFold\(|sectionLine\(|aria-expanded|\.locator\(\s*["']a\b/;

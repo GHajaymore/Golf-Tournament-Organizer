@@ -5,7 +5,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
-import { isHeadToHead, isPlayingRound, hasKnockoutStage } from "@/lib/stage-types";
+import { isHeadToHead, isPlayingRound, hasKnockoutStage, isKnockoutRound } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
 import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
 import { playersNeedingFigure } from "@/lib/services/committee-figure";
@@ -32,7 +32,7 @@ import { cleanIsoDate, datedSaid, proposedDayWords, proposedRoundDays } from "@/
 import { formatDay } from "@/lib/domain/locale";
 import { formattingForEvent } from "@/lib/services/organization";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
-import { resolveThirdPlace } from "@/lib/domain/third-place";
+import { thirdPlaceViewFor } from "@/lib/services/third-place-view";
 import type { ThirdPlaceView } from "@/components/StagesClient";
 import type { CutTieOnCard } from "@/components/CutReadyCard";
 import { roundRobinCutOf } from "@/lib/services/regroup";
@@ -188,20 +188,17 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
    * uses, and for the same reason.
    */
   const thirdPlaces: Record<string, ThirdPlaceView> = {};
-  for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {
-    // In flights there is no play-off for third at all (see `setThirdPlace`), and the reason is said
-    // where the control is rather than discovered by pressing it.
-    const r = state.brackets.draws
-      ? { problem: "A knockout in several flights has no play-off for third: each flight's beaten semi-finalists share third.", pairing: null }
-      : resolveThirdPlace(state.brackets.winners);
-    const made = await prisma.match.count({ where: { eventId: session.eventId, stageId: s.id, round: 0 } });
-    thirdPlaces[s.id] = {
-      on: s.thirdPlace,
-      problem: r.problem,
-      aName: r.pairing?.a.name ?? "",
-      bName: r.pairing?.b.name ?? "",
-      made: made > 0,
-    };
+  /**
+   * WHICH ROUNDS' DRAW (AND PLAY-OFF FOR THIRD) HAVE MOVED TO TEE TIMES & DRAW (R9c), asked of the one door
+   * (`roundDrawHref`), whichever of the two Rounds screens is drawn: Tee times can be shown while the new Rounds is
+   * not, and the old column must not draw a second copy. A moved round gets no play-off view and no DrawRound here.
+   */
+  const shown = await screensShownFor(session);
+  const drawMoved: Record<string, boolean> = {};
+  for (const s of state.stages) drawMoved[s.id] = !!told && roundDrawHref(s, told.status.family, session.viewRole, shown) !== "/stages";
+  for (const s of state.stages.filter((x) => isKnockoutRound(x.type) && !drawMoved[x.id])) {
+    // `thirdPlaceViewFor` is the one reader (Tee times & draw hands the same control the same answer).
+    thirdPlaces[s.id] = await thirdPlaceViewFor(session.eventId, s, state.brackets);
   }
 
   /**
@@ -421,7 +418,6 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
    * handed down: the chip (`courseDayOf`), the ring (`roundRing`), the mark (`markOf`), the proposed day, the allowance's
    * citation, the inherited tee, and where a draw goes when Tee times & draw is shown (`relocate`). The screen computes none.
    */
-  const shown = await screensShownFor(session);
   const newScreen = shown.has("rounds") && told !== null;
   /**
    * THE CUP'S SETTINGS, ON ROUNDS (R4d; phase 1 Q5): a team cup's two teams are `cupBoard`'s (the one answer to "which two
@@ -685,6 +681,8 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         stages={stages}
         // The redesign's preview, off unless asked for (2026-10-30; go/no-go Tue 17 Nov).
         timeline={timeline}
+        // Closing a round and its scoring window are drawn here until Score entry is shown, then THERE (R12).
+        onTheDayHere={!shown.has("scoreEntry")}
         // Step 2's golf facts, from what is stored, and where the tournament is, from the
         // state machine (timeline only).
         roundFacts={step2?.facts ?? null}
@@ -710,6 +708,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         canSetVenue={session.viewRole === "admin" || session.viewRole === "assistant"}
         singleMatches={singleMatches}
         thirdPlaces={thirdPlaces}
+        drawMoved={drawMoved}
         venues={venues}
         // The tournament's own course, for the rounds that name none. Never
         // shown on a one-venue tournament; the moment a club plays a round

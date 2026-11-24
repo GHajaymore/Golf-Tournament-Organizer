@@ -95,9 +95,9 @@ export function useAction({ refresh = false }: { refresh?: boolean } = {}) {
    * `setError` is returned because some screens report their own failures too,
    * and `startTransition` because a few actions do not fit `run`.
    *
-   * `TeamsClient` is the case: `autoDrawTeams` and `generateTeamMatches` can
+   * `TeamsClient` (`autoDrawTeams`) and `TeamMatchesControl` (`generateTeamMatches`) are the cases: both can
    * come back `needsConfirm`, which is neither success nor refusal — it is the
-   * server asking a question — so those two keep their own bodies. They share
+   * server asking a question — so those two keep their own bodies. Each shares
    * this hook's transition rather than opening a second one, which is what
    * keeps `pending` meaning "this component is busy" instead of "one half of
    * it is".
