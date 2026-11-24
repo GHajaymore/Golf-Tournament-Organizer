@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { savedBeforeReload } from "./save-settled";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { makeClub, dropClub, makeEvent, returnCard, addDays, dayIn } from "./rounds-fixture";
 import { withTeeTimesAs } from "./console/teeTimes";
@@ -170,6 +171,7 @@ test.describe("@redesign the sheet after a cut on Tee times & draw", () => {
         await draw.getByLabel("First tee").fill("07:30");
         await draw.getByRole("button", { name: /^Save sheet/ }).click();
         await expect.poll(sheet, { message: "the sheet is not the four who made the cut" }).toEqual(through.map((p) => p.id).sort());
+        await savedBeforeReload(draw); // "Save sheet" reads "Saving…" until the refresh is back (FoursomeMaker)
         await page.reload();
         await expect(await screen.openSection("draw"), "after a reload the draw section does not hold the saved sheet").toContainText("Saved as a draft");
 

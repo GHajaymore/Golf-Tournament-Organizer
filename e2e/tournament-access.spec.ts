@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { savedBeforeReload } from "./save-settled";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
 import { consoleUrl } from "../src/lib/console-url";
@@ -203,6 +204,8 @@ test.describe("@redesign", () => {
       expect((await account())?.role, "one press changed somebody's role without asking").toBe("assistant");
       await row(section, helperEmail).getByRole("button", { name: /^Yes — make / }).click();
       await expect.poll(async () => (await account())?.role, { timeout: 20_000, message: "the role was not changed" }).toBe("player");
+      // The confirm button reads "Saving…" until the refresh is back (AccessClient).
+      await savedBeforeReload(row(section, helperEmail));
       await desk.reload();
       await desk.waitForLoadState("networkidle").catch(() => {});
       await openStaffAndAccess(desk);
