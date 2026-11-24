@@ -137,9 +137,14 @@ test("a second tap just after the card moves on leaves the next hole unscored", 
 
     await page.clock.runFor(100); // 260ms after the tap: inside the 400ms window
     await expect(par(), "the pad did not say it was holding").toHaveAttribute("aria-disabled", "true");
-    // force: a person does not wait for the pad, and a plain click would wait for it under the held clock.
-    await par().click({ force: true });
+    const padBefore = await par().boundingBox();
+    // A person does not wait for the pad, and a plain click would wait for it under the held clock.
+    // The click event goes to the button itself, not to a coordinate (a short phone's fixed tab bar
+    // can sit over the pad's position), so it lands inside the window without actionability.
+    await par().dispatchEvent("click");
     await expect(page.getByTestId("tap-not-taken"), "a dropped tap said nothing").toContainText(`Hole ${n + 1}`);
+    const padAfter = await par().boundingBox();
+    expect(padAfter?.y, "the note pushed the pad down under the player's thumb").toBe(padBefore?.y);
     await expect(chip(n + 1), "the second tap scored the next hole").toHaveAttribute("aria-label", /not scored/);
 
     await page.clock.runFor(200); // 460ms after the tap: past the window, a deliberate tap scores
@@ -155,8 +160,10 @@ test("a second tap just after the card moves on leaves the next hole unscored", 
     await expect(scored, "holes n and n+1 scored, nothing else").toHaveCount(before + 2);
     await expect(chip(n + 2)).toHaveAttribute("aria-label", /not scored/);
   } finally {
-    // Put the shared fixture back: clear both holes the deliberate way.
+    // Put the shared fixture back: clear both holes the deliberate way. Start from the card
+    // itself, whatever page a failed step left the browser on.
     await page.clock.resume();
+    await page.goto("/me/card");
     for (const h of [n + 1, n]) {
       await chip(h).click();
       await page.getByRole("textbox", { name: `Strokes on hole ${h}` }).fill("");

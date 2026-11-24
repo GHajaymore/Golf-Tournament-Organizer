@@ -224,7 +224,7 @@ export function HoleResultCard({
         ))}
       </div>
 
-      <TapNotTaken show={settle.flash} hole={n} />
+      <TapNotTaken show={settle.flash} hole={n} place="below" />
       <div className="card elev-sm" style={{ padding: "14px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div>

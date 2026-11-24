@@ -159,6 +159,14 @@ describe("the dropped tap is seen", () => {
     expect(renderToStaticMarkup(<TapNotTaken show={false} hole={11} />)).not.toContain("<p");
   });
 
+  it("takes no layout space, shown or not, so the pad never moves under the thumb", () => {
+    for (const show of [true, false]) {
+      const html = renderToStaticMarkup(<TapNotTaken show={show} hole={11} />);
+      expect(html).toMatch(/height:0/);
+    }
+    expect(renderToStaticMarkup(<TapNotTaken show hole={11} />)).toMatch(/<p style="position:absolute/);
+  });
+
   it("is never a second role=status on the card, shown or not (every spec finds the card's line by that role)", () => {
     for (const show of [true, false]) {
       expect(renderToStaticMarkup(<TapNotTaken show={show} hole={11} />)).not.toMatch(/role="status"/);
