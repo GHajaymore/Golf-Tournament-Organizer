@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { Icon } from "./Icon";
 import { usePageIsLive } from "./usePageIsLive";
+import { useAdvanceSettle } from "./useAdvanceSettle";
+import { TapNotTaken } from "./TapNotTaken";
 
 /** A second press of the same answer this soon is a double-tap, not a decision to clear. */
 const DOUBLE_TAP_MS = 400;
@@ -119,13 +121,17 @@ export function HoleResultCard({
     advance.current = null;
   };
   useEffect(() => cancelAdvance, []);
+  // B117: a press in the first 400ms of the new hole is the second half of a double-tap.
+  const settle = useAdvanceSettle();
   const go = (i: number) => {
     cancelAdvance();
+    settle.clear(); // a deliberate move ends the window
     setHole(Math.max(0, Math.min(count - 1, i)));
   };
   const value = holes[hole] ?? null;
 
   const press = (v: "A" | "B" | "H") => {
+    if (settle.refused()) return;
     const clearing = value === v;
     const now = Date.now();
     const doubled = clearing && lastPress.current?.hole === hole && now - lastPress.current.at < DOUBLE_TAP_MS;
@@ -137,8 +143,10 @@ export function HoleResultCard({
     cancelAdvance();
     if (!clearing && hole < count - 1) {
       const from = hole;
+      settle.stamp();
       advance.current = setTimeout(() => {
         advance.current = null;
+        settle.markAdvanced();
         setHole((h) => (h === from ? from + 1 : h));
       }, 160);
     }
@@ -216,6 +224,7 @@ export function HoleResultCard({
         ))}
       </div>
 
+      <TapNotTaken show={settle.flash} hole={n} place="below" />
       <div className="card elev-sm" style={{ padding: "14px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div>
@@ -257,6 +266,7 @@ export function HoleResultCard({
               aria-pressed={value === a.v}
               aria-label={a.aria}
               disabled={!live}
+              aria-disabled={settle.holding ? "true" : undefined}
               onClick={() => press(a.v)}
             >
               {a.label}

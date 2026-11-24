@@ -205,6 +205,9 @@ async function tapAndTime(page: Page): Promise<{ hole: number; ms: number }> {
 /** The next hole's pad is up (the card moves on by itself after a score). */
 async function onHole(page: Page, hole: number) {
   await expect(page.getByLabel(`Strokes on hole ${hole}`)).toBeVisible({ timeout: 10_000 });
+  // The pad holds aria-disabled for a moment after the card moves on (B117); `tapAndTime` clicks
+  // inside the page and skips Playwright's own wait, so wait here, before the tap starts.
+  await expect(page.getByRole("button", { name: /Par$/ }).first()).toBeEnabled();
 }
 
 test("a tap is on the phone at once, says so at the hole, and says Sent only when the server holds it", async ({ browser, baseURL }, testInfo) => {
