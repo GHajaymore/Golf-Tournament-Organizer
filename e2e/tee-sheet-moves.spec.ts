@@ -339,6 +339,14 @@ test.describe("@redesign moving a player on Tee times & draw", () => {
         .toContain(mover.id);
       await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
       await expect(page).toHaveURL(/stepper=1/);
+      // Look again, as the secretary would: nothing is left unsaved, and Group 2 now holds three (it held two).
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 1, name: "Tee times & draw" })).toBeVisible();
+      await expect(page.getByText("not saved yet.")).toHaveCount(0);
+      await expect(
+        screen.section("draw").getByLabel(`Move ${day.placed[0].name} to`, { exact: true }).locator("option", { hasText: "Group 2 · 8:10 AM · 3 players" }),
+        "the move was not kept",
+      ).toHaveCount(1);
     });
   });
 });

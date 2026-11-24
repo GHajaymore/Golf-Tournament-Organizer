@@ -258,6 +258,12 @@ test.describe("@redesign", () => {
       await saidBeside(said, del, "deleting a round holding a card, on the redesigned screen");
       expect(await prisma.stage.count({ where: { id: r1.id } }), "the refused delete deleted the round").toBe(1);
       expect(await prisma.scorecard.count({ where: { stageId: r1.id } }), "the refused delete deleted the card").toBe(1);
+      // Looked at again: after a reload Round 1 is still a column and its card is still there.
+      await page.reload();
+      await expect(page.locator("[data-rounds-screen]")).toBeVisible();
+      await expect(screen.column("Round 1"), "the round the refused delete named is gone after a reload").toBeVisible();
+      expect(await prisma.stage.count({ where: { eventId: event.id } }), "a round was deleted behind the refusal").toBe(stages.length);
+      expect(await prisma.scorecard.count({ where: { stageId: r1.id } }), "the card was deleted behind the refusal").toBe(1);
     } finally {
       await dropClub(mark);
     }

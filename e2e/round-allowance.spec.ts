@@ -417,6 +417,11 @@ test.describe("@redesign", () => {
       await column.getByRole("button", { name: "Save", exact: true }).click();
       await expect.poll(storedNow, { message: "90% was not stored" }).toBe(90);
       await expect(line).toContainText("90%");
+      // Looked at again: the committee's 90% is what the column says after a reload.
+      await page.reload();
+      await expect(page.locator("[data-rounds-screen]")).toBeVisible();
+      await screen.openMore("Round 1");
+      await expect(line, "the committee's 90% did not survive a reload").toContainText("90%");
       await changeButton().click();
       await column.getByRole("button", { name: "Back to 95%", exact: true }).click();
       await expect.poll(storedNow, { message: "Back to 95% did not clear the committee's figure" }).toBe(0);
