@@ -30,18 +30,10 @@ import { readSource, stripComments } from "./source";
  * The rule is per describe BLOCK, not per test: a block whose one test presses and reloads passes though its
  * other tests only read. Two blocks with one title in one file would share an entry.
  */
-export const KNOWN_READ_ONLY: readonly string[] = [
-  "club-course.spec.ts :: @redesign",
-  "course-cards-and-venues.spec.ts :: @redesign",
-  "organizer-rounds-screen.spec.ts :: @redesign",
-  "round-allowance.spec.ts :: @redesign",
-  "rounds-panel.spec.ts :: @redesign",
-  "rounds-timeline.spec.ts :: @redesign",
-  "stages-scoring-setup.spec.ts :: @redesign",
-];
+export const KNOWN_READ_ONLY: readonly string[] = [];
 
-/** The list's size today (7, dated 23 Nov 2026, owner G1b; B105 part 2 took the seven R9a blocks off 14). NEVER RAISE: it may only shrink, and lowering this as entries go is the point. */
-export const KNOWN_READ_ONLY_CAP = 7;
+/** The list's size today (0, dated 24 Nov 2026, owner G1b): B105 parts 1 and 2 gave all fourteen blocks a press and a reload. NEVER RAISE: every @redesign block now presses and looks again. */
+export const KNOWN_READ_ONLY_CAP = 0;
 
 /** The least number of `@redesign` blocks there are today (54: measured with R3, R4d, R6, R7, R8a, R8b, R9b, R9c, R12 and B110 on one head). Raise it as screens land, never lower it. */
 export const MIN_BLOCKS = 54;

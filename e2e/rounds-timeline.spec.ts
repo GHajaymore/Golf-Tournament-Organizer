@@ -206,7 +206,9 @@ test.describe("@redesign", () => {
       expect(await set("Round 3"), "the undated round is not short of its day").toBeLessThan(await set("Round 1"));
       await screen.dayInput("Round 3").fill(addDays(today, 21));
       await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, { message: "the day was not stored" }).toBe(addDays(today, 21));
-      await screen.open();
+      await page.reload();
+      await expect(page.locator("[data-rounds-screen]")).toBeVisible();
+      await expect(screen.dayInput("Round 3"), "the day typed did not survive a reload").toHaveValue(addDays(today, 21));
       expect(await set("Round 3"), "dating the round did not close the gap").toBe(await set("Round 1"));
     } finally {
       await dropClub(mark);
@@ -232,6 +234,9 @@ test.describe("@redesign", () => {
       await screen.column("Round 3").getByRole("button", { name: `Use the default (${last})` }).click();
       await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stages[2].id } })).playedOn, { message: "Use the default stored no day" }).toBe(last);
       await expect(screen.dayInput("Round 3")).toHaveValue(last);
+      await page.reload();
+      await expect(page.locator("[data-rounds-screen]")).toBeVisible();
+      await expect(screen.dayInput("Round 3"), "the proposed day did not survive a reload").toHaveValue(last);
     } finally {
       await dropClub(mark);
     }
