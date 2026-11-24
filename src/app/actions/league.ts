@@ -348,8 +348,10 @@ export type LeagueDrawResult =
  * rotation follows the season without anybody numbering it.
  *
  * NOT LOCKED BY LAUNCH, like nominating: a league is live all season and is
- * drawn every week. What it does refuse is replacing a week somebody has
- * already scored — same rule, same wording, as the generic draw.
+ * drawn every week. It is refused once the tournament is COMPLETED (B115: the
+ * sides' lock read completion-only, `refuseIfCompleted`; Reopen is the way
+ * out), for a first draw and a redraw alike. And it refuses replacing a week
+ * somebody has already scored — same rule, same wording, as the generic draw.
  *
  * AND IT ASKS BEFORE DRAWING THE PLAY-OFFS OFF A SEASON WITH A HOLE IN IT
  * (`shortSeason`). The check below it — "every meeting before them has a
