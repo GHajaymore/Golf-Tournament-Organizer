@@ -40,6 +40,10 @@ import { TeeTimesScreen } from "@/components/teetimes/TeeTimesScreen";
 import { CutWaitingCard } from "@/components/teetimes/CutWaitingCard";
 import { SheetDriftCard } from "@/components/teetimes/SheetDriftCard";
 import { PrintDoor } from "@/components/teetimes/PrintDoor";
+import { LeagueDraw } from "@/components/LeagueDraw";
+import { leagueDrawPlace } from "@/lib/domain/draw-sections";
+import { flightsIn } from "@/lib/services/league-nomination";
+import { consoleUrl } from "@/lib/console-url";
 import { requestOrigin } from "@/lib/request-origin";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -567,6 +571,7 @@ export default async function FoursomesPage({
       // As Rounds & formats reads it: the first of ALL the stages (a cut marker counts), never of the playing rounds.
       isFirst: state.stages[0]?.id === stage.id,
       completed: told.status.step === "completed",
+      league: isLeaguePointsSystem(state.event.leaguePoints),
     });
     const roundMatches = state.matches.filter((m) => m.stageId === stage.id).length;
     const generatorHere =
@@ -574,18 +579,24 @@ export default async function FoursomesPage({
       controls.teamMatches &&
       !isLeaguePointsSystem(state.event.leaguePoints) &&
       matchGeneratorPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes";
-    // An interclub league's week of four-balls is drawn on Teams & pairs (`LeagueDraw`, which writes the matches), not
-    // here: this screen holds the player groups. Said on the page until the TD rules whether it moves. The same
-    // question `LeagueSection` asks, `isLeaguePointsSystem`.
+    // AN INTERCLUB LEAGUE'S "DRAW THIS WEEK" IS DRAWN HERE (B110; the TD's ruling of 23 Nov): the week's four-balls
+    // (`LeagueDraw`, which writes the matches) in the week's draw section, mounted only while this screen builds the round
+    // (`leagueDrawPlace`, the one answer `LeagueSection` asks to hide its own) and the league has clubs, as `LeagueSection`
+    // requires. Nominating the pairs stays on Teams & pairs, under Players, and is said here with a link. (The name is the
+    // old pointer's: the JSX below is unchanged.)
+    const leagueClubs = isStaff && controls.leagueWeek ? await flightsIn(session.eventId) : [];
     const leagueWeekPointer =
-      isStaff && isLeaguePointsSystem(state.event.leaguePoints) ? (
-        <p data-league-week-pointer="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-          The week&rsquo;s matches between clubs are drawn on{" "}
-          <a href={`/teams?round=${stage.id}`} style={{ display: "inline-block", minHeight: 48 }}>
-            Teams &amp; pairs
-          </a>
-          ; this is where the players go out together.
-        </p>
+      leagueClubs.length > 0 && leagueDrawPlace({ type: stage.type, format: stage.format, hasSavedSheet: !!savedSheet }, family, true) === "teeTimes" ? (
+        <div data-league-week="" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+          <p data-league-pairs-pointer="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+            The week&rsquo;s pairs are nominated on{" "}
+            <a href={previewMode ? consoleUrl(`/teams?round=${stage.id}`, previewMode) : `/teams?round=${stage.id}`} style={{ display: "inline-block", minHeight: 48 }}>
+              Teams &amp; pairs
+            </a>
+            ; draw the week&rsquo;s four-balls from them here.
+          </p>
+          <LeagueDraw stageId={stage.id} drawn={roundMatches} />
+        </div>
       ) : null;
     const sidesLock = generatorHere ? await scopeLockFor(session.eventId, "sides") : null;
     const nextRoundEl = await (async () => {
