@@ -40,10 +40,11 @@ const sides = [
   { id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] },
   { id: "t2", name: "Side B", seed: 2, stageId: "r1", playingHandicap: 12, members: [] },
 ];
-const teamsScreen = (matchesHere: boolean, drawsMatches = true, league = false) =>
+const teamsScreen = (matchesHere: boolean, drawsMatches = true, league = false, teeTimesHref = "/foursomes?round=r1") =>
   renderToStaticMarkup(
     <TeamsClient
       matchesHere={matchesHere}
+      teeTimesHref={teeTimesHref}
       rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]}
       activeRoundId="r1"
       format={format}
@@ -89,12 +90,13 @@ describe("the match generator is mounted once", () => {
     expect(teamsScreen(true, false), "a round that draws no matches has nothing to point at").not.toContain("data-matches-moved");
   });
 
-  it("an interclub league's Tee times says its week of matches is drawn on Teams, asked of the one `isLeaguePointsSystem`", () => {
-    const tee = readSource("src", "app", "(app)", "foursomes", "page.tsx");
-    expect(tee).toMatch(/isStaff && isLeaguePointsSystem\(state\.event\.leaguePoints\) \?/);
-    expect(tee).toContain("data-league-week-pointer");
-    expect(tee).toContain("/teams?round=${stage.id}");
-    expect(tee).toMatch(/\{leagueWeekPointer\}/);
+  it("B114: the pointer to Tee times & draw uses the href the page built, so a preview viewer stays in the preview", () => {
+    const html = teamsScreen(true, true, false, "/foursomes?round=r1&stepper=1&build=1");
+    expect(html).toContain('href="/foursomes?round=r1&amp;stepper=1&amp;build=1"');
+    expect(html).not.toContain('href="/foursomes?round=r1"');
+    const teams = readSource("src", "app", "(app)", "teams", "page.tsx");
+    expect(teams).toContain("const teeTimesHref = await keepingPreview(`/foursomes?round=${active.id}`)");
+    expect(teams).toContain("teeTimesHref={teeTimesHref}");
   });
 
   it("the old screen obeys the same boolean: with the switch off the generator stays on Teams for every family", () => {

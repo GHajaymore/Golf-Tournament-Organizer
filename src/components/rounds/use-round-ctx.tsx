@@ -60,6 +60,8 @@ export interface RoundCardProps {
   singleMatch?: SingleMatchView | null;
   /** For a Bracket Stage: whether it plays off for third, and who would. */
   thirdPlace?: ThirdPlaceView | null;
+  /** This round's draw is made on Tee times & draw (R9c: its door has moved), so the old column draws no draw of its own. */
+  drawMoved?: boolean;
   isFirst: boolean;
   /** Whether this round's configuration is open. */
   expanded: boolean;
@@ -134,6 +136,7 @@ export function useRoundCtx(props: RoundCardProps) {
   onToggle,
   singleMatch,
   thirdPlace,
+  drawMoved = false,
   canSetVenue = true,
   hasResult = false,
   sharedWithAll = null,
@@ -681,6 +684,7 @@ export function useRoundCtx(props: RoundCardProps) {
     onToggle,
     singleMatch,
     thirdPlace,
+    drawMoved,
     canSetVenue,
     hasResult,
     sharedWithAll,

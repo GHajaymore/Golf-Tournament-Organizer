@@ -92,6 +92,7 @@ export function TeamsClient({
   matchCount,
   drawsMatches,
   matchesHere,
+  teeTimesHref,
   league = false,
   locked = false,
 }: {
@@ -108,6 +109,12 @@ export function TeamsClient({
    * never drawn twice and never by neither. Required, so a caller says; the page sets it from `screensShownFor`.
    */
   matchesHere: boolean;
+  /**
+   * WHERE TEE TIMES & DRAW IS for this round, already carrying the preview (`keepingPreview`, B114): a viewer in a
+   * preview lands on the redesigned screen, not today's. Built by the server page, since a client component cannot read
+   * the request. Required, so a caller says.
+   */
+  teeTimesHref: string;
   /**
    * The sides are locked (the machine's `locks.sides`, drawn above this by
    * `ScopeLockBanner`). Every action here that changes a side refuses it —
@@ -355,7 +362,7 @@ export function TeamsClient({
       {drawsMatches && matchesHere && (
         <p data-matches-moved="" className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Generate matches is in the draw section of{" "}
-          <a href={`/foursomes?round=${activeRoundId}`} style={{ display: "inline-block", minHeight: 48 }}>
+          <a href={teeTimesHref} style={{ display: "inline-block", minHeight: 48 }}>
             Tee times &amp; draw
           </a>
           .

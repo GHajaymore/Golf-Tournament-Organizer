@@ -75,7 +75,7 @@ describe("a named side bet that is not skins", () => {
   });
 
   it("the group screen loads every named game on the round and hands each card its name", () => {
-    const page = readSource("src/app/(app)/group-games/page.tsx");
+    const page = readSource("src/components/money/GroupGames.tsx");
     expect(page).toContain('groupKey: { not: "" } },\n        include: { entrants: true }'.replace("\n", page.includes("\r\n") ? "\r\n" : "\n"));
     expect(page).toContain("groupKey={bet.name}");
     expect(page).toContain("sideGames={bet.games}");

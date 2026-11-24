@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import * as rf from "./rounds-fixture";
+import { MoneyScreen } from "./console/money";
 
 /**
  * THE KITTY: MONEY IN, MONEY OUT, AND WHAT IS LEFT — TO THE CENT.
@@ -156,4 +158,43 @@ test("a club that writes 12,50 has its kitty line read as 12,50", async ({ page 
     await prisma.organization.update({ where: { id: home.organizationId! }, data: { locale: home.organization!.locale, currency: home.organization!.currency } });
     await sweep();
   }
+});
+
+// R8b: the kitty on the redesigned Winners & money (`consoleUrl("/money", "build")`), deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  // Their own club and event: the shared fixture's kitty is every test above's.
+  test.use({ storageState: { cookies: [], origins: [] } });
+  const WALKED = ["desktop", "phone"];
+
+  test("money in is recorded on Winners & money, and the line is there after a reload", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-r8b-kitty-${testInfo.project.name}`;
+    const club = await rf.makeClub(mark);
+    try {
+      const { event } = await rf.makeEvent(club, "Spring Medal", { stages: [{}], event: { moneyMode: "float" } });
+      await rf.signIn(context, baseURL!, club, event.id);
+      const money = new MoneyScreen(page);
+      await money.open();
+      const card = money.kitty();
+      await expect(card, "a tournament that keeps a kitty does not show it on Winners & money").toBeVisible();
+      const what = `${mark} entry fees`;
+      await card.getByRole("button", { name: "Money in", exact: true }).click();
+      await card.getByLabel("What was it for?").fill(what);
+      await card.getByLabel("Amount", { exact: true }).fill("240");
+      await card.getByRole("button", { name: "Record money in" }).click();
+      await expect
+        .poll(async () => (await rf.prisma.tournamentFund.findFirst({ where: { eventId: event.id, description: what } }))?.amountCents, { timeout: 20_000, message: "the money in was not stored" })
+        .toBe(24_000);
+      await page.reload();
+      await expect(money.kitty(), "the line is not on the kitty after a reload").toContainText(what);
+      // The kitty is the settle half's: the same screen offers no way to change what was offered.
+      await money.expectNoOfferControls();
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

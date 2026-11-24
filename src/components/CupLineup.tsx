@@ -90,14 +90,24 @@ export function CupLineup({
       {settingsHere ? (
         <CupTile teams={teams} pointsToWin={pointsToWin} holder={holder} locked={locked} lockWhy={lockWhy} pending={pending} run={run} />
       ) : (
-        <p data-cup-settings-moved className="text-muted" style={{ margin: 0, fontSize: 14 }}>
-          Points to win and who holds the cup are set on <Link href="/stages">Rounds &amp; formats</Link>.
-        </p>
+        <CupSettingsMoved />
       )}
       {sessions.map((s) => (
         <SessionLineup key={s.id} session={s} teams={teams} pending={pending} run={run} />
       ))}
     </div>
+  );
+}
+
+/**
+ * WHERE THE CUP'S POINTS TO WIN AND HOLDER WENT (R4d), said wherever the tile is not drawn: inside the lineup, and on the cup page
+ * once the lineups themselves have moved to Tee times & draw (R9c), so the pointer is one component, never a second sentence.
+ */
+export function CupSettingsMoved() {
+  return (
+    <p data-cup-settings-moved className="text-muted" style={{ margin: 0, fontSize: 14 }}>
+      Points to win and who holds the cup are set on <Link href="/stages">Rounds &amp; formats</Link>.
+    </p>
   );
 }
 

@@ -48,7 +48,7 @@ const formatOf = (name: string, sharesOneCard: boolean) => ({
 const teamsScreen = (name: string, sharesOneCard: boolean) =>
   textOf(
     renderToStaticMarkup(
-      <TeamsClient matchesHere={false}
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1"
         rounds={[{ id: "r1", label: "R1", format: name }]} activeRoundId="r1"
         format={formatOf(name, sharesOneCard)}
         teams={[{
@@ -168,7 +168,7 @@ describe("a partner who has left the field plays off nothing", () => {
   it("the Teams screen lists only who is still playing", () => {
     const text = textOf(
       renderToStaticMarkup(
-        <TeamsClient matchesHere={false}
+        <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1"
           rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
           format={formatOf("Four-Ball", false)}
           teams={[{
@@ -190,7 +190,7 @@ describe("Teams screen: how a match is stroked", () => {
   const screen = (name: string, sharesOneCard: boolean, drawsMatches: boolean) =>
     textOf(
       renderToStaticMarkup(
-        <TeamsClient matchesHere={false}
+        <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1"
           rounds={[{ id: "r1", label: "R1", format: name }]} activeRoundId="r1"
           format={formatOf(name, sharesOneCard)} teams={[]} problems={[]} unassigned={[]} matchCount={0}
           drawsMatches={drawsMatches} />,

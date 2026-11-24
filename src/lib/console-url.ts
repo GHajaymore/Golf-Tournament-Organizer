@@ -25,6 +25,14 @@ export function consoleUrl(path: string, mode: ConsoleMode): string {
 }
 
 /**
+ * THE PREVIEW'S OWN QUERY as a bare string (`stepper=1&build=1`), for a control that carries it across a press of its own, such as
+ * `RoundPicker`'s `carry`. Derived from `consoleUrl`, so it can never disagree with the address a preview is reached at.
+ */
+export function previewQuery(mode: ConsoleMode): string {
+  return consoleUrl("/", mode).split("?")[1];
+}
+
+/**
  * THE ONE ADDRESS OF A MEMBER'S HISTORY (R7), built here for every caller: `/member?member=` while Members is
  * not shown, a section of `/roster` (`#history`) while it is. Inside a preview the preview parameters stay on.
  */
