@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
+import { useAdvanceSettle } from "./useAdvanceSettle";
+import { TapNotTaken } from "./TapNotTaken";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { useSeenOnce } from "./useSeenOnce";
 import { usePageIsLive } from "./usePageIsLive";
@@ -276,15 +278,20 @@ export function HoleByHoleCard({
     advance.current = null;
   };
   useEffect(() => cancelAdvance, []);
+  // B117: a pad tap in the first 400ms of the new hole is the second half of a double-tap.
+  const settle = useAdvanceSettle();
   const go = (next: number) => {
     cancelAdvance();
+    settle.clear(); // a deliberate move ends the window
     setHole(Math.max(0, Math.min(holes - 1, next)));
   };
   const advanceFrom = (from: number) => {
     cancelAdvance();
     if (from >= holes - 1) return;
+    settle.stamp();
     advance.current = setTimeout(() => {
       advance.current = null;
+      settle.markAdvanced();
       setHole((h) => (h === from ? from + 1 : h));
     }, 160);
   };
@@ -312,6 +319,7 @@ export function HoleByHoleCard({
    * at Enter.
    */
   const set = (playerId: string, v: number | null, moveOn = true) => {
+    if (moveOn && settle.refused()) return;
     onSet(playerId, hole, v);
     // Only advance on a solo card. On a group card the scorer is part way
     // through the hole and moving the screen out from under them would be
@@ -572,6 +580,7 @@ export function HoleByHoleCard({
 
         {solo ? (
           <>
+            <TapNotTaken show={settle.flash} hole={holeNumber(hole, firstHole)} />
             <SoloPad
               player={players[0]}
               hole={hole}
@@ -581,6 +590,7 @@ export function HoleByHoleCard({
               onPick={(v, moveOn) => set(players[0].id, v, moveOn)}
               onDone={() => advanceFrom(hole)}
               live={live}
+              holding={settle.holding}
             />
             {onPickUp && (
               <PickUpToggle
@@ -588,7 +598,9 @@ export function HoleByHoleCard({
                 hole={holeNumber(hole, firstHole)}
                 on={pickedUp?.[players[0].id]?.[hole] === true}
                 live={live}
+                holding={settle.holding}
                 onToggle={(on) => {
+                  if (settle.refused()) return;
                   onPickUp(players[0].id, hole, on);
                   // Out of the hole is a hole finished: on to the next.
                   if (on) advanceFrom(hole);
@@ -756,6 +768,7 @@ function PickUpToggle({
   onToggle,
   compact = false,
   live = true,
+  holding = false,
 }: {
   name: string;
   hole: number;
@@ -764,6 +777,8 @@ function PickUpToggle({
   compact?: boolean;
   /** False until the page's script is running: a tap before then is lost. */
   live?: boolean;
+  /** B117: the card has just moved on; the pad is not taking taps for a moment (aria-disabled, never disabled). */
+  holding?: boolean;
 }) {
   return (
     <button
@@ -772,6 +787,7 @@ function PickUpToggle({
       aria-pressed={on}
       aria-label={`${name} picked up on hole ${hole}`}
       disabled={!live}
+      aria-disabled={holding ? "true" : undefined}
       onClick={() => onToggle(!on)}
       style={{
         marginTop: compact ? 6 : 12,
@@ -796,6 +812,7 @@ function SoloPad({
   onDone,
   firstHole = 1,
   live,
+  holding = false,
 }: {
   player: CardPlayer;
   hole: number;
@@ -809,6 +826,8 @@ function SoloPad({
   onDone?: () => void;
   /** False until the page's script is running: a tap before then is lost. */
   live: boolean;
+  /** B117: see `PickUpToggle`. */
+  holding?: boolean;
 }) {
   /**
    * ONE ID PER CARD (2026-11-05): "hbh-other" was a constant, so a page holding
@@ -864,6 +883,7 @@ function SoloPad({
               // still there, deliberately, by emptying "Other".
               onClick={() => onPick(n)}
               disabled={!live}
+              aria-disabled={holding ? "true" : undefined}
               aria-pressed={chosen}
               style={{
                 // 56px: above the 44px touch minimum, with a glove on.
