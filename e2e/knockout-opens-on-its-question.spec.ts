@@ -29,7 +29,7 @@ import { pressRadio } from "./press-radio";
  * the shared e2e fixture is not touched.
  *
  * WHAT IT CANNOT SEE: print (part c), and the club's clock in another zone —
- * this club has none and keeps the server's day (`E2E_TZ` is how to reach that).
+ * this club is in the run's zone (`E2E_TZ`, else the machine's: `e2e/club-zone.ts`), which is the server's day unless a run sets `E2E_TZ`.
  */
 
 const NAMES = [
