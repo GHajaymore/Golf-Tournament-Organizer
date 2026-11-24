@@ -329,7 +329,7 @@ test("five I", async ({ page, context, baseURL }, testInfo) => {
       if ((await eventFacts(I_NAME))!.status !== "completed") {
         await open(page, "/dashboard");
         await pressComplete(page);
-        await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
+        await page.getByRole("alertdialog").getByRole("button", { name: "Make results final" }).click();
         await expect.poll(async () => (await eventFacts(I_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       }
       await open(page, "/event");

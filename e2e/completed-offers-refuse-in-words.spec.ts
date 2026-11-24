@@ -4,6 +4,9 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { pressReopen } from "./end-early";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import * as rf from "./rounds-fixture";
+import { PrizesScreen } from "./console/prizes";
+import { MoneyScreen } from "./console/money";
 
 /**
  * WHAT MONEY OFFERED IS REFUSED IN WORDS ONCE THE TOURNAMENT IS COMPLETED; THE LEDGER IS NOT; REOPEN GIVES IT BACK
@@ -328,4 +331,109 @@ test("every offer-side control on a completed tournament is refused in words; th
     for (const c of contexts) await c.close().catch(() => {});
     await sweep();
   }
+});
+
+// R8a: the same refusals on the redesigned Prizes & side games (`consoleUrl("/prizes", "build")`), deleted at R17 with the old screen.
+test.describe("@redesign", () => {
+  test("on a completed tournament the new screen refuses the offer in words beside the press and writes nothing; the ledger works; Reopen gives the offer back", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(!["desktop", "phone"].includes(testInfo.project.name), "walked at laptop and phone size");
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "organizer");
+    const mark = `zz-r8a-done-${testInfo.project.name}`;
+    // The club HAS a time zone. A club with none makes the console layout draw `ClubClockAdopter`, which on mount posts `adoptClubTimeZone`;
+    // that action `revalidatePath`s the layout, so its response carries a fresh render of THIS page. On WebKit it takes ~0.5 s, lands after the
+    // database says "completed" and before the press, and the screen is locked with Add disabled (G687). Hiding the tab cannot stop it.
+    const club = await rf.makeClub(mark, { timeZone: "Europe/London" });
+    try {
+      const { event, stages, players } = await rf.makeEvent(club, "Spring Medal", {
+        status: "live",
+        stages: [{}],
+        players: 4,
+        event: { launchedAt: new Date(), moneyMode: "split" },
+      });
+      const cat = `${mark} Best gross`;
+      await rf.prisma.prize.create({ data: { eventId: event.id, position: 1, category: cat, amount: 0 } });
+      await rf.signIn(context, baseURL!, club, event.id);
+      const screen = new PrizesScreen(page);
+      const setStatus = (status: "live" | "completed") => rf.prisma.event.update({ where: { id: event.id }, data: { status } });
+      const snapshot = async () => ({
+        prizes: await rf.prisma.prize.count({ where: { eventId: event.id } }),
+        mode: (await rf.prisma.event.findUniqueOrThrow({ where: { id: event.id } })).moneyMode,
+      });
+      const LOCK_LINE = /Locked because the tournament is completed\./;
+      /**
+       * THE SCREEN IS HELD STALE, so the press is the server's to refuse. `LiveRefresh` polls `router.refresh()` only while the tab is
+       * visible (`document.visibilityState`); on a slow shard that poll lands between the database change and the press, the screen
+       * learns it is locked and Add is disabled, or the refusal is replaced as it is said (G681). (The other path to a fresh render, the club-clock
+       * adopter's server action, is closed by giving the club a time zone, below.) The page's own visibility is told
+       * "hidden" from here (no app seam), and `letTheScreenCatchUp` gives it back and wakes the page, as a person returning to the tab does.
+       */
+      const holdTheScreenStale = () => page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }));
+      const letTheScreenCatchUp = () =>
+        page.evaluate(() => {
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+      /** Drawn live (so the controls are offered, the money fold open), completed "in another tab", then pressed. */
+      const drawnLiveThenCompleted = async () => {
+        await setStatus("live");
+        await screen.open(stages[0].id);
+        await screen.openMoneySetup();
+        await holdTheScreenStale();
+        await setStatus("completed");
+      };
+      const refusedBesidePress = async (what: string, before: Awaited<ReturnType<typeof snapshot>>) => {
+        const said = page.getByText(`Locked because the tournament is completed. Reopen it on the dashboard to ${what}.`).first();
+        await expect(said, `the refusal to ${what} was not said`).toBeVisible({ timeout: 20_000 });
+        await expect(said, `the refusal to ${what} was said off screen`).toBeInViewport();
+        await letTheScreenCatchUp();
+        await expect(page.getByRole("region", { name: "Locked" }), "the screen did not catch up with the lock").toContainText(LOCK_LINE, { timeout: 20_000 });
+        expect(await snapshot(), `written while locked (${what})`).toEqual(before);
+      };
+
+      // ── a prize is added: refused ──
+      await drawnLiveThenCompleted();
+      let before = await snapshot();
+      await page.getByLabel("Category").fill(`${mark} Long drive`);
+      await page.getByLabel(/^Amount \(/).fill("10");
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      await refusedBesidePress("change the prizes", before);
+
+      // ── how money is handled, pressed inside the fold: refused ──
+      await drawnLiveThenCompleted();
+      before = await snapshot();
+      const fold = await screen.openMoneySetup();
+      await fold.getByRole("radio", { name: /Tournament kitty/ }).click();
+      await refusedBesidePress("change how money is handled", before);
+
+      // ── the ledger is not behind it: a prize is awarded on the completed tournament ──
+      // With Winners & money shown the winner is picked THERE (R8b); Prizes & side games draws the offer only.
+      await setStatus("completed");
+      await screen.open(stages[0].id);
+      await expect(page.getByLabel(`Winner of ${cat}`), "the winner picker is drawn on the offer screen too").toHaveCount(0);
+      const money = new MoneyScreen(page);
+      await money.open(stages[0].id);
+      await money.winnerOf(cat).selectOption(players[0].id);
+      await expect
+        .poll(async () => (await rf.prisma.prize.findFirstOrThrow({ where: { eventId: event.id, category: cat } })).winnerId, { timeout: 20_000, message: "awarding a prize was refused on a completed tournament (the ledger is not locked)" })
+        .toBe(players[0].id);
+      await page.reload();
+      await expect(money.winnerOf(cat), "the award is not on Winners & money after a reload").toHaveValue(players[0].id);
+
+      // ── Reopen, and the offer works again, and is kept ──
+      await pressReopen(page);
+      await expect.poll(async () => (await rf.prisma.event.findUniqueOrThrow({ where: { id: event.id } })).status, { message: "Reopen did not make the tournament live" }).toBe("live");
+      await screen.open(stages[0].id);
+      await page.getByLabel("Category").fill(`${mark} Long drive`);
+      await page.getByLabel(/^Amount \(/).fill("10");
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      await expect.poll(() => rf.prisma.prize.count({ where: { eventId: event.id } }), { timeout: 20_000, message: "adding a prize did not work again after Reopen" }).toBe(2);
+      await page.reload();
+      await expect(screen.amountFor(`${mark} Long drive`), "the prize is not on the new screen after a reload").toHaveValue("10");
+    } finally {
+      await rf.dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { addCupMatch, removeCupMatch, publishCupLineup, hideCupLineup, nameCupSession } from "@/app/actions/cup";
 import { forfeitMatch } from "@/app/actions/tournament";
 import { useAction } from "./useAction";
@@ -57,9 +58,15 @@ export function CupLineup({
   holder,
   locked,
   lockWhy,
+  settingsHere,
 }: {
   teams: [Team, Team];
   sessions: Session[];
+  /**
+   * WHERE THE CUP'S POINTS TO WIN AND HOLDER ARE SET (R4d): true draws the tile here (today's screen); false when Rounds &
+   * formats is shown, which draws the same `CupTile` once (the page sets it from `screensShownFor`), and this says where.
+   */
+  settingsHere: boolean;
   /**
    * The cup's points to win and holder are shut (the machine's `rounds` lock, drawn above this by
    * `ScopeLockBanner`; `setCupSettings` asks it). The lineup and the points beside it are the day's
@@ -80,11 +87,27 @@ export function CupLineup({
           {error}
         </p>
       )}
-      <CupTile teams={teams} pointsToWin={pointsToWin} holder={holder} locked={locked} lockWhy={lockWhy} pending={pending} run={run} />
+      {settingsHere ? (
+        <CupTile teams={teams} pointsToWin={pointsToWin} holder={holder} locked={locked} lockWhy={lockWhy} pending={pending} run={run} />
+      ) : (
+        <CupSettingsMoved />
+      )}
       {sessions.map((s) => (
         <SessionLineup key={s.id} session={s} teams={teams} pending={pending} run={run} />
       ))}
     </div>
+  );
+}
+
+/**
+ * WHERE THE CUP'S POINTS TO WIN AND HOLDER WENT (R4d), said wherever the tile is not drawn: inside the lineup, and on the cup page
+ * once the lineups themselves have moved to Tee times & draw (R9c), so the pointer is one component, never a second sentence.
+ */
+export function CupSettingsMoved() {
+  return (
+    <p data-cup-settings-moved className="text-muted" style={{ margin: 0, fontSize: 14 }}>
+      Points to win and who holds the cup are set on <Link href="/stages">Rounds &amp; formats</Link>.
+    </p>
   );
 }
 

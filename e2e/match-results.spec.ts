@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { pressRadio } from "./press-radio";
+import { openScreen } from "./console";
 
 /**
  * A MATCH RESULT, FROM BEING TYPED TO BEING CLEARED, AS THE COMMITTEE HANDLES
@@ -319,4 +320,99 @@ test("the organizer reopens an approved card and clears one player's scores, and
   });
 
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * @redesign: A MATCH RESULT TYPED ON THE REDESIGNED SCORE ENTRY IS KEPT, AND "PLAYED AT" IS NOT ASKED FOR A FIXED COURSE (R12).
+ * The same Final-result-only press as above, `3&2`, on the building address; after a RELOAD the match still reads Pending
+ * confirmation. The event has one course with a card (a fixed course) and the club has one other course in its library, so the OLD screen offers "Played at" for the match (the control:
+ * opened without the preview it is there), and the redesigned one, for a fixed-course event, does not. Its own club, event and
+ * match, marked `zz-match-results-rd` and removed after. Memory: one signed-in page, about 150 MB.
+ */
+test.describe("@redesign a match result on Score entry, and Played at only for an open course", () => {
+  const RD = "zz-match-results-rd";
+  const rd = { org: "", event: "", match: "", user: "", cookie: "" };
+  test.beforeAll(async () => {
+    const org = await prisma.organization.create({ data: { name: `${RD} society`, kind: "society" } });
+    rd.org = org.id;
+    // One other course in the club's library: the old screen asks where a match was played whenever there is somewhere else.
+    await prisma.course.create({
+      data: { organizationId: org.id, name: `${RD} Other Links`, city: "", pars: JSON.stringify(new Array(18).fill(4)), yards: JSON.stringify(new Array(18).fill(380)), strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)) },
+    });
+    const event = await prisma.event.create({
+      data: {
+        organizationId: org.id, name: `${RD} Singles Matchplay`, status: "live", shape: "single", format: "match", dates: "", course: "Home", city: "", address: "", regDeadline: "",
+        shareToken: `${RD}-${Date.now()}`,
+        customPars: JSON.stringify(new Array(18).fill(4)), customYards: JSON.stringify(new Array(18).fill(380)), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+    });
+    rd.event = event.id;
+    // The event's one course, with a card: a FIXED course. (With no course at all the round is told it has nowhere to score
+    // against, and asks where on every screen: that is a different case, kept on purpose.)
+    const home = await prisma.course.create({
+      data: { organizationId: org.id, name: `${RD} Home Links`, city: "", pars: JSON.stringify(new Array(18).fill(4)), yards: JSON.stringify(new Array(18).fill(380)), strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)) },
+    });
+    await prisma.eventCourse.create({ data: { eventId: event.id, courseId: home.id } });
+    const stage = await prisma.stage.create({
+      data: { eventId: event.id, position: 0, type: "Round Robin", format: "Match Play", description: "Group stage", scoringBasis: "gross", holes: 18 },
+    });
+    const flight = await prisma.group.create({ data: { eventId: event.id, name: "Group A", position: 0 } });
+    const [a, b] = await Promise.all(
+      ["Zz Rd Ailsa", "Zz Rd Bram"].map((name, i) =>
+        prisma.player.create({ data: { eventId: event.id, groupId: flight.id, name, email: `${RD}-${i}@example.invalid`, status: "confirmed", seed: i + 1, handicap: 0 } }),
+      ),
+    );
+    rd.match = (
+      await prisma.match.create({
+        data: { eventId: event.id, stageId: stage.id, groupId: flight.id, round: 1, playerAId: a.id, playerBId: b.id, teamAId: "", teamBId: "", holes: JSON.stringify(new Array(18).fill(null)) },
+      })
+    ).id;
+    const organizer = await prisma.user.create({ data: { email: `${RD}-organizer@example.invalid`, name: "Zz Rd Organizer", password: "x:unusable" } });
+    await prisma.account.create({ data: { eventId: event.id, email: organizer.email, name: "Zz Rd Organizer", role: "admin" } });
+    rd.user = organizer.id;
+    rd.cookie = sign(signedInNow(organizer.id));
+  });
+  test.afterAll(async () => {
+    if (rd.event) await prisma.event.deleteMany({ where: { id: rd.event } });
+    if (rd.org) await prisma.course.deleteMany({ where: { organizationId: rd.org } });
+    if (rd.org) await prisma.organization.deleteMany({ where: { id: rd.org } });
+    if (rd.user) await prisma.user.deleteMany({ where: { id: rd.user } });
+  });
+
+  test("3&2 is typed and kept after a reload; Played at is on the old screen and not on the new one", async ({ page, baseURL }) => {
+    test.setTimeout(150_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors, "organizer, redesigned Score entry");
+    await page.context().addCookies([
+      { name: "ng_session", value: rd.cookie, url: baseURL! },
+      { name: "ng_active_event", value: sign(rd.event), url: baseURL! },
+    ]);
+    const stored = async () => {
+      const m = await prisma.match.findUniqueOrThrow({ where: { id: rd.match }, select: { scoreStatus: true, holes: true } });
+      return { status: m.scoreStatus, played: (JSON.parse(m.holes) as unknown[]).filter((h) => h !== null).length };
+    };
+
+    // The control: the old screen asks where the match was played, because the club has somewhere else to play.
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await expect(page.getByText("Played at").first(), "the old screen no longer asks where the match was played").toBeVisible({ timeout: 30_000 });
+
+    // The redesigned screen, for a fixed course, does not.
+    await openScreen(page, "/entry");
+    await expect(page.getByRole("heading", { level: 1, name: "Score entry" })).toBeVisible();
+    await expect(page.getByText("Played at"), "a fixed course is asked where it was played").toHaveCount(0);
+
+    await page.getByRole("button", { name: /Enter it a different way/ }).click();
+    await page.getByRole("button", { name: /Final result only/ }).click();
+    await pressRadio(page.getByRole("radio", { name: "Zz Rd Ailsa" }));
+    await page.getByPlaceholder("3&2").fill("3&2");
+    await page.getByRole("button", { name: /Apply result/ }).click();
+    await expect.poll(async () => (await stored()).played, { message: "the result was not stored" }).toBe(16);
+    // The screen says the answer came back (the card's own tag) before it is loaded again, not only the row.
+    await expect(page.locator(".tag", { hasText: "Pending confirmation" }).last()).toBeVisible({ timeout: 30_000 });
+    await page.reload();
+    await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
+    await expect(page.locator(".tag", { hasText: "Pending confirmation" }).last(), "the result is not kept after a reload").toBeVisible({ timeout: 30_000 });
+    expect((await stored()).played).toBe(16);
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

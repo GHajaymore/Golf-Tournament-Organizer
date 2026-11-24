@@ -1,31 +1,35 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
-import { loadEventState, playingStages, standingRows } from "@/lib/services/tournament";
-import { skinsPotFor, skinsSeasonFor } from "@/lib/services/skins-pot";
+import { loadEventState, playingStages } from "@/lib/services/tournament";
+import { skinsPotFor } from "@/lib/services/skins-pot";
 import { isSkinsScope, type SkinsScope } from "@/lib/domain/skins-pot";
 import { SkinsPotClient } from "@/components/SkinsPotClient";
-import { SkinsSeason } from "@/components/SkinsSeason";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
 import { ContestsClient } from "@/components/ContestsClient";
 import { MoreInfo } from "@/components/MoreInfo";
 import { isHeadToHead } from "@/lib/stage-types";
-import { usesStandardBoard } from "@/lib/formats";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { potCents } from "@/lib/domain/money";
 import { MoneySetup } from "@/components/MoneySetup";
 import { MoneyModeLine } from "@/components/MoneyModeLine";
-import { FloatClient } from "@/components/FloatClient";
-import { OrganizerLedger } from "@/components/OrganizerLedger";
-import { moneyFor, playedOnceRoundIsOver, sidePotResults } from "@/lib/services/expenses";
-import { flightStandings } from "@/lib/services/me";
+import { SettleHalf } from "@/components/money/SettleHalf";
+import { settleHalfFor } from "@/lib/services/money-settle";
+import { prizeFieldFor } from "@/lib/services/prize-field";
+import { playedOnceRoundIsOver, sidePotResults } from "@/lib/services/expenses";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { keepingPreview, screensShownFor } from "@/lib/services/screens-shown";
+import { SectionFold } from "@/components/setup/SectionFold";
+import { fieldGamesHome, prizeTableHalf } from "@/lib/domain/money-parts";
+import { MONEY_MODE_LABEL } from "@/lib/domain/money-mode";
+import { isMatch } from "@/lib/tournament-shape";
 
 export const metadata = screenMetadata("/prizes");
 
@@ -49,72 +53,8 @@ export default async function PrizesPage({
   // Only the default; the round picker still wins.
   const week = weeks.find((s) => s.id === params.round) ?? state.boardStage ?? weeks[0] ?? null;
 
-  /**
-   * The field in FINISHING ORDER for the prize winner picker.
-   *
-   * You award a prize by result, so the winner belongs at the top of the list,
-   * not wherever the alphabet puts them. This reuses the board's OWN ranking
-   * (`standingRows`) rather than a second calculation, so the order here agrees
-   * with the leaderboard the club is looking at — and it carries the same
-   * finishing place the board shows.
-   *
-   * Everyone unranked — a card that stopped short, nobody in a manual round
-   * (where `standingRows` returns `[]`) — falls to the bottom in name order, so
-   * the picker still lists the whole field and never loses a name.
-   *
-   * ONLY ON THE ORDINARY BOARD. `standingRows` reads the INDIVIDUAL stroke
-   * standing, which is the wrong order for a team, match, skins or Nassau round
-   * — so `usesStandardBoard` gates it, exactly as `audit-guards` requires of any
-   * screen that ranks the field. Off the standard board the whole field falls
-   * back to name order, which is the right neutral for a prize a side wins.
-   */
-  const prizeRank = usesStandardBoard(state.activeStage?.format)
-    ? new Map(standingRows(state).filter((r) => r.ranked).map((r) => [r.id, r.rank]))
-    : new Map<string, number>();
-  /**
-   * Each flight's own finishing order, for a flight's prize — see the
-   * `flights` prop. The same reader as Today's "2nd in Flight A". Only with
-   * two or more flights: one flight's order IS the overall order.
-   */
-  const nameById = new Map(state.confirmed.map((p) => [p.id, p.name]));
-  const prizeFlights =
-    state.groups.length > 1
-      ? flightStandings(state).map((f) => ({
-          label: f.label,
-          players: [...f.rows]
-            .sort((a, b) => (a.rank > 0 && b.rank > 0 ? a.rank - b.rank : a.rank > 0 ? -1 : b.rank > 0 ? 1 : 0))
-            .map((r) => ({ id: r.id, name: nameById.get(r.id) ?? "—", place: r.rank > 0 ? r.rank : null })),
-        }))
-      : [];
-  /**
-   * THE FIELD BY GROSS AND BY NET, for prizes named for one (2026-10-08).
-   *
-   * "Best gross & net" makes two prizes, and both pickers opened on the
-   * board's order — net, on a net medal — so "Best gross" offered the net
-   * winner first: walked on a field where she had shot 85 and the best gross
-   * was a 70, listed third. Each list is numbered by its own places, finished
-   * cards first. Stroke rounds only; a points or match board has no gross and
-   * net to order by.
-   */
-  //
-  // Placed as the board places, by the board's own sort and countback on
-  // that basis (`strokeStandingsOn`): a tie for Best gross in a net medal is
-  // broken on the gross cards' last nine, six, three and one, as a committee
-  // breaks it, and shared only where the countback cannot separate them.
-  const standings = usesStandardBoard(state.activeStage?.format) && state.boardIsStroke ? state.strokeStandings : [];
-  const scoreOrder = (basis: "gross" | "net") => {
-    if (standings.length === 0) return null;
-    return state.strokeStandingsOn(basis).map((s) => ({ id: s.player.id, name: s.player.name, place: s.ranked ? s.rank : null }));
-  };
-  const prizeOrders = { gross: scoreOrder("gross"), net: scoreOrder("net") };
-  const orderedForPrizes = [...state.confirmed]
-    .map((p) => ({ id: p.id, name: p.name, place: prizeRank.get(p.id) ?? null }))
-    .sort((a, b) => {
-      if (a.place !== null && b.place !== null) return a.place - b.place;
-      if (a.place !== null) return -1;
-      if (b.place !== null) return 1;
-      return a.name.localeCompare(b.name);
-    });
+  // The field a prize is awarded from, in the orders the winner picker opens on: ONE answer for this screen and Winners & money (R8b).
+  const prizeField = prizeFieldFor(state);
   /**
    * Every game this round runs, not a fixed gross-and-net pair.
    *
@@ -149,8 +89,6 @@ export default async function PrizesPage({
         )
       ).filter((g): g is { key: string; view: NonNullable<typeof g.view> } => g.view !== null)
     : [];
-  const skinsSeason = await skinsSeasonFor(session.eventId);
-
   const prizes = await prisma.prize.findMany({
     where: { eventId: session.eventId },
     orderBy: { position: "asc" },
@@ -240,20 +178,21 @@ export default async function PrizesPage({
   });
   const isStaff = session.role === "admin" || session.role === "assistant";
   /**
-   * The ledger for whoever is running it.
-   *
-   * Read with the organizer's own email, which is right even when they are not
-   * playing: everything a treasurer needs — the standing, the transfers, the
-   * lines — is event-wide, and the "you" parts simply have nobody to match.
+   * WHICH REDESIGNED SCREENS THIS REQUEST SHOWS (`screensShownFor`; "building", so only a `?stepper=1&build=1` preview off
+   * production). `money` is Winners & money: while it is shown the settle half (the season's skins, the kitty, the ledger, who
+   * won each prize) is drawn THERE and never here, so no control is on both screens (R8b).
    */
-  const ledger = moneyMode === "split" && isStaff ? await moneyFor(session.eventId, session.email, { name: session.name, isStaff }) : null;
-  const fundLines =
-    moneyMode === "float"
-      ? await prisma.tournamentFund.findMany({
-          where: { eventId: session.eventId },
-          orderBy: { createdAt: "desc" },
-        })
-      : [];
+  const shown = await screensShownFor(session);
+  const moneyShown = shown.has("money");
+  /** Winners & money's address, inside the preview this request is in (never a bare `/money`, which sends a plain visit away). */
+  const moneyHref = await keepingPreview("/money");
+  /**
+   * The settle half, read once through the sinks (`settleHalfFor`) for the screen that draws it. Winners & money reads it
+   * itself, so this screen reads it only while it still draws it.
+   */
+  const settle = moneyShown
+    ? null
+    : await settleHalfFor({ eventId: session.eventId, email: session.email, name: session.name, isStaff, moneyMode });
 
   /**
    * The last step of setting up, which is why this screen carries the rail.
@@ -271,22 +210,71 @@ export default async function PrizesPage({
   const moneyLock = await screenLocksFor(session.eventId, ["money"]);
   const moneyLocked = moneyLock.locks.length > 0;
 
+  /**
+   * THE REDESIGNED PRIZES & SIDE GAMES (R8a), drawn only while its key is shown (`screensShownFor`; "building", so only a
+   * `?stepper=1&build=1` preview off production). What is OFFERED, in one place: how money works first (folded to one line on a
+   * phone), then the prize table, then the field's pots and contests. The settle half (who won each prize, the season's
+   * skins, the kitty, the ledger) is drawn below until Winners & money is shown (R8b), and by Winners & money after, so no
+   * control is ever in neither place or in both. Every control's part is `moneyPartOf`; the actions are unchanged.
+   */
+  const newScreen = shown.has("prizes");
+  /** The field's pots and contests are mounted ONCE: here for a tournament, on `/group-games` for a casual round. */
+  const fieldGamesHere = fieldGamesHome({ casual: isMatch(state.event.shape) }) === "prizes";
+  const moneyAnswered = state.event.moneyMode !== "" || !!org?.moneyMode;
+  const moneySetup = isStaff ? (
+    <MoneySetup
+      mode="tournament"
+      eventMode={state.event.moneyMode}
+      orgMode={org?.moneyMode ?? ""}
+      orgKind={org?.kind ?? ""}
+      clubName={org?.shortName || org?.name || ""}
+      eventEntry={state.event.expenseEntry}
+      locked={moneyLocked}
+    />
+  ) : null;
+
   return (
     <>
       <SetupFlowRail flow={flow} href="/prizes" />
       {isStaff && <ScopeLockBanner locks={moneyLock.locks} correction={moneyLock.correction} isAdmin={session.viewRole === "admin"} />}
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 20 }} {...(newScreen ? { "data-prizes-screen": "" } : {})}>
         {/* "Set up" while the guide is still running, because that is what
             this screen is then: the last question before the tournament can
             be handed over. It goes back to being a results screen the moment
-            setup is finished. */}
-        <div className="page-kicker">{flow && !flow.complete ? "Set up" : "Results"}</div>
-        <h1 className="page-title">Prizes &amp; payouts</h1>
-        {/* One line, the rest an ⓘ away (2026-10-05). */}
-        <MoreInfo short="The prize list, the purse, and who won." style={{ marginTop: 6 }}>
-          Define the prize list and purse, then award winners. Flight winners, skins, closest-to-pin,
-          long drive and any specials.
-        </MoreInfo>
+            setup is finished. The redesigned screen is the offer half only,
+            so it is always "Set up" (step 3 §4.1). */}
+        <div className="page-kicker">
+          {newScreen
+            ? flow && !flow.complete && !moneyLocked
+              ? "Set up"
+              : moneyShown
+                ? "Prizes"
+                : "Prizes & money"
+            : flow && !flow.complete
+              ? "Set up"
+              : "Results"}
+        </div>
+        <h1 className="page-title">{newScreen ? "Prizes & side games" : "Prizes & payouts"}</h1>
+        {newScreen ? (
+          <p className="page-sub" style={{ marginTop: 6 }}>
+            {moneyShown ? (
+              <>
+                The prize list, pots and contests you offer. Each pot and contest keeps who is in it and who has paid on its own card.
+                Who won each prize, the kitty and the ledger are on <Link href={moneyHref}>Winners &amp; money</Link>.{" "}
+              </>
+            ) : (
+              <>The prize list, pots and contests you offer. Winners and who has paid are below until Winners &amp; money opens.{" "}</>
+            )}
+            <strong>TourneyHQ works out and records who is owed what. It does not pay anyone.</strong>{" "}
+            {fieldGamesHere && <a href="#side-games">Jump to side games</a>}
+          </p>
+        ) : (
+          /* One line, the rest an ⓘ away (2026-10-05). */
+          <MoreInfo short="The prize list, the purse, and who won." style={{ marginTop: 6 }}>
+            Define the prize list and purse, then award winners. Flight winners, skins, closest-to-pin,
+            long drive and any specials.
+          </MoreInfo>
+        )}
       </div>
       {/* Before any of the money, because it decides what all of it means —
           see the note on the component. The picker itself stays at the foot of
@@ -300,6 +288,23 @@ export default async function PrizesPage({
         clubName={org?.shortName || org?.name || ""}
         href={isStaff ? "#money-setup" : undefined}
       />
+      {/* FIRST, AND ONE LINE ON A PHONE (R8a): the answer decides what everything below means. Open until the first answer is
+          given; once it is, the fold says it ("Money: …") and the press is one tap away. A change of mode deletes nothing. */}
+      {newScreen && moneySetup && (
+        <SectionFold
+          id="money-setup"
+          title="How money works here"
+          state={`Money: ${moneyMode === "none" ? "costs outside the app" : MONEY_MODE_LABEL[moneyMode]}`}
+          needsYou={!moneyAnswered}
+          openOnPhone={!moneyAnswered}
+        >
+          {/* Said inside the fold, not on its one line: a long line in the fold's button overflowed a 320px phone. */}
+          <p className="text-muted" style={{ margin: "0 0 8px", fontSize: 13, minWidth: 0, overflowWrap: "anywhere" }}>
+            A change keeps your prize list and side games.
+          </p>
+          {moneySetup}
+        </SectionFold>
+      )}
       <PrizesClient
         prizes={prizes.map((p) => ({
           id: p.id,
@@ -309,9 +314,10 @@ export default async function PrizesPage({
           winnerId: p.winnerId,
           counts: p.countsForOnePrize,
         }))}
-        players={orderedForPrizes}
-        flights={prizeFlights}
-        byScore={prizeOrders}
+        part={prizeTableHalf("prizes", moneyShown)}
+        players={prizeField.players}
+        flights={prizeField.flights}
+        byScore={prizeField.byScore}
         onePrizePerPlayer={state.event.onePrizePerPlayer}
         locked={moneyLocked}
       />
@@ -327,7 +333,8 @@ export default async function PrizesPage({
           Read off the seeded foursomes on 2026-09-20: skins, low gross, low
           net and the birdie pot all offered, with nothing saying why they
           could never settle. */}
-      {week && perPlayerPotRefusal(week.format) ? (
+      {newScreen && fieldGamesHere && <div id="side-games" style={{ scrollMarginTop: 16 }} />}
+      {fieldGamesHere && week && perPlayerPotRefusal(week.format) ? (
         <section className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title" style={{ fontSize: 14 }}>
             No pots on this round
@@ -345,6 +352,7 @@ export default async function PrizesPage({
           </p>
         </section>
       ) : (
+        fieldGamesHere &&
         week &&
         skinsGames.map((g) => (
           <SkinsPotClient
@@ -360,7 +368,7 @@ export default async function PrizesPage({
           a payout, and this is where a club comes to settle up. Per round,
           because closest-to-the-pin is a hole on a day rather than a
           tournament-wide setting. */}
-      {week && !perPlayerPotRefusal(week.format) && (
+      {fieldGamesHere && week && !perPlayerPotRefusal(week.format) && (
         <ContestsClient
           roundLabel={roundLabel(weeks, week.id)}
           stageId={week.id}
@@ -420,50 +428,26 @@ export default async function PrizesPage({
           locked={moneyLocked}
         />
       )}
-      <SkinsSeason rows={skinsSeason} />
-
-      {/* The kitty, when this tournament keeps one. Below the pots because the
-          pots are what people ask about on the day, and the kitty is what the
-          organizer reconciles afterwards. */}
-      {moneyMode === "float" && (
-        <FloatClient
-          lines={fundLines.map((l) => ({
-            id: l.id,
-            direction: l.direction,
-            description: l.description,
-            amountCents: l.amountCents,
-            category: l.category,
-            occurredOn: l.occurredOn,
-            stageId: l.stageId,
-            createdBy: l.createdBy,
-          }))}
+      {/* The season's skins, the kitty and the ledger: the settle half, drawn here only while Winners & money (`money`) is not
+          shown. The one boolean is `moneyShown`; `settle` is read only when it is false. */}
+      {settle && (
+        <SettleHalf
+          settle={settle}
+          moneyMode={moneyMode}
           rounds={weeks.map((s) => ({ id: s.id, label: roundLabel(weeks, s.id) }))}
-          canEdit={isStaff}
+          isStaff={isStaff}
         />
       )}
-
-      {/* The ledger, for the person collecting. The settle-up used to live
-          only on the player screen, which works for an organizer who is also
-          playing and fails completely for the one who is not — a society
-          treasurer being the likeliest person to need it. */}
-      {ledger && <OrganizerLedger view={ledger} />}
 
       {/* How money is handled at all, last: it is a setting, and a setting
           belongs under the thing it configures rather than above it. What was
           missing is the other half — the screen never SAID which mode was in
           force until you had scrolled past everything it governs. That is
           `MoneyModeLine` at the top, and this is where it jumps to. */}
-      {isStaff && (
+      {/* Where the redesigned screen draws it is at the TOP, folded (above); the one boolean is `newScreen`. */}
+      {!newScreen && moneySetup && (
         <div id="money-setup" style={{ scrollMarginTop: 16 }}>
-        <MoneySetup
-          mode="tournament"
-          eventMode={state.event.moneyMode}
-          orgMode={org?.moneyMode ?? ""}
-          orgKind={org?.kind ?? ""}
-          clubName={org?.shortName || org?.name || ""}
-          eventEntry={state.event.expenseEntry}
-          locked={moneyLocked}
-        />
+          {moneySetup}
         </div>
       )}
       <SetupFlowFooter flow={flow} href="/prizes" />

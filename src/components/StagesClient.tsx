@@ -213,7 +213,7 @@ export interface QualValues {
 }
 
 
-function StageCard(props: RoundCardProps) {
+function StageCard(props: RoundCardProps & { onTheDayHere: boolean }) {
   const ctx = useRoundCtx(props);
   const { stage, isFirst, standing, allStages, confirmedCount, chainWarnings, expanded, onToggle, sharedWithAll, asPanel, facts, roundStep, playingCount, locale, launched, underWay, thisRound, basis, format, customizeOpen, setCustomizeOpen, saveStatus, notGenerated, roundRaisesTies, customizeParts, intoNext, summaryLine, sameAsAllLine, roundColor, roundText, playByOnFace } = ctx;
   
@@ -269,7 +269,7 @@ function StageCard(props: RoundCardProps) {
           above; this is the same line for a medal or a Stableford, which had no
           control at all until 2026-10-13 — and a field under thirty may play at
           100% (Appendix C). */}
-      {launched && !isFirst && !seededFromQualifiers(stage.type) && (
+      {launched && !isFirst && !seededFromQualifiers(stage.type) && !ctx.drawMoved && (
         <DrawRound stage={stage} label={thisRound || "this round"} />
       )}
       <RoundAllowanceBlock ctx={ctx} />
@@ -283,7 +283,9 @@ function StageCard(props: RoundCardProps) {
       <RoundTransition ctx={ctx} />
       {playByOnFace && <RoundDeadlineField ctx={ctx} />}
       <RoundSignUp ctx={ctx} />
-      <RoundOnTheDay ctx={ctx} />
+      {/* The same boolean the redesigned Rounds screen asks (`shown.has("scoreEntry")`): while Score entry is shown
+          the round is closed and its window set THERE, and this screen stops drawing them (R12). */}
+      {props.onTheDayHere && <RoundOnTheDay ctx={ctx} />}
     </>
   );
   // "Customize this round" on its own, so the timeline's panel can give it the fourth section
@@ -835,6 +837,7 @@ export function StagesClient({
   roundsWithResults = [],
   singleMatches,
   thirdPlaces,
+  drawMoved,
   canSetVenue = true,
   locked = false,
   launched = false,
@@ -845,7 +848,15 @@ export function StagesClient({
   roundFacts = null,
   courseDay = null,
   strokesBand = [],
+  onTheDayHere = true,
 }: {
+  /**
+   * Whether each round draws its "On the day" group, the tick that closes it and the scoring window (R12). The page says it,
+   * from the same `shown.has("scoreEntry")` the redesigned screens ask, so Score entry and this screen never both draw them
+   * and never both leave them out. Optional in the TYPE only because some fifty old render tests build this screen without
+   * it and may not be edited; `closing-a-round-has-one-home.test.tsx` holds that the one page that mounts it always says.
+   */
+  onTheDayHere?: boolean;
   /**
    * Rounds scored net in which players with no handicap index need strokes (`playersNeedingFigure`), for
    * the band at the top (`NeedsStrokesBand`). Empty for anybody who may not give strokes.
@@ -915,6 +926,8 @@ export function StagesClient({
   singleMatches?: Record<string, SingleMatchView>;
   /** Third-place views, by Bracket Stage id. */
   thirdPlaces?: Record<string, ThirdPlaceView>;
+  /** Rounds whose draw is made on Tee times & draw (R9c), by id: the old column draws no DrawRound for them. */
+  drawMoved?: Record<string, boolean>;
 }) {
   /**
    * Which round is open. One at a time, and none when there are several.
@@ -1005,14 +1018,17 @@ export function StagesClient({
           <StageCard
             key={s.id}
             stage={s}
+            onTheDayHere={onTheDayHere}
             canSetVenue={canSetVenue}
             allStages={stages}
             singleMatch={singleMatches?.[s.id] ?? null}
             thirdPlace={thirdPlaces?.[s.id] ?? null}
+            drawMoved={drawMoved?.[s.id] ?? false}
             hasResult={roundsWithResults.includes(s.id)}
             sharedWithAll={shared}
             arrangement={arrangement}
             asPanel={timeline}
+            redesign={false}
             facts={timeline ? roundFacts?.[s.id] ?? null : null}
             roundStep={timeline ? courseDay?.rounds[s.id] ?? null : null}
             playingCount={playing.length}
@@ -1063,7 +1079,7 @@ export function StagesClient({
         </div>
       )}
 
-      <AddRoundPanel roundCount={stages.length} onAdded={(id) => { setOpenRound(id); setJustAdded(id); }} />
+      <AddRoundPanel redesign={false} roundCount={stages.length} onAdded={(id) => { setOpenRound(id); setJustAdded(id); }} />
     </div>
     </SetupLocked.Provider>
     </Launched.Provider>

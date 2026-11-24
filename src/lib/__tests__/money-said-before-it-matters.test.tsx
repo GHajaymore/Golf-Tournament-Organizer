@@ -118,21 +118,25 @@ describe("where the prizes screen puts it", () => {
     const src = page();
     const at = (s: string) => src.indexOf(s);
     expect(at("<MoneyModeLine"), "the statement is gone").toBeGreaterThan(-1);
-    for (const after of ["<PrizesClient", "<SkinsPotClient", "<FloatClient", "<OrganizerLedger", "<MoneySetup"]) {
+    for (const after of ["<PrizesClient", "<SkinsPotClient", "<SettleHalf", "{newScreen && moneySetup", "{!newScreen && moneySetup"]) {
       expect(at("<MoneyModeLine"), `${after} is above the statement`).toBeLessThan(at(after));
     }
   });
 
-  it("keeps the picker at the foot, where the settings are", () => {
+  it("keeps ONE picker: at the foot on today's screen, folded under the statement on the redesigned one (R8a)", () => {
     /**
-     * A STATEMENT, NOT A SECOND COPY OF THE PICKER. Radios at the top would
-     * push the prizes themselves below the fold to solve a problem that is
-     * about KNOWING rather than about changing — and two controls for one
-     * setting on one screen is how they come to disagree.
+     * A STATEMENT, NOT A SECOND COPY OF THE PICKER. Two controls for one
+     * setting on one screen is how they come to disagree, so the picker is
+     * ONE element and one boolean (`newScreen`) says where it is drawn. Today's
+     * screen keeps it at the foot, where the settings are. The redesigned
+     * screen (R8a, behind the switch) puts it first, right after the statement
+     * and folded to one line on a phone, because the answer decides what every
+     * card below means.
      */
     const src = page();
     expect(src.split("<MoneySetup").length - 1, "the picker has been duplicated").toBe(1);
-    expect(src.indexOf("<MoneySetup")).toBeGreaterThan(src.indexOf("<OrganizerLedger"));
+    expect(src.indexOf("{!newScreen && moneySetup"), "today's picker is not at the foot").toBeGreaterThan(src.indexOf("<OrganizerLedger"));
+    expect(src.indexOf("{newScreen && moneySetup"), "the redesigned picker is not under the statement").toBeLessThan(src.indexOf("<PrizesClient"));
   });
 
   it("has somewhere for the jump to land", () => {

@@ -96,7 +96,7 @@ test("the organizer's presses are refused or asked in the machine's words", asyn
       // The other side questions a card while the secretary has the dashboard open.
       await prisma.scorecard.updateMany({ where: { stageId: f.stageIds[0], playerId: f.playerIds[1] }, data: { status: "disputed" } });
       await complete.click();
-      await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: /^(Make results final|Complete it)$/ }).click();
       await expect(page.locator("main")).toContainText("1 result is disputed, so the tournament can’t be finished yet.", { timeout: 20_000 });
       expect(await f.status(), "completed over a disputed card").toBe("live");
     } finally {

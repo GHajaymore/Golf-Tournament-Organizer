@@ -33,7 +33,7 @@ export function RoundTies({ ctx }: { ctx: RoundCtx }) {
                   )}
                   {stage.type === "Round Robin" && format === "Match Play" && (
                     <TieRow question={`A match all square after ${holes}`} rule={matchTieInWords(matchTiebreakers, holes)}>
-                      <MatchTiebreakControl selected={matchTiebreakers} holes={holes} locked={pending || locked} />
+                      <MatchTiebreakControl selected={matchTiebreakers} holes={holes} locked={pending || locked} redesign={ctx.redesign} />
                     </TieRow>
                   )}
                   {stage.type === "Round Robin" && (

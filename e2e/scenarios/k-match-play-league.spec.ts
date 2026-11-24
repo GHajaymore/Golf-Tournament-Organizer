@@ -277,7 +277,7 @@ test("five K", async ({ page, context, baseURL }, testInfo) => {
         note(`Complete enabled: ${await done.isEnabled()}`);
         if (await done.isEnabled()) {
           await done.click();
-          await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
+          await page.getByRole("alertdialog").getByRole("button", { name: "Make results final" }).click();
           await expect.poll(async () => (await eventFacts(K_NAME))!.status, { timeout: 20_000 }).toBe("completed");
         } else await read(page, "/dashboard", "dashboard-not-ready", 2500);
       }

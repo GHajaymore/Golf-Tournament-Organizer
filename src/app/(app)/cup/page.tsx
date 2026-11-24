@@ -4,12 +4,17 @@ import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { cupBoard, type CupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
-import { CupLineup } from "@/components/CupLineup";
+import { CupLineup, CupSettingsMoved } from "@/components/CupLineup";
 import { CupTeams, CreateCupTeams } from "@/components/CupTeams";
 import { CupOtherPoints } from "@/components/CupOtherPoints";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
-import { screenLocksFor } from "@/lib/services/tournament-status";
+import { screenLocksFor, tournamentStatusNow } from "@/lib/services/tournament-status";
+import { cupLineupPlace } from "@/lib/domain/draw-sections";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
+import { headers } from "next/headers";
+import { cupLineupPropsFor } from "@/lib/services/cup-teams";
+import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
 
 export const metadata = screenMetadata("/cup");
 
@@ -36,6 +41,19 @@ export default async function CupPage() {
   const locks = isStaff ? await screenLocksFor(session.eventId, ["cup", "rounds"]) : { locks: [], correction: null };
   const teamsLocked = locks.locks.some((l) => l.scope === "cup");
   const settingsLocked = locks.locks.some((l) => l.scope === "rounds");
+  // Which screens are shown to this request, asked once: Rounds & formats then holds the cup's points to win and holder
+  // (R4d), and Players then holds the cup's teams on its Cup teams tab (R6).
+  const shown = await screensShownFor(session);
+  // THE CUP'S TEAMS HAVE ONE HOME (R6): here, or on Players' Cup teams tab while Players is shown (`cupTeamsHome`).
+  const playersShown = shown.has("players");
+  const teamsHere = cupTeamsHome(playersShown) === "cup";
+  const teamsTabHref = playerTabHref(PLAYER_TABS.find((t) => t.key === "cup")!, (await headers()).get("x-search") ?? "");
+  // THE LINEUPS HAVE ONE HOME (R9c): a session's own round on Tee times & draw while that screen is shown and builds the cup
+  // (`cupLineupPlace`, the one answer both pages ask), here otherwise. The sessions' board is read for staff only.
+  const told = isStaff ? await tournamentStatusNow(session.eventId) : null;
+  const lineupMoved =
+    !!told &&
+    cupLineupPlace({ type: "Team Session", format: "", hasSavedSheet: false }, told.status.family, shown.has("teeTimes")) === "teeTimes";
 
   return (
     <>
@@ -50,8 +68,16 @@ export default async function CupPage() {
       {isStaff && <ScopeLockBanner locks={locks.locks} correction={locks.correction} isAdmin={session.viewRole === "admin"} />}
 
       {!result.ok && result.reason === "teams" && isStaff && (await flightCount(session.eventId)) === 0 ? (
-        // No flights at all: make the two teams right here, by name.
-        <CreateCupTeams locked={teamsLocked} />
+        // No flights at all: make the two teams right here, by name (on Players' Cup teams tab while that is shown).
+        teamsHere ? (
+          <CreateCupTeams locked={teamsLocked} />
+        ) : (
+          <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
+            <p style={{ margin: 0, lineHeight: 1.6 }}>
+              The cup&rsquo;s two teams are made on <Link href={teamsTabHref}>Players &rarr; Cup teams</Link>.
+            </p>
+          </div>
+        )
       ) : !result.ok ? (
         <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
           {result.reason === "teams" ? (
@@ -100,7 +126,7 @@ export default async function CupPage() {
               </Link>
             )}
           </p>
-          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} />}
+          {isStaff && <StaffLineup eventId={session.eventId} board={result.board} teamsHere={teamsHere} teamsTabHref={teamsTabHref} teamsLocked={teamsLocked} settingsLocked={settingsLocked} settingsHere={!shown.has("rounds")} settingsLock={locks.locks.find((l) => l.scope === "rounds") ?? null} lineupMoved={lineupMoved} />}
         </>
       )}
     </>
@@ -115,83 +141,64 @@ async function flightCount(eventId: string): Promise<number> {
 async function StaffLineup({
   eventId,
   board,
+  teamsHere,
+  teamsTabHref,
   teamsLocked,
   settingsLocked,
   settingsLock,
+  settingsHere,
+  lineupMoved,
 }: {
   eventId: string;
   board: CupBoard;
+  teamsHere: boolean;
+  teamsTabHref: string;
   teamsLocked: boolean;
   settingsLocked: boolean;
   settingsLock: ScopeLock | null;
+  settingsHere: boolean;
+  /** The lineups are drawn on Tee times & draw (R9c: `cupLineupPlace`), so this page says where instead of drawing them. */
+  lineupMoved: boolean;
 }) {
-  const [event, players, unplaced, captains] = await Promise.all([
-    prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
-    prisma.player.findMany({
-      where: { eventId, status: "confirmed", groupId: { in: board.teams.map((t) => t.id) } },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, groupId: true, handicap: true, handicapSource: true, handicapType: true },
-    }),
-    prisma.player.findMany({
-      where: { eventId, status: "confirmed", groupId: null },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, handicap: true, handicapSource: true, handicapType: true },
-    }),
-    prisma.group.findMany({
-      where: { id: { in: board.teams.map((t) => t.id) }, eventId, isCarrier: false },
-      select: { id: true, captainId: true },
-    }),
-  ]);
-  const teamPlayers = (id: string) => players.filter((p) => p.groupId === id).map((p) => ({ id: p.id, name: p.name }));
-  const captainOf = (id: string) => captains.find((c) => c.id === id)?.captainId ?? "";
-  const roster = (id: string) =>
-    players
-      .filter((p) => p.groupId === id)
-      .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapSource: p.handicapSource, handicapType: p.handicapType }));
+  const { lineup, cupTeams } = await cupLineupPropsFor(eventId, board);
   return (
     <>
-    <CupTeams
-      teams={[
-        { id: board.teams[0].id, name: board.teams[0].name, captainId: captainOf(board.teams[0].id), players: roster(board.teams[0].id) },
-        { id: board.teams[1].id, name: board.teams[1].name, captainId: captainOf(board.teams[1].id), players: roster(board.teams[1].id) },
-      ]}
-      unplaced={unplaced}
-      inLineup={board.sessions.flatMap((s) => s.matches.flatMap((m) => m.playerIds))}
-      locked={teamsLocked}
-    />
+    {teamsHere ? (
+      <CupTeams
+        teams={cupTeams.teams}
+        unplaced={cupTeams.unplaced}
+        inLineup={board.sessions.flatMap((s) => s.matches.flatMap((m) => m.playerIds))}
+        locked={teamsLocked}
+      />
+    ) : (
+      <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+        Who is on each team is kept on <Link href={teamsTabHref}>Players &rarr; Cup teams</Link>.
+      </p>
+    )}
     <section aria-labelledby="lineups" style={{ marginTop: 8 }}>
       <h2 id="lineups" className="card-title" style={{ fontSize: 18, margin: "0 0 10px" }}>
         Lineups
       </h2>
-      <CupLineup
-        teams={[
-          { id: board.teams[0].id, name: board.teams[0].name, players: teamPlayers(board.teams[0].id) },
-          { id: board.teams[1].id, name: board.teams[1].name, players: teamPlayers(board.teams[1].id) },
-        ]}
-        pointsToWin={event?.cupPointsToWin ?? 0}
-        holder={event?.cupHolderGroupId ?? ""}
-        locked={settingsLocked}
-        lockWhy={settingsLock}
-        sessions={board.sessions.map((s) => ({
-          id: s.id,
-          name: s.name,
-          kind: s.kind,
-          sideSize: s.sideSize,
-          published: s.published,
-          busy: s.matches.flatMap((m) => m.playerIds),
-          matches: s.matches.map((m) => ({
-            id: m.id,
-            a: m.a,
-            b: m.b,
-            started: m.state.status !== "not-started" || m.conceded !== null,
-            final: m.state.status === "final",
-            label: m.state.label,
-            aSideId: m.aSideId,
-            bSideId: m.bSideId,
-            conceded: m.conceded,
-          })),
-        }))}
-      />
+      {lineupMoved ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          {board.sessions[0] ? (
+            <p data-cup-lineup-moved="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+              Each session&rsquo;s lineup is set on{" "}
+              <Link href={await keepingPreview(`/foursomes?round=${board.sessions[0].id}`)} style={{ display: "inline-block", minHeight: 48 }}>
+                Tee times &amp; draw
+              </Link>
+              , one session at a time.
+            </p>
+          ) : (
+            <p data-cup-lineup-moved="" className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+              Add a session on <Link href={await keepingPreview("/stages")}>Rounds &amp; formats</Link>, then set its lineup on Tee times &amp; draw.
+            </p>
+          )}
+          {!settingsHere && <CupSettingsMoved />}
+        </div>
+      ) : (
+        <CupLineup {...lineup} locked={settingsLocked} lockWhy={settingsLock} settingsHere={settingsHere} />
+      )}
     </section>
     <CupOtherPoints
       teams={[

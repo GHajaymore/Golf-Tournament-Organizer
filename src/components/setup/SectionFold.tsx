@@ -59,6 +59,8 @@ export function SectionFold({
           justifyContent: "flex-start",
           gap: "2px 12px",
           textAlign: "left",
+          // `.btn` is nowrap, which stops `overflowWrap` on the spans below from ever breaking a long state line.
+          whiteSpace: "normal",
           color: "var(--color-text)",
         }}
       >

@@ -54,6 +54,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { startDictation, type Dictation } from "@/lib/dictation";
 import { holeNumber } from "@/lib/domain/hole-number";
 import { formatDayAt } from "@/lib/domain/locale";
+import { scoreEntryAsksWhere } from "@/lib/domain/venue";
 
 /**
  * The three ways a match gets written down, as the screen offers them.
@@ -298,6 +299,7 @@ export function ScoreEntryClient({
   reviews = true,
   venues = [],
   openCourse = false,
+  playedAtOnlyOpen = false,
   courseLibrary = [],
   firstHole: firstHoleProp = 1,
   casual = false,
@@ -346,6 +348,8 @@ export function ScoreEntryClient({
   venues?: Array<{ id: string; name: string; cardNote?: PickedCardNote | null }>;
   /** No fixed venue: each match names its own before it can be scored. */
   openCourse?: boolean;
+  /** The redesigned Score entry asks "Played at" only for an open course (`scoreEntryAsksWhere`). Optional in the type because the old render tests build this without it and may not be edited; `EntryModes` always says. */
+  playedAtOnlyOpen?: boolean;
   courseLibrary?: VenueCourse[];
 }) {
   // Written the club's way, from the same context its currency comes from —
@@ -1524,7 +1528,7 @@ export function ScoreEntryClient({
                 the club has. It used to need two venues on the tournament,
                 so a one-course event could not record that a pairing moved. */}
             {/* Not on a casual round: one match, played where it was set up. */}
-            {!casual && (venues.length > 1 || courseLibrary.some((c) => !venues.some((v) => v.id === c.id))) &&
+            {!casual && scoreEntryAsksWhere({ onlyForOpenCourse: playedAtOnlyOpen, openCourse }) && (venues.length > 1 || courseLibrary.some((c) => !venues.some((v) => v.id === c.id))) &&
               /**
                * THE TOURNAMENT ALREADY DECIDED WHERE THIS IS PLAYED.
                *

@@ -292,7 +292,7 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
         }
       }
       await pressComplete(page);
-      await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Make results final" }).click();
       await expect.poll(async () => (await eventFacts(F_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       note(`status: completed`);
     });

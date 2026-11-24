@@ -553,7 +553,7 @@ describe("team screens", () => {
 
   it("renders the teams screen with no sides drawn", () => {
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "Round 1 — Four-Ball", format: "Four-Ball" }]}
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "Round 1 — Four-Ball", format: "Four-Ball" }]}
         activeRoundId="r1" format={format} teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Four-Ball");
@@ -566,7 +566,7 @@ describe("team screens", () => {
     // record and left for whoever was next in this file. The refusal names the
     // other button by the exact words on it, not by where it sits.
     const one = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
         format={format}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
         problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
@@ -576,7 +576,7 @@ describe("team screens", () => {
 
     // Two sides, and the explanation goes away because the button works.
     const two = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
         format={format}
         teams={[
           { id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] },
@@ -591,7 +591,7 @@ describe("team screens", () => {
     // 2026-10-20: "Generate matches" was on every team round, and made matches
     // nobody plays for a medal four-ball. Only a round robin draws them.
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
         format={format}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
         problems={[]} unassigned={[]} matchCount={0} drawsMatches={false} />,
@@ -604,7 +604,7 @@ describe("team screens", () => {
 
   it("renders sides, their problems, and the unassigned list", () => {
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "Round 1", format: "Four-Ball" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "Round 1", format: "Four-Ball" }]} activeRoundId="r1"
         format={format}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14,
           members: [{ playerId: "p1", name: "Ann", handicap: 8, position: 0 }] }]}
@@ -628,7 +628,7 @@ describe("team screens", () => {
     });
     const board = (members: number, spare: number) =>
       render(
-        <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
           format={{ ...format, min: 2, max: 2 }} teams={[side(members)]} problems={[]}
           unassigned={Array.from({ length: spare }, (_, i) => ({
             id: `u${i}`, name: `zz-U${i}`, handicap: 12,
@@ -650,7 +650,7 @@ describe("team screens", () => {
     // off the side's figure, so that round says each partner's own instead —
     // pinned in four-ball-plays-off.test.tsx.
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Foursomes" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Foursomes" }]} activeRoundId="r1"
         format={{ ...format, name: "Foursomes", sharesOneCard: true }}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
         problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
@@ -665,7 +665,7 @@ describe("team screens", () => {
     // same round was being configured in two places. What stays is a summary
     // so nobody has to guess what the sides are playing off, and a link.
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Scramble" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Scramble" }]} activeRoundId="r1"
         format={{ ...format, name: "Scramble", min: 4, max: 4, sharesOneCard: true,
           allowance: 25, recommendedAllowance: 25, allowanceIsConvention: true }}
         teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
@@ -2324,7 +2324,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" history={null} fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -2339,7 +2339,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" history={null} fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -2350,7 +2350,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" history={null} fieldLocked={null}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -4368,7 +4368,7 @@ describe("the Teams screen's summary of what the sides play off", () => {
   it("names the split a scramble plays off, not a flat 25% beside it", async () => {
     const { TeamsClient } = await import("@/components/TeamsClient");
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
         format={base as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Handicap split");
@@ -4379,7 +4379,7 @@ describe("the Teams screen's summary of what the sides play off", () => {
   it("names a committee's flat figure, of the combined handicaps, when it is in force", async () => {
     const { TeamsClient } = await import("@/components/TeamsClient");
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
+      <TeamsClient matchesHere={false} teeTimesHref="/foursomes?round=r1" rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
         format={{ ...base, allowance: 40, allowanceOverridden: true } as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Handicap allowance");
@@ -6537,7 +6537,7 @@ describe("the roster and the tournament in front of it", () => {
   const roster = async (members: RosterRow[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" history={null} fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6587,7 +6587,7 @@ describe("members", () => {
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" history={null} fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };

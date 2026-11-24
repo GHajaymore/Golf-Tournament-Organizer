@@ -3,6 +3,7 @@ import { useId, useState, useTransition } from "react";
 import { setSingleMatchRule, createSingleMatch } from "@/app/actions/tournament";
 import { idsForKind, type SingleMatchRule } from "@/lib/domain/single-match";
 import { Icon } from "./Icon";
+import { InfoOrFace } from "@/components/setup/InfoOrFace";
 import { useCaughtUp } from "./useAction";
 
 /**
@@ -32,7 +33,10 @@ export function SingleMatchRulePicker({
   rounds,
   players,
   locked,
+  redesign = false,
 }: {
+  /** True on the redesigned Rounds & formats, which draws the explanation behind an ⓘ (`InfoOrFace`); today's screen leaves it off. */
+  redesign?: boolean;
   stageId: string;
   rule: SingleMatchRule | null;
   ruleLabel: string;
@@ -115,10 +119,18 @@ export function SingleMatchRulePicker({
   return (
     <div className="card elev-sm" style={{ marginTop: 12, gap: 10 }}>
       <span className="card-title" style={{ fontSize: 14 }}>Who plays this match</span>
-      <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 0", lineHeight: 1.55 }}>
+      <InfoOrFace
+        redesign={redesign}
+        label="who plays this match"
+        face={(words) => (
+          <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 0", lineHeight: 1.55 }}>
+            {words}
+          </p>
+        )}
+      >
         One match, and the two players are worked out when the round opens rather than fixed now — so
         correcting a score in an earlier round changes who plays it.
-      </p>
+      </InfoOrFace>
 
       <div className="seg" style={{ width: "100%" }}>
         {(

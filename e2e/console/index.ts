@@ -22,19 +22,19 @@ export async function openScreen(page: Page, path: string): Promise<void> {
  */
 export const SCREENS_BUILT: Readonly<Record<ScreenKey, string | null>> = {
   home: null,
-  event: null,
+  event: "/event",
   rounds: "/stages",
-  players: null,
-  prizes: null,
+  players: "/registration",
+  prizes: "/prizes",
   teeTimes: "/foursomes",
-  scoreEntry: null,
+  scoreEntry: "/entry",
   leaderboard: null,
-  results: null,
-  money: null,
+  results: "/reports",
+  money: "/money",
   events: null,
-  members: null,
+  members: "/roster",
   courses: "/courses",
-  clubSettings: null,
+  clubSettings: "/organization",
 };
 
 /** The built screens' paths, in key order. */

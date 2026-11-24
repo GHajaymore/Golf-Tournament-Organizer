@@ -19,7 +19,7 @@ import type { TournamentJobFacts } from "@/lib/domain/needs-you-now";
  * NO "COMPLETE" BUTTON WHILE GOLF REMAINS TO BE PLAYED — the dashboard's status card, drawn (the panel,
  * 9 Nov; the PM, 10 Nov).
  *
- * The machine's next action offers "Complete tournament" from the first card. On the Saturday night of a
+ * The machine's next action offers "Make results final" from the first card. On the Saturday night of a
  * two-day event that is one press from ending it before day 2. So the card presses the tournament's one
  * job (`tournamentJob`), and ending early is a deliberately named action behind a quiet "More":
  * "End this event early…", which asks first and names the round nobody played.
@@ -53,8 +53,8 @@ function card(f: TournamentFacts, over: Partial<TournamentJobFacts> = {}) {
   );
 }
 
-/** A button (pressable or refused in place) whose words are "Complete tournament". */
-const COMPLETE_BUTTON = /<button[^>]*>(?:(?!<\/button>)[\s\S])*Complete tournament(?:(?!<\/button>)[\s\S])*<\/button>/;
+/** A button (pressable or refused in place) whose words are "Make results final". */
+const COMPLETE_BUTTON = /<button[^>]*>(?:(?!<\/button>)[\s\S])*Make results final(?:(?!<\/button>)[\s\S])*<\/button>/;
 const MORE_BUTTON = /<button[^>]*aria-expanded="false"[^>]*>More/;
 
 describe("the dashboard's card never offers Complete while golf remains to be played", () => {
@@ -76,13 +76,13 @@ describe("the dashboard's card never offers Complete while golf remains to be pl
 
   it("play over: Complete is the card's one filled button, and there is nothing to end early", () => {
     const html = card(playedOut(medal()));
-    expect(html).toMatch(/<button[^>]*class="btn btn-primary"[^>]*>[\s\S]*?Complete tournament/);
+    expect(html).toMatch(/<button[^>]*class="btn btn-primary"[^>]*>[\s\S]*?Make results final/);
     expect(html).not.toMatch(MORE_BUTTON);
   });
 
   it("CONTROL: the patterns see a Complete button and a More button when they are there", () => {
-    expect('<button type="button" class="btn btn-secondary"> Complete tournament</button>').toMatch(COMPLETE_BUTTON);
-    expect('<button type="button" aria-disabled="true" aria-describedby="x">Complete tournament</button>').toMatch(COMPLETE_BUTTON);
+    expect('<button type="button" class="btn btn-secondary"> Make results final</button>').toMatch(COMPLETE_BUTTON);
+    expect('<button type="button" aria-disabled="true" aria-describedby="x">Make results final</button>').toMatch(COMPLETE_BUTTON);
     expect('<button type="button" class="btn btn-secondary" aria-expanded="false" aria-controls="y">More <svg></svg></button>').toMatch(MORE_BUTTON);
     // And a card handed no job (the old contract) still draws the machine's Complete mid-play.
     const old = renderToStaticMarkup(

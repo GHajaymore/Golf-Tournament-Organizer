@@ -36,6 +36,10 @@ import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
 import type { SettingsSection } from "@/components/SettingsNav";
 import { SettingsTabs, SettingsTabPanel } from "@/components/SettingsTabs";
 import { OrganizationHeading } from "@/components/OrganizationClient";
+import { canAccessScreen } from "@/lib/roles";
+import { screensShownFor } from "@/lib/services/screens-shown";
+import { SectionFold } from "@/components/setup/SectionFold";
+import { EventHelpers } from "@/components/club/EventHelpers";
 
 export const generateMetadata = () => screenMetadataForEvent("/organization");
 
@@ -159,6 +163,34 @@ export default async function OrganizationPage() {
     { id: "access", label: "Staff & access", count: asks.length + namesakes.length },
   ];
   const outfit = orgProfile(org.kind, org.country, org.communityNoun);
+
+  /**
+   * R7: STAFF & ACCESS HOLDS TWO THINGS WHILE THE REDESIGN IS SHOWN, ASKED OF TWO ROLES.
+   *
+   * "On this event" is THIS tournament's helpers (what `/access` was) and is drawn from the EVENT role: the
+   * same list the screen has always asked (`canAccessScreen(viewRole, "access")`), so an event Admin who is
+   * not club staff still manages that event's helpers. "Club staff" is the club's own list and stays
+   * on the CLUB role (`canEdit`, from `organizationAccess`, above). Nothing is worked out here: both answers
+   * are the existing rules, and each press is checked again by its action.
+   *
+   * One boolean (`shown.has("clubSettings")`) decides where the helpers are drawn: here, or on `/access`,
+   * never both. With no tournament open there is no event to name, and the section says so.
+   */
+  const shown = await screensShownFor(session);
+  const redesigned = shown.has("clubSettings");
+  const mayManageEventHelpers = Boolean(session.eventId) && canAccessScreen(session.viewRole, "access");
+
+  const clubStaff = (
+    <OrganizationAccess
+      report={report}
+      canEdit={canEdit}
+      actorRole={isClubOwner ? "owner" : canEdit ? "admin" : null}
+      asks={asks}
+      namesakes={namesakes}
+      seats={standing.staffSeats.current}
+      organizer={golfTermsFor(golfRegister(org.country, org.golfTerms)).organizer}
+    />
+  );
 
   return (
     <>
@@ -388,15 +420,36 @@ export default async function OrganizationPage() {
             function that defines a seat. See the prop's note: this table and
             that card both said "staff" about two different sets and disagreed
             in both directions on real rows. */}
-        <OrganizationAccess
-          report={report}
-          canEdit={canEdit}
-          actorRole={isClubOwner ? "owner" : canEdit ? "admin" : null}
-          asks={asks}
-          namesakes={namesakes}
-          seats={standing.staffSeats.current}
-          organizer={golfTermsFor(golfRegister(org.country, org.golfTerms)).organizer}
-        />
+        {redesigned ? (
+          <>
+            <SectionFold
+              id="access-event"
+              title="On this event"
+              state={mayManageEventHelpers ? "Who may open this tournament's console" : "No tournament open"}
+              needsYou={false}
+              openOnPhone
+            >
+              {mayManageEventHelpers ? (
+                <EventHelpers eventId={session.eventId} organizationId={org.id} />
+              ) : (
+                <p className="text-muted" style={{ margin: 0, fontSize: 14 }}>
+                  Helpers are added to a tournament. Open a tournament and they are managed here.
+                </p>
+              )}
+            </SectionFold>
+            <SectionFold
+              id="access-club"
+              title="Club staff"
+              state={`${standing.staffSeats.current} on the club's staff`}
+              needsYou={asks.length + namesakes.length > 0}
+              openOnPhone={asks.length + namesakes.length > 0}
+            >
+              {clubStaff}
+            </SectionFold>
+          </>
+        ) : (
+          clubStaff
+        )}
       </SettingsTabPanel>
       </SettingsTabs>
     </>

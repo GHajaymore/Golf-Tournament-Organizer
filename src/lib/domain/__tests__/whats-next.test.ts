@@ -129,7 +129,7 @@ describe("what's next: one line per job, only when it is a job", () => {
     expect(j.text).toBe("Every round closed · results not released");
     expect(j.href).toBe("/dashboard");
     // The dashboard's own button, in its own words.
-    expect(j.action).toBe("Complete tournament");
+    expect(j.action).toBe("Make results final");
     // Golf still being played: Complete is the dashboard's next action, and not a job.
     expect(quiet().status.nextAction?.kind).toBe("complete");
     expect(keys(quiet())).toEqual([]);
@@ -154,7 +154,7 @@ describe("what's next: each tournament's next action, as the machine gives it", 
     expect(j.action).toBe("Open Score entry");
     expect(j.href).toBe("/entry");
     // CONTROL: the same tournament with the card signed off offers Complete.
-    expect(jobs(quiet(ended()))[0].action).toBe("Complete tournament");
+    expect(jobs(quiet(ended()))[0].action).toBe("Make results final");
   });
 
   it("D3: every round closed with nothing scored — refused, as the dashboard refuses it", () => {
@@ -170,7 +170,7 @@ describe("what's next: each tournament's next action, as the machine gives it", 
     const [j] = jobs(quiet(ko));
     expect(j.key).toBe("results");
     expect(j.text).toBe("Final decided · results not released");
-    expect(j.action).toBe("Complete tournament");
+    expect(j.action).toBe("Make results final");
     // CONTROL: its Final not yet decided — still being played, no line.
     const f = playedOut(FAMILY_FIXTURES.knockout());
     const undecided = told({ ...f, knockout: { ...f.knockout!, draws: f.knockout!.draws.map((d) => ({ ...d, finalDecided: false })) } });

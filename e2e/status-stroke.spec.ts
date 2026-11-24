@@ -140,10 +140,10 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
-      nextAction: "Complete tournament",
+      nextAction: "Make results final",
       refused: null,
       // The secretary's home offers the dashboard's own next action, in its words (PR 6).
-      home: { text: "Every round closed · results not released", action: "Complete tournament" },
+      home: { text: "Every round closed · results not released", action: "Make results final" },
       setup: null,
       journey: "Play",
     });
@@ -153,7 +153,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     // Tournament details, which has no lifecycle button.
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await pressComplete(page);
-    await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: /^(Make results final|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish", home: null });
     // Completed: locked by completion, the way out Reopen — and no correction opens a final result.
@@ -169,7 +169,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
-      nextAction: "Complete tournament",
+      nextAction: "Make results final",
       refused: null,
       setup: null,
       journey: "Play",

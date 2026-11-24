@@ -48,7 +48,7 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
     banned: [/The organi[sz]ers /, /Cart fees/, /buggies/i, /carts with/i, /a cart fee/i],
   },
   {
-    file: "src/app/(app)/group-games/page.tsx",
+    file: "src/components/money/GroupGames.tsx",
     banned: [/a fourball&rsquo;s/, /a foursome&rsquo;s/],
   },
   {
@@ -112,7 +112,8 @@ const CALLERS: ReadonlyArray<{ file: string; tag: string; prop?: string }> = [
   { file: "src/app/(app)/layout.tsx", tag: "DeniedNotice" },
   { file: "src/app/(app)/layout.tsx", tag: "Sidebar" },
   { file: "src/app/(app)/layout.tsx", tag: "MobileTabBar" },
-  { file: "src/app/(app)/access/page.tsx", tag: "AccessClient" },
+  // The helpers' list moved out of `/access`'s page into the component both screens mount (R7).
+  { file: "src/components/club/EventHelpers.tsx", tag: "AccessClient" },
   { file: "src/app/(app)/organization/page.tsx", tag: "OrganizationAccess" },
 ];
 

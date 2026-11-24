@@ -96,6 +96,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "Open My card.",
       "Tap a hole, then your strokes.",
+      "A tap just after the card moves on is ignored. Tap again.",
       "With a round code? Scan your sign, or type the code.",
       "Tap your group, confirm it once, then pick your card.",
       "It saves as you go, even with no signal.",

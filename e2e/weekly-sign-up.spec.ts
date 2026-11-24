@@ -16,6 +16,7 @@ import {
   dayIn,
   NAMES,
 } from "./rounds-fixture";
+import { withTeeTimesAs } from "./console/teeTimes";
 
 /**
  * A LEAGUE'S WEEKLY SIGN-UP, FROM BOTH ENDS: a member says they cannot make
@@ -158,4 +159,75 @@ test("a member is out for next week, is refused a late change of mind, and the s
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * @redesign: THE WEEK'S LIST AND THE WEEK'S GROUPS, ON TEE TIMES & DRAW (R9b). A league's week is built by the
+ * redesigned screen ("This week"): "Who is in this round" holds the week's list (`WeekField`, the same component),
+ * and the draw section makes the groups from it. As the secretary: mark one player out for the week, see the count
+ * move after a reload, make the week's groups, and see that sheet after a reload with the player who is out not on
+ * it. The four entries are the fixture's; who is out and who is in are read from it. Service workers blocked;
+ * memory: one browser context and one page, about 150 MB.
+ */
+test.describe("@redesign the week's list and groups on Tee times & draw", () => {
+  test("the secretary marks a player out for the week and makes the week's groups without them, both kept after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    test.setTimeout(180_000);
+    const mark = `zz-wsu-rd-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const today = dayIn("");
+      const made = await makeEvent(club, "Thursday League", {
+        status: "live",
+        stages: [
+          { playedOn: addDays(today, 7), format: "Stroke Play" },
+          { playedOn: addDays(today, 14), format: "Stroke Play" },
+        ],
+        players: 4,
+        event: { attendanceMode: "opt-out" },
+      });
+      const round = made.stages[0];
+      const out = made.players[0];
+      const inThisWeek = made.players.slice(1);
+      const answer = () => prisma.roundAttendance.findUnique({ where: { stageId_playerId: { stageId: round.id, playerId: out.id } } });
+      const groupsOnSheet = async () => {
+        const row = await prisma.stage.findUniqueOrThrow({ where: { id: round.id }, select: { teeSheet: true } });
+        return ((JSON.parse(row.teeSheet || "{}").groups ?? []) as { playerIds: string[] }[]).flatMap((g) => g.playerIds).sort();
+      };
+      expect(await answer(), "CONTROL: an answer exists before anybody gave one").toBeNull();
+
+      await withTeeTimesAs(browser, baseURL!, testInfo, { club, eventId: made.event.id }, async (screen, page) => {
+        await screen.open(round.id);
+        await expect(page.locator(".page-kicker").first(), "a league's screen is not called This week").toHaveText("This week");
+
+        // ── who is in this round: one player out ──
+        const who = await screen.openSection("whoIn");
+        await who.getByRole("button", { name: /Edit the list/ }).click();
+        const row = who.locator("tr", { has: page.getByText(out.name, { exact: true }) });
+        const outLabel = row.getByRole("radio", { name: "Out", exact: true }).locator("xpath=ancestor::label[1]");
+        await centre(outLabel);
+        await outLabel.click();
+        await expect.poll(async () => (await answer())?.status ?? null, { message: "the secretary's Out was not stored" }).toBe("out");
+        expect((await answer())!.decidedBy, "the answer is not under the secretary's name").toBe("Rowan Secretary");
+        await page.reload();
+        await expect(await screen.openSection("whoIn"), "after a reload the list does not count the player out").toContainText(/3 in \(3 by default\) · 1 out/);
+
+        // ── the week's groups, from that list ──
+        const draw = await screen.openSection("draw");
+        await draw.getByRole("button", { name: /^Balanced handicap/ }).click();
+        await draw.getByLabel("First tee").fill("07:30");
+        await draw.getByRole("button", { name: /^Save sheet/ }).click();
+        await expect
+          .poll(groupsOnSheet, { message: "the sheet is not the three who are in this week" })
+          .toEqual(inThisWeek.map((p) => p.id).sort());
+        await page.reload();
+        const kept = await screen.openSection("draw");
+        await expect(kept, "after a reload the draw section does not hold the saved sheet").toContainText("Saved as a draft");
+        for (const p of inThisWeek) await expect(kept).toContainText(p.name);
+        await expect(kept.getByText(out.name), "the player who is out is on the week's groups").toHaveCount(0);
+      });
+    } finally {
+      await dropClub(mark);
+    }
+  });
 });

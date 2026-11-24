@@ -25,6 +25,11 @@ export class RoundsScreen {
     return this.page.locator("[data-scoring-tile]");
   }
 
+  /** The team cup's points to win and holder (R4d), drawn once above the rounds for a team cup only. */
+  cupSettings(): Locator {
+    return this.page.locator("[data-cup-settings]");
+  }
+
   /** The banner of the rounds lock, drawn once (`LockedOnce`) with the lock's words. */
   lockedOnce(): Locator {
     return this.page.locator("[data-locked-once]");

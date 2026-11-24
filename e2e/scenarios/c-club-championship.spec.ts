@@ -904,7 +904,7 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toBeVisible({ timeout: 15_000 });
       appendFileSync(LOG(), `\n## complete-dialog\n${(await dialog.innerText()).replace(/\s+/g, " ").slice(0, 1200)}\n`);
-      await dialog.getByRole("button", { name: "Complete tournament" }).click();
+      await dialog.getByRole("button", { name: "Make results final" }).click();
       await page.waitForTimeout(4000);
     });
     await test.step("the result, as the club reads it", async () => {

@@ -1,6 +1,10 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { prisma, makeClub, dropClub, makeEvent, signIn } from "./rounds-fixture";
+import { RoundsScreen } from "./console/rounds";
+import { TeeTimesPage } from "./console/teeTimes";
+import { openScreen } from "./console";
 
 /**
  * A TEAM CUP, SET UP FROM NOTHING BY A NEW ORGANIZER — the half of the cup
@@ -170,4 +174,118 @@ test("a new organizer sets up a team cup", async ({ page }) => {
   });
 
   expect(errors, "a screen threw").toEqual([]);
+});
+
+/**
+ * @redesign: THE CUP'S POINTS TO WIN AND HOLDER, ON ROUNDS & FORMATS (R4d; the cup's settings are rounds-scope settings).
+ * The organizer of a two-team cup sets points to win and the holder on the card above the rounds, is refused a figure that
+ * is not whole or half beside Save, and after a reload sees what was kept, on Rounds and on the cup page's pointer.
+ * The teams are read from the fixture (`flights`); one session, four players. A throwaway club, dropped in `finally`.
+ * Service workers are not in play (no offline route). Memory: one page, about 150 MB.
+ */
+test.describe("@redesign the cup's settings on Rounds & formats", () => {
+  test("points to win and the holder are set on the card, refused when not a half number, and kept", async ({ page, context, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-oc-redesign-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event, flights } = await makeEvent(club, "Autumn Cup", {
+        // Still being set up: once launched the rounds scope is locked and the points are the committee's to correct.
+        stages: [{ type: "Team Session", format: "Match Play", scoringBasis: "net" }],
+        players: 4,
+        flights: 2,
+        event: { format: "match" },
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const screen = new RoundsScreen(page);
+      await screen.open();
+      const tile = screen.cupSettings();
+      await expect(tile).toBeVisible();
+      const points = tile.getByLabel("Points to win");
+      const holder = tile.getByLabel(/^Holder/);
+      const save = tile.getByRole("button", { name: "Save", exact: true });
+
+      // A figure that is not a whole or half number is refused where Save was pressed, and nothing is kept.
+      await points.fill("abc");
+      await save.click();
+      const refused = tile.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: "whole or half number" });
+      await expect(refused, "a figure that is not a half number was not refused beside Save").toBeVisible();
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).cupPointsToWin).toBe(0);
+
+      await points.fill("2.5");
+      await holder.selectOption({ label: flights[1].name });
+      await save.click();
+      await expect
+        .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).cupPointsToWin, { message: "the points to win were not stored" })
+        .toBe(2.5);
+
+      // After a reload the card says what was kept, and holds one tile only.
+      await page.reload();
+      await expect(screen.cupSettings()).toBeVisible();
+      await expect(screen.cupSettings().getByLabel("Points to win"), "the points did not survive a reload").toHaveValue("2.5");
+      await expect(screen.cupSettings().getByLabel(/^Holder/)).toHaveValue(flights[1].id);
+      await expect(page.locator("#cup-target")).toHaveCount(1);
+
+      // The cup page points here instead of drawing a second copy.
+      await openScreen(page, "/cup");
+      await expect(page.locator("[data-cup-settings-moved]")).toContainText("set on Rounds & formats");
+      await expect(page.locator("#cup-target")).toHaveCount(0);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+});
+
+/**
+ * @redesign: A CUP SESSION'S LINEUP, BUILT ON TEE TIMES & DRAW (R9c). Each session is a round of the cup, so its lineup is
+ * the draw of that round: the organizer opens the session's own round, picks a player from each team (the two teams are the
+ * fixture's two flights, read from it) and presses Add match, sees the match listed, and after a reload it is still there.
+ * The Team cup page says where the lineups went and draws no second copy. One session, four players, a throwaway club
+ * dropped in `finally`. One page, about 150 MB.
+ */
+test.describe("@redesign a cup session's lineup on Tee times & draw", () => {
+  test("a match is added on the session's own round, kept after a reload, and the Team cup page draws no lineup", async ({ page, context, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    const errors: string[] = [];
+    watchPageErrors(page, errors);
+    const mark = `zz-oc-redesign-lineup-${testInfo.project.name}`;
+    const club = await makeClub(mark);
+    try {
+      const { event, stages, players, flights } = await makeEvent(club, "Autumn Cup", {
+        stages: [{ type: "Team Session", format: "Match Play", scoringBasis: "net" }],
+        players: 4,
+        flights: 2,
+        event: { format: "match" },
+      });
+      await signIn(context, baseURL!, club, event.id);
+      const matches = () => prisma.match.count({ where: { eventId: event.id, stageId: stages[0].id } });
+      expect(await matches(), "CONTROL: the session already has a match").toBe(0);
+
+      // One player from each team: the first of the first flight against the first of the second (read from the fixture).
+      const [a, b] = [players[0], players[2]];
+      const screen = new TeeTimesPage(page);
+      await screen.open(stages[0].id);
+      const lineup = (await screen.openSection("draw")).getByRole("region", { name: /lineup$/ });
+      await expect(lineup, "the session's lineup is not in the draw section").toBeVisible();
+      await lineup.getByLabel(new RegExp(`^${flights[0].name} player 1`)).selectOption({ label: a.name });
+      await lineup.getByLabel(new RegExp(`^${flights[1].name} player 1`)).selectOption({ label: b.name });
+      await lineup.getByRole("button", { name: "Add match", exact: true }).click();
+      await expect.poll(matches, { message: "the match was not added to the session" }).toBe(1);
+
+      await page.reload();
+      const after = (await screen.openSection("draw")).getByRole("region", { name: /lineup$/ });
+      await expect(after.getByRole("listitem", { name: `${a.name} v ${b.name}` }), "after a reload the lineup does not hold the match").toBeVisible();
+
+      // The Team cup page points here instead of drawing a second lineup.
+      await openScreen(page, "/cup");
+      await expect(page.locator("[data-cup-lineup-moved]")).toContainText("Tee times & draw");
+      await expect(page.getByRole("region", { name: /lineup$/ }), "the Team cup page still draws the lineup").toHaveCount(0);
+    } finally {
+      await dropClub(mark);
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
 });

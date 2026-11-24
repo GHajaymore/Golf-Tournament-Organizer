@@ -242,7 +242,7 @@ describe("the screens draw the lock their actions ask", () => {
     const BESPOKE: Record<string, string[]> = {
       "src/components/StagesClient.tsx": ["setStageFormat", "setStageHoles", "setStageScoringBasis"],
       "src/components/rounds/use-round-ctx.tsx": ["setStageFormat", "setStageHoles", "setStageScoringBasis", "setStageMatchKeptBy"],
-      "src/components/rounds/DrawRound.tsx": ["generateNextRound"],
+      "src/components/DrawRound.tsx": ["generateNextRound"],
       "src/components/rounds/NextRoundTransition.tsx": ["setStageCarry"],
       "src/components/rounds/RemoveWarning.tsx": ["removeStage"],
       "src/components/rounds/RoundDeleteButton.tsx": ["removeStage"],

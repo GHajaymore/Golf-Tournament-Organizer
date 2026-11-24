@@ -85,7 +85,8 @@ export const AREAS = {
   // actions/messaging, actions/draft-message; and the whole commentary area.
   bracket: {
     name: "Brackets and knockouts (the Bracket screen)",
-    paths: ["src/app/(app)/bracket/", "src/components/BracketFlights.tsx", "src/components/BracketReports.tsx"],
+    // BracketFlights.tsx left this list when Tee times & draw mounted it (R9c): a file imported outside its area is in no area.
+    paths: ["src/app/(app)/bracket/", "src/components/BracketReports.tsx"],
     specs: [
       "e2e/bracket-sections.spec.ts",
       "e2e/organizer-knockout.spec.ts",
@@ -143,7 +144,7 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/rounds/", "src/components/RoundTeamScoring.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/rounds/", "src/components/RoundTeamScoring.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       "e2e/stages-scoring-setup.spec.ts",
@@ -213,7 +214,7 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts", "src/components/teetimes/", "src/lib/domain/draw-sections.ts", "src/lib/domain/find-a-player.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts", "src/components/teetimes/", "src/lib/domain/find-a-player.ts"],
     specs: [
       "e2e/organizer-teesheet.spec.ts",
       // Find a player on Tee times & draw, as the starter on a phone (R9a): four of its seven states.
@@ -235,8 +236,12 @@ export const AREAS = {
   },
   reports: {
     name: "Reports (the Reports screen)",
-    paths: ["src/app/(app)/reports/", "src/components/ReportsClient.tsx", "src/components/PrintReportButton.tsx", "src/components/AttendanceReport.tsx", "src/lib/services/attendance-report.ts"],
-    specs: ["e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts", "e2e/report-rich.spec.ts", "e2e/report-settings.spec.ts"],
+    paths: ["src/app/(app)/reports/", "src/components/ReportsClient.tsx", "src/components/PrintReportButton.tsx", "src/components/AttendanceReport.tsx", "src/lib/services/attendance-report.ts", "src/components/results/"],
+    specs: [
+      "e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts", "e2e/report-rich.spec.ts", "e2e/report-settings.spec.ts",
+      // R12: a round is closed where the cards are (the entry page has no area of its own), at a club a day ahead of the server's.
+      "e2e/closing-a-round-where-the-cards-are.spec.ts",
+    ],
     scenarios: [],
     // A report writes the event's dates.
     dateSensitive: true,
@@ -370,6 +375,7 @@ export const FULL_ONLY = [
   "e2e/hydration-recorder.spec.ts",
   // The form controls no test changed, the most important first: handicap type, two stakes, the scoring picker, a selection — each changed, its effect read.
   "e2e/important-controls-are-changed.spec.ts",
+  "e2e/interclub-draw-the-week.spec.ts",
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",

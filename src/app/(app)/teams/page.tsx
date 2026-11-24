@@ -14,7 +14,13 @@ import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor, scopeLockFor } from "@/lib/services/tournament-status";
+import { setupRailFor, scopeLockFor, tournamentStatusNow } from "@/lib/services/tournament-status";
+import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
+import { matchGeneratorPlace, leagueDrawPlace } from "@/lib/domain/draw-sections";
+import { playersRoomFor } from "@/lib/services/players-room";
+import { PLAYER_TABS, cupTeamsHome, playerTabHref } from "@/lib/domain/players-tabs";
+import { PlayersTabs } from "@/components/players/PlayersTabs";
+import { CupTeamsTab } from "@/components/players/CupTeamsTab";
 
 /**
  * Drawing sides for the team formats.
@@ -28,10 +34,28 @@ export const metadata = screenMetadata("/teams");
 export default async function TeamsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ round?: string }>;
+  searchParams: Promise<{ round?: string; tab?: string }>;
 }) {
   const session = await requireScreen("teams");
   const params = await searchParams;
+  const room = await playersRoomFor(session);
+
+  // THE CUP TEAMS TAB (R6): while Players is shown and the tournament has a cup, `?tab=cup` is where the cup's two
+  // teams are made and filled (`cupTeamsHome`); the cup page stops drawing them by the same answer.
+  if (room && params.tab === "cup" && room.tabs.some((t) => t.key === "cup") && cupTeamsHome(room !== null) === "players") {
+    const cupFlow = await setupRailFor(session.eventId);
+    const flightsTab = PLAYER_TABS.find((t) => t.key === "flights")!;
+    return (
+      <>
+        <SetupFlowRail flow={cupFlow} href="/teams" />
+        <PlayersTabs tabs={room.tabs} active="cup" search={room.search} />
+        <p className="kicker">Players</p>
+        <h1 className="page-title">Cup teams</h1>
+        <CupTeamsTab eventId={session.eventId} isAdmin={session.viewRole === "admin"} flightsHref={playerTabHref(flightsTab, room.search)} />
+        <SetupFlowFooter flow={cupFlow} href="/teams" />
+      </>
+    );
+  }
 
   const stages = await prisma.stage.findMany({
     where: { eventId: session.eventId },
@@ -45,6 +69,7 @@ export default async function TeamsPage({
   if (!active) {
     return (
       <>
+        {room && <PlayersTabs tabs={room.tabs} active="teams" search={room.search} />}
         <p className="kicker">Set up</p>
         <h1 className="page-title">Teams &amp; pairs</h1>
         <div className="card elev-sm" style={{ marginTop: 16 }}>
@@ -74,10 +99,20 @@ export default async function TeamsPage({
   // rail, so the banner and the refusal are one answer.
   const sidesLock = await scopeLockFor(session.eventId, "sides");
   const locked = sidesLock !== null;
+  // WHERE "GENERATE MATCHES" IS DRAWN (R9b): on Tee times & draw while that screen is shown and builds this round.
+  const told = await tournamentStatusNow(session.eventId);
+  const teeTimesShown = (await screensShownFor(session)).has("teeTimes");
+  const roundForPlace = { type: active.type, format: active.format, hasSavedSheet: false };
+  const matchesHere = !!told && matchGeneratorPlace(roundForPlace, told.status.family, teeTimesShown) === "teeTimes";
+  // An interclub league's "Draw this week" (B110): the same screen, asked of its own place function.
+  const leagueDrawMoved = !!told && leagueDrawPlace(roundForPlace, told.status.family, teeTimesShown) === "teeTimes";
+  // Where the moved controls went: a preview viewer lands on the redesigned screen, not today's (B114).
+  const teeTimesHref = await keepingPreview(`/foursomes?round=${active.id}`);
 
   return (
     <>
       <SetupFlowRail flow={flow} href="/teams" />
+      {room && <PlayersTabs tabs={room.tabs} active="teams" search={room.search} />}
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
       <ScopeLockBanner locks={sidesLock ? [sidesLock] : []} isAdmin={session.viewRole === "admin"} />
@@ -125,6 +160,8 @@ export default async function TeamsPage({
         unassigned={unassigned}
         matchCount={matchCount}
         drawsMatches={generatesPairings(active.type)}
+        matchesHere={matchesHere}
+        teeTimesHref={teeTimesHref}
         league={isLeaguePointsSystem(leagueEvent?.leaguePoints)}
       />
 
@@ -140,7 +177,7 @@ export default async function TeamsPage({
        * organizer's switch until the league is turned on, so every
        * ordinary four-ball event sees exactly what it saw before.
        */}
-      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} />
+      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} drawMoved={leagueDrawMoved} />
       <SetupFlowFooter flow={flow} href="/teams" />
     </>
   );

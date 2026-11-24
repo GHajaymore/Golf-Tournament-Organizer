@@ -83,7 +83,7 @@ test("the timeline says what the dashboard says, at every step of a medal (J16)"
       chip: "Play over",
       lock: "live",
       chipDetail: "Every round closed · results not released",
-      nextAction: "Complete tournament",
+      nextAction: "Make results final",
       refused: null,
       timeline: true,
     });

@@ -5,7 +5,7 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 /**
  * COMPLETING, THE WAY AN ORGANIZER NOW DOES IT (the panel, 9 Nov; the PM, 10 Nov).
  *
- * The dashboard's status card presses the tournament's one job (`tournamentJob`). "Complete tournament"
+ * The dashboard's status card presses the tournament's one job (`tournamentJob`). "Make results final"
  * is its button only once play is over; while golf remains to be played — before the first card, with
  * cards out, between rounds — ending is a deliberately named action behind the card's quiet "More":
  * "End this event early…", which asks first and names the round nobody played. A spec that completes
@@ -24,12 +24,12 @@ export async function expectLaunched(page: Page): Promise<void> {
 }
 
 /**
- * The control that completes the tournament now: the card's "Complete tournament" once play is over, or
+ * The control that completes the tournament now: the card's "Make results final" once play is over, or
  * "End this event early…" from its More while golf remains — pressable or refused in place.
  */
 export async function completeControl(page: Page): Promise<Locator> {
   const card = statusCard(page);
-  const complete = card.getByRole("button", { name: "Complete tournament" });
+  const complete = card.getByRole("button", { name: "Make results final" });
   // "More actions", exactly: the card's explanations (`MoreInfo`) are buttons named "More".
   const more = card.getByRole("button", { name: "More actions", exact: true });
   // Every card in and the last round still open: the job is closing it, and nothing ends the event
