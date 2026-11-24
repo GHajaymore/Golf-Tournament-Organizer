@@ -98,13 +98,23 @@ test("a double-tap on a score keeps it", async ({ page }) => {
     await expect(chip).toHaveAttribute("data-sync", "sent");
   } finally {
     // Put the shared fixture back — the other projects read "thru 9" off it.
-    // Cleared the deliberate way: back to that hole, empty "Other".
+    // Let the card settle (every hole this test scored has been sent, or is not scored), then
+    // clear EVERY scored hole from n on, not only the one this test meant to score: a tap that got
+    // through the pad scores a hole nobody played. Cleared the deliberate way: back to the hole,
+    // empty "Other".
     await page.clock.resume();
-    await chip.click();
-    await page.getByRole("textbox", { name: `Strokes on hole ${n}` }).fill("");
+    await page.goto("/me/card");
+    await expect(page.locator('[data-sync="phone"]'), "the card is still sending").toHaveCount(0);
+    const extra = await scored.evaluateAll((els, from) => els
+      .map((el) => Number(/^Hole (\d+),/.exec(el.getAttribute("aria-label") ?? "")?.[1]))
+      .filter((h) => h >= from), Number(n));
+    for (const h of extra.sort((a, b) => b - a)) {
+      await page.getByRole("button", { name: new RegExp(`^Hole ${h},`) }).click();
+      await page.getByRole("textbox", { name: `Strokes on hole ${h}` }).fill("");
+    }
     await expect(scored).toHaveCount(before);
-    // The clear must reach the server too: a cleared, saved hole reads "none".
-    await expect(chip).toHaveAttribute("data-sync", "none");
+    // The clears must reach the server too: a cleared, saved hole reads "none" (holeSyncs).
+    for (const h of extra) await expect(page.getByRole("button", { name: new RegExp(`^Hole ${h},`) })).toHaveAttribute("data-sync", "none");
     await page.reload();
     await expect(scored, "the fixture kept the hole this test scored").toHaveCount(before);
   }
@@ -201,7 +211,8 @@ test("a 10 typed slowly into Other is a 10, on the hole it was typed on", async 
     // Back as it was, for the projects that read the fixture after this one.
     await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
     await page.getByRole("textbox", { name: label }).fill("");
-    await page.waitForTimeout(1500);
+    // Wait for the clear to reach the server (a cleared, saved hole reads "none"), not for the clock.
+    await expect(page.getByRole("button", { name: new RegExp(`^Hole ${n},`) })).toHaveAttribute("data-sync", "none");
   }
 });
 
