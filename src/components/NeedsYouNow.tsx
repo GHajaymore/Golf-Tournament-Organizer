@@ -4,6 +4,7 @@ import { jobHref, type NeedsYouItem, type ClubJob } from "@/lib/domain/needs-you
 import { enterTournament } from "@/app/actions/auth";
 import { Icon } from "./Icon";
 import { relocate, type ScreenKey } from "@/lib/domain/console-merges";
+import { consoleUrl, type ConsoleMode } from "@/lib/console-url";
 
 /**
  * "NEEDS YOU NOW" — the organizer's to-do list, at the top of the dashboard
@@ -75,6 +76,7 @@ export function WhatsNext({
   mayAct,
   openEventId,
   shown,
+  previewMode = null,
   children,
 }: {
   jobs: ClubJob[];
@@ -82,8 +84,16 @@ export function WhatsNext({
   openEventId: string;
   /** The redesigned screens shown to this request (`screensShownFor`): a job whose door moved (Close Round n) follows its room. Optional: absent, every link is today's. */
   shown?: ReadonlySet<ScreenKey>;
+  /** The preview the request is in (`previewModeNow`): a moved door stays inside it. Null once the screen is on. */
+  previewMode?: ConsoleMode | null;
   children?: ReactNode;
 }) {
+  /** Where a job's button leads now: its room while that is shown (`relocate`), the preview kept. */
+  const doorOf = (job: ClubJob) => {
+    const old = jobHref(job);
+    const to = shown ? relocate({ href: old, job: job.key, role: "admin", roundId: job.roundId }, shown) : old;
+    return previewMode && to !== old ? consoleUrl(to, previewMode) : to;
+  };
   return (
     <section aria-label="What's next" style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
       <div className="card elev-sm" style={{ gap: 0 }}>
@@ -118,7 +128,7 @@ export function WhatsNext({
               (job.eventId === openEventId ? (
                 <Link
                   // A job on one round ("Close Round 2") opens that round on Rounds & formats, or on Score entry while that is shown.
-                  href={shown ? relocate({ href: jobHref(job), job: job.key, role: "admin", roundId: job.roundId }, shown) : jobHref(job)}
+                  href={doorOf(job)}
                   className="btn btn-secondary"
                   style={{ minHeight: 44 }}
                 >

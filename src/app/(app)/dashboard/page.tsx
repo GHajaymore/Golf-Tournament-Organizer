@@ -27,7 +27,7 @@ import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
 import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
-import { screensShownFor } from "@/lib/services/screens-shown";
+import { screensShownFor, previewModeNow } from "@/lib/services/screens-shown";
 import { CopyLastEvent } from "@/components/CopyLastEvent";
 import { openTournamentJob, secretaryHomeFor } from "@/lib/services/whats-next";
 import { endEarlyOf } from "@/lib/domain/lifecycle-track";
@@ -525,6 +525,9 @@ export default async function DashboardPage() {
    * one press from ending it before day 2.
    */
   const job = await openTournamentJob(session.eventId, state.today);
+  /** The redesigned screens this request shows, and the preview it is in: the card's and What's next's links follow their room (`relocate`), the preview kept (B106). */
+  const shown = await screensShownFor(session);
+  const previewMode = await previewModeNow();
   const step = status?.step ?? "setting-up";
   const nextAction = status?.nextAction ?? null;
   /**
@@ -879,7 +882,7 @@ export default async function DashboardPage() {
           next job in every tournament this person runs at the club, in the
           order they fall due, each with the button that does it — buttons only
           for somebody who may (`canEdit`). */}
-      {home && <WhatsNext jobs={home.jobs} mayAct={home.mayAct} openEventId={session.eventId} shown={await screensShownFor(session)} />}
+      {home && <WhatsNext jobs={home.jobs} mayAct={home.mayAct} openEventId={session.eventId} shown={shown} previewMode={previewMode} />}
 
       {/* THE ORGANIZER GETS THE SHEET IN ONE LINE (Ajay, 2026-10-05). Every
           group and every name was drawn above the heading — one group on the
@@ -945,6 +948,8 @@ export default async function DashboardPage() {
         <LifecycleBar
           status={statusCardOf(told.facts, status)}
           job={job}
+          shown={shown}
+          previewMode={previewMode}
           // Ending early, behind the card's "More" — never a Complete beside the job (the PM, 10 Nov).
           endEarly={endEarlyOf(status, job)}
           isAdmin={isAdmin}
