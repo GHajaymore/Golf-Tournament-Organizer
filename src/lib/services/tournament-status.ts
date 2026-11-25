@@ -10,6 +10,7 @@ import {
   scopeLockOf,
   lockRefusalWords,
   addRoundLockOf,
+  completionLockOf,
   type CorrectionFacts,
   type LockBy,
   type LockReader,
@@ -151,6 +152,21 @@ export async function refuseIfLocked(
   const lock = await scopeLockFor(eventId, scope);
   if (!lock || opts.except?.includes(lock.by)) return null;
   return { ok: false, error: lockRefusalWords(lock, what, await readerNow()), lock };
+}
+
+/** The scope's lock for a screen, read COMPLETION-ONLY (`completionLockOf`): what a live league's draw control draws. */
+export async function completionLockFor(eventId: string, scope: LockScope): Promise<ScopeLock | null> {
+  const facts = await lockFactsFor(eventId);
+  return facts ? completionLockOf(locksFor(facts), scope) : null;
+}
+
+/**
+ * REFUSE WORK ON A COMPLETED TOURNAMENT ONLY (B115) — returned, never thrown, in the words `refuseIfLocked` uses.
+ * For what a live tournament does all season: drawing a league week asks `sides` here and is never refused by launch.
+ */
+export async function refuseIfCompleted(eventId: string, scope: LockScope, what: string): Promise<LockRefusal | null> {
+  const lock = await completionLockFor(eventId, scope);
+  return lock ? { ok: false, error: lockRefusalWords(lock, what, await readerNow()), lock } : null;
 }
 
 /**

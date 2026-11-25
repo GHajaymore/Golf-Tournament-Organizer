@@ -880,7 +880,20 @@ export function locksFor(f: LockFacts): Record<LockScope, Lock> {
  * and Reopen is the way out (Rule 20.2e).
  */
 export function addRoundLockOf(locks: Record<LockScope, Lock>): ScopeLock | null {
-  const l = scopeLockOf(locks, "rounds");
+  return completionLockOf(locks, "rounds");
+}
+
+/**
+ * A SCOPE'S LOCK READ AS COMPLETION-ONLY (B115): the lock when the tournament is
+ * COMPLETED, and nothing for launch, the draw or results. For work that is the
+ * running of the event — adding next week's round, drawing a league week — which a
+ * live tournament does all season and only a finished one must refuse (Reopen is
+ * the way out). ONE reader: the action asks it (`refuseIfCompleted`,
+ * `refuseIfAddingARoundIsLocked`) and the screen draws it, so a banner and a
+ * refusal are one answer and no call site spells `by === "completed"` itself.
+ */
+export function completionLockOf(locks: Record<LockScope, Lock>, scope: LockScope): ScopeLock | null {
+  const l = scopeLockOf(locks, scope);
   return l && l.by === "completed" ? l : null;
 }
 

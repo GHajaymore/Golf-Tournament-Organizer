@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
+import { refuseIfCompleted } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
 import { isLeaguePlayoffSize } from "@/lib/domain/league-playoff";
@@ -326,6 +328,8 @@ export type LeagueDrawResult =
   | {
       ok: false;
       error: string;
+      /** Set when the tournament is completed: the screen catches up with it (`useCaughtUp`). */
+      lock?: ScopeLock;
       needsConfirm?: boolean;
       existing?: number;
       /** Season meetings that were never played, when that is what is being asked about. */
@@ -344,8 +348,10 @@ export type LeagueDrawResult =
  * rotation follows the season without anybody numbering it.
  *
  * NOT LOCKED BY LAUNCH, like nominating: a league is live all season and is
- * drawn every week. What it does refuse is replacing a week somebody has
- * already scored — same rule, same wording, as the generic draw.
+ * drawn every week. It is refused once the tournament is COMPLETED (B115: the
+ * sides' lock read completion-only, `refuseIfCompleted`; Reopen is the way
+ * out), for a first draw and a redraw alike. And it refuses replacing a week
+ * somebody has already scored — same rule, same wording, as the generic draw.
  *
  * AND IT ASKS BEFORE DRAWING THE PLAY-OFFS OFF A SEASON WITH A HOLE IN IT
  * (`shortSeason`). The check below it — "every meeting before them has a
@@ -368,6 +374,9 @@ export async function drawLeagueWeek(
     select: { id: true, position: true, format: true, holes: true },
   });
   if (!stage) return { ok: false, error: "Round not found." };
+  // COMPLETED ONLY, NEVER LAUNCH (B115): a live league is drawn every week, so the sides' lock is read completion-only.
+  const locked = await refuseIfCompleted(eventId, "sides", "draw a league week");
+  if (locked) return locked;
   if (!needsTeams(stage.format)) {
     return {
       ok: false,

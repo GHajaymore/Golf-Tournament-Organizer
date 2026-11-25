@@ -12,6 +12,7 @@ with no asker is red the day it lands.
 | `draw` | a flighted knockout: results, completion | `refuseIfLocked(eventId, "draw", "change the flights")` inside `flightsOpenForChange` in `actions/tournament.ts`, which every flight action calls (PR L2: it keeps only the "arranged in flights" precondition and the state load; WHEN the draw is shut is the machine's, the same answer the Bracket banner draws) |
 | `teeSheet` | completion only (Reopen) | `teeSheetVerdictFor` (the one rule `teeSheetChangeAllowed`); `scoped-locks.test.ts` holds `locksFor(f).teeSheet.locked` to `!teeSheetChangeAllowed(…).ok` over every family, status, step and change |
 | `cup` | launch (the committee correction), completion (Reopen) | `createCupTeams`, `renameCupTeam`, `setCupPlayerTeam` |
+| `sides`, read COMPLETION-ONLY (B115) | completion only (Reopen) — **never at launch**: a live league is drawn every week | `drawLeagueWeek` asks `refuseIfCompleted(eventId, "sides", "draw a league week")`, through `completionLockOf` (the reader `addRoundLockOf` is too); a first draw and a redraw, season week or play-off alike. Scores on a week stay refused by their own sentence. The screens (Tee times & draw, Teams & pairs) draw `completionLockFor` as `LeagueDraw`'s `locked`. Not `refuseIfLocked(…, "sides")`: that would refuse a live league. |
 | `money` | completion only (Reopen) — **never at launch** | the OFFER-side actions below |
 
 ## The cup (TD, Q5)

@@ -6,6 +6,7 @@ import {
   scopeLockOf,
   lockRefusalWords,
   addRoundLockOf,
+  completionLockOf,
   openCorrectionOf,
   correctionRefusal,
   correctionReasonRefusal,
@@ -188,6 +189,31 @@ describe("adding a round asks one rule: refused only once completed (TD ruling o
 
   it("a league adding next week's round while live is the case the rule exists for", () => {
     expect(addRoundLockOf(locksFor(launched(FAMILY_FIXTURES.league())))).toBeNull();
+  });
+});
+
+describe("the completion-only reader (B115): a live league is drawn every week, a finished one is not", () => {
+  it("is open before launch and while live, for every scope, and set only once completed", () => {
+    for (const scope of LOCK_SCOPES) {
+      expect(completionLockOf(locksFor(facts()), scope), `${scope} before launch`).toBeNull();
+      expect(completionLockOf(locksFor(launched(facts())), scope), `${scope} while live`).toBeNull();
+    }
+    expect(completionLockOf(locksFor(completed(facts())), "sides")).toMatchObject({ scope: "sides", by: "completed", correctable: false });
+  });
+
+  it("sides is locked by launch for a league (the control: the reader, not the scope, is what keeps a live league open)", () => {
+    const live = locksFor(launched(FAMILY_FIXTURES.league()));
+    expect(scopeLockOf(live, "sides")).toMatchObject({ by: "launch" });
+    expect(completionLockOf(live, "sides")).toBeNull();
+    expect(completionLockOf(locksFor(completed(FAMILY_FIXTURES.league())), "sides")).toMatchObject({ by: "completed" });
+  });
+
+  it("adding a round is the same answer through it, in every family and status", () => {
+    for (const family of Object.keys(FAMILY_FIXTURES) as (keyof typeof FAMILY_FIXTURES)[]) {
+      for (const f of [FAMILY_FIXTURES[family](), launched(FAMILY_FIXTURES[family]()), completed(FAMILY_FIXTURES[family]())]) {
+        expect(addRoundLockOf(locksFor(f)), `${family}`).toEqual(completionLockOf(locksFor(f), "rounds"));
+      }
+    }
   });
 });
 
