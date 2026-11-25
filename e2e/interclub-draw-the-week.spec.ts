@@ -158,8 +158,8 @@ test.describe("@redesign interclub: Draw this week on Tee times & draw", () => {
         await expect(reopened.getByRole("button", { name: "Redraw this week" })).toBeEnabled();
         await reopened.getByRole("button", { name: "Redraw this week" }).click();
         await reopened.getByRole("button", { name: "Replace them" }).click();
-        await expect.poll(async () => (await matchIds()).some((id) => drawnIds.includes(id)), { message: "the week was not redrawn after Reopen" }).toBe(false);
-        expect(await matchIds()).toHaveLength(2);
+        // The redraw deletes the old matches and then creates the new ones one by one, so a read can land between: wait for the SETTLED state (two matches, none of the old).
+        await expect.poll(async () => { const ids = await matchIds(); return ids.length === 2 && !ids.some((id) => drawnIds.includes(id)); }, { message: "the week was not redrawn after Reopen" }).toBe(true);
       });
     } finally {
       await dropClub(mark);
@@ -239,8 +239,8 @@ test.describe("@redesign interclub: Draw this week on Tee times & draw", () => {
         await expect(page.getByRole("button", { name: "Redraw this week" })).toBeEnabled();
         await page.getByRole("button", { name: "Redraw this week" }).click();
         await page.getByRole("button", { name: "Replace them" }).click();
-        await expect.poll(async () => (await matchIds()).some((id) => drawnIds.includes(id)), { message: "the week was not redrawn after Reopen" }).toBe(false);
-        expect(await matchIds()).toHaveLength(2);
+        // The redraw deletes the old matches and then creates the new ones one by one, so a read can land between: wait for the SETTLED state (two matches, none of the old).
+        await expect.poll(async () => { const ids = await matchIds(); return ids.length === 2 && !ids.some((id) => drawnIds.includes(id)); }, { message: "the week was not redrawn after Reopen" }).toBe(true);
       } finally {
         await context.close();
       }
