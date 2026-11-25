@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { overflowing } from "./overflow";
+import { savedBeforeReload } from "./save-settled";
 import { prisma, makeClub, dropClub, makeEvent, addDays, dayIn } from "./rounds-fixture";
 import { withTeeTimesAs } from "./console/teeTimes";
 
@@ -174,6 +175,7 @@ test.describe("@redesign the league week on Tee times & draw", () => {
         await expect
           .poll(sheet, { message: "the week's sheet is not the four in the field" })
           .toEqual(made.players.map((p) => p.id).sort());
+        await savedBeforeReload(draw); // "Save sheet" reads "Saving…" until the refresh is back (FoursomeMaker)
         await page.reload();
         const kept = await screen.openSection("draw");
         await expect(kept, "after a reload the draw section does not hold the week's sheet").toContainText("Saved as a draft");

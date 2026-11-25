@@ -8,6 +8,8 @@ import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-c
 import type { CorrectionFacts, LockScope, NextAction, StatusCard } from "@/lib/domain/tournament-status";
 import type { TournamentJob } from "@/lib/domain/needs-you-now";
 import { cardPressOf, END_EARLY } from "@/lib/domain/lifecycle-track";
+import { relocate, type ScreenKey } from "@/lib/domain/console-merges";
+import { consoleUrl, type ConsoleMode } from "@/lib/console-url";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { RefusedAction } from "./RefusedAction";
@@ -48,6 +50,8 @@ export function LifecycleBar({
   correctableScopes = [],
   job,
   endEarly,
+  shown,
+  previewMode = null,
 }: {
   /**
    * THE TOURNAMENT'S ONE BUTTON (`tournamentJob`; the panel's ruling on the stepper, 9 Nov; for
@@ -57,6 +61,13 @@ export function LifecycleBar({
    * to be played. Absent (a test that hands none), the card offers `nextAction` as before.
    */
   job?: TournamentJob | null;
+  /**
+   * The redesigned screens shown to this request (`screensShownFor`). The job's link follows its room: "Close Round 1" opens Score
+   * entry's "Close Round 1" section while that is shown (`relocate`, the one rule) and Rounds & formats otherwise. Absent, today's address.
+   */
+  shown?: ReadonlySet<ScreenKey>;
+  /** The preview the request is in (`previewModeNow`), so the link stays inside a preview; null once the screen is on. */
+  previewMode?: ConsoleMode | null;
   /**
    * ENDING EARLY (`endEarlyOf`, the PM, 10 Nov): the machine's Complete, offered only behind a quiet
    * "More" as "End this event early…", while any round remains to be played. Null otherwise.
@@ -164,6 +175,11 @@ export function LifecycleBar({
    * to decide whether its own header still deserves a primary button.
    */
   const press = cardPressOf(status.nextAction, job);
+  /** Where the job's link leads NOW: the room that holds the job while its screen is shown (`relocate`), the preview kept. */
+  const jobLink = (href: string) => {
+    const to = shown && job ? relocate({ href, job: job.key, role: "admin", roundId: job.roundId ?? undefined }, shown) : href;
+    return previewMode && to !== href ? consoleUrl(to, previewMode) : to;
+  };
   const action = press.kind === "move" ? press.action : null;
   /** Ending early, behind "More" (`endEarlyOf`, composed in the page): never a Complete beside the job. */
   const early = press.kind === "move" ? null : (endEarly ?? null);
@@ -251,7 +267,7 @@ export function LifecycleBar({
             </span>
           )}
           {isAdmin && press.kind === "link" && (
-            <Link href={press.href} className="btn btn-primary">
+            <Link href={jobLink(press.href)} className="btn btn-primary">
               {press.label} <Icon name="arrow-right" />
             </Link>
           )}
