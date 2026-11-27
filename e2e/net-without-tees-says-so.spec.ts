@@ -154,6 +154,8 @@ test.describe("@redesign", () => {
       // PRESSED: choose them and keep them with the one Save, then see them on a fresh load.
       await screen.teeSelect().selectOption(tee.id);
       await screen.saveAndWait();
+      // "Saved" is the button's own word (EventScreen.tsx:427); the stored tee is the proof the save landed.
+      await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId, { message: "the tee was not stored before the reload" }).toBe(tee.id);
       await page.reload();
       await page.locator("[data-event-screen]").waitFor({ state: "visible" });
       await expect(screen.teeSelect()).toHaveValue(tee.id);
