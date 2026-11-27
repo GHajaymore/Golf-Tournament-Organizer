@@ -189,6 +189,14 @@ describe("the same code once the organizer lets players score", () => {
     // not an action that stopped working: same session, same match, one
     // setting changed.
     await setScoreEntryBy("players");
+    // B128: the setting lets players score, but not over a result the committee signed off. That is refused in
+    // words at the sink (`mayWriteMatch`) and the row is untouched; the committee reopens it, and then the
+    // player's card is the write it always was.
+    const refused = await savePlayMatchHoles(matchId, FULL_CARD);
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toMatch(/has been signed off/);
+    expect(await storedMatch()).toEqual({ holes: EMPTY, scoreStatus: "confirmed", confirmedById: SIGNED_OFF_BY });
+    await prisma.match.update({ where: { id: matchId }, data: { scoreStatus: "pending", confirmedById: null, confirmedBy: "" } });
     // And answers with the holes as the row now holds them — the honest card's read-back.
     expect(await savePlayMatchHoles(matchId, FULL_CARD)).toEqual({ ok: true, holes: FULL_CARD });
 
