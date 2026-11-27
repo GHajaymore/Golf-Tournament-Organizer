@@ -253,13 +253,25 @@ describe("the time cut deals every spec to exactly one shard", () => {
     }
   });
 
-  it("knows the whole suite's timings (no spec file missing from spec-durations.json by more than a few)", async () => {
+  it("knows the whole suite's timings: NO spec file is missing from spec-durations.json (B126)", async () => {
+    // Was "no more than five missing": five crept in unnoticed on main, and the next pull request to add a
+    // spec file was the one that went red. Zero, so a gap is caught on the change that makes it. A spec a
+    // project skips is recorded as 0 (see `no-handicap-net-round`), so every file has a figure in every project.
     const { specFiles, loadDurations } = await load();
     const d = loadDurations();
     for (const project of ["desktop", "phone", "small-phone"]) {
       const missing = specFiles().filter((f) => !(f in d[project]));
-      expect(missing.length, `${project}: refresh scripts/qa/spec-durations.json (missing ${missing.slice(0, 5).join(", ")})`).toBeLessThanOrEqual(5);
+      expect(missing, `${project}: add the spec to scripts/qa/spec-durations.json from a CI run's list-reporter log (scripts/qa/spec-durations-refresh.mjs; 0 for a project the spec skips)`).toEqual([]);
     }
+  });
+
+  it("CONTROL: the missing-timing check goes red on one spec with no figure", async () => {
+    const { specFiles, loadDurations } = await load();
+    const d = loadDurations();
+    const known = Object.fromEntries(specFiles().map((f) => [f, d.desktop[f] ?? 0]));
+    const files = [...specFiles(), "e2e/zz-has-no-timing.spec.ts"];
+    expect(files.filter((f) => !(f in known))).toEqual(["e2e/zz-has-no-timing.spec.ts"]);
+    expect(specFiles().filter((f) => !(f in known))).toEqual([]);
   });
 });
 
