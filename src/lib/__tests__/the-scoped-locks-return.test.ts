@@ -204,7 +204,8 @@ describe("drawing a league week is refused only once completed (B115)", () => {
     expect(b.indexOf("refuseIfCompleted("), "asked after a write").toBeLessThan(firstWrite);
     expect(b.indexOf("refuseIfCompleted("), "asked after the transaction opened").toBeLessThan(b.indexOf("$transaction("));
     // And again INSIDE the transaction, on the locked row, read fresh (B124): a completion between the check and the write.
-    expect(b).toMatch(/FOR UPDATE[\s\S]*isFinished\(now\.status\)[\s\S]*tx\.match\.deleteMany/);
+    expect(b).toMatch(/FOR UPDATE[\s\S]*refuseIfCompleted\(eventId, "sides", "draw a league week", tx\)[\s\S]*tx\.match\.count[\s\S]*tx\.match\.deleteMany/);
+    expect(b, "a second spelling of the completion rule").not.toMatch(/isFinished|refuseIfCompletedFresh/);
   });
 
   it("no league action asks the launch-held lock: a live league is drawn every week (refuseIfLocked would refuse it)", () => {

@@ -178,9 +178,39 @@ describe("a completion that commits between the check and the write", () => {
   });
 });
 
+describe("two first draws pressed together", () => {
+  it("end with exactly one week's matches: the second counts what the first wrote, under the lock", async () => {
+    await prisma.match.deleteMany({ where: { eventId: session.eventId, stageId: week } });
+    const realFind = appPrisma.match.findMany.bind(appPrisma.match);
+    let fired = false;
+    let other: Awaited<ReturnType<typeof drawLeagueWeek>> | null = null;
+    // Draw A has just read "no matches yet" (the read before its transaction). In that gap draw B runs to the end and commits,
+    // and A is then handed the STALE empty answer: a fixed order, no timing.
+    vi.spyOn(appPrisma.match, "findMany").mockImplementation((async (args: { where?: { stageId?: string }; select?: { id?: boolean } }) => {
+      const rows = await realFind(args as never);
+      if (!fired && args?.where?.stageId === week && args?.select?.id) {
+        fired = true;
+        other = await drawLeagueWeek(week);
+        return [] as never;
+      }
+      return rows;
+    }) as never);
+    try {
+      const first = await drawLeagueWeek(week);
+      expect(fired).toBe(true);
+      expect(other).toMatchObject({ ok: true, matches: 2 });
+      // A saw the week B drew and asked, rather than writing a second one beside it.
+      expect(first).toMatchObject({ ok: false, needsConfirm: true });
+      expect(await matchIds()).toHaveLength(2);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});
+
 describe("a malformed payload is refused and writes nothing", () => {
   it("each bad shape is refused in words, with the week untouched", async () => {
-    expect(await drawLeagueWeek(week)).toMatchObject({ ok: true });
+    expect(await drawLeagueWeek(week, true)).toMatchObject({ ok: true });
     const before = await matchIds();
     const bad: unknown[][] = [
       [undefined],

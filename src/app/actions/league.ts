@@ -5,8 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
-import { refuseIfCompleted, refuseIfCompletedFresh } from "@/lib/services/tournament-status";
-import { isFinished } from "@/lib/domain/lifecycle-state";
+import { refuseIfCompleted } from "@/lib/services/tournament-status";
 import { cleanLeagueDrawRequest } from "@/lib/domain/league-draw-payload";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
@@ -538,45 +537,47 @@ export async function drawLeagueWeek(
    * AND THE COMPLETION CHECK IS MADE AGAIN INSIDE IT. The lock above is read before the writes; a tournament completed in
    * between would take a draw it should have refused. The event row is locked FOR UPDATE (as the prize writers lock it), so a
    * completion either commits before this read (and is seen, and refused) or waits for this commit; the status is then read
-   * on the transaction's own connection. Refused, nothing is written.
+   * on the transaction's own connection, by the SAME helper and words as the first check (`refuseIfCompleted`, given `tx`).
+   * Refused, nothing is written.
+   *
+   * AND SO IS WHAT IS ALREADY DRAWN. `existing` above is read before the lock, so two first draws pressed together could both
+   * see an empty week and both write one. The matches are counted again here, under the lock, and the second to get in sees
+   * the first's week and asks (or, with a yes, replaces it) instead of doubling it.
    */
-  const COMPLETED = Symbol("completed");
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
-      const now = await tx.event.findUnique({ where: { id: eventId }, select: { status: true } });
-      if (!now || isFinished(now.status)) throw COMPLETED;
-      if (existing.length > 0) {
-        await tx.match.deleteMany({ where: { eventId, stageId } });
+  const outcome = await prisma.$transaction(async (tx): Promise<LeagueDrawResult | null> => {
+    await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
+    const completed = await refuseIfCompleted(eventId, "sides", "draw a league week", tx);
+    if (completed) return completed;
+    const drawn = await tx.match.count({ where: { eventId, stageId } });
+    if (drawn > 0 && !replace) {
+      return { ok: false, error: "This week is already drawn.", needsConfirm: true, existing: drawn };
+    }
+    if (drawn > 0) {
+      const scored = await tx.teamScorecard.count({ where: { stageId, NOT: { strokes: "[]" } } });
+      if (scored > 0) return { ok: false, error: "Scores have already been recorded for this round." };
+      await tx.match.deleteMany({ where: { eventId, stageId } });
+    }
+    for (const [i, draw] of draws.entries()) {
+      for (const [teamAId, teamBId] of draw.matches) {
+        await tx.match.create({
+          data: {
+            eventId,
+            stageId,
+            groupId,
+            // One number per meeting, so a meeting's four-balls sort together.
+            round: i + 1,
+            playerAId: "",
+            playerBId: "",
+            teamAId,
+            teamBId,
+            holes: emptyHoles,
+          },
+        });
       }
-      for (const [i, draw] of draws.entries()) {
-        for (const [teamAId, teamBId] of draw.matches) {
-          await tx.match.create({
-            data: {
-              eventId,
-              stageId,
-              groupId,
-              // One number per meeting, so a meeting's four-balls sort together.
-              round: i + 1,
-              playerAId: "",
-              playerBId: "",
-              teamAId,
-              teamBId,
-              holes: emptyHoles,
-            },
-          });
-        }
-      }
-    });
-  } catch (e) {
-    if (e !== COMPLETED) throw e;
-    return (
-      (await refuseIfCompletedFresh(eventId, "sides", "draw a league week")) ?? {
-        ok: false,
-        error: "This tournament is completed. Reopen it on the dashboard to draw a league week.",
-      }
-    );
-  }
+    }
+    return null;
+  });
+  if (outcome) return outcome;
 
   revalidatePath("/", "layout");
   boardChanged(eventId);
