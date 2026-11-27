@@ -109,7 +109,7 @@
    "e2e/named-side-bet.spec.ts": 0,
    "e2e/namesake-notice.spec.ts": 6.4,
    "e2e/net-without-tees-says-so.spec.ts": 4.1,
-  "e2e/no-index-warning-in-the-launch-dialog.spec.ts": 12,
+   "e2e/no-index-warning-in-the-launch-dialog.spec.ts": 12,
    "e2e/nothing-is-covered.spec.ts": 26.8,
    "e2e/offline.spec.ts": 9.8,
    "e2e/old-addresses.spec.ts": 6.4,
@@ -233,7 +233,12 @@
    "e2e/typed-before-load.spec.ts": 15.6,
    "e2e/week-sheet-after-the-cut.spec.ts": 2.7,
    "e2e/weekly-sign-up.spec.ts": 12.6,
-   "e2e/weight.spec.ts": 10.2
+   "e2e/weight.spec.ts": 10.2,
+   "e2e/console-sweep-assistant.spec.ts": 0,
+   "e2e/form-controls-reach.spec.ts": 0,
+   "e2e/important-controls-are-changed.spec.ts": 9.7,
+   "e2e/tee-sheet-moves.spec.ts": 15,
+   "e2e/tee-sheet-replace.spec.ts": 11.4
   },
   "desktop": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.5,
@@ -343,7 +348,7 @@
    "e2e/named-side-bet.spec.ts": 9.4,
    "e2e/namesake-notice.spec.ts": 6,
    "e2e/net-without-tees-says-so.spec.ts": 4.4,
-  "e2e/no-index-warning-in-the-launch-dialog.spec.ts": 0,
+   "e2e/no-index-warning-in-the-launch-dialog.spec.ts": 0,
    "e2e/nothing-is-covered.spec.ts": 23.1,
    "e2e/offline.spec.ts": 6.9,
    "e2e/old-addresses.spec.ts": 5.1,
@@ -467,7 +472,12 @@
    "e2e/typed-before-load.spec.ts": 0,
    "e2e/week-sheet-after-the-cut.spec.ts": 2.8,
    "e2e/weekly-sign-up.spec.ts": 13.9,
-   "e2e/weight.spec.ts": 0
+   "e2e/weight.spec.ts": 0,
+   "e2e/console-sweep-assistant.spec.ts": 0,
+   "e2e/form-controls-reach.spec.ts": 53,
+   "e2e/important-controls-are-changed.spec.ts": 11.7,
+   "e2e/tee-sheet-moves.spec.ts": 16.2,
+   "e2e/tee-sheet-replace.spec.ts": 10.6
   },
   "small-phone": {
    "e2e/a-finished-cup-shows-its-points.spec.ts": 1.8,
@@ -577,7 +587,7 @@
    "e2e/named-side-bet.spec.ts": 0,
    "e2e/namesake-notice.spec.ts": 6.1,
    "e2e/net-without-tees-says-so.spec.ts": 0,
-  "e2e/no-index-warning-in-the-launch-dialog.spec.ts": 0,
+   "e2e/no-index-warning-in-the-launch-dialog.spec.ts": 0,
    "e2e/nothing-is-covered.spec.ts": 27,
    "e2e/offline.spec.ts": 8.1,
    "e2e/old-addresses.spec.ts": 5.9,
@@ -701,7 +711,12 @@
    "e2e/typed-before-load.spec.ts": 0,
    "e2e/week-sheet-after-the-cut.spec.ts": 0,
    "e2e/weekly-sign-up.spec.ts": 0,
-   "e2e/weight.spec.ts": 0
+   "e2e/weight.spec.ts": 0,
+   "e2e/console-sweep-assistant.spec.ts": 44,
+   "e2e/form-controls-reach.spec.ts": 0,
+   "e2e/important-controls-are-changed.spec.ts": 11.1,
+   "e2e/tee-sheet-moves.spec.ts": 16.2,
+   "e2e/tee-sheet-replace.spec.ts": 11.4
   }
  }
 }
