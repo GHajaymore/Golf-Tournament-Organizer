@@ -135,6 +135,7 @@ test.describe("@redesign", () => {
         .toBe("assistant");
 
       // The kept value, on a fresh load of the same screen.
+      await expect(events.locator("tr", { hasText: helperEmail }), "the helper is not listed before the reload").toBeVisible();
       await desk.reload();
       await desk.waitForLoadState("networkidle").catch(() => {});
       await openStaffAndAccess(desk);
