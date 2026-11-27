@@ -59,20 +59,19 @@ import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { matchCardFor } from "@/lib/services/match-card";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
-import { resolveMatch, matchIsOver } from "@/lib/domain/match";
+import { resolveMatch, matchIsOver, storedMatchIsOver } from "@/lib/domain/match";
 import { ConfirmMatchResult, ReopenMatchResult } from "@/components/ConfirmMatchResult";
 import { scoreEntryTies, thirdPlaceCard } from "@/lib/domain/knockout-ties";
 import { bracketDraws } from "@/lib/domain/my-tie";
 import { screensShownFor } from "@/lib/services/screens-shown";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { CloseThisRound } from "@/components/entry/CloseThisRound";
-import { closingTickShown } from "@/lib/domain/closing-words";
+import { closingKind, closingTickShown } from "@/lib/domain/closing-words";
 import { playersWithNoCard } from "@/lib/domain/missing-cards";
 import { isLaunched } from "@/lib/domain/lifecycle-state";
 import { roundUnderWay } from "@/lib/domain/round-under-way";
 import { fieldDoors } from "@/lib/domain/field-change";
 import { fieldFactsFor } from "@/lib/services/field-change";
-import { isStablefordRound } from "@/lib/domain/week-basis";
 
 export const metadata = screenMetadata("/entry");
 
@@ -266,7 +265,16 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         closed={activeStage.closedAt !== null}
         tick={closingTickShown(activeStage)}
         cardsCounted={individual}
-        pointsBoard={isStablefordRound(activeStage.scoringBasis, activeStage.format)}
+        kind={closingKind(activeStage)}
+        // A match round counts its MATCHES, finished by holes or a forfeit (`storedMatchIsOver`, never `resolveMatch(...).complete`).
+        matches={
+          closingKind(activeStage) === "match" && closingTickShown(activeStage)
+            ? (() => {
+                const own = state.matches.filter((m) => m.stageId === activeStage.id);
+                return { finished: own.filter((m) => storedMatchIsOver(m)).length, total: own.length };
+              })()
+            : null
+        }
         deadline={activeStage.deadline}
         deadlineOverride={activeStage.deadlineOverride}
         today={state.today}

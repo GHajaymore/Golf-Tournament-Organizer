@@ -8090,7 +8090,12 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
 export async function setRoundClosed(
   stageId: string,
   closed: boolean,
-  /** Must be true to close over a card not yet approved or signed (`roundCloseCheck` asks first). */
+  /**
+   * Must be exactly `true` to close over what `roundCloseCheck` asks about: a card not yet approved or signed, or a
+   * round nobody has played a hole in. ONE flag answers ONE question, and the two can never be asked together (an unsigned
+   * card holds scores, which are a result), so it cannot confirm a question the caller was not shown. A `"use server"`
+   * export takes whatever it is sent, so anything but the boolean `true` is read as "not asked".
+   */
   confirmUnsigned = false,
 ): Promise<{ ok: boolean; error?: string; needsUnsignedConfirm?: boolean }> {
   const gate = await staffEventOrRefusal();
@@ -8121,7 +8126,7 @@ export async function setRoundClosed(
     const facts = await roundCloseFactsFor(eventId, stage.id);
     const check = facts ? roundCloseCheck(facts) : null;
     if (check && "refuse" in check) return { ok: false, error: check.refuse };
-    if (check && "ask" in check && !confirmUnsigned) return { ok: false, needsUnsignedConfirm: true, error: check.ask };
+    if (check && "ask" in check && confirmUnsigned !== true) return { ok: false, needsUnsignedConfirm: true, error: check.ask };
   }
 
   await prisma.stage.update({

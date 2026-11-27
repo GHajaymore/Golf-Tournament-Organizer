@@ -35,7 +35,12 @@ export const SCORE_ENTRY_GUIDE: GuideVariant = {
         { kind: "h", text: "Is this round over?" },
         {
           kind: "p",
-          text: "Tick **This round is finished** to tell the board the round is over; the ⓘ beside it says what that does. If a card is not yet approved (or signed, where players sign), it asks first and names whose: **Close anyway** or **Keep it open**. A disputed card stops the close until you settle it. Untick it to take a late card; nothing is lost either way.",
+          text: "Tick **This round is finished** to tell the board the round is over; the ⓘ beside it says what that does. If a card is not yet approved (or signed, where players sign), it asks first and names whose: **Close anyway** or **Keep it open**. If nobody has played a hole in the round yet, it asks first as well (“Nobody has played a hole in Round 2 yet. Close it anyway?”): on a stroke board closing takes every player's place away, so if play was rained off, press **Keep it open** and change the round's day under **Played on** on Rounds & formats. A match conceded before play counts as a result and is not asked. A disputed card stops the close until you settle it. Untick it to take a late card; nothing is lost either way.",
+        },
+        { kind: "h", text: "A round of matches" },
+        {
+          kind: "p",
+          text: "A round played as matches (a cup's four-balls, tapped or on cards) counts matches, not cards or places. The section's line reads **1 of 2 matches finished**, then **All 2 matches finished**, then **Round 2 is closed**, and a match is finished when it is decided on the holes or conceded. The line beside the tick says **Tell the board this round's matches are over**, and the ⓘ adds that a match that isn't finished keeps the holes it has and the committee decides it, so leave the tick alone while matches are still on the course. A four-ball medal (a Stroke Play Round) keeps the card words.",
         },
         { kind: "h", text: "Scoring window" },
         {

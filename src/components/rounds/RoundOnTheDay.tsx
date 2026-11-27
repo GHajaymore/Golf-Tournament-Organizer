@@ -1,7 +1,6 @@
 "use client";
-import { closingTickShown } from "@/lib/domain/closing-words";
+import { closingKind, closingTickShown } from "@/lib/domain/closing-words";
 import { RoundClosedControl } from "@/components/RoundClosedControl";
-import { isStablefordRound } from "@/lib/domain/week-basis";
 import { RoundDeadlineControl } from "@/components/RoundDeadlineControl";
 import { SectionLabel, SettingsGroup } from "@/components/rounds/shared";
 import type { RoundCtx } from "./use-round-ctx";
@@ -23,7 +22,7 @@ export function RoundOnTheDay({ ctx }: { ctx: RoundCtx }) {
               <RoundClosedControl
                 stageId={stage.id}
                 closed={stage.closed}
-                pointsBoard={isStablefordRound(stage.scoringBasis, stage.format)}
+                kind={closingKind(stage)}
                 // Rounds & formats draws the whole paragraph; Score entry draws its own copy with the ⓘ (R12).
                 infoBehind={false}
               />
