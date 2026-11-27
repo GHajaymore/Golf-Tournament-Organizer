@@ -6,11 +6,14 @@ import type { ScreenKey } from "@/lib/domain/console-merges";
 vi.mock("@/app/actions/tournament", () => ({
   setEventStatus: async () => ({ ok: true }),
   launchTournament: async () => ({ ok: true }),
+  setRoundClosed: async () => ({ ok: true }),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }), usePathname: () => "/", useSearchParams: () => new URLSearchParams() }));
 vi.mock("@/app/actions/auth", () => ({ enterTournament: vi.fn(async () => {}) }));
 
 const { LifecycleBar } = await import("@/components/LifecycleBar");
 const { WhatsNext } = await import("@/components/NeedsYouNow");
+const { RoundReadyCard } = await import("@/components/RoundReadyCard");
 const { statusCardOf, tournamentStatus } = await import("@/lib/domain/tournament-status");
 const { tournamentJob, whatsNext } = await import("@/lib/domain/needs-you-now");
 const { shortDate } = await import("@/lib/domain/round-dates");
@@ -46,6 +49,11 @@ const card = (shown?: ReadonlySet<ScreenKey>, previewMode?: "build" | "preview" 
   hrefOf(renderToStaticMarkup(<LifecycleBar status={statusCardOf(f, status)} job={job} isAdmin summary={summary} shown={shown} previewMode={previewMode} />), /Close Round 1/);
 const next = (shown?: ReadonlySet<ScreenKey>, previewMode?: "build" | "preview" | null) =>
   hrefOf(renderToStaticMarkup(<WhatsNext jobs={club} mayAct openEventId="e1" shown={shown} previewMode={previewMode} />), /Close Round 1/);
+
+/** The dashboard's "every card is in" card (B123): its Close Round 1 is a press in place, or a link to the room while that has moved. */
+const ready = (shown?: ReadonlySet<ScreenKey>, previewMode?: "build" | "preview" | null) =>
+  renderToStaticMarkup(<RoundReadyCard stageId="r1" roundName="Round 1" shown={shown} previewMode={previewMode} />);
+const readyLink = (shown?: ReadonlySet<ScreenKey>, previewMode?: "build" | "preview" | null) => hrefOf(ready(shown, previewMode), /Close Round 1/);
 
 const STATES: { name: string; shown: ReadonlySet<ScreenKey>; mode: "build" | "preview" | null; room: string }[] = [
   { name: "nothing shown (the switch off)", shown: new Set(), mode: null, room: "/stages" },
@@ -85,6 +93,35 @@ describe("the card's and What's next's Close Round 1 lead to one room, the one t
   });
 });
 
+describe("the dashboard's every-card-is-in card closes a round in one room only (B123)", () => {
+  it("CONTROL: with the screen off it closes in place, says Rounds & formats, and has no link to Close Round 1", () => {
+    const html = ready();
+    expect(html).toContain('title="Close Round 1"');
+    expect(html).toContain("re-open it on Rounds &amp; formats");
+    expect(readyLink()).toBe("");
+  });
+
+  for (const s of STATES) {
+    const here = s.shown.has("scoreEntry");
+    it(`${s.name}: ${here ? "a link to Score entry at that round, no press in place" : "the press in place, no link"}`, () => {
+      const html = ready(s.shown, s.mode);
+      const href = readyLink(s.shown, s.mode);
+      expect(html.includes('title="Close Round 1"'), "the in-place press").toBe(!here);
+      if (!here) {
+        expect(href).toBe("");
+        expect(html).toContain("Rounds &amp; formats");
+        return;
+      }
+      expect(html).not.toContain("Rounds &amp; formats");
+      expect(html).toContain("re-open it on Score entry");
+      // The same door the status card and What's next lead to, preview and all.
+      expect(href, "the card disagrees with the other doors").toBe(card(s.shown, s.mode));
+      expect(pathOf(href)).toBe("/entry");
+      expect(new URL(href, "http://x").searchParams.get("round")).toBe("r1");
+    });
+  }
+});
+
 describe("the dashboard hands both doors what the request shows", () => {
   const page = readSource("src", "app", "(app)", "dashboard", "page.tsx");
   const bar = readSource("src", "components", "LifecycleBar.tsx");
@@ -95,7 +132,14 @@ describe("the dashboard hands both doors what the request shows", () => {
     expect(page).toMatch(/job=\{job\}\s+shown=\{shown\}\s+previewMode=\{previewMode\}/);
   });
   it("the card asks relocate, and holds no screen condition of its own", () => {
-    expect(bar).toMatch(/relocate\(\{ href, job: job\.key/);
+    expect(bar).toMatch(/movedDoor\(\{ href, job: job\.key/);
     expect(bar).not.toMatch(/shown\??\.has\(/);
+  });
+  it("the every-card-is-in card gets what the request shows, asks the one helper, and holds no screen condition", () => {
+    const ready = readSource("src", "components", "RoundReadyCard.tsx");
+    expect(page).toMatch(/<RoundReadyCard[^>]*shown=\{shown\}\s+previewMode=\{previewMode\}/);
+    expect(ready).toMatch(/movedDoor\(/);
+    expect(ready).not.toMatch(/shown\??\.has\(/);
+    expect(readSource("src", "lib", "domain", "moved-door.ts")).toMatch(/relocate\(link, shown\)/);
   });
 });
