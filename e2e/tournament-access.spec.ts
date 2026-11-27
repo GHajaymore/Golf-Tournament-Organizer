@@ -244,6 +244,7 @@ test.describe("@redesign", () => {
       expect(await account(), "one press removed somebody's access without asking").not.toBeNull();
       await row(section, helperEmail).getByRole("button", { name: "Remove access" }).click();
       await expect.poll(account, { timeout: 20_000, message: "the access was not removed" }).toBeNull();
+      await expect(row(section, helperEmail), "the removed helper is still listed before the reload").toHaveCount(0);
       await desk.reload();
       await desk.waitForLoadState("networkidle").catch(() => {});
       await openStaffAndAccess(desk);
