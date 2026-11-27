@@ -20,12 +20,15 @@ import { readSource } from "./source";
 
 const ASKS_THE_SINK = /\b(?:mayWriteMatch|assertOwnMatch|roundClosedRefusal)\s*\(/;
 const WRITES = /prisma\.(?:match|matchScorecard|teamScorecard)\.(?:update|updateMany|upsert|create|createMany|delete|deleteMany)\b/;
-const STAFF_ONLY = /\b(?:requireAdmin|requireStaff|requireAdminEvent|requireStaffEvent)\s*\(|session\.role\s*!==\s*"admin"\s*&&\s*session\.role\s*!==\s*"assistant"/;
+// A CALL to a staff gate, never a role comparison: `applyMatchResult` compares roles to let staff skip ONE check and is a
+// player's door, so a comparison would excuse the very action this sweep is for (found by the mutation below).
+const STAFF_ONLY = /\b(?:requireAdmin|requireStaff|requireAdminEvent|requireStaffEvent)\s*\(/;
 
 /** Actions that write a match row without writing a RESULT, each with why. */
 const NOT_A_RESULT_WRITE: Record<string, string> = {
   confirmPlayMatch: "a signature on a result that exists, not a result (attestation.audit.test.ts)",
   disputePlayMatch: "a dispute of a result that exists; the committee settles it",
+  confirmMatches: "the committee's bulk sign-off; an organizer-only role check before the write",
   confirmMatch: "the committee's sign-off or a player's countersignature, keyed to the scoreline it saw",
   disputeMatch: "a dispute of a result that exists; the committee settles it",
 };
