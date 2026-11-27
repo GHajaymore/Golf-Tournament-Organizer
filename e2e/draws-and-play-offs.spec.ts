@@ -1,3 +1,4 @@
+import { savedBeforeReload } from "./save-settled";
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { openCorrectionFor } from "./committee-correction";
@@ -479,6 +480,7 @@ test.describe("@redesign a round robin's next draw on Tee times & draw", () => {
       await centre(press);
       await press.click();
       await expect.poll(matches, { message: "Round 2 was not drawn as two round robins of six" }).toBe(12);
+      await savedBeforeReload(page.locator("body"));
       await page.reload();
       await expect(
         (await screen.openSection("draw")).getByRole("button", { name: "Redraw Round 2's matches", exact: true }),
@@ -543,6 +545,7 @@ test.describe("@redesign the play-off for third place on Tee times & draw", () =
       await expect.poll(async () => (await stored()).thirdPlace, { message: "the play-off for third was not switched on" }).toBe(true);
 
       // After a reload it is still on, and offers the match between the two beaten semi-finalists.
+      await savedBeforeReload(third);
       await page.reload();
       const again = (await screen.openSection("draw")).locator("[data-third-place]");
       await expect(again.getByRole("checkbox", { name: /Play-off for third place/ }), "the switch did not survive a reload").toBeChecked();
@@ -557,6 +560,7 @@ test.describe("@redesign the play-off for third place on Tee times & draw", () =
       const made = await playOffs();
       expect([made[0].playerAId, made[0].playerBId].sort(), "the play-off is not between the two beaten semi-finalists").toEqual(beaten.map((p) => p.id).sort());
 
+      await savedBeforeReload(again);
       await page.reload();
       await expect(
         (await screen.openSection("draw")).locator("[data-third-place]").getByText(/The play-off is made/),
@@ -605,6 +609,7 @@ test.describe("@redesign a knockout's play-by dates on Tee times & draw", () => 
       // Counted back from the final: 0 is the final, 1 the semi-finals.
       await expect.poll(async () => JSON.parse((await kept()) || "{}"), { message: "the play-by dates were not stored" }).toEqual({ "0": "2031-06-14", "1": "2031-06-07" });
 
+      await savedBeforeReload(form);
       await page.reload();
       const after = (await screen.openSection("draw")).locator("section", { has: page.getByRole("heading", { name: "Play-by dates" }) });
       await expect(after.getByLabel("Final", { exact: true }), "the final's date did not survive a reload").toHaveValue("2031-06-14");

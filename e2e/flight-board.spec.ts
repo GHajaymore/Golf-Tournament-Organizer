@@ -1,3 +1,4 @@
+import { savedBeforeReload } from "./save-settled";
 import { createHmac } from "node:crypto";
 import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
@@ -302,6 +303,7 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => (await rounds.player.findUniqueOrThrow({ where: { id: mover.id } })).groupId, { message: "the player was not moved to Flight B" })
         .toBe(flights[1].id);
+      await savedBeforeReload(page.locator("body"));
       await page.reload();
       await expect(room.current()).toHaveText("Flights");
       await expect(flightCard(page, "Flight B"), "after a reload the player is not under Flight B").toContainText(mover.name);
@@ -313,6 +315,7 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => (await rounds.group.findUniqueOrThrow({ where: { id: flights[0].id } })).name, { message: "the flight's new name was not stored" })
         .toBe("Championship");
+      await savedBeforeReload(page.locator("body"));
       await page.reload();
       await expect(room.current()).toHaveText("Flights");
       await expect(flightCard(page, "Championship"), "the board lost the name after a reload").toBeVisible();

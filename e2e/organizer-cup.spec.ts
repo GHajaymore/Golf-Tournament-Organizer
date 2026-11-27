@@ -1,3 +1,4 @@
+import { savedBeforeReload } from "./save-settled";
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_COURSE } from "./organizer-fixture.mjs";
@@ -222,6 +223,7 @@ test.describe("@redesign the cup's settings on Rounds & formats", () => {
         .toBe(2.5);
 
       // After a reload the card says what was kept, and holds one tile only.
+      await savedBeforeReload(screen.cupSettings());
       await page.reload();
       await expect(screen.cupSettings()).toBeVisible();
       await expect(screen.cupSettings().getByLabel("Points to win"), "the points did not survive a reload").toHaveValue("2.5");
@@ -275,6 +277,7 @@ test.describe("@redesign a cup session's lineup on Tee times & draw", () => {
       await lineup.getByRole("button", { name: "Add match", exact: true }).click();
       await expect.poll(matches, { message: "the match was not added to the session" }).toBe(1);
 
+      await savedBeforeReload(lineup);
       await page.reload();
       const after = (await screen.openSection("draw")).getByRole("region", { name: /lineup$/ });
       await expect(after.getByRole("listitem", { name: `${a.name} v ${b.name}` }), "after a reload the lineup does not hold the match").toBeVisible();

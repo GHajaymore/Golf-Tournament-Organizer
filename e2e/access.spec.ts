@@ -1,3 +1,4 @@
+import { savedBeforeReload } from "./save-settled";
 import { test, expect, closeAll } from "./coverage";
 import { overflowing } from "./overflow";
 import { openSettingsTab } from "./settings-tabs";
@@ -135,6 +136,7 @@ test.describe("@redesign", () => {
         .toBe("assistant");
 
       // The kept value, on a fresh load of the same screen.
+      await savedBeforeReload(add);
       await desk.reload();
       await desk.waitForLoadState("networkidle").catch(() => {});
       await openStaffAndAccess(desk);
