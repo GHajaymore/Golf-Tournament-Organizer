@@ -8,8 +8,9 @@ import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-c
 import type { CorrectionFacts, LockScope, NextAction, StatusCard } from "@/lib/domain/tournament-status";
 import type { TournamentJob } from "@/lib/domain/needs-you-now";
 import { cardPressOf, END_EARLY } from "@/lib/domain/lifecycle-track";
-import { relocate, type ScreenKey } from "@/lib/domain/console-merges";
-import { consoleUrl, type ConsoleMode } from "@/lib/console-url";
+import type { ScreenKey } from "@/lib/domain/console-merges";
+import { movedDoor } from "@/lib/domain/moved-door";
+import type { ConsoleMode } from "@/lib/console-url";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { RefusedAction } from "./RefusedAction";
@@ -176,10 +177,7 @@ export function LifecycleBar({
    */
   const press = cardPressOf(status.nextAction, job);
   /** Where the job's link leads NOW: the room that holds the job while its screen is shown (`relocate`), the preview kept. */
-  const jobLink = (href: string) => {
-    const to = shown && job ? relocate({ href, job: job.key, role: "admin", roundId: job.roundId ?? undefined }, shown) : href;
-    return previewMode && to !== href ? consoleUrl(to, previewMode) : to;
-  };
+  const jobLink = (href: string) => (job ? movedDoor({ href, job: job.key, role: "admin", roundId: job.roundId ?? undefined }, shown, previewMode).href : href);
   const action = press.kind === "move" ? press.action : null;
   /** Ending early, behind "More" (`endEarlyOf`, composed in the page): never a Complete beside the job. */
   const early = press.kind === "move" ? null : (endEarly ?? null);

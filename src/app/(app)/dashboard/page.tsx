@@ -873,6 +873,8 @@ export default async function DashboardPage() {
               roundName={readyToClose.roundName}
               allInWords={readyToClose.allInWords}
               missing={readyToClose.missing}
+              shown={shown}
+              previewMode={previewMode}
             />
           ) : null}
         </NeedsYouNow>
