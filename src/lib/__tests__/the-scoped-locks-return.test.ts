@@ -198,7 +198,13 @@ describe("drawing a league week is refused only once completed (B115)", () => {
     const b = body(LEAGUE, "drawLeagueWeek");
     expect(b).toMatch(/const locked = await refuseIfCompleted\(eventId, "sides", "draw a league week"\);\s*if \(locked\) return locked;/);
     expect(b.indexOf("refuseIfCompleted("), "asked after a read").toBeLessThan(b.indexOf("leagueSeason("));
-    expect(b.indexOf("refuseIfCompleted("), "asked after a write").toBeLessThan(b.search(FIRST_WRITE));
+    // The draw's writes are inside ONE transaction since B124, so they are `tx.` writes, not `prisma.` ones: both count.
+    const firstWrite = b.search(/\b(prisma|tx)\.\w+\.(create|createMany|update|updateMany|delete|deleteMany|upsert)\(/);
+    expect(firstWrite, "the draw's writes were not found").toBeGreaterThan(0);
+    expect(b.indexOf("refuseIfCompleted("), "asked after a write").toBeLessThan(firstWrite);
+    expect(b.indexOf("refuseIfCompleted("), "asked after the transaction opened").toBeLessThan(b.indexOf("$transaction("));
+    // And again INSIDE the transaction, on the locked row, read fresh (B124): a completion between the check and the write.
+    expect(b).toMatch(/FOR UPDATE[\s\S]*isFinished\(now\.status\)[\s\S]*tx\.match\.deleteMany/);
   });
 
   it("no league action asks the launch-held lock: a live league is drawn every week (refuseIfLocked would refuse it)", () => {
