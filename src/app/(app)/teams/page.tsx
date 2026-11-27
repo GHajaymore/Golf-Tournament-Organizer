@@ -14,7 +14,7 @@ import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor, scopeLockFor, tournamentStatusNow } from "@/lib/services/tournament-status";
+import { setupRailFor, scopeLockFor, completionLockFor, tournamentStatusNow } from "@/lib/services/tournament-status";
 import { screensShownFor, keepingPreview } from "@/lib/services/screens-shown";
 import { matchGeneratorPlace, leagueDrawPlace } from "@/lib/domain/draw-sections";
 import { playersRoomFor } from "@/lib/services/players-room";
@@ -97,7 +97,16 @@ export default async function TeamsPage({
   // The machine's lock on the sides (PR 5a) — the one every action here asks
   // (`refuseIfLocked(…, "sides", …)`), from the same request-cached facts as the
   // rail, so the banner and the refusal are one answer.
-  const sidesLock = await scopeLockFor(session.eventId, "sides");
+  //
+  // A LEAGUE'S WHOLE PAGE IS UNDER ONE LOCK, READ COMPLETION-ONLY (B115b): its sides have one door, the League section
+  // (nominate, withdraw, settings, the play-off decision, the draw), and those are open all season and refused only once
+  // the tournament is completed. So the banner, the side cards and the League section take the one value, and a live
+  // league shows no "is live" banner over controls that work. Every other tournament keeps the blanket lock.
+  const isLeague = isLeaguePointsSystem(leagueEvent?.leaguePoints);
+  // The League section's controls (settings, nominate, withdraw, the play-off decision, the draw) are completion-only even
+  // before a league is switched on, because `setLeagueSettings` is what switches it on.
+  const completedLock = await completionLockFor(session.eventId, "sides");
+  const sidesLock = isLeague ? completedLock : await scopeLockFor(session.eventId, "sides");
   const locked = sidesLock !== null;
   // WHERE "GENERATE MATCHES" IS DRAWN (R9b): on Tee times & draw while that screen is shown and builds this round.
   const told = await tournamentStatusNow(session.eventId);
@@ -162,7 +171,7 @@ export default async function TeamsPage({
         drawsMatches={generatesPairings(active.type)}
         matchesHere={matchesHere}
         teeTimesHref={teeTimesHref}
-        league={isLeaguePointsSystem(leagueEvent?.leaguePoints)}
+        league={isLeague}
       />
 
       {/**
@@ -177,7 +186,7 @@ export default async function TeamsPage({
        * organizer's switch until the league is turned on, so every
        * ordinary four-ball event sees exactly what it saw before.
        */}
-      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} drawMoved={leagueDrawMoved} />
+      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} drawMoved={leagueDrawMoved} lock={completedLock} />
       <SetupFlowFooter flow={flow} href="/teams" />
     </>
   );

@@ -3,6 +3,10 @@
 import { useState, useTransition } from "react";
 import { setPlayoffHoleWinner } from "@/app/actions/league";
 import { Icon } from "@/components/Icon";
+import { ScopeLockMark } from "@/components/ScopeLockBanner";
+import { useCaughtUp } from "@/components/useAction";
+import { bringIntoView } from "@/lib/bring-into-view";
+import { LEAGUE_REASON } from "@/lib/domain/league-payload";
 
 export interface DecidableMeeting {
   stageId: string;
@@ -34,7 +38,11 @@ export interface DecidableMeeting {
  * casual. Two clicks and a sentence, and the sentence is printed next to the
  * result for every member to read.
  */
-export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) {
+export function PlayoffDecision({ meetings, locked }: { meetings: DecidableMeeting[]; locked: boolean }) {
+  // Once the tournament is completed (`locked`: the sides' lock read completion-only, B115b) the decision is shut and
+  // marked; Reopen on the dashboard is the committee's way. A press made on a screen drawn before it is refused in words
+  // where it was pressed, and the screen catches up.
+  const caughtUp = useCaughtUp();
   const [openKey, setOpenKey] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -45,12 +53,8 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
   const record = (m: DecidableMeeting, winner: string) =>
     startTransition(async () => {
       setError("");
-      const res = await setPlayoffHoleWinner(
-        m.stageId,
-        m.clubA,
-        m.clubB,
-        winner,
-        m.level ? undefined : { reason },
+      const res = caughtUp(
+        await setPlayoffHoleWinner(m.stageId, m.clubA, m.clubB, winner, m.level ? undefined : { reason }),
       );
       if (!res.ok) {
         setError(res.error);
@@ -90,10 +94,12 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
             )}
 
             {!open ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, alignSelf: "flex-start" }}>
+              {locked && <ScopeLockMark />}
               <button
                 type="button"
                 className={m.level ? "btn btn-primary" : "btn btn-ghost"}
-                style={{ alignSelf: "flex-start", marginTop: 8 }}
+                disabled={locked}
                 onClick={() => {
                   setOpenKey(key);
                   setReason(m.decided?.note ?? "");
@@ -110,6 +116,7 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
                   </>
                 )}
               </button>
+              </div>
             ) : (
               <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                 {!m.level && (
@@ -119,6 +126,7 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
                       id={`why-${key}`}
                       className="input"
                       value={reason}
+                      maxLength={LEAGUE_REASON.max}
                       disabled={pending}
                       placeholder="e.g. Ineligible player in the second pair"
                       onChange={(e) => setReason(e.target.value)}
@@ -137,7 +145,7 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
                       key={id}
                       type="button"
                       className="btn btn-secondary"
-                      disabled={pending}
+                      disabled={pending || locked}
                       onClick={() => record(m, id)}
                     >
                       {label} {m.level ? "won the hole" : "goes through"}
@@ -158,7 +166,7 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
             )}
 
             {open && error && (
-              <p role="alert" style={{ margin: "6px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
+              <p role="alert" ref={bringIntoView} style={{ margin: "6px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
                 {error}
               </p>
             )}
