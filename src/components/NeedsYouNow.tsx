@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 import { jobHref, type NeedsYouItem, type ClubJob } from "@/lib/domain/needs-you-now";
 import { enterTournament } from "@/app/actions/auth";
 import { Icon } from "./Icon";
-import { relocate, type ScreenKey } from "@/lib/domain/console-merges";
-import { consoleUrl, type ConsoleMode } from "@/lib/console-url";
+import type { ScreenKey } from "@/lib/domain/console-merges";
+import { movedDoor } from "@/lib/domain/moved-door";
+import type { ConsoleMode } from "@/lib/console-url";
 
 /**
  * "NEEDS YOU NOW" — the organizer's to-do list, at the top of the dashboard
@@ -89,11 +90,7 @@ export function WhatsNext({
   children?: ReactNode;
 }) {
   /** Where a job's button leads now: its room while that is shown (`relocate`), the preview kept. */
-  const doorOf = (job: ClubJob) => {
-    const old = jobHref(job);
-    const to = shown ? relocate({ href: old, job: job.key, role: "admin", roundId: job.roundId }, shown) : old;
-    return previewMode && to !== old ? consoleUrl(to, previewMode) : to;
-  };
+  const doorOf = (job: ClubJob) => movedDoor({ href: jobHref(job), job: job.key, role: "admin", roundId: job.roundId }, shown, previewMode).href;
   return (
     <section aria-label="What's next" style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
       <div className="card elev-sm" style={{ gap: 0 }}>
