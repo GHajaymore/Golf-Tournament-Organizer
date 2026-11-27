@@ -135,6 +135,12 @@ describe("the dashboard hands both doors what the request shows", () => {
     expect(bar).toMatch(/movedDoor\(\{ href, job: job\.key/);
     expect(bar).not.toMatch(/shown\??\.has\(/);
   });
+  it("What's next routes its moved door through movedDoor, with no wrapper of its own", () => {
+    const next = readSource("src", "components", "NeedsYouNow.tsx");
+    expect(next).toMatch(/movedDoor\(\{ href: jobHref\(job\)/);
+    expect(next).not.toMatch(/relocate\(/);
+    expect(next).not.toMatch(/consoleUrl\(/);
+  });
   it("the every-card-is-in card gets what the request shows, asks the one helper, and holds no screen condition", () => {
     const ready = readSource("src", "components", "RoundReadyCard.tsx");
     expect(page).toMatch(/<RoundReadyCard[^>]*shown=\{shown\}\s+previewMode=\{previewMode\}/);
