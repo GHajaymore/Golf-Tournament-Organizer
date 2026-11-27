@@ -1,3 +1,4 @@
+import { savedBeforeReload } from "./save-settled";
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
@@ -212,6 +213,7 @@ test.describe("@redesign players", () => {
       await expect
         .poll(async () => prisma.player.count({ where: { eventId: event.id, name: "Wren Ashby" } }), { message: "the player added was not stored" })
         .toBe(1);
+      await savedBeforeReload(page.locator("body"));
       await page.reload();
       await expect(room.current()).toHaveText("Entries");
       await expect(page.getByText("Wren Ashby").first(), "the player did not survive a reload").toBeVisible();

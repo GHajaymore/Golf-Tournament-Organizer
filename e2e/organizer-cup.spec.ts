@@ -275,6 +275,7 @@ test.describe("@redesign a cup session's lineup on Tee times & draw", () => {
       await lineup.getByRole("button", { name: "Add match", exact: true }).click();
       await expect.poll(matches, { message: "the match was not added to the session" }).toBe(1);
 
+      await expect(lineup.getByRole("listitem", { name: `${a.name} v ${b.name}` }), "the lineup does not hold the match before the reload").toBeVisible();
       await page.reload();
       const after = (await screen.openSection("draw")).getByRole("region", { name: /lineup$/ });
       await expect(after.getByRole("listitem", { name: `${a.name} v ${b.name}` }), "after a reload the lineup does not hold the match").toBeVisible();
