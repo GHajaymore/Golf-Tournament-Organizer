@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createRequire } from "node:module";
-import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { readdirSync, statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { createServer, request as httpRequest, Server } from "node:http";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { readSource } from "./source";
 import { tmpdir } from "node:os";
 import { watchNavigation, serverLinesSince } from "../../../e2e/goto-watchdog";
 
@@ -91,7 +92,7 @@ describe("the slow-request log is off unless the e2e server turns it on", () => 
   });
 
   it("is switched on in the e2e webServer's env and nowhere in the application", () => {
-    const config = readFileSync(join(root, "playwright.config.ts"), "utf8");
+    const config = readSource("playwright.config.ts");
     expect(config).toContain("E2E_SLOW_REQUEST_MS");
     expect(config).toContain("--require ./scripts/ci/slow-request-log.cjs");
     const offenders: string[] = [];
@@ -100,7 +101,7 @@ describe("the slow-request log is off unless the e2e server turns it on", () => 
         const p = join(dir, name);
         if (statSync(p).isDirectory()) walk(p);
         else if (/\.(ts|tsx|js|mjs|cjs)$/.test(name) && !p.includes("__tests__")) {
-          const s = readFileSync(p, "utf8");
+          const s = readSource(relative(root, p));
           if (s.includes("E2E_SLOW_REQUEST_MS") || s.includes("slow-request-log")) offenders.push(p);
         }
       }
@@ -108,7 +109,7 @@ describe("the slow-request log is off unless the e2e server turns it on", () => 
     walk(join(root, "src"));
     for (const f of ["next.config.mjs", "vercel.json", "package.json"]) {
       try {
-        if (readFileSync(join(root, f), "utf8").includes("slow-request-log")) offenders.push(f);
+        if (readSource(f).includes("slow-request-log")) offenders.push(f);
       } catch {
         /* not there */
       }
@@ -141,7 +142,7 @@ describe("the navigation watchdog only logs", () => {
       else process.env.E2E_GOTO_WATCHDOG_MS = saved;
     }
   };
-  const said = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c) => String(c[0])).join("\n");
+  const said = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
 
   it("a navigation that returns in time says nothing and returns its value", async () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
