@@ -20,7 +20,7 @@ import {
   type TournamentStatus,
 } from "../domain/tournament-status";
 import type { SetupFlow } from "../domain/setup-flow";
-import { lockFactsFor, setupSideFactsFor, tournamentFactsFor } from "./tournament-facts";
+import { lockFactsFor, readLockFacts, setupSideFactsFor, tournamentFactsFor, type LockDb } from "./tournament-facts";
 import { todayForEvent } from "./club-clock";
 import { getSession } from "../auth";
 
@@ -164,8 +164,24 @@ export async function completionLockFor(eventId: string, scope: LockScope): Prom
  * REFUSE WORK ON A COMPLETED TOURNAMENT ONLY (B115) — returned, never thrown, in the words `refuseIfLocked` uses.
  * For what a live tournament does all season: drawing a league week asks `sides` here and is never refused by launch.
  */
-export async function refuseIfCompleted(eventId: string, scope: LockScope, what: string): Promise<LockRefusal | null> {
-  const lock = await completionLockFor(eventId, scope);
+export async function refuseIfCompleted(
+  eventId: string,
+  scope: LockScope,
+  what: string,
+  /**
+   * ASKED ON A TRANSACTION (B124): the re-check a write makes inside its own transaction, after the event row is locked,
+   * when the tournament may have been completed since the first look. Read fresh on that client, never from the
+   * request's cache (which would repeat the first answer). The same rule and the same words either way.
+   */
+  db?: LockDb,
+): Promise<LockRefusal | null> {
+  let lock: ScopeLock | null;
+  if (db) {
+    const facts = await readLockFacts(eventId, db);
+    lock = facts ? completionLockOf(locksFor(facts), scope) : null;
+  } else {
+    lock = await completionLockFor(eventId, scope);
+  }
   return lock ? { ok: false, error: lockRefusalWords(lock, what, await readerNow()), lock } : null;
 }
 
