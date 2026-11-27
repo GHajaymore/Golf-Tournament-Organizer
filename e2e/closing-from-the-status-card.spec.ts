@@ -75,3 +75,64 @@ test.describe("@redesign the status card closes a round on Score entry", () => {
     }
   });
 });
+
+/**
+ * THE SAME ROUND, FROM THE DASHBOARD'S "EVERY CARD IS IN" CARD (B123). That card used to close the round in place and say "re-open
+ * it on Rounds & formats"; while Score entry is shown it sends the secretary to Score entry's "Close Round 1" section instead, so a
+ * round is closed in one room. Walked as the secretary does: the card offers a link and no button, the link opens Score entry at the
+ * round in the same preview, the tick closes it there, and a fresh dashboard no longer offers the card.
+ */
+const READY_MARK = "zz-rd-ready-close";
+
+test.describe("@redesign the every-card-is-in card closes a round on Score entry", () => {
+  let eventId: string;
+  let stageId: string;
+  let club: Awaited<ReturnType<typeof makeClub>>;
+
+  test.beforeAll(async () => {
+    await dropClub(READY_MARK);
+    club = await makeClub(READY_MARK, { timeZone: ZONE });
+    const made = await makeEvent(club, "Monthly Medal", { status: "live", stages: [{ playedOn: dayIn(ZONE) }], players: 4 });
+    eventId = made.event.id;
+    stageId = made.stages[0].id;
+    for (const p of made.players) await returnCard(eventId, stageId, p.id);
+    await prisma.scorecard.updateMany({ where: { stageId }, data: { status: "approved", approvedBy: "zz", approvedAt: new Date() } });
+  });
+  test.afterAll(async () => {
+    await dropClub(READY_MARK);
+  });
+
+  test("the card links to Score entry instead of closing in place, the tick closes the round, and the card is gone after a reload", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(150_000);
+    const context = await browser.newContext({ ...testInfo.project.use, baseURL: baseURL!, serviceWorkers: "block" });
+    try {
+      await signIn(context, baseURL!, club, eventId);
+      const page = await context.newPage();
+      await page.goto(consoleUrl("/dashboard", "build"));
+      const card = page.getByRole("region", { name: "The round is ready to close" });
+      await expect(card).toBeVisible();
+      // Read from the page, never assumed: a link into the preview's Score entry at this round, and no press in place.
+      const press = card.getByRole("link", { name: /Close Round 1/ });
+      await expect(press).toHaveAttribute("href", new RegExp(`^/entry\\?.*round=${stageId}`));
+      await expect(press).toHaveAttribute("href", /build=1/);
+      await expect(card.getByRole("button", { name: /Close Round 1/ })).toHaveCount(0);
+      await expect(card).not.toContainText("Rounds & formats");
+      expect(await closedAt(stageId)).toBeNull();
+
+      await press.click();
+      const screen = new ScoreEntryPage(page);
+      await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
+      expect(new URL(page.url()).searchParams.get("round"), "the press opened another round").toBe(stageId);
+      const section = await screen.openClose();
+      await screen.finishedTick(section).click();
+      await expect(screen.finishedTick(section)).toBeChecked();
+      await expect.poll(() => closedAt(stageId), { message: "the tick did not close the round" }).not.toBeNull();
+
+      await page.goto(consoleUrl("/dashboard", "build"));
+      await expect(statusCard(page)).toBeVisible();
+      await expect(page.getByRole("region", { name: "The round is ready to close" })).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+});
