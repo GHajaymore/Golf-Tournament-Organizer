@@ -29,7 +29,6 @@ import { PlayoffDecision } from "@/components/PlayoffDecision";
  * open to put another club's player into a pair. The actions refuse a league now (`LEAGUE_SIDES_REFUSAL`), so the cards
  * draw read-only: names, the plays-off figures and members, and no control that would be refused.
  */
-const textOf = (html: string) => html.replace(/<[^>]*>/g, "");
 
 const FORMAT = {
   name: "Four-Ball", desc: "", min: 2, max: 2, sharesOneCard: false, allowance: 85, recommendedAllowance: 85,
@@ -58,9 +57,9 @@ describe("Teams & pairs: a league's side cards are read-only", () => {
     expect(html).not.toContain("Remove team");
     expect(html).not.toContain("Remove zz-Ann");
     expect(html).not.toContain("Add player");
-    expect(textOf(html)).toContain("zz-Ann");
-    expect(textOf(html)).toContain("Plays off 7 · 9");
-    expect(textOf(html)).toContain("nominates or withdraws its pairs, and the week is drawn, in the League section below");
+    expect(html).toContain("zz-Ann");
+    expect(html).toContain("Plays off 7 · 9");
+    expect(html).toContain("nominates or withdraws its pairs, and the week is drawn, in the League section below");
   });
 
   it("CONTROL: without `league` the same card draws all three", () => {

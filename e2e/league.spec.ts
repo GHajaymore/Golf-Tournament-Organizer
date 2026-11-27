@@ -215,7 +215,9 @@ test.describe("@redesign the league week on Tee times & draw", () => {
  */
 test.describe("a league's sides lock only at completion (B115b)", () => {
   const WALKED = ["desktop", "phone"];
-  const NAMES = ["Aldwick One", "Aldwick Two", "Aldwick Three", "Aldwick Four", "Brenham One", "Brenham Two"];
+  // Club 0 (Aldwick): One..Four are nominated by the walk, Five and Six are the drawn week's pair. Club 1 (Brenham): One and Two are spare, Three and Four are the drawn week's pair.
+  const NAMES: [string, number][] = [["Aldwick One", 0], ["Aldwick Two", 0], ["Aldwick Three", 0], ["Aldwick Four", 0], ["Aldwick Five", 0], ["Aldwick Six", 0], ["Brenham One", 1], ["Brenham Two", 1], ["Brenham Three", 1], ["Brenham Four", 1]];
+  const DRAWN = ["Aldwick Five / Aldwick Six", "Brenham Three / Brenham Four"];
   const REFUSED = "Locked because the tournament is completed. Reopen it on the dashboard to nominate a pair.";
 
   test("a live league has no banner and nominates, withdraws and saves; completed, it is shut in words until Reopen", async ({ browser, baseURL }, testInfo) => {
@@ -240,14 +242,36 @@ test.describe("a league's sides lock only at completion (B115b)", () => {
       for (const [i, name] of ["Aldwick", "Brenham"].entries()) {
         clubs.push(await prisma.group.create({ data: { eventId, name: `${mark} ${name}`, position: i }, select: { id: true } }));
       }
-      for (const [i, name] of NAMES.entries()) {
-        await prisma.player.create({
-          data: { eventId, name, email: `${mark}-lp${i}@example.invalid`, handicap: 8 + i, seed: i + 1, status: "confirmed", groupId: clubs[i < 4 ? 0 : 1].id },
-        });
+      const ids: Record<string, string> = {};
+      for (const [i, [name, c]] of NAMES.entries()) {
+        ids[name] = (
+          await prisma.player.create({
+            data: { eventId, name, email: `${mark}-lp${i}@example.invalid`, handicap: 8 + i, seed: i + 1, status: "confirmed", groupId: clubs[c].id },
+            select: { id: true },
+          })
+        ).id;
       }
+      /**
+       * THE WEEK IS ALREADY DRAWN, as a real season's is when it is completed. Measured on CI (run 46055710250, the dashboard's
+       * snapshot): with no match drawn the dashboard's job is "Generate Round 1 pairings" and the machine offers no Complete
+       * or More at all (`owesDraw`; `nextAction` is the draw while a round owes one). So one pair a club is drawn into one
+       * four-ball here, at seed 99 so they sit after the pairs the walk nominates, and the walk's counts leave them out.
+       */
+      const carrier = await prisma.group.create({ data: { eventId, stageId: round.id, isCarrier: true, name: "fixtures", position: 99 }, select: { id: true } });
+      const drawn: string[] = [];
+      for (const [c, [a, b]] of [[0, ["Aldwick Five", "Aldwick Six"]], [1, ["Brenham Three", "Brenham Four"]]] as [number, string[]][]) {
+        const side = await prisma.team.create({ data: { eventId, stageId: round.id, clubGroupId: clubs[c].id, name: `${a} / ${b}`, seed: 99 }, select: { id: true } });
+        await prisma.teamMember.createMany({ data: [{ teamId: side.id, playerId: ids[a], position: 0 }, { teamId: side.id, playerId: ids[b], position: 1 }] });
+        drawn.push(side.id);
+      }
+      await prisma.match.create({
+        data: { eventId, stageId: round.id, groupId: carrier.id, round: 1, playerAId: "", playerBId: "", teamAId: drawn[0], teamBId: drawn[1], holes: JSON.stringify(new Array(18).fill(null)) },
+      });
       const status = async () => (await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { status: true } })).status;
       expect(await status(), "the fixture's league is not live").toBe("live");
-      const pairs = () => prisma.team.findMany({ where: { eventId, stageId: round.id, clubGroupId: { not: null } }, select: { name: true }, orderBy: { name: "asc" } });
+      const pairs = () => prisma.team.findMany({ where: { eventId, stageId: round.id, clubGroupId: { not: null }, name: { notIn: DRAWN } }, select: { name: true }, orderBy: { name: "asc" } });
+      // A nominated pair's own row on the page: the drawn week's pairs have Withdraw buttons too.
+      const rowOf = (p: Page, pair: string) => p.locator("li").filter({ hasText: pair });
       const pairCount = async () => (await pairs()).length;
       const settings = () => prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { leaguePoints: true, leaguePairs: true, leagueMatchBonus: true } });
       const banner = (p: Page) => p.getByRole("region", { name: "Locked" });
@@ -268,7 +292,7 @@ test.describe("a league's sides lock only at completion (B115b)", () => {
       await expect(page.getByText("Aldwick One / Aldwick Two"), "the nominated pair is not on the screen").toBeVisible({ timeout: 20_000 });
       await expect.poll(pairCount, { message: "Nominate pair wrote nothing" }).toBe(1);
 
-      await page.getByRole("button", { name: "Withdraw" }).first().click();
+      await rowOf(page, "Aldwick One / Aldwick Two").getByRole("button", { name: "Withdraw" }).click();
       await expect.poll(pairCount, { message: "Withdraw took nothing down" }).toBe(0);
 
       await page.getByText("League settings", { exact: true }).click();
@@ -301,7 +325,7 @@ test.describe("a league's sides lock only at completion (B115b)", () => {
       await expect(banner(page), "the screen did not catch up with the lock").toContainText("Locked because the tournament is completed.", { timeout: 20_000 });
       await expect(banner(page).getByRole("link", { name: "Reopen it on the dashboard" }), "Reopen is not offered on the banner").toBeVisible();
       await expect(page.getByRole("button", { name: /Nominate pair/ }).first(), "Nominate stayed live").toBeDisabled();
-      await expect(page.getByRole("button", { name: "Withdraw" }).first(), "Withdraw stayed live").toBeDisabled();
+      await expect(rowOf(page, "Aldwick One / Aldwick Two").getByRole("button", { name: "Withdraw" }), "Withdraw stayed live").toBeDisabled();
       await expect(page.getByRole("button", { name: "Save league settings" }), "Save league settings stayed live").toBeDisabled();
 
       await page.reload();
