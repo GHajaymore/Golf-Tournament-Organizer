@@ -185,7 +185,7 @@ function leagueOf(e: { playKind: string; leaguePoints: string; attendanceMode: s
  * (`a-locked-scope-is-refused-in-words.audit.test.ts`, its last describe), so
  * the banner and the refusal cannot disagree. Request-cached, like the batch.
  */
-export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | null> => {
+export async function readLockFacts(eventId: string): Promise<LockFacts | null> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: {
@@ -241,7 +241,10 @@ export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | n
       hasResult: played.has(s.id),
     })),
   };
-});
+}
+
+/** `readLockFacts`, read once per request. A write's own re-check reads it UNCACHED (`readLockFacts`, B124). */
+export const lockFactsFor = cache(readLockFacts);
 
 /** Rows grouped by tournament, in the order they came. */
 function byEvent<T extends { eventId: string }>(rows: readonly T[]): Map<string, T[]> {

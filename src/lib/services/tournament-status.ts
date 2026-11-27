@@ -20,7 +20,7 @@ import {
   type TournamentStatus,
 } from "../domain/tournament-status";
 import type { SetupFlow } from "../domain/setup-flow";
-import { lockFactsFor, setupSideFactsFor, tournamentFactsFor } from "./tournament-facts";
+import { lockFactsFor, readLockFacts, setupSideFactsFor, tournamentFactsFor } from "./tournament-facts";
 import { todayForEvent } from "./club-clock";
 import { getSession } from "../auth";
 
@@ -166,6 +166,17 @@ export async function completionLockFor(eventId: string, scope: LockScope): Prom
  */
 export async function refuseIfCompleted(eventId: string, scope: LockScope, what: string): Promise<LockRefusal | null> {
   const lock = await completionLockFor(eventId, scope);
+  return lock ? { ok: false, error: lockRefusalWords(lock, what, await readerNow()), lock } : null;
+}
+
+/**
+ * THE SAME REFUSAL, READ FRESH (B124): for the re-check a write makes AFTER its first look, when the tournament may have
+ * been completed in between. `refuseIfCompleted` reads the request-cached facts, so a second ask in one request would
+ * hear the first answer; this one never does.
+ */
+export async function refuseIfCompletedFresh(eventId: string, scope: LockScope, what: string): Promise<LockRefusal | null> {
+  const facts = await readLockFacts(eventId);
+  const lock = facts ? completionLockOf(locksFor(facts), scope) : null;
   return lock ? { ok: false, error: lockRefusalWords(lock, what, await readerNow()), lock } : null;
 }
 

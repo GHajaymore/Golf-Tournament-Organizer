@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
-import { refuseIfCompleted } from "@/lib/services/tournament-status";
+import { refuseIfCompleted, refuseIfCompletedFresh } from "@/lib/services/tournament-status";
+import { isFinished } from "@/lib/domain/lifecycle-state";
+import { cleanLeagueDrawRequest } from "@/lib/domain/league-draw-payload";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
@@ -363,11 +365,15 @@ export type LeagueDrawResult =
  * meetings that were never played.
  */
 export async function drawLeagueWeek(
-  stageId: string,
-  replace = false,
-  shortSeason = false,
+  stageIdArg: string,
+  replaceArg = false,
+  shortSeasonArg = false,
 ): Promise<LeagueDrawResult> {
+  // The role first, then the payload (B124: the types are erased; refused in words, nothing read or written).
   const eventId = await requireStaff();
+  const asked = cleanLeagueDrawRequest(stageIdArg, replaceArg, shortSeasonArg);
+  if (!asked.ok) return { ok: false, error: asked.error };
+  const { stageId, replace, shortSeason } = asked.request;
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
@@ -516,7 +522,6 @@ export async function drawLeagueWeek(
     if (scored > 0) {
       return { ok: false, error: "Scores have already been recorded for this round." };
     }
-    await prisma.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
   }
 
   const groupId = await matchCarrierGroup(
@@ -525,23 +530,52 @@ export async function drawLeagueWeek(
     `${stage.format} — Round ${stage.position + 1}`,
   );
   const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
-  for (const [i, draw] of draws.entries()) {
-    for (const [teamAId, teamBId] of draw.matches) {
-      await prisma.match.create({
-        data: {
-          eventId,
-          stageId,
-          groupId,
-          // One number per meeting, so a meeting's four-balls sort together.
-          round: i + 1,
-          playerAId: "",
-          playerBId: "",
-          teamAId,
-          teamBId,
-          holes: emptyHoles,
-        },
-      });
-    }
+  /**
+   * THE REDRAW IS ONE TRANSACTION (B124). It used to delete the old matches and then create the new ones one by one, so a
+   * reader between two statements saw a half-drawn week and a failure part-way left one. Now the old week stands whole until
+   * the new one replaces it at commit, and a failure leaves the old week.
+   *
+   * AND THE COMPLETION CHECK IS MADE AGAIN INSIDE IT. The lock above is read before the writes; a tournament completed in
+   * between would take a draw it should have refused. The event row is locked FOR UPDATE (as the prize writers lock it), so a
+   * completion either commits before this read (and is seen, and refused) or waits for this commit; the status is then read
+   * on the transaction's own connection. Refused, nothing is written.
+   */
+  const COMPLETED = Symbol("completed");
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
+      const now = await tx.event.findUnique({ where: { id: eventId }, select: { status: true } });
+      if (!now || isFinished(now.status)) throw COMPLETED;
+      if (existing.length > 0) {
+        await tx.match.deleteMany({ where: { eventId, stageId } });
+      }
+      for (const [i, draw] of draws.entries()) {
+        for (const [teamAId, teamBId] of draw.matches) {
+          await tx.match.create({
+            data: {
+              eventId,
+              stageId,
+              groupId,
+              // One number per meeting, so a meeting's four-balls sort together.
+              round: i + 1,
+              playerAId: "",
+              playerBId: "",
+              teamAId,
+              teamBId,
+              holes: emptyHoles,
+            },
+          });
+        }
+      }
+    });
+  } catch (e) {
+    if (e !== COMPLETED) throw e;
+    return (
+      (await refuseIfCompletedFresh(eventId, "sides", "draw a league week")) ?? {
+        ok: false,
+        error: "This tournament is completed. Reopen it on the dashboard to draw a league week.",
+      }
+    );
   }
 
   revalidatePath("/", "layout");
