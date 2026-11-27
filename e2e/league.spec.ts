@@ -228,7 +228,9 @@ test.describe("a league's sides lock only at completion (B115b)", () => {
       // The fixture's facts, built here and read back below: a LAUNCHED, live league of two clubs and one team round.
       const made = await makeEvent(club, "Lock League", {
         status: "live",
-        stages: [{ type: "Round Robin", format: "Four-Ball", scoringBasis: "net" }],
+        // A DATED week: a league whose next week has no day and no deadline offers "Set Round 1's day" as the dashboard's
+        // job and no way to complete (the machine's `schedule` action), so the week is given its day like a real season's.
+        stages: [{ type: "Round Robin", format: "Four-Ball", scoringBasis: "net", playedOn: addDays(dayIn(""), 7) }],
         players: 0,
         event: { shape: "series", leaguePoints: "match", leagueMatchBonus: 2, leaguePairs: 2, leaguePlayoffClubs: 0, launchedAt: new Date() },
       });
@@ -287,7 +289,8 @@ test.describe("a league's sides lock only at completion (B115b)", () => {
       const other = await context.newPage();
       await other.goto(`/dashboard?bust=${Date.now()}`);
       await pressComplete(other);
-      await other.getByRole("alertdialog").getByRole("button", { name: /^(Make results final|Complete it)$/ }).click();
+      // The week is unplayed, so ending asks about it first ("End this event early…" under More): "Complete anyway".
+      await other.getByRole("alertdialog").getByRole("button", { name: /^(Complete anyway|Make results final|Complete it)$/ }).click();
       await expect.poll(status, { timeout: 30_000, message: "Complete did not complete it" }).toBe("completed");
 
       // ── 3. The stale page: Nominate is refused beside the press, and the screen catches up ──
