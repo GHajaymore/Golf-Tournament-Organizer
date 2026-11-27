@@ -264,8 +264,17 @@ test.describe("a league's sides lock only at completion (B115b)", () => {
         await prisma.teamMember.createMany({ data: [{ teamId: side.id, playerId: ids[a], position: 0 }, { teamId: side.id, playerId: ids[b], position: 1 }] });
         drawn.push(side.id);
       }
+      /**
+       * AND A SCORE IS IN. Measured on CI (run 46060554024, the phone's screenshot at the failure): with the week drawn but
+       * nothing scored, "End this event early…" is drawn GREYED, with "Nothing has been scored yet, so there is no result to
+       * complete", and a click on it waits for ever (the 240 s timeout). A real season is completed with scores in, so the
+       * drawn pair has one hole won and one stroke of a card, so the round holds a result whichever way the machine reads it.
+       */
+      await prisma.teamScorecard.create({
+        data: { eventId, stageId: round.id, teamId: drawn[0], playerId: ids["Aldwick Five"], strokes: JSON.stringify([4, ...new Array(17).fill(null)]) },
+      });
       await prisma.match.create({
-        data: { eventId, stageId: round.id, groupId: carrier.id, round: 1, playerAId: "", playerBId: "", teamAId: drawn[0], teamBId: drawn[1], holes: JSON.stringify(new Array(18).fill(null)) },
+        data: { eventId, stageId: round.id, groupId: carrier.id, round: 1, playerAId: "", playerBId: "", teamAId: drawn[0], teamBId: drawn[1], holes: JSON.stringify(["A", ...new Array(17).fill(null)]) },
       });
       const status = async () => (await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { status: true } })).status;
       expect(await status(), "the fixture's league is not live").toBe("live");
@@ -313,8 +322,11 @@ test.describe("a league's sides lock only at completion (B115b)", () => {
       const other = await context.newPage();
       await other.goto(`/dashboard?bust=${Date.now()}`);
       await pressComplete(other);
-      // The week is unplayed, so ending asks about it first ("End this event early…" under More): "Complete anyway".
-      await other.getByRole("alertdialog").getByRole("button", { name: /^(Complete anyway|Make results final|Complete it)$/ }).click();
+      // Ending early asks first (the unplayed round's question, then on a free plan the keeping notice): whichever the dialog
+      // puts, answered as the organizer would.
+      const answer = other.getByRole("alertdialog").getByRole("button", { name: /^(Complete anyway|Make results final|Complete it)$/ });
+      await answer.click();
+      await answer.click({ timeout: 3_000 }).catch(() => {});
       await expect.poll(status, { timeout: 30_000, message: "Complete did not complete it" }).toBe("completed");
 
       // ── 3. The stale page: Nominate is refused beside the press, and the screen catches up ──
