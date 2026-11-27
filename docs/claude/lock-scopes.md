@@ -51,6 +51,18 @@ only records money and never moves it (hard rule 7).
 `entry fee as set up` is `saveEntryTerms` / `saveEvent`, which already lock (`field`, `details`) at launch and at completion.
 `every-lock-scope-is-asked.test.ts` classifies every exported action of these files, so a new one cannot arrive without a side.
 
+## A closed round and a signed-off result are not scopes, they are the sink's (B128, 27 Nov 2026)
+
+`Stage.closedAt` is not one of the nine scopes and `setRoundClosed` sits outside `assertUnlocked` on purpose. What it shuts is a
+PLAYER's write, and every player write of a match's holes or result asks ONE function whether it may: `mayWriteMatch`
+(`services/match-membership.ts`; the signed-in doors reach it through `assertOwnMatch`). It refuses a closed round
+(`roundClosedRefusal`, the one sentence `ROUND_CLOSED_REFUSAL` that `assertRoundOpen` also throws) and a `confirmed` result
+(`SIGNED_OFF_MATCH_REFUSAL`), read fresh from the rows. A team medal card has no match, so `saveTeamScorecard` asks
+`roundClosedRefusal` itself for a player. Staff never reach it: the committee corrects, or reopens. The tap card and the
+offline replay say it where the press was (the queue keeps the copy on the phone and reports "Not sent: …"). Held by
+`a-closed-round-takes-no-taps.audit.test.ts` (each path against real rows), `every-player-match-write-asks-the-sink.test.ts`
+(a new writer that skips the sink is red) and `e2e/closed-round-refuses-a-tap.spec.ts`.
+
 ## On screen
 
 A screen that draws a locked control reads `screenLocksFor(eventId, [scope…])`, mounts `ScopeLockBanner`, and hands the control
