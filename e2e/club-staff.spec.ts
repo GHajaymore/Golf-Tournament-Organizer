@@ -1,4 +1,3 @@
-import { savedBeforeReload } from "./save-settled";
 import { createHmac } from "node:crypto";
 import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
@@ -280,7 +279,7 @@ test.describe("@redesign", () => {
       await add.locator("label.seg-opt", { hasText: /^\s*Member\s*$/ }).click();
       await add.getByRole("button", { name: "Add staff" }).click();
       await expect.poll(async () => (await membership())?.role, { timeout: 20_000, message: "the person was not added" }).toBe("member");
-      await savedBeforeReload(add);
+      await expect(staff.locator("tbody tr", { hasText: email }).first(), "the person added is not listed before the reload").toBeVisible();
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => {});
       await openStaffAndAccess(page);
@@ -303,7 +302,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await prisma.organization.findUniqueOrThrow({ where: { id: club.orgId } })).currency, { timeout: 20_000, message: "the currency was not saved" })
         .toBe("EUR");
-      await savedBeforeReload(money);
+      await expect(money.getByText("Saved.").first(), "the currency does not say it was saved").toBeVisible();
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => {});
       const again = await openSettingsTab(page, "Money");
@@ -357,7 +356,6 @@ test.describe("@redesign", () => {
         "somebody was added to the staff by a stale press",
       ).toBe(0);
 
-      await savedBeforeReload(staff);
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => {});
       await openStaffAndAccess(page);

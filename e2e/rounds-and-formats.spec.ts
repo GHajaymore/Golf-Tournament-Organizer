@@ -1,4 +1,3 @@
-import { savedBeforeReload } from "./save-settled";
 import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import {
@@ -574,7 +573,6 @@ test.describe("@redesign", () => {
       await expect.poll(async () => (await stored()).format, { message: "the format chosen was not stored" }).toBe("Stableford");
       await pick(screen.holesGroup("Round 1"), "9");
       await expect.poll(async () => (await stored()).holes, { message: "nine holes was not stored" }).toBe(9);
-      await savedBeforeReload(page.locator("body"));
       await page.reload();
       await screen.column("Round 1").waitFor({ state: "visible" });
       await expect(screen.formatSelect("Round 1"), "the format did not survive a reload").toHaveValue("Stableford");

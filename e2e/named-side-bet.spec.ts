@@ -1,4 +1,3 @@
-import { savedBeforeReload } from "./save-settled";
 import { test, expect } from "./coverage";
 import { createHmac } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
@@ -199,7 +198,6 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.sideGame.findUniqueOrThrow({ where: { id: bet.id } })).buyInCents, { message: "the new stake never reached the row" })
         .toBe(700);
-      await savedBeforeReload(card());
       await page.reload();
       await expect(card().getByLabel("Stake"), "the stake did not survive a reload").toHaveValue(/^7(\.00)?$/);
     } finally {

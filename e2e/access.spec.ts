@@ -1,4 +1,3 @@
-import { savedBeforeReload } from "./save-settled";
 import { test, expect, closeAll } from "./coverage";
 import { overflowing } from "./overflow";
 import { openSettingsTab } from "./settings-tabs";
@@ -136,7 +135,7 @@ test.describe("@redesign", () => {
         .toBe("assistant");
 
       // The kept value, on a fresh load of the same screen.
-      await savedBeforeReload(add);
+      await expect(events.locator("tr", { hasText: helperEmail }), "the helper is not listed before the reload").toBeVisible();
       await desk.reload();
       await desk.waitForLoadState("networkidle").catch(() => {});
       await openStaffAndAccess(desk);

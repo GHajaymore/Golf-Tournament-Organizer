@@ -480,7 +480,7 @@ test.describe("@redesign a round robin's next draw on Tee times & draw", () => {
       await centre(press);
       await press.click();
       await expect.poll(matches, { message: "Round 2 was not drawn as two round robins of six" }).toBe(12);
-      await savedBeforeReload(page.locator("body"));
+      await expect((await screen.openSection("draw")).getByRole("button", { name: "Redraw Round 2's matches", exact: true }), "the draw section does not know it is drawn").toBeVisible();
       await page.reload();
       await expect(
         (await screen.openSection("draw")).getByRole("button", { name: "Redraw Round 2's matches", exact: true }),
@@ -545,7 +545,7 @@ test.describe("@redesign the play-off for third place on Tee times & draw", () =
       await expect.poll(async () => (await stored()).thirdPlace, { message: "the play-off for third was not switched on" }).toBe(true);
 
       // After a reload it is still on, and offers the match between the two beaten semi-finalists.
-      await savedBeforeReload(third);
+      await expect(third.locator("strong", { hasText: / v / }), "the play-off is not offered before the reload").toBeVisible();
       await page.reload();
       const again = (await screen.openSection("draw")).locator("[data-third-place]");
       await expect(again.getByRole("checkbox", { name: /Play-off for third place/ }), "the switch did not survive a reload").toBeChecked();
@@ -560,7 +560,7 @@ test.describe("@redesign the play-off for third place on Tee times & draw", () =
       const made = await playOffs();
       expect([made[0].playerAId, made[0].playerBId].sort(), "the play-off is not between the two beaten semi-finalists").toEqual(beaten.map((p) => p.id).sort());
 
-      await savedBeforeReload(again);
+      await expect(third.getByText(/The play-off is made/), "the screen does not say the play-off is made").toBeVisible();
       await page.reload();
       await expect(
         (await screen.openSection("draw")).locator("[data-third-place]").getByText(/The play-off is made/),

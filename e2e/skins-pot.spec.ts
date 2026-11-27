@@ -1,4 +1,3 @@
-import { savedBeforeReload } from "./save-settled";
 import { test, expect, closeAll, type Page } from "./coverage";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -195,7 +194,6 @@ test.describe("@redesign", () => {
           message: "the stake was not stored",
         })
         .toBe(500);
-      await savedBeforeReload(pot);
       await page.reload();
       await expect(screen.skinsCard().getByLabel(/^Buy-in \(/), "the stake did not survive a reload").toHaveValue(/^5(\.00)?$/);
     } finally {

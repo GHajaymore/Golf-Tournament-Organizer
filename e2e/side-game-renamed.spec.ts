@@ -1,4 +1,3 @@
-import { savedBeforeReload } from "./save-settled";
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, centre, saidBeside } from "./rounds-fixture";
@@ -152,7 +151,7 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await prisma.skinsPot.findUniqueOrThrow({ where: { id: skins.id } })).groupKey, { message: "the pot did not move to the new name" })
         .toBe(TO);
-      await savedBeforeReload(card);
+      await expect(potCard(TO), "the new name is not on Side games before the reload").toBeVisible();
       await page.reload();
       await expect(potCard(TO), "the new name is not on Side games after a reload").toBeVisible();
     } finally {

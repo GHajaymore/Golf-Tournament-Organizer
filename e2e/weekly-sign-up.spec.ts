@@ -210,7 +210,7 @@ test.describe("@redesign the week's list and groups on Tee times & draw", () => 
         await outLabel.click();
         await expect.poll(async () => (await answer())?.status ?? null, { message: "the secretary's Out was not stored" }).toBe("out");
         expect((await answer())!.decidedBy, "the answer is not under the secretary's name").toBe("Rowan Secretary");
-        await savedBeforeReload(who);
+        await expect(who, "the list does not count the player out before the reload").toContainText(/3 in \(3 by default\) · 1 out/);
         await page.reload();
         await expect(await screen.openSection("whoIn"), "after a reload the list does not count the player out").toContainText(/3 in \(3 by default\) · 1 out/);
 
