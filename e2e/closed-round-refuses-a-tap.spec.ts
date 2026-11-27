@@ -124,8 +124,16 @@ test("a tap after the round is closed is refused in words and the hole is not wr
     await test.step("after a reload the hole is unchanged, and still not written", async () => {
       await page.reload();
       await page.waitForLoadState("load");
-      // The copy left on the phone is taken up and sent again on the way in; give it the time to be refused.
-      await page.waitForTimeout(3_000);
+      // Back to the card if the page returns to the list.
+      const card = page.getByRole("group", { name: /^Who won hole \d+$/ });
+      if (!(await card.first().isVisible({ timeout: 8_000 }).catch(() => false))) await keepCardOf(page, "Zz Closer");
+      // The copy left on the phone (holes 1 and 2) is taken up and sent again; the closed round must refuse it AGAIN, in
+      // words. Seeing that refusal is what proves the replay reached the server, so the unchanged row below means "refused".
+      await expect(
+        page.getByRole("status").filter({ hasText: "The committee has closed this round" }),
+        "the phone's copy was not sent again after the reload, so nothing proves it was refused",
+      ).toBeVisible({ timeout: 20_000 });
+      // Hole 1 as it was before the refused tap; hole 2 never written.
       expect(await stored(), "a reload wrote hole 2 to a closed round").toBe("A,,");
     });
 

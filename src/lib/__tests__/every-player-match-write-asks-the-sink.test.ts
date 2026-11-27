@@ -19,7 +19,8 @@ import { readSource } from "./source";
  */
 
 const ASKS_THE_SINK = /\b(?:mayWriteMatch|assertOwnMatch|roundClosedRefusal)\s*\(/;
-const WRITES = /prisma\.(?:match|matchScorecard|teamScorecard)\.(?:update|updateMany|upsert|create|createMany|delete|deleteMany)\b/;
+// Any client name: `prisma`, a transaction's `tx`, `db`, a callback's `t` ... a writer inside `$transaction` is a writer.
+const WRITES = /\b[A-Za-z_$][\w$]*\.(?:match|matchScorecard|teamScorecard)\.(?:update|updateMany|upsert|create|createMany|delete|deleteMany)\b/;
 // A CALL to a staff gate, never a role comparison: `applyMatchResult` compares roles to let staff skip ONE check and is a
 // player's door, so a comparison would excuse the very action this sweep is for (found by the mutation below).
 const STAFF_ONLY = /\b(?:requireAdmin|requireStaff|requireAdminEvent|requireStaffEvent)\s*\(/;
@@ -78,6 +79,27 @@ export async function keepMyWholeMatchAgain(matchId: string) {
 }
 `;
     expect(writersThatSkipTheSink(staff)).toEqual([]);
+  });
+
+  it("CONTROL: a writer inside a transaction (tx.match.update, tx.match.upsert) that skips the sink is caught", () => {
+    for (const call of ["update", "upsert", "updateMany"]) {
+      const skipsInTx = `
+export async function keepMyMatchInATransaction(matchId: string) {
+  await prisma.$transaction(async (tx) => {
+    await tx.match.${call}({ where: { id: matchId }, data: { holes: "[]" } });
+  });
+}
+`;
+      expect(writersThatSkipTheSink(skipsInTx), call).toEqual(["keepMyMatchInATransaction"]);
+      const asksInTx = skipsInTx.replace("await prisma.$transaction", "await mayWriteMatch({});\n  await prisma.$transaction");
+      expect(writersThatSkipTheSink(asksInTx), call).toEqual([]);
+    }
+    const cards = `
+export async function saveCardsInTx() {
+  await db.$transaction(async (t) => { await t.teamScorecard.create({ data: {} }); });
+}
+`;
+    expect(writersThatSkipTheSink(cards)).toEqual(["saveCardsInTx"]);
   });
 
   it("CONTROL: the sweep reads the real files (it finds the writers it is meant to hold)", () => {
