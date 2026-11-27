@@ -1,6 +1,10 @@
 import "server-only";
 import { cache } from "react";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
+
+/** The client a lock is read on: the shared one, or a transaction's own (B124). */
+export type LockDb = Prisma.TransactionClient;
 import { roundKicker, roundLabel } from "../domain/round-label";
 import { cardsNotFinal } from "../domain/cut-ready";
 import { allowsAutoConfirm } from "../tournament-settings";
@@ -185,8 +189,8 @@ function leagueOf(e: { playKind: string; leaguePoints: string; attendanceMode: s
  * (`a-locked-scope-is-refused-in-words.audit.test.ts`, its last describe), so
  * the banner and the refusal cannot disagree. Request-cached, like the batch.
  */
-export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | null> => {
-  const event = await prisma.event.findUnique({
+export async function readLockFacts(eventId: string, db: LockDb = prisma): Promise<LockFacts | null> {
+  const event = await db.event.findUnique({
     where: { id: eventId },
     select: {
       status: true,
@@ -203,7 +207,7 @@ export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | n
     },
   });
   if (!event) return null;
-  const stages = await prisma.stage.findMany({
+  const stages = await db.stage.findMany({
     where: { eventId },
     orderBy: { position: "asc" },
     select: { id: true, type: true, format: true, scoringBasis: true },
@@ -213,15 +217,15 @@ export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | n
   if (event.bracketMode === "flights" && knockouts.length > 0) {
     const ids = knockouts.map((s) => s.id);
     const [cards, teamCards, matches, winners] = await Promise.all([
-      prisma.scorecard.groupBy({ by: ["stageId"], where: { eventId, stageId: { in: ids } } }),
-      prisma.teamScorecard.groupBy({ by: ["stageId"], where: { eventId, stageId: { in: ids } } }),
-      prisma.match.findMany({
+      db.scorecard.groupBy({ by: ["stageId"], where: { eventId, stageId: { in: ids } } }),
+      db.teamScorecard.groupBy({ by: ["stageId"], where: { eventId, stageId: { in: ids } } }),
+      db.match.findMany({
         where: { eventId, stageId: { in: ids } },
         select: { id: true, eventId: true, stageId: true, round: true, playerAId: true, playerBId: true, holes: true, forfeitedBy: true },
       }),
-      prisma.bracketWinner.count({ where: { eventId } }),
+      db.bracketWinner.count({ where: { eventId } }),
     ]);
-    const matchCards = await prisma.matchScorecard.findMany({
+    const matchCards = await db.matchScorecard.findMany({
       where: { matchId: { in: matches.map((m) => m.id) } },
       select: { eventId: true, matchId: true, slot: true, strokes: true },
     });
@@ -241,7 +245,10 @@ export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | n
       hasResult: played.has(s.id),
     })),
   };
-});
+}
+
+/** `readLockFacts`, read once per request. A write's own re-check reads it UNCACHED (`readLockFacts`, B124). */
+export const lockFactsFor = cache(readLockFacts);
 
 /** Rows grouped by tournament, in the order they came. */
 function byEvent<T extends { eventId: string }>(rows: readonly T[]): Map<string, T[]> {
