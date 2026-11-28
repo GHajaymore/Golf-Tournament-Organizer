@@ -1,5 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
-import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PLANS } from "../../src/lib/plans";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
@@ -327,7 +327,6 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
   }
 
   if (PHASE === "A5") {
-    const field = names(ROSTER, OFFSET);
     const PAR = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5];
     const facts = await eventFacts(A_NAME);
     const kit = facts!.players.find((p) => p.name === "Kit Fernleigh")!;

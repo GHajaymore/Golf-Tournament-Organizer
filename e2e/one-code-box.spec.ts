@@ -1,5 +1,5 @@
 import { test, expect, type Page, type BrowserContext, type Browser, type TestInfo } from "./coverage";
-import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSession, dayIn, NAMES, type Club } from "./rounds-fixture";
+import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSession, dayIn, type Club } from "./rounds-fixture";
 import { watchPageErrors } from "./page-errors";
 import { keepCardOf } from "./keep-on-play";
 import { CODE_WORDS } from "../src/lib/domain/code-shape";

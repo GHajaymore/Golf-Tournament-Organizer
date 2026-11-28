@@ -2,7 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
-import { expectRoundDoors, expectScopeLock, FIELD_LOCKED_LATE_ENTRY_WITH_FLIGHT, LOCKED_LIVE } from "./expect-tournament-locks";
+import { expectRoundDoors, expectScopeLock, FIELD_LOCKED_LATE_ENTRY_WITH_FLIGHT } from "./expect-tournament-locks";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
