@@ -344,9 +344,15 @@ describe("team match generation", () => {
   });
 
   it("will not silently discard scored matches", () => {
-    const body = src().slice(src().indexOf("generateTeamMatches"));
+    // generateTeamMatches' OWN body (to the next export): asks the one redraw rule before it deletes anything (B115b).
+    const from = src().indexOf("export async function generateTeamMatches");
+    const rest = src().slice(from + 1);
+    const next = rest.indexOf("\nexport ");
+    const body = rest.slice(0, next === -1 ? undefined : next);
     expect(body).toMatch(/needsConfirm: true/);
-    expect(body).toMatch(/Scores have already been recorded/);
+    const asks = body.indexOf("redrawRefusalFor(");
+    expect(asks, "generateTeamMatches no longer asks the one redraw rule").toBeGreaterThan(-1);
+    expect(asks).toBeLessThan(body.indexOf("deleteMany"));
   });
 });
 

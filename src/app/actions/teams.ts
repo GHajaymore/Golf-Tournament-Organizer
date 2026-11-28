@@ -368,8 +368,11 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
    * concurrent delete, a constraint, a dropped connection) leaves the round as
    * it was, never a part-drawn round robin.
    */
-  await prisma.$transaction(async (tx) => {
+  const refusedInside = await prisma.$transaction(async (tx): Promise<string | null> => {
     if (existing.length > 0) {
+      // THE SAME RULE AGAIN ON THE TRANSACTION (B115b): a hole tapped since the check above is read before the delete.
+      const scoredNow = await redrawRefusalFor(eventId, stageId, tx);
+      if (scoredNow) return scoredNow;
       await tx.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
     }
 
@@ -436,7 +439,9 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
         holes: emptyHoles,
       })),
     });
+    return null;
   });
+  if (refusedInside) return { ok: false, error: refusedInside };
 
   await refresh();
   return { ok: true };
@@ -480,12 +485,9 @@ export async function autoDrawTeams(
     return { ok: false, needsConfirm: true, existing: existing.length };
   }
   if (existing.length > 0) {
-    const scored = await prisma.teamScorecard.count({
-      where: { teamId: { in: existing.map((t) => t.id) }, NOT: { strokes: "[]" } },
-    });
-    if (scored > 0) {
-      return { ok: false, error: "Scores have already been recorded for this round's teams." };
-    }
+    // Sides are deleted under their matches, so ask the one rule of the round (a card with a stroke OR a tapped hole).
+    const scored = await redrawRefusalFor(eventId, stageId);
+    if (scored) return { ok: false, error: scored };
     await prisma.team.deleteMany({ where: { id: { in: existing.map((t) => t.id) } } });
   }
 

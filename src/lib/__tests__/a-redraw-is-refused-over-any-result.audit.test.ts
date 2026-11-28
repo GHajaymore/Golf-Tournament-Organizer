@@ -33,7 +33,8 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
 
 const { drawLeagueWeek } = await import("@/app/actions/league");
-const { generateTeamMatches } = await import("@/app/actions/teams");
+const { generateTeamMatches, autoDrawTeams } = await import("@/app/actions/teams");
+const { prisma: appPrisma } = await import("@/lib/db");
 
 const EMPTY = JSON.stringify(new Array(18).fill(null));
 const TAPPED = JSON.stringify(["A", ...new Array(17).fill(null)]);
@@ -158,12 +159,39 @@ for (const c of cases) {
       const [first] = await matches();
       await prisma.match.update({ where: { id: first.id }, data: { holes: TAPPED } });
       expect(await prisma.teamScorecard.count({ where: { eventId: c.eventId() } })).toBe(0);
-      const before = await matches();
-      const res = await c.draw(true);
-      expect(res).toEqual({ ok: false, error: expect.stringMatching(REFUSAL) });
-      expect(await matches()).toEqual(before);
-      expect(before.find((m) => m.id === first.id)?.holes).toBe(TAPPED);
-      await prisma.match.update({ where: { id: first.id }, data: { holes: EMPTY } });
+      try {
+        const before = await matches();
+        const res = await c.draw(true);
+        expect(res).toEqual({ ok: false, error: expect.stringMatching(REFUSAL) });
+        expect(await matches()).toEqual(before);
+        expect(before.find((m) => m.id === first.id)?.holes).toBe(TAPPED);
+      } finally {
+        await prisma.match.update({ where: { id: first.id }, data: { holes: EMPTY } });
+      }
+    });
+
+    it("a hole tapped AFTER the first check and BEFORE the write is caught by the re-check on the transaction", async () => {
+      session.eventId = c.eventId();
+      const [first] = await matches();
+      const real = appPrisma.$transaction.bind(appPrisma);
+      // The gap: the pre-check has passed (nothing recorded); a hole is tapped as the transaction is about to open.
+      vi.spyOn(appPrisma, "$transaction").mockImplementation(((fn: unknown, ...rest: unknown[]) => {
+        if (typeof fn !== "function") return (real as (...a: unknown[]) => unknown)(fn, ...rest);
+        return (async () => {
+          await prisma.match.update({ where: { id: first.id }, data: { holes: TAPPED } });
+          return (real as (...a: unknown[]) => unknown)(fn, ...rest);
+        })();
+      }) as never);
+      try {
+        const before = (await matches()).map((m) => m.id);
+        const res = await c.draw(true);
+        expect(res).toEqual({ ok: false, error: expect.stringMatching(REFUSAL) });
+        expect((await matches()).map((m) => m.id)).toEqual(before);
+        expect((await matches()).find((m) => m.id === first.id)?.holes).toBe(TAPPED);
+      } finally {
+        vi.restoreAllMocks();
+        await prisma.match.update({ where: { id: first.id }, data: { holes: EMPTY } });
+      }
     });
 
     it("a match card holding a stroke and NO team card is refused, and the matches stand", async () => {
@@ -184,3 +212,48 @@ for (const c of cases) {
     });
   });
 }
+
+describe("autoDrawTeams: replacing a round's sides over a recorded result", () => {
+  let stageId = "";
+  let matchId = "";
+  const sideIds = async () =>
+    (await prisma.team.findMany({ where: { eventId: plainEvent, stageId }, select: { id: true }, orderBy: { id: "asc" } })).map((t) => t.id);
+
+  beforeAll(async () => {
+    stageId = (
+      await prisma.stage.create({ data: { eventId: plainEvent, position: 5, type: "Round Robin", format: "Four-Ball", holes: 18 }, select: { id: true } })
+    ).id;
+    for (let i = 0; i < 4; i += 1) {
+      await prisma.player.create({
+        data: { eventId: plainEvent, name: `${TAG} auto p${i}`, email: `${TAG}-auto${i}@example.invalid`, handicap: i, seed: i + 1, status: "confirmed" },
+      });
+    }
+    const a = await prisma.team.create({ data: { eventId: plainEvent, stageId, name: `${TAG} auto a`, seed: 1 }, select: { id: true } });
+    const b = await prisma.team.create({ data: { eventId: plainEvent, stageId, name: `${TAG} auto b`, seed: 2 }, select: { id: true } });
+    const group = await prisma.group.create({ data: { eventId: plainEvent, stageId, isCarrier: true, name: `${TAG} auto carrier`, position: 9 }, select: { id: true } });
+    matchId = (
+      await prisma.match.create({
+        data: { eventId: plainEvent, stageId, groupId: group.id, round: 1, playerAId: "", playerBId: "", teamAId: a.id, teamBId: b.id, holes: TAPPED },
+        select: { id: true },
+      })
+    ).id;
+  });
+
+  it("a match holding a tapped hole and NO team card: the replace is refused and the sides stand", async () => {
+    session.eventId = plainEvent;
+    const before = await sideIds();
+    expect(before).toHaveLength(2);
+    expect(await autoDrawTeams(stageId, true)).toEqual({ ok: false, error: expect.stringMatching(REFUSAL) });
+    expect(await sideIds()).toEqual(before);
+  });
+
+  it("CONTROL: with the hole cleared, the same replace redraws the sides", async () => {
+    session.eventId = plainEvent;
+    const before = await sideIds();
+    await prisma.match.update({ where: { id: matchId }, data: { holes: EMPTY } });
+    expect(await autoDrawTeams(stageId, true)).toMatchObject({ ok: true });
+    const after = await sideIds();
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.some((id) => before.includes(id))).toBe(false);
+  });
+});
