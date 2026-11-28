@@ -738,8 +738,12 @@ describe("a player writes their own scores and nobody else's", () => {
     const membership = readSource("src", "lib", "services", "match-membership.ts");
     const own = membership.slice(membership.indexOf("export async function assertOwnMatch"));
     expect(own).toMatch(/mayWriteMatch\(\{ eventId, match, actorIds: \[\.\.\.own\], epoch \}\)/);
-    const may = membership.slice(membership.indexOf("export async function mayWriteMatch"));
-    expect(may.slice(0, may.indexOf("\n}\n"))).toMatch(/isInMatch\(input\.match, input\.actorIds\)/);
+    // B128 split the "who" half into `mayWriteMatchWho` (the "when" checks wrap it):
+    // the guarantee is that the public sink still asks who, and who still asks `isInMatch`.
+    const may = membership.slice(membership.indexOf("export async function mayWriteMatch("));
+    expect(may.slice(0, may.indexOf("\n}\n"))).toMatch(/mayWriteMatchWho\(input\)/);
+    const who = membership.slice(membership.indexOf("async function mayWriteMatchWho"));
+    expect(who.slice(0, who.indexOf("\n}\n"))).toMatch(/isInMatch\(input\.match, input\.actorIds\)/);
     const isIn = membership.slice(membership.indexOf("export async function isInMatch"));
     expect(isIn.slice(0, 900)).toMatch(/teamMember\.findFirst/);
   });

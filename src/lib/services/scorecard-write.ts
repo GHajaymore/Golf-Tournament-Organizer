@@ -262,10 +262,17 @@ export async function writeScorecard(input: {
  * reopens the round.
  */
 export async function assertRoundOpen(eventId: string, stageId: string): Promise<void> {
+  const refused = await roundClosedRefusal(eventId, stageId);
+  if (refused) throw new Error(refused);
+}
+
+/** The ONE sentence a closed round gives a player (B128). */
+export const ROUND_CLOSED_REFUSAL = "The committee has closed this round, so no more scores can be entered for it.";
+
+/** `ROUND_CLOSED_REFUSAL` while the round is closed, else null: the answer `assertRoundOpen` throws and `mayWriteMatch` returns. */
+export async function roundClosedRefusal(eventId: string, stageId: string): Promise<string | null> {
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { closedAt: true } });
-  if (stage?.closedAt) {
-    throw new Error("The committee has closed this round, so no more scores can be entered for it.");
-  }
+  return stage?.closedAt ? ROUND_CLOSED_REFUSAL : null;
 }
 
 /**

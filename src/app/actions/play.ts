@@ -708,11 +708,7 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
   }
-  try {
-    await assertRoundOpen(session.eventId, session.stageId);
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "This round is closed." };
-  }
+  // A closed round is refused at the sink, `mayWriteMatch`, below (B128).
   const keptByHoles = await keptByRefusal(match.stageId, "cards");
   if (keptByHoles) return { ok: false, error: keptByHoles };
 
