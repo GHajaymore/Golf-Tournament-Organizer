@@ -145,7 +145,8 @@ function TeamCard({ team, unplaced, busy, locked }: { team: Team; unplaced: Pers
           Save name
         </button>
         {locked && <ScopeLockMark />}
-        <SaveState status={saveStatus} />
+        {/* A refused press says so in the alert and never "Saved" beside it. */}
+        <SaveState status={error ? "idle" : saveStatus} />
         {!name.trim() && (
           <p role="alert" className="form-error" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
             A team needs a name. Type one to save it.
