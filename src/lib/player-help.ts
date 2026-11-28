@@ -269,6 +269,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Signed in, it shows what you won and what you owe.",
       "The settle-up shows once every side game is decided.",
       "It reads Final once the committee closes the round.",
+      "A closed round takes no more scores from players.",
+      "A late tap shows Not sent. Tell the committee.",
       "Level for the last place at a cut? It says Tied.",
       "You are not out until the committee records the tie.",
       "Your club may send one link: the event page.",

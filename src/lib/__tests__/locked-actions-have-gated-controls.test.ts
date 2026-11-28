@@ -98,7 +98,8 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     // (`addStage` left this list on 2026-09-27: adding a round is running the
     // event, not setting it up. Deleting one still refuses.)
     // (`removeStage` left it on 2026-11-08, J12 PR 7b: deleting a round asks the rounds rule — swept below.)
-    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "setStageCarry", "setStageCut"]) {
+    // B115b: the league's four writes ask `refuseIfCompleted`, so the League section's controls must know the lock too.
+    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "setStageCarry", "setStageCut", "nominatePair", "withdrawPair", "setLeagueSettings", "setPlayoffHoleWinner"]) {
       expect(locked.has(a), `${a} should refuse a locked tournament`).toBe(true);
     }
     for (const f of [
@@ -109,6 +110,9 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
       "src/components/ClearScores.tsx",
       "src/components/CutControl.tsx",
       "src/components/RegistrationClient.tsx",
+      "src/components/PairBuilder.tsx",
+      "src/components/LeagueSettings.tsx",
+      "src/components/PlayoffDecision.tsx",
     ]) {
       expect(found.has(f), `${f} should be found calling a lock-refusing action`).toBe(true);
     }

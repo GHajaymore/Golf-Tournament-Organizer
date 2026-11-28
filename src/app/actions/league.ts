@@ -7,6 +7,7 @@ import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-arch
 import { logAudit } from "@/lib/services/action-shared";
 import { refuseIfCompleted } from "@/lib/services/tournament-status";
 import { cleanLeagueDrawRequest } from "@/lib/domain/league-draw-payload";
+import { cleanNomination, cleanPairId, cleanPlayoffDecision } from "@/lib/domain/league-payload";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
@@ -50,7 +51,14 @@ async function requireStaff(): Promise<string> {
  * that mode exists to prevent.
  */
 
-export type LeagueResult = { ok: true } | { ok: false; error: string };
+export type LeagueResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error: string;
+      /** Set when the tournament is completed: the screen catches up with it (`useCaughtUp`). */
+      lock?: ScopeLock;
+    };
 
 /**
  * The club is a FLIGHT — see `Team.clubGroupId`. A `Group` is already named,
@@ -73,11 +81,18 @@ async function clubInEvent(eventId: string, clubId: string) {
  * corrected itself would be a lineup nobody chose.
  */
 export async function nominatePair(
-  stageId: string,
-  clubId: string,
-  playerIds: string[],
+  stageIdArg: string,
+  clubIdArg: string,
+  playerIdsArg: string[],
 ): Promise<LeagueResult> {
+  // The role first, then the payload (B115b: the types are erased; refused in words, nothing read or written).
   const eventId = await requireStaff();
+  const asked = cleanNomination(stageIdArg, clubIdArg, playerIdsArg);
+  if (!asked.ok) return { ok: false, error: asked.error };
+  const { stageId, clubId, playerIds } = asked.value;
+  // COMPLETED ONLY, NEVER LAUNCH (B115b): a live league nominates every week; a finished season's sides are its record.
+  const locked = await refuseIfCompleted(eventId, "sides", "nominate a pair");
+  if (locked) return locked;
 
   const club = await clubInEvent(eventId, clubId);
   if (!club) return { ok: false, error: "That club is not in this league." };
@@ -207,8 +222,14 @@ export async function nominatePair(
  * it, and a captain undoing Thursday on Friday should be told rather than
  * obeyed.
  */
-export async function withdrawPair(pairId: string): Promise<LeagueResult> {
+export async function withdrawPair(pairIdArg: string): Promise<LeagueResult> {
   const eventId = await requireStaff();
+  const asked = cleanPairId(pairIdArg);
+  if (!asked.ok) return { ok: false, error: asked.error };
+  const pairId = asked.value;
+  // COMPLETED ONLY, NEVER LAUNCH (B115b): taking a pair down deletes a side of a finished season.
+  const locked = await refuseIfCompleted(eventId, "sides", "withdraw a pair");
+  if (locked) return locked;
 
   const pair = await prisma.team.findFirst({
     where: { id: pairId, eventId, clubGroupId: { not: null } },
@@ -244,11 +265,14 @@ const MAX_MATCH_BONUS = 18;
  * Organizer only, as every other scoring setting is — an assistant runs the
  * night, the organizer decides what it is worth.
  *
- * NOT LOCKED, and deliberately. The table is derived from the cards on every
- * read, so changing the system re-scores every week already played rather
- * than corrupting anything; a league that realises in week three it meant
- * "holes plus a bonus" must be able to say so. Because it rewrites history on
- * the screen, the change is written to the audit log.
+ * NEVER LOCKED BY LAUNCH, and deliberately; REFUSED ONCE THE TOURNAMENT IS
+ * COMPLETED (B115b: `refuseIfCompleted`, Reopen is the way out). The table is
+ * derived from the cards on every read, so changing the system re-scores every
+ * week already played rather than corrupting anything; a league that realises
+ * in week three it meant "holes plus a bonus" must be able to say so. But once
+ * the season is final the same change would re-score a FINAL table and the
+ * play-off seeding. Because it rewrites history on the screen, the change is
+ * written to the audit log.
  *
  * An empty system switches the league OFF: the Teams screen then shows no
  * league at all, which is what every tournament with flights but no clubs
@@ -269,6 +293,8 @@ export async function setLeagueSettings(input: {
   const eventId = session.eventId;
   const archived = await archiveRefusalFor(eventId);
   if (archived) return { ok: false, error: archived };
+  const locked = await refuseIfCompleted(eventId, "sides", "change the league's settings");
+  if (locked) return locked;
 
   const points =
     input.points === "" ? "" : isLeaguePointsSystem(input.points) ? input.points : null;
@@ -609,10 +635,10 @@ export async function drawLeagueWeek(
  * bracket disagreed with the points.
  */
 export async function setPlayoffHoleWinner(
-  stageId: string,
-  clubAId: string,
-  clubBId: string,
-  winnerId: string,
+  stageIdArg: string,
+  clubAIdArg: string,
+  clubBIdArg: string,
+  winnerIdArg: string,
   /**
    * Overturning a meeting somebody WON, rather than settling a level one.
    *
@@ -620,9 +646,16 @@ export async function setPlayoffHoleWinner(
    * needs saying so deliberately and needs a reason, and every screen prints
    * both beside the result — rather than in a rule that quietly allows it.
    */
-  override?: { reason: string },
+  overrideArg?: { reason: string },
 ): Promise<LeagueResult> {
   const eventId = await requireStaff();
+  const asked = cleanPlayoffDecision(stageIdArg, clubAIdArg, clubBIdArg, winnerIdArg, overrideArg);
+  if (!asked.ok) return { ok: false, error: asked.error };
+  const { stageId, clubAId, clubBId, winnerId, override } = asked.value;
+  // COMPLETED ONLY, NEVER LAUNCH (B115b): the play-off hole decides who came through, so it decides the champion; after
+  // the close, Reopen is the committee's way (Rule 20.2e).
+  const locked = await refuseIfCompleted(eventId, "sides", "record a play-off result");
+  if (locked) return locked;
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },

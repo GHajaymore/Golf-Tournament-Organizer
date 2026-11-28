@@ -176,7 +176,7 @@ describe("closing a round with cards outstanding (TD Q4, Rule 3.3b, Rule 20.1c(4
    * promises the card "counts once it is signed" — it already counts.
    */
   it("where the committee accepts cards: ASKED that it isn't approved, and that it can still be", () => {
-    const staff = { staffApproves: true, disputed: 0 };
+    const staff = { staffApproves: true, disputed: 0, played: true };
     expect(roundCloseCheck({ ...staff, label: "Round 2", unsigned: ["Sam Reed"] })).toEqual({
       ask: "Sam Reed’s card isn’t approved yet. Close Round 2 anyway? You can still approve it afterwards.",
     });
@@ -193,7 +193,7 @@ describe("closing a round with cards outstanding (TD Q4, Rule 3.3b, Rule 20.1c(4
   });
 
   it("where players sign: ASKED that it isn't signed, and that it can still be", () => {
-    const players = { staffApproves: false, disputed: 0 };
+    const players = { staffApproves: false, disputed: 0, played: true };
     expect(roundCloseCheck({ ...players, label: "Round 2", unsigned: ["Sam Reed"] })).toEqual({
       ask: "Sam Reed’s card isn’t signed yet. Close Round 2 anyway? It can still be signed afterwards.",
     });
@@ -206,16 +206,36 @@ describe("closing a round with cards outstanding (TD Q4, Rule 3.3b, Rule 20.1c(4
   });
 
   it("a disputed card or result is REFUSED until it is ruled on — and outranks an unsigned one", () => {
-    expect(roundCloseCheck({ label: "Round 2", unsigned: ["Sam Reed"], staffApproves: true, disputed: 1 })).toEqual({
+    expect(roundCloseCheck({ label: "Round 2", unsigned: ["Sam Reed"], staffApproves: true, disputed: 1, played: true })).toEqual({
       refuse: "1 result in Round 2 is disputed, so the round can’t be closed yet. Settle it on Score entry, then close the round.",
     });
-    expect(roundCloseCheck({ label: "Round 2", unsigned: [], staffApproves: false, disputed: 2 })).toEqual({
+    expect(roundCloseCheck({ label: "Round 2", unsigned: [], staffApproves: false, disputed: 2, played: true })).toEqual({
       refuse: "2 results in Round 2 are disputed, so the round can’t be closed yet. Settle them on Score entry, then close the round.",
     });
   });
 
+  /**
+   * B113, worked from the Rules: a round nobody has played is neither refused nor closed in silence. Abandoning a
+   * round without replaying it is the Committee's decision (Rule 5.7; Committee Procedures, cancelling a round), so
+   * it is ASKED, like an unsigned card (Rule 3.3b(2)). A conceded match is a result (Rule 3.2b(1)), so a round
+   * whose only match was conceded reads as played and is not asked.
+   */
+  it("nothing played: ASKED, in words that say what to do if the round was rained off", () => {
+    const base = { staffApproves: true, unsigned: [] as string[], disputed: 0 };
+    expect(roundCloseCheck({ ...base, label: "Round 2", played: false })).toEqual({
+      ask: "Nobody has played a hole in Round 2 yet. Close it anyway? If play was rained off, keep it open and change its day on Rounds & formats instead.",
+    });
+    // CONTROL: the same round, played, closes without a word.
+    expect(roundCloseCheck({ ...base, label: "Round 2", played: true })).toBeNull();
+  });
+
+  it("nothing played: a dispute still REFUSES first (the order is refusal, then this question)", () => {
+    const res = roundCloseCheck({ label: "Round 2", unsigned: [], staffApproves: true, disputed: 1, played: false });
+    expect(res).toHaveProperty("refuse");
+  });
+
   it("CONTROL: every card final, nothing disputed — closing is not interrupted", () => {
-    expect(roundCloseCheck({ label: "Round 1", unsigned: [], staffApproves: true, disputed: 0 })).toBeNull();
+    expect(roundCloseCheck({ label: "Round 1", unsigned: [], staffApproves: true, disputed: 0, played: true })).toBeNull();
   });
 
   it("which card is final is the cut's own split, so the cut and the close cannot disagree", () => {

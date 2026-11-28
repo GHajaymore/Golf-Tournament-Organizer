@@ -513,11 +513,30 @@ export async function roundCloseFactsFor(eventId: string, stageId: string): Prom
   ]);
   const stage = stages.find((s) => s.id === stageId);
   if (!event || !stage) return null;
-  const [field, cards, disputedMatches] = await Promise.all([
+  const [field, cards, disputedMatches, teamCards, matches, bracketWinners] = await Promise.all([
     prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } }),
     prisma.scorecard.findMany({ where: { eventId, stageId }, orderBy: { id: "asc" }, select: { playerId: true, status: true, strokes: true } }),
     prisma.match.count({ where: { eventId, stageId, scoreStatus: "disputed" } }),
+    // The rest is what `roundsWithResultsFrom` reads for this ONE round: a side's card, the matches, and any bracket winner.
+    prisma.teamScorecard.groupBy({ by: ["stageId"], where: { eventId, stageId } }),
+    prisma.match.findMany({
+      where: { eventId, stageId },
+      select: { id: true, eventId: true, stageId: true, round: true, playerAId: true, playerBId: true, holes: true, forfeitedBy: true },
+    }),
+    prisma.bracketWinner.count({ where: { eventId } }),
   ]);
+  const matchCards = await prisma.matchScorecard.findMany({
+    where: { matchId: { in: matches.map((m) => m.id) } },
+    select: { eventId: true, matchId: true, slot: true, strokes: true },
+  });
+  // HAS ANYTHING BEEN PLAYED: the one rule, asked of this round alone (a round with no result is asked about before it is closed).
+  const played = roundsWithResultsFrom({
+    stages,
+    cards: [...cards.map(() => ({ stageId })), ...teamCards],
+    matchCards,
+    matches,
+    bracketWinners,
+  }).has(stageId);
   const names = new Map(field.map((p) => [p.id, p.name]));
   const staffApproves = !allowsAutoConfirm(settingsOf(event));
   const split = cardsNotFinal(
@@ -530,6 +549,7 @@ export async function roundCloseFactsFor(eventId: string, stageId: string): Prom
     unsigned: reviewsScores(event.shape) ? split.pending.map((c) => names.get(c.playerId) ?? "A player") : [],
     staffApproves,
     disputed: split.disputed.length + disputedMatches,
+    played,
   };
 }
 

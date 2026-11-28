@@ -19,7 +19,7 @@ import { prisma, makeClub, dropClub, makeEvent, addDays, dayIn } from "./rounds-
  *     pressed and kept after a reload.
  *
  * "Settled" is set up in the database (the ruling itself is another screen's spec); the close is the press under test.
- * A match with no holes played is ARRANGED, not played (knockouts-and-leagues.md), and closing does not ask for play.
+ * Each of these has one hole tapped or one side card in: a round nobody has played is ASKED about before it closes (B113, `closing-a-round-nobody-has-played.spec.ts`).
  * Each club is `zz-rd-close-*`, with invented names and `@example.invalid` addresses, dropped afterwards. Service workers
  * blocked. Memory: one browser context and one page at a time, about 150 MB.
  */
@@ -37,6 +37,8 @@ interface Seed {
   /** A play-by date of yesterday, so the scoring window reads Closed by the date. */
   windowShut?: boolean;
   cup?: boolean;
+  /** One hole tapped (or one card in) so the round has a RESULT: a round nobody has played is ASKED about before it closes (B113). */
+  played?: boolean;
 }
 
 interface Built {
@@ -72,13 +74,15 @@ async function build(mark: string, s: Seed): Promise<Built> {
       });
     const sa = await side("Zz Rd Blues", made.flights[0].id, [p0.id, p1.id], 1);
     const sb = await side("Zz Rd Whites", made.flights[1].id, [p2.id, p3.id], 2);
+    // A side's card with scores on it is the medal's RESULT (`roundsWithResultsFrom`); a round with none is asked about before it closes (B113).
+    if (s.played && s.matches === "none") await prisma.teamScorecard.create({ data: { eventId: made.event.id, stageId: stage.id, teamId: sa.id, strokes: JSON.stringify(new Array(18).fill(4)) } });
     if (s.matches === "sides") {
       const carrier = await prisma.group.create({ data: { eventId: made.event.id, name: "Four-Ball - session 1", position: 5, stageId: stage.id, isCarrier: true } });
       matchId = (
         await prisma.match.create({
           data: {
             eventId: made.event.id, stageId: stage.id, groupId: carrier.id, round: 1, playerAId: "", playerBId: "", teamAId: sa.id, teamBId: sb.id,
-            holes: JSON.stringify(new Array(18).fill(null)), ...(s.disputed ? { scoreStatus: "disputed" } : {}),
+            holes: JSON.stringify(s.played ? ["A", ...new Array(17).fill(null)] : new Array(18).fill(null)), ...(s.disputed ? { scoreStatus: "disputed" } : {}),
           },
         })
       ).id;
@@ -109,7 +113,7 @@ test.describe("@redesign closing a team event round on Score entry", () => {
   const MARK = "zz-rd-close-team";
   let built: Built;
   test.beforeAll(async () => {
-    built = await build(MARK, { type: "Stroke Play Round", format: "Four-Ball", matches: "none" });
+    built = await build(MARK, { type: "Stroke Play Round", format: "Four-Ball", matches: "none", played: true });
   });
   test.afterAll(async () => {
     await dropClub(MARK);
@@ -145,7 +149,7 @@ test.describe("@redesign closing a cup session on Score entry", () => {
   const MARK = "zz-rd-close-cup";
   let built: Built;
   test.beforeAll(async () => {
-    built = await build(MARK, { type: "Team Session", format: "Four-Ball", description: "Saturday four-balls", matchKeptBy: "cards", matches: "sides", disputed: true, cup: true });
+    built = await build(MARK, { type: "Team Session", format: "Four-Ball", description: "Saturday four-balls", matchKeptBy: "cards", matches: "sides", disputed: true, cup: true, played: true });
   });
   test.afterAll(async () => {
     await dropClub(MARK);
@@ -193,7 +197,7 @@ test.describe("@redesign closing a match kept by tapping on Score entry", () => 
   let four: Built;
   let one: Built;
   test.beforeAll(async () => {
-    four = await build(FOUR, { type: "Team Session", format: "Four-Ball", description: "Sunday four-balls", matchKeptBy: "holes", matches: "sides", disputed: true, cup: true });
+    four = await build(FOUR, { type: "Team Session", format: "Four-Ball", description: "Sunday four-balls", matchKeptBy: "holes", matches: "sides", disputed: true, cup: true, played: true });
     one = await build(ONE, { type: "Team Session", format: "Match Play", description: "Sunday singles", matches: "singles", windowShut: true, cup: true });
   });
   test.afterAll(async () => {
@@ -236,9 +240,15 @@ test.describe("@redesign closing a match kept by tapping on Score entry", () => 
       await expect(screen.closeLine()).toContainText("Scoring window for ");
       await expect(screen.finishedTick(section), "a singles session offered the tick").toHaveCount(0);
       await expect(section).toContainText("Closed");
-      const answered = page.waitForResponse((r) => r.request().method() === "POST");
       await section.getByRole("button", { name: "Keep it open" }).click();
-      await answered;
+      // The label is drawn at once from the press (RoundDeadlineControl sets its own state first), so the screen cannot say the
+      // save is kept: the stored override can. `false` is "extended past the date" (setStageDeadlineOverride, tournament.ts).
+      await expect
+        .poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: one.stageId }, select: { deadlineOverride: true } })).deadlineOverride, {
+          message: "Keep it open was not stored before the reload",
+          timeout: 20_000,
+        })
+        .toBe(false);
 
       await screen.page.reload();
       await screen.page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });

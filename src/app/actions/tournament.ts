@@ -88,7 +88,7 @@ import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/li
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStartingCards, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { cardRevision, overwritesUnseenFromAll, unanchoredMatchSave, MATCH_CHANGED_ELSEWHERE, MAX_STARTING_CARDS, SIGNED_OFF_MATCH_REFUSAL } from "@/lib/domain/pending-card";
-import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, storedCard, type SaveCardResult } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, roundClosedRefusal, storedCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
   freezeRoundHandicaps,
@@ -3417,8 +3417,9 @@ export async function keepMyMatchHoles(
   holes: HoleResult[],
 ): Promise<{ ok: boolean; error?: string; holes?: HoleResult[] }> {
   const { eventId, session } = await requireScoreEntry();
-  await assertOwnMatch(session, eventId, String(matchId));
   try {
+    // Inside the try: a closed round or a signed-off result is answered in words (B128).
+    await assertOwnMatch(session, eventId, String(matchId));
     await saveMatchHoles(String(matchId), holes);
     // READ BACK, for the honest card: the phone's "Sent" is what the row now holds.
     const row = await prisma.match.findFirst({ where: { id: String(matchId), eventId }, select: { holes: true } });
@@ -3440,8 +3441,8 @@ export async function keepMyMatchHoles(
 
 export async function keepMyMatchResult(matchId: string, winner: "A" | "B" | "H", margin: string): Promise<{ ok: boolean; error?: string }> {
   const { eventId, session } = await requireScoreEntry();
-  await assertOwnMatch(session, eventId, String(matchId));
   try {
+    await assertOwnMatch(session, eventId, String(matchId));
     await applyMatchResult(String(matchId), winner, String(margin ?? ""));
     return { ok: true };
   } catch (err) {
@@ -3466,7 +3467,12 @@ export async function keepMyMatchCard(
   strokes: (number | null)[],
 ): Promise<{ ok: boolean; error?: string; card?: (number | null)[] }> {
   const { eventId, session } = await requireScoreEntry();
-  await assertOwnMatch(session, eventId, String(matchId));
+  try {
+    await assertOwnMatch(session, eventId, String(matchId));
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
+  }
   const match = await prisma.match.findFirst({ where: { id: String(matchId), eventId } });
   if (!match) return { ok: false, error: "Match not found." };
   const mine = await myPlayerIds(eventId, session.email);
@@ -3626,7 +3632,13 @@ export async function forfeitMatch(matchId: string, forfeitedBy: string) {
  */
 export async function clearMatch(matchId: string): Promise<{ ok: boolean; error?: string }> {
   const { eventId, session, settings } = await requireScoreEntry();
-  await assertOwnMatch(session, eventId, matchId);
+  try {
+    await assertOwnMatch(session, eventId, matchId);
+  } catch (err) {
+    // Answered in words (a closed round, a signed-off result), as this action's own refusals are (B128).
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't clear that match." };
+  }
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return { ok: false, error: "That match isn't in this tournament." };
 
@@ -3993,6 +4005,12 @@ export async function saveTeamScorecard(
       return { ok: false, error: "You're not on this team." };
     }
     callerPlayerId = own.id;
+    // A team medal card has no match, so `assertOwnMatch` never saw it: a closed
+    // round refuses it here, in the one sentence (B128). A match card did, above.
+    if (!matchId) {
+      const closed = await roundClosedRefusal(eventId, stageId);
+      if (closed) return { ok: false, error: closed };
+    }
   }
 
   // The card shape must match the format, not the caller's choice.
@@ -8090,7 +8108,12 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
 export async function setRoundClosed(
   stageId: string,
   closed: boolean,
-  /** Must be true to close over a card not yet approved or signed (`roundCloseCheck` asks first). */
+  /**
+   * Must be exactly `true` to close over what `roundCloseCheck` asks about: a card not yet approved or signed, or a
+   * round nobody has played a hole in. ONE flag answers ONE question, and the two can never be asked together (an unsigned
+   * card holds scores, which are a result), so it cannot confirm a question the caller was not shown. A `"use server"`
+   * export takes whatever it is sent, so anything but the boolean `true` is read as "not asked".
+   */
   confirmUnsigned = false,
 ): Promise<{ ok: boolean; error?: string; needsUnsignedConfirm?: boolean }> {
   const gate = await staffEventOrRefusal();
@@ -8121,7 +8144,7 @@ export async function setRoundClosed(
     const facts = await roundCloseFactsFor(eventId, stage.id);
     const check = facts ? roundCloseCheck(facts) : null;
     if (check && "refuse" in check) return { ok: false, error: check.refuse };
-    if (check && "ask" in check && !confirmUnsigned) return { ok: false, needsUnsignedConfirm: true, error: check.ask };
+    if (check && "ask" in check && confirmUnsigned !== true) return { ok: false, needsUnsignedConfirm: true, error: check.ask };
   }
 
   await prisma.stage.update({
