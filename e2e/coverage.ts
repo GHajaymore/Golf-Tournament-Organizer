@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { explainHydration, keepWhatTheServerSent } from "./page-errors";
 import { actionsInFormPost } from "./form-post-action";
+import { watchNavigation } from "./goto-watchdog";
 import { CONTROL_CHANGED, changeLine, watchControls } from "./form-controls";
 
 /**
@@ -171,14 +172,14 @@ function waitsItsTurn(page: Page): void {
   const reload = page.reload.bind(page);
   page.reload = async (...args: Parameters<Page["reload"]>) => {
     await savesAreBack(page);
-    return reload(...args);
+    return watchNavigation(page, `reload ${page.url()}`, () => reload(...args));
   };
   const goto = page.goto.bind(page);
   page.goto = async (...args: Parameters<Page["goto"]>) => {
     await savesAreBack(page);
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return await goto(...args);
+        return await watchNavigation(page, `goto ${String(args[0])}`, () => goto(...args));
       } catch (e) {
         if (attempt >= 2 || !/interrupted by another navigation|NS_BINDING_ABORTED/.test(String(e))) throw e;
         await page.waitForLoadState("networkidle").catch(() => {});
