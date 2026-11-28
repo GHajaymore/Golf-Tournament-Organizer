@@ -336,6 +336,8 @@ test.describe("@redesign", () => {
       // PRESSED as the secretary would: choose the White set and keep it with the one Save.
       await screen.teeSelect().selectOption(white.id);
       await screen.saveAndWait();
+      // "Saved" is the button's own word (EventScreen.tsx:427); the stored tee is the proof the save landed.
+      await expect.poll(async () => (await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId, { message: "the White tees were not stored before the reload" }).toBe(white.id);
 
       await page.reload();
       await page.locator("[data-event-screen]").waitFor({ state: "visible" });
@@ -366,6 +368,7 @@ test.describe("@redesign", () => {
       // And back to the rule's own default, by the same press.
       await screen.teeSelect().selectOption("");
       await screen.saveAndWait();
+      await expect.poll(async () => (await rfPrisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId, { message: "the default tees were not stored before the reload" }).toBeNull();
       await page.reload();
       await page.locator("[data-event-screen]").waitFor({ state: "visible" });
       await expect(screen.teeSelect()).toHaveValue("");

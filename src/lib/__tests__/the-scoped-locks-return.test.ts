@@ -212,6 +212,34 @@ describe("drawing a league week is refused only once completed (B115)", () => {
     expect(readSource(LEAGUE)).not.toMatch(/refuseIfLocked\(/);
   });
 
+  /**
+   * B115b: THE FOUR OTHER LEAGUE WRITES ASK THE SAME ONE FUNCTION, in the same place and the same words, and never
+   * through a league-local wrapper (the class sweep in `locked-actions-have-gated-controls.test.ts` finds an action by
+   * that call). After the role (and the payload, and for the settings the archive rule), before any row is read or written.
+   */
+  it.each([
+    ["nominatePair", "nominate a pair"],
+    ["withdrawPair", "withdraw a pair"],
+    ["setLeagueSettings", "change the league's settings"],
+    ["setPlayoffHoleWinner", "record a play-off result"],
+  ])("%s asks refuseIfCompleted(eventId, \"sides\", \"%s\"), returns it, and before any read or write", (name, what) => {
+    const b = body(LEAGUE, name);
+    expect(b).toContain(`const locked = await refuseIfCompleted(eventId, "sides", "${what}");\n  if (locked) return locked;`.replace(/\n/g, b.includes("\r\n") ? "\r\n" : "\n"));
+    const asked = b.indexOf("refuseIfCompleted(");
+    const firstTouch = b.search(/\bprisma\.\w+\.\w+\(|\bleagueMeetings\(|\bclubInEvent\(/);
+    expect(firstTouch, "the action's reads and writes were not found").toBeGreaterThan(0);
+    expect(asked, `${name} reads or writes before it asks`).toBeLessThan(firstTouch);
+  });
+
+  it("the generic side writes refuse a league before they ask the lock, in the one sentence", () => {
+    for (const name of ["createTeam", "deleteTeam", "addTeamMember", "removeTeamMember"]) {
+      const b = body("src/app/actions/teams.ts", name);
+      expect(b, name).toMatch(/const league = await leagueRefusal\(eventId\);\s*if \(league\) return \{ ok: false, error: league \};/);
+      expect(b.indexOf("leagueRefusal("), `${name} asks the lock first`).toBeLessThan(b.indexOf("refuseIfLocked("));
+    }
+    expect(readSource("src/app/actions/teams.ts")).toMatch(/isLeaguePointsSystem\(event\?\.leaguePoints\) \? LEAGUE_SIDES_REFUSAL : null/);
+  });
+
   it("the service's completion reader goes through completionLockOf, with no copy of its test", () => {
     const svc = readSource("src/lib/services/tournament-status.ts");
     expect(svc).toMatch(/completionLockOf\(locksFor\(facts\), scope\)/);
@@ -222,7 +250,11 @@ describe("drawing a league week is refused only once completed (B115)", () => {
 describe("the screens draw the lock their actions ask", () => {
   it("Teams & pairs reads the machine's sides lock into the one shared banner", () => {
     const page = readSource("src", "app", "(app)", "teams", "page.tsx");
-    expect(page).toMatch(/const sidesLock = await scopeLockFor\(session\.eventId, "sides"\);/);
+    // B115b: a league's page is read COMPLETION-ONLY (its sides have one door, the League section, open all season); every
+    // other tournament keeps the blanket lock. One ternary on the one switch, so the two readers cannot swap.
+    expect(page).toMatch(/const isLeague = isLeaguePointsSystem\(leagueEvent\?\.leaguePoints\);/);
+    expect(page).toMatch(/const sidesLock = isLeague \? completedLock : await scopeLockFor\(session\.eventId, "sides"\);/);
+    expect(page).toMatch(/league=\{isLeague\}/);
     expect(page).toMatch(/<ScopeLockBanner locks=\{sidesLock \? \[sidesLock\] : \[\]\}/);
   });
 

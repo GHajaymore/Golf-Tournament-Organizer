@@ -265,3 +265,10 @@ export function leagueSettingsToSend(
     pairs: form.system !== "" ? typed(form.pairs) : stored.pairs,
   };
 }
+
+/**
+ * A LEAGUE'S SIDES HAVE ONE DOOR, THE LEAGUE SECTION (B115b). The generic side controls (add a team, remove one, add or
+ * remove a member, draw) refuse a league in these words; tests read the constant rather than retyping the sentence.
+ */
+export const LEAGUE_SIDES_REFUSAL =
+  "This tournament is run as a league. Nominate or withdraw pairs, and draw the week, in the League section.";

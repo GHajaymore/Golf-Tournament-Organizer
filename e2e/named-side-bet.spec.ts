@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { consoleUrl } from "../src/lib/console-url";
 import * as rf from "./rounds-fixture";
+import { savedBeforeReload } from "./save-settled";
 
 /**
  * A NAMED SIDE BET THAT IS NOT SKINS, FROM START TO GONE (2026-10-11).
@@ -198,6 +199,8 @@ test.describe("@redesign", () => {
       await expect
         .poll(async () => (await rf.prisma.sideGame.findUniqueOrThrow({ where: { id: bet.id } })).buyInCents, { message: "the new stake never reached the row" })
         .toBe(700);
+      // The stake saves on blur and the card's "Saving…" badge (ContestsClient.tsx:460, `useSaveStatus(pending)`) stays until the refresh is back.
+      await savedBeforeReload(card());
       await page.reload();
       await expect(card().getByLabel("Stake"), "the stake did not survive a reload").toHaveValue(/^7(\.00)?$/);
     } finally {

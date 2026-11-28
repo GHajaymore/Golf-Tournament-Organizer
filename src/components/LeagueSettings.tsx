@@ -2,6 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { setLeagueSettings } from "@/app/actions/league";
+import { ScopeLockMark } from "@/components/ScopeLockBanner";
+import { useCaughtUp } from "@/components/useAction";
+import { bringIntoView } from "@/lib/bring-into-view";
 import {
   LEAGUE_POINTS_HELP,
   LEAGUE_POINTS_LABEL,
@@ -33,7 +36,13 @@ export function LeagueSettings({
   pairs,
   playoffs,
   canEdit,
+  locked,
 }: {
+  /**
+   * The tournament is COMPLETED (the sides' lock read completion-only, B115b): the settings are shut and marked, and the
+   * way out is Reopen on the dashboard. Never set by launch: a live league's rules stay open all season.
+   */
+  locked: boolean;
   /** Empty when the tournament is not a league. */
   points: LeaguePointsSystem | "";
   matchBonus: number;
@@ -52,6 +61,8 @@ export function LeagueSettings({
   /** Whether the panel is open. Starts open while the league is off; see the note at `<details>`. */
   const [open, setOpen] = useState(points === "");
   const [pending, startTransition] = useTransition();
+  // A save refused because the tournament was completed after this screen was drawn: said here, and the screen catches up.
+  const caughtUp = useCaughtUp();
 
   const touched = () => {
     setSaved(false);
@@ -60,14 +71,16 @@ export function LeagueSettings({
 
   const save = () => {
     startTransition(async () => {
-      const result = await setLeagueSettings({
-        points: system,
-        // A box that is on screen goes as typed — emptied, as NaN, so the
-        // server names it rather than reading zero. A box that is NOT on
-        // screen goes as stored: it used to refuse the save from hiding.
-        ...leagueSettingsToSend({ system, bonus, pairs: count }, { matchBonus, pairs }),
-        playoffs: playoffSize,
-      });
+      const result = caughtUp(
+        await setLeagueSettings({
+          points: system,
+          // A box that is on screen goes as typed — emptied, as NaN, so the
+          // server names it rather than reading zero. A box that is NOT on
+          // screen goes as stored: it used to refuse the save from hiding.
+          ...leagueSettingsToSend({ system, bonus, pairs: count }, { matchBonus, pairs }),
+          playoffs: playoffSize,
+        }),
+      );
       if (result.ok) setSaved(true);
       else setError(result.error);
     });
@@ -103,7 +116,7 @@ export function LeagueSettings({
           id="league-points"
           className="input"
           value={system}
-          disabled={!canEdit || pending}
+          disabled={!canEdit || pending || locked}
           onChange={(e) => {
             setSystem(e.target.value as LeaguePointsSystem | "");
             touched();
@@ -140,7 +153,7 @@ export function LeagueSettings({
             max={18}
             step={1}
             value={bonus}
-            disabled={!canEdit || pending}
+            disabled={!canEdit || pending || locked}
             onChange={(e) => {
               setBonus(e.target.value);
               touched();
@@ -165,7 +178,7 @@ export function LeagueSettings({
             max={24}
             step={1}
             value={count}
-            disabled={!canEdit || pending}
+            disabled={!canEdit || pending || locked}
             onChange={(e) => {
               setCount(e.target.value);
               touched();
@@ -189,7 +202,7 @@ export function LeagueSettings({
             id="league-playoffs"
             className="input"
             value={playoffSize}
-            disabled={!canEdit || pending}
+            disabled={!canEdit || pending || locked}
             onChange={(e) => {
               setPlayoffSize(Number(e.target.value) as LeaguePlayoffSize);
               touched();
@@ -215,6 +228,7 @@ export function LeagueSettings({
       {error && (
         <p
           role="alert"
+          ref={bringIntoView}
           style={{
             margin: "4px 0 0",
             fontSize: 13,
@@ -231,15 +245,12 @@ export function LeagueSettings({
       )}
 
       {canEdit && (
-        <button
-          className="btn btn-primary"
-          type="button"
-          disabled={pending}
-          onClick={save}
-          style={{ marginTop: 8 }}
-        >
-          Save league settings
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+          {locked && <ScopeLockMark />}
+          <button className="btn btn-primary" type="button" disabled={pending || locked} onClick={save}>
+            Save league settings
+          </button>
+        </div>
       )}
     </details>
   );

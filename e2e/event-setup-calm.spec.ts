@@ -127,6 +127,8 @@ test.describe("@redesign", () => {
       await screen.open();
       await screen.teeSelect().selectOption(tee.id);
       await screen.saveAndWait();
+      // "Saved" is the button's own word (EventScreen.tsx, `pending ? "Saving…" : dirty ? "Save" : "Saved"`); the stored tee is the proof.
+      await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).defaultTeeId, { message: "the tee was not stored before the reload" }).toBe(tee.id);
       await page.reload();
       await page.locator("[data-event-screen]").waitFor({ state: "visible" });
       await expect(screen.teeSelect(), "the tees were not kept after launch").toHaveValue(tee.id);
@@ -135,6 +137,7 @@ test.describe("@redesign", () => {
 
       await screen.lastDay().fill("2099-06-16");
       await screen.saveAndWait();
+      await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).endOn, { message: "the last day was not stored before the reload" }).toBe("2099-06-16");
       await page.reload();
       await page.locator("[data-event-screen]").waitFor({ state: "visible" });
       await expect(screen.lastDay()).toHaveValue("2099-06-16");
@@ -181,6 +184,7 @@ test.describe("@redesign", () => {
       const more = await screen.openMore();
       await more.getByLabel(/No fixed course/).check();
       await screen.saveAndWait();
+      await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).courseMode, { message: "the course mode was not stored before the reload" }).toBe("open");
       await page.reload();
       await page.locator("[data-event-screen]").waitFor({ state: "visible" });
       await expect(screen.section("where")).toContainText("The players arrange their own course");
