@@ -20,7 +20,10 @@ export const SLOW_REQUEST_MS = "5000";
 /** The preload, relative to the repository root, where every server is started from. */
 export const SLOW_REQUEST_PRELOAD = "./scripts/ci/slow-request-log.cjs";
 
-/** What to add to a test server's environment. `base` is the environment it would otherwise inherit. */
+/**
+ * What to add to a test server's environment. `base` is the environment it would otherwise inherit.
+ * @param {Record<string, string | undefined>} [base]
+ */
 export function slowRequestEnv(base = process.env) {
   const have = String(base.NODE_OPTIONS ?? "").trim();
   const options = have.includes(SLOW_REQUEST_PRELOAD) ? have : `${have} --require ${SLOW_REQUEST_PRELOAD}`.trim();
