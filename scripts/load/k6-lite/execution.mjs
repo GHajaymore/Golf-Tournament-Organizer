@@ -1,5 +1,5 @@
 /** `k6/execution`: which iteration and which virtual user this is. See ../k6-lite.mjs. */
-export default {
+const execution = {
   get scenario() {
     return globalThis.__k6lite.exec.scenario;
   },
@@ -7,3 +7,4 @@ export default {
     return globalThis.__k6lite.exec.vu;
   },
 };
+export default execution;

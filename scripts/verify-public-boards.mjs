@@ -55,7 +55,6 @@ const PAR = 4;
 const HOLES = 18;
 const PARS = new Array(HOLES).fill(PAR);
 const SI = Array.from({ length: HOLES }, (_, i) => i + 1);
-const COURSE_PAR = PAR * HOLES; // 72
 
 function readable(html) {
   const open = html.indexOf("<main");

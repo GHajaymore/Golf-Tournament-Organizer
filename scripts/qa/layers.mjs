@@ -525,6 +525,9 @@ export function findingsSaid(log) {
     .map((l) => l.replace(/^\[every-text-box\] {3}/, "").trim().slice(0, 400));
 }
 
+/** The `browsers` values that Playwright's container image can run. */
+export const IMAGE_ENGINES = ["chromium", "firefox", "webkit"];
+
 /**
  * The parts of a round under `plan` (see `layersFor`), plus `plan.crawl`: false
  * leaves the console crawl out — its four shares are not made, and the suite's
@@ -538,6 +541,7 @@ export function partsFor(round, plan = {}) {
   const crawlWanted = plan.crawl !== false;
   for (const layer of layersFor(round, plan)) {
     if (layer.kind === "scenarios") {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define -- read when called, after the module has loaded; moving the 600-line table would be a diff, not a lint fix
       for (const s of SCENARIOS.filter((x) => !layer.only || layer.only.includes(x.key))) parts.push({ id: `scenario-${s.key}`, layer: layer.key, args: `--only=scenarios --scenario=${s.key}`, browsers: "chromium", minutes: 45 });
       continue;
     }
@@ -584,9 +588,6 @@ export function partsFor(round, plan = {}) {
   // a part that drives the installed Chrome or Edge ("chromium chrome") or no browser stays on the runner.
   return parts.map((p) => ({ ...p, image: IMAGE_ENGINES.includes(p.browsers) }));
 }
-
-/** The `browsers` values that Playwright's container image can run. */
-export const IMAGE_ENGINES = ["chromium", "firefox", "webkit"];
 
 /** Flags every scenario's own log is read for, whatever else that scenario adds. */
 const ALWAYS = "page errors: [1-9]|sideways=[1-9]|\\[5[0-9][0-9] →|Unknown player|Application error";

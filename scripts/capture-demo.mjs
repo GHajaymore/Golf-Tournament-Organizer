@@ -80,7 +80,6 @@ mkdirSync(TEXT, { recursive: true });
 process.env.E2E_CLUB ??= "us";
 const { seed, teardown } = await import("./seed-club.mjs");
 const { runMark } = await import("./run-mark.mjs");
-const { signedInNow } = await import("./session-cookie.mjs");
 const MARK = runMark("zz-club");
 
 /** The app's own signing scheme (src/lib/auth.ts), with the secret the dev server holds. */

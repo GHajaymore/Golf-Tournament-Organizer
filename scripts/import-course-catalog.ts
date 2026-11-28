@@ -159,11 +159,6 @@ const BACKOFF_MS = [5000, 15000, 45000];
  * Only a zero there, or the `limit_hit` body some endpoints answer with, ends
  * the run.
  */
-function outOfAllowance(res: Response): boolean {
-  const left = Number(res.headers.get("x-ratelimit-remaining"));
-  return Number.isFinite(left) && left <= 0;
-}
-
 async function getJson(path: string): Promise<unknown | null> {
   for (let attempt = 0; attempt < RETRIES; attempt += 1) {
     try {

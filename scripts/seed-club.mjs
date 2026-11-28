@@ -814,7 +814,7 @@ export async function seed() {
      * arithmetic, and every screen that reports it has to agree about where
      * the extra went.
      */
-    const bill = await prisma.expense.create({
+    await prisma.expense.create({
       data: {
         eventId: medal.id,
         description: `${MARK} buggies and caddie fees`,
@@ -1032,7 +1032,7 @@ export async function seed() {
 
     const champRand = rng(29);
     const r1Totals = [];
-    for (const [i, p] of champField.entries()) {
+    for (const [, p] of champField.entries()) {
       const strokes = cardFor(PARS_18, champRand, p.handicap);
       r1Totals.push({ p, total: strokes.reduce((a, b) => a + b, 0) });
       await prisma.scorecard.create({
@@ -1157,7 +1157,7 @@ export async function seed() {
         playedOn: dayOffset(-21),
       },
     });
-    const koBracketStage = await prisma.stage.create({
+    await prisma.stage.create({
       data: {
         eventId: knockout.id,
         position: 1,
@@ -1482,7 +1482,7 @@ export async function seed() {
     const leagueRand = rng(71);
     // The four weeks behind us are played; the three ahead are not.
     for (const week of weeks.slice(0, 4)) {
-      for (const [i, p] of leagueField.entries()) {
+      for (const [, p] of leagueField.entries()) {
         // Not everybody plays every week — a league where the same twenty
         // return a card every time cannot show an absentee anything.
         if (leagueRand() < 0.22) continue;
