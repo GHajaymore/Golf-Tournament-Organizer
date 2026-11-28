@@ -49,7 +49,8 @@
  * port. No edits to src, e2e or scripts while one runs, and no other build.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { controlLineRefusal, slowRequestEnv } from "../ci/slow-request-env.mjs";
 import { join } from "node:path";
 import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES, targetLine } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
@@ -148,6 +149,8 @@ async function answers() {
 }
 
 let serving = "";
+/** null when the running server printed the slow-request control line; otherwise why not (B112). */
+let slowLogRefusal = "unread";
 /** The built server, in production's cookie mode or without the Secure flag (for WebKit). */
 async function serve(mode) {
   if (serving === mode && (await answers())) return true;
@@ -175,10 +178,15 @@ async function serve(mode) {
     VAPID_PRIVATE_KEY: "",
     VAPID_PUBLIC_KEY: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
+    // The slow-request log, as playwright.config.ts gives its server (one definition, B112): Playwright
+    // REUSES this server, so without it here the log is off in every round.
+    ...slowRequestEnv(process.env),
   };
   delete env.E2E_TZ;
   delete env.E2E_LOCALE;
-  const log = createWriteStream(join(OUT, "server.log"), { flags: "a" });
+  const logPath = join(OUT, "server.log");
+  const logFrom = existsSync(logPath) ? statSync(logPath).size : 0;
+  const log = createWriteStream(logPath, { flags: "a" });
   const child = spawn(`npx next start --port ${PORT}`, { shell: true, env, detached: true, windowsHide: true });
   child.stdout.pipe(log);
   child.stderr.pipe(log);
@@ -186,6 +194,13 @@ async function serve(mode) {
   for (let i = 0; i < 45; i += 1) {
     if (await answers()) {
       serving = mode;
+      // THE CONTROL: this start's own output (not an earlier server's) must hold the preload's line.
+      // The pipe can lag the first answer by a moment, so ask for up to 10 s.
+      slowLogRefusal = "unread";
+      for (let k = 0; k < 10 && slowLogRefusal; k += 1) {
+        slowLogRefusal = controlLineRefusal(readFileSync(logPath).subarray(logFrom).toString("utf8"));
+        if (slowLogRefusal) await new Promise((r) => setTimeout(r, 1000));
+      }
       return true;
     }
     await new Promise((r) => setTimeout(r, 2000));
@@ -300,6 +315,13 @@ for (const layer of layers) {
   if (!(await serve(layer.cookies))) {
     results.push({ ...row(layer), ran: false, why: "the test server did not start" });
     say(`${layer.key}: NOT RUN — the test server did not start`);
+    continue;
+  }
+  // The instrument must be on where the stalls were seen. A server without it is the harness's fault, not
+  // the app's: the verdict is INCOMPLETE — re-run (infra), and nothing is tested against it.
+  if (slowLogRefusal) {
+    results.push({ ...row(layer), ran: false, infra: true, why: slowLogRefusal });
+    say(`${layer.key}: NOT RUN — ${slowLogRefusal}`);
     continue;
   }
 

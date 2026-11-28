@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER_EMAIL } from "./e2e/owner-email.mjs";
 import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "./e2e/demo-fixture.mjs";
+import { slowRequestEnv } from "./scripts/ci/slow-request-env.mjs";
+
+// When this run began, for e2e/global-setup.ts: the server this run starts must print its slow-request
+// control line AFTER this. Set once; the workers that load this file again inherit it.
+process.env.E2E_RUN_STARTED ??= String(Date.now());
 
 /**
  * End-to-end tests, for the class of bug the unit suite cannot see.
@@ -277,9 +282,9 @@ export default defineConfig({
     env: {
       // A SLOW-REQUEST LOG FOR THIS SERVER ONLY (B112): requests open longer than 5 s are logged with
       // their route and timings (scripts/ci/slow-request-log.cjs, read by e2e/goto-watchdog.ts).
-      // Set here and nowhere else, so production never runs it.
-      E2E_SLOW_REQUEST_MS: "5000",
-      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --require ./scripts/ci/slow-request-log.cjs`.trim(),
+      // Defined once in scripts/ci/slow-request-env.mjs, which scripts/qa/round.mjs's own server also
+      // takes; e2e/global-setup.ts refuses a run whose server never printed the control line.
+      ...slowRequestEnv(),
       NEXT_DIST_DIR: ".next-e2e",
       NEXT_NO_STANDALONE: "1",
       AUTH_SECRET: process.env.AUTH_SECRET!,

@@ -1,11 +1,12 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createRequire } from "node:module";
-import { readdirSync, statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { readdirSync, statSync, mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { createServer, request as httpRequest, Server } from "node:http";
 import { join, relative } from "node:path";
 import { readSource } from "./source";
 import { tmpdir } from "node:os";
 import { watchNavigation, serverLinesSince } from "../../../e2e/goto-watchdog";
+import { slowRequestEnv, controlLineSince, controlLineRefusal, SLOW_REQUEST_MS, SLOW_REQUEST_PRELOAD } from "../../../scripts/ci/slow-request-env.mjs";
 
 /**
  * B112 (27 Nov 2026): the test server's slow-request log and the navigation watchdog that reads it.
@@ -93,8 +94,7 @@ describe("the slow-request log is off unless the e2e server turns it on", () => 
 
   it("is switched on in the e2e webServer's env and nowhere in the application", () => {
     const config = readSource("playwright.config.ts");
-    expect(config).toContain("E2E_SLOW_REQUEST_MS");
-    expect(config).toContain("--require ./scripts/ci/slow-request-log.cjs");
+    expect(config).toContain("slowRequestEnv()");
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const name of readdirSync(dir)) {
@@ -192,5 +192,87 @@ describe("the navigation watchdog only logs", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("the log is on at EVERY place the e2e server is started, and says so (gate 3 of #1255)", () => {
+  it("slowRequestEnv gives the threshold and the preload, and keeps what NODE_OPTIONS already held", () => {
+    expect(slowRequestEnv({})).toEqual({ E2E_SLOW_REQUEST_MS: SLOW_REQUEST_MS, NODE_OPTIONS: `--require ${SLOW_REQUEST_PRELOAD}` });
+    expect(slowRequestEnv({ NODE_OPTIONS: "--max-old-space-size=6144" }).NODE_OPTIONS).toBe(`--max-old-space-size=6144 --require ${SLOW_REQUEST_PRELOAD}`);
+    const twice = slowRequestEnv(slowRequestEnv({}));
+    expect(twice.NODE_OPTIONS).toBe(`--require ${SLOW_REQUEST_PRELOAD}`);
+    expect(Number(SLOW_REQUEST_MS)).toBeGreaterThan(0);
+    // The preload it names exists and reads the variable it sets.
+    expect(readFileSync(join(root, SLOW_REQUEST_PRELOAD), "utf8")).toContain("E2E_SLOW_REQUEST_MS");
+  });
+
+  it("the preload's control line is the one the detector reads, and is printed only when the log is on", () => {
+    const lines: string[] = [];
+    const log = nodeRequire(modulePath) as { announce: (env: Record<string, string | undefined>, write?: (l: string) => void) => boolean };
+    expect(log.announce({}, (l) => lines.push(l))).toBe(false);
+    expect(lines).toEqual([]);
+    expect(log.announce({ E2E_SLOW_REQUEST_MS: "5000" }, (l) => lines.push(l))).toBe(true);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^\S+ \[slow-request\] on, threshold 5000 ms$/);
+    expect(controlLineSince(lines[0])).toBe(true);
+  });
+
+  it("CONTROL: the detector finds the line among others, honours the time, and refuses a log without it", () => {
+    const at = "2026-11-28T10:00:00.000Z";
+    const log = `> next start
+ready
+${at} [slow-request] on, threshold 5000 ms
+`;
+    expect(controlLineSince(log)).toBe(true);
+    expect(controlLineSince(log, Date.parse(at))).toBe(true);
+    expect(controlLineSince(log, Date.parse(at) + 1)).toBe(false); // an earlier server's line is not this one's
+    expect(controlLineRefusal(log)).toBeNull();
+    for (const bad of ["", "ready", "[slow-request] OPEN GET /x after 5000 ms", `${at} [slow-request] on, threshold soon ms`]) {
+      expect(controlLineSince(bad)).toBe(false);
+      expect(controlLineRefusal(bad)).toMatch(/slow-request log is OFF/);
+    }
+  });
+
+  it("every file that starts \"next start\" takes slowRequestEnv(), and the known start sites are among them", () => {
+    const starters: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(join(root, dir))) {
+        const rel = `${dir}/${name}`;
+        if (statSync(join(root, rel)).isDirectory()) walk(rel);
+        else if (/\.(mjs|cjs|js|ts)$/.test(name) && !rel.includes("__tests__")) {
+          if (/next start/.test(readSource(rel))) starters.push(rel);
+        }
+      }
+    };
+    walk("scripts");
+    if (/next start/.test(readSource("playwright.config.ts"))) starters.push("playwright.config.ts");
+    // A control: the sweep sees the two real start sites, so an empty list cannot pass for "none missing".
+    expect(starters).toEqual(expect.arrayContaining(["playwright.config.ts", "scripts/qa/round.mjs"]));
+    const without = starters.filter((f) => !/slowRequestEnv\(/.test(readSource(f)));
+    expect(without).toEqual([]);
+  });
+
+  it("no workflow starts a server of its own: they go through the config or round.mjs", () => {
+    const dir = join(root, ".github", "workflows");
+    const offenders = readdirSync(dir)
+      .filter((n) => /\.ya?ml$/.test(n))
+      .filter((n) =>
+        readFileSync(join(dir, n), "utf8")
+          .split(/\r?\n/)
+          .some((l) => !l.trim().startsWith("#") && /next start/.test(l)),
+      );
+    expect(offenders).toEqual([]);
+  });
+
+  it("round.mjs refuses to run a layer against a server without the control line, as INCOMPLETE", () => {
+    const round = readSource("scripts/qa/round.mjs");
+    expect(round).toContain("controlLineRefusal(");
+    expect(round).toMatch(/if \(slowLogRefusal\) \{[\s\S]*?infra: true/);
+  });
+
+  it("e2e/global-setup.ts refuses a CI run whose own server never printed it", () => {
+    const setup = readSource("e2e/global-setup.ts");
+    expect(setup).toContain("controlLineRefusal(");
+    expect(setup).toContain("E2E_RUN_STARTED");
   });
 });

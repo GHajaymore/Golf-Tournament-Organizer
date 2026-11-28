@@ -104,6 +104,30 @@ function watch(req, res, limit, out) {
   res.on("close", () => finish("closed"));
 }
 
-if (thresholdMs()) install();
+/**
+ * THE CONTROL LINE: printed once when the log is on, to stdout and to the file, so a round (or a CI
+ * run) can prove the server it is about to test really has the log. `scripts/ci/slow-request-env.mjs`
+ * reads it back. Nothing is printed when the log is off.
+ */
+function announce(env = process.env, write) {
+  const limit = thresholdMs(env);
+  if (!limit) return false;
+  const line = `${new Date().toISOString()} ${MARK} on, threshold ${limit} ms`;
+  if (write) write(line);
+  else {
+    console.log(line);
+    try {
+      fs.appendFileSync(logFile(env), line + "\n");
+    } catch {
+      /* a log that cannot be written must never touch a request */
+    }
+  }
+  return true;
+}
 
-module.exports = { install, logFile, thresholdMs, MARK };
+if (thresholdMs()) {
+  install();
+  announce();
+}
+
+module.exports = { install, announce, logFile, thresholdMs, MARK };
