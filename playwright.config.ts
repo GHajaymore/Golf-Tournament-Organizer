@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER_EMAIL } from "./e2e/owner-email.mjs";
 import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "./e2e/demo-fixture.mjs";
+import { slowRequestEnv } from "./scripts/ci/slow-request-env.mjs";
+
+// When this run began, for e2e/global-setup.ts: the server this run starts must print its slow-request
+// control line AFTER this. Set once; the workers that load this file again inherit it.
+process.env.E2E_RUN_STARTED ??= String(Date.now());
 
 /**
  * End-to-end tests, for the class of bug the unit suite cannot see.
@@ -271,7 +276,15 @@ export default defineConfig({
     // on CI this would otherwise build a second bundle and collide with it on the port.
     reuseExistingServer: !process.env.CI || process.env.E2E_REUSE_SERVER === "1",
     timeout: 240_000,
+    // The server's own lines in the job log (the default is to drop them), so a stalled navigation has
+    // the server's side beside it (B112).
+    stdout: "pipe",
     env: {
+      // A SLOW-REQUEST LOG FOR THIS SERVER ONLY (B112): requests open longer than 5 s are logged with
+      // their route and timings (scripts/ci/slow-request-log.cjs, read by e2e/goto-watchdog.ts).
+      // Defined once in scripts/ci/slow-request-env.mjs, which scripts/qa/round.mjs's own server also
+      // takes; e2e/global-setup.ts refuses a run whose server never printed the control line.
+      ...slowRequestEnv(),
       NEXT_DIST_DIR: ".next-e2e",
       NEXT_NO_STANDALONE: "1",
       AUTH_SECRET: process.env.AUTH_SECRET!,
