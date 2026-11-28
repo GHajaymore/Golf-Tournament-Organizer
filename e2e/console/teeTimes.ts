@@ -1,4 +1,3 @@
-import { expect } from "@playwright/test";
 import type { Browser, Locator, Page, TestInfo } from "@playwright/test";
 import { openFold, openScreen, SCREENS_BUILT } from "./index";
 import { prisma, makeClub, dropClub, makeEvent, signIn, addDays, dayIn, type Club } from "../rounds-fixture";

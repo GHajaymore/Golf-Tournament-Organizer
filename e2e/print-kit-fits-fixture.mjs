@@ -69,11 +69,10 @@ export async function seedFits() {
       data: { organizationId: org.id, name: `${MARK} Rowan Vale Old`, city: "", pars: JSON.stringify(PARS), yards: JSON.stringify(YARDS), strokeIndex: JSON.stringify(SI) },
     });
     const white = await prisma.tee.create({ data: { courseId: course.id, name: "White", courseRating: 71.3, slopeRating: 128, par: PAR, position: 0 } });
-    const red = await prisma.tee.create({ data: { courseId: course.id, name: "Red", gender: "female", courseRating: 73.4, slopeRating: 126, par: PAR + 1, position: 1 } });
+    await prisma.tee.create({ data: { courseId: course.id, name: "Red", gender: "female", courseRating: 73.4, slopeRating: 126, par: PAR + 1, position: 1 } });
     const blue = await prisma.tee.create({ data: { courseId: course.id, name: "Blue", courseRating: 73.9, slopeRating: 134, par: PAR, position: 2 } });
     const organizer = await prisma.user.create({ data: { email: email("secretary"), name: "S. Ecretary", password: "x:unusable", emailVerifiedAt: new Date() } });
     const events = {};
-    let codeN = 0;
 
     const event = async (key, extra = {}) => {
       const e = await prisma.event.create({
@@ -113,7 +112,6 @@ export async function seedFits() {
       const s = await prisma.stage.create({
         data: { eventId, holes: 18, scoringBasis: "net", courseId: course.id, accessCode: await freshCode(prisma), teeSheetPublished: true, teeSheet: groups ?? "", ...data },
       });
-      codeN += 1;
       return s;
     };
 

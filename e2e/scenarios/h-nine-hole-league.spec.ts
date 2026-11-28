@@ -16,7 +16,6 @@ const PHASE = process.env.PHASE ?? "H1";
 const OUT = process.env.PROBE_DIR!;
 const LOG = () => join(OUT, `five-${PHASE}.txt`);
 export const G_NAME = `${MARK} Wednesday Nine${process.env.RUN ? ` ${process.env.RUN}` : ""}`;
-const PAR = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5];
 const ABSENT = 20;
 
 test.use({ actionTimeout: 45_000, navigationTimeout: 60_000 });
