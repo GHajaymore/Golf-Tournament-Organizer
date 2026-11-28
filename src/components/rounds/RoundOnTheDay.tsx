@@ -38,6 +38,7 @@ export function RoundOnTheDay({ ctx }: { ctx: RoundCtx }) {
               deadline={deadline}
               today={today}
               override={stage.deadlineOverride}
+              kind={closingKind(stage)}
               // Open while live: closing or reopening scoring is a
               // decision made on the day (2026-09-27).
               locked={pending}

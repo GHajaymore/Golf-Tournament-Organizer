@@ -254,6 +254,9 @@ test.describe("@redesign closing a match kept by tapping on Score entry", () => 
       await screen.page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
       const again = await screen.openClose();
       await expect(again).toContainText("Extended past the deadline");
+      // B132: a tapped match round has no cards, so the window waits for its last match (windowWords).
+      await expect(again).toContainText("once the last match is finished");
+      await expect(again).not.toContainText("last card is in");
       await expect(again.getByRole("button", { name: "Keep it open" })).toBeDisabled();
       expect(await closedAt(one.stageId), "the window press closed the round").toBeNull();
     });

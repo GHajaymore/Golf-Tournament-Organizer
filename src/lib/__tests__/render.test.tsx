@@ -3004,7 +3004,7 @@ describe("cut line scope", () => {
 
 describe("round scoring window", () => {
   // Told what day it is, as the page tells it — it used to ask its own clock.
-  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2026-08-01", today: "2026-10-11" };
+  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2026-08-01", today: "2026-10-11", kind: "stroke" as const };
 
   it("reports a round closed by its own deadline", () => {
     const html = render(<RoundDeadlineControl {...base} override={null} />);

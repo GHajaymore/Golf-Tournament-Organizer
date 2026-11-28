@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState, useTransition } from "react";
 import { setStageDeadlineOverride } from "@/app/actions/tournament";
+import { windowWords, type ClosingKind } from "@/lib/domain/closing-words";
 import { dayAsDate, deadlineState } from "@/lib/deadline";
 import { Icon } from "./Icon";
 
@@ -24,6 +25,7 @@ export function RoundDeadlineControl({
   deadline,
   today,
   override,
+  kind,
   locked = false,
 }: {
   stageId: string;
@@ -38,6 +40,8 @@ export function RoundDeadlineControl({
   today: string;
   /** true = closed by hand, false = extended past the date, null = follow it. */
   override: boolean | null;
+  /** Which words the sentence speaks (`closingKind`): a match round has no card to wait for. */
+  kind: ClosingKind;
   locked?: boolean;
 }) {
   const [current, setCurrent] = useState<boolean | null>(override);
@@ -116,12 +120,12 @@ export function RoundDeadlineControl({
 
       <p id={inForceId} className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.45, maxWidth: "62ch" }}>
         {status.state === "extended"
-          ? "Scores are still being accepted even though the date has passed. Set it back to follow the date once the last card is in."
+          ? windowWords(kind).extended
           : status.state === "closed-manual"
             ? "No further scores for this round, whatever the date says."
             : current === false
               ? // Kept open BEFORE the date: nothing is extended yet, and it does not follow the date either.
-                "Scoring will stay open after the Play by date passes. Set it back to follow the date once the last card is in."
+                windowWords(kind).keptOpen
               : "Scoring follows the Play by date."}
       </p>
     </div>
