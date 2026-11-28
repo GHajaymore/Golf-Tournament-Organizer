@@ -14,7 +14,7 @@ import { afterTermChange, beforeTermChange } from "@/lib/services/round-change";
 import { roundWordsFor } from "@/lib/services/action-shared";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { enteredCardCount } from "@/lib/services/round-cards";
-import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
+import { isLeaguePointsSystem, LEAGUE_SIDES_REFUSAL } from "@/lib/domain/league-meeting";
 import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
 import { generatesPairings } from "@/lib/stage-types";
 import { SIDE_NAME_MAX } from "@/lib/domain/typed-limits";
@@ -103,7 +103,11 @@ async function stageInEvent(eventId: string, stageId: string | null): Promise<st
 }
 
 /**
- * A league draws its weeks in `drawLeagueWeek`, not here.
+ * A league draws its weeks in `drawLeagueWeek`, and changes its sides in the
+ * League section (`nominatePair`, `withdrawPair`), not here (B115b: a pair has
+ * ONE door, so `createTeam`, `deleteTeam`, `addTeamMember` and `removeTeamMember`
+ * refuse a league too: they skipped the club-roster rule and were padlocked
+ * while Withdraw was open).
  *
  * On a league week this file's draw would play all seventy-odd pairs against
  * each other — a club's own pairs included — and its auto-draw would throw
@@ -115,9 +119,7 @@ async function leagueRefusal(eventId: string): Promise<string | null> {
     where: { id: eventId },
     select: { leaguePoints: true },
   });
-  return isLeaguePointsSystem(event?.leaguePoints)
-    ? "This tournament is run as a league. Nominate pairs and draw the week in the League section."
-    : null;
+  return isLeaguePointsSystem(event?.leaguePoints) ? LEAGUE_SIDES_REFUSAL : null;
 }
 
 /**
@@ -139,6 +141,8 @@ async function refresh() {
 
 export async function createTeam(name: string, stageId: string | null): Promise<TeamResult> {
   const eventId = await requireStaff();
+  const league = await leagueRefusal(eventId);
+  if (league) return { ok: false, error: league };
   const locked = await refuseIfLocked(eventId, "sides", "change teams");
   if (locked) return locked;
   const scoped = await stageInEvent(eventId, stageId);
@@ -170,6 +174,8 @@ export async function renameTeam(teamId: string, name: string): Promise<TeamResu
 
 export async function deleteTeam(teamId: string): Promise<TeamResult> {
   const eventId = await requireStaff();
+  const league = await leagueRefusal(eventId);
+  if (league) return { ok: false, error: league };
   const locked = await refuseIfLocked(eventId, "sides", "change teams");
   if (locked) return locked;
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
@@ -187,6 +193,8 @@ export async function deleteTeam(teamId: string): Promise<TeamResult> {
 
 export async function addTeamMember(teamId: string, playerId: string): Promise<TeamResult> {
   const eventId = await requireStaff();
+  const league = await leagueRefusal(eventId);
+  if (league) return { ok: false, error: league };
   const locked = await refuseIfLocked(eventId, "sides", "change teams");
   if (locked) return locked;
   const [team, player] = await Promise.all([
@@ -274,6 +282,8 @@ export async function removeTeamMember(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
+  const league = await leagueRefusal(eventId);
+  if (league) return { ok: false, error: league };
   const locked = await refuseIfLocked(eventId, "sides", "change teams");
   if (locked) return locked;
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });

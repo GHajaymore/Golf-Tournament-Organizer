@@ -35,6 +35,7 @@ vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
 const { drawLeagueWeek } = await import("@/app/actions/league");
 const { generateTeamMatches, autoDrawTeams } = await import("@/app/actions/teams");
 const { leagueMeetings } = await import("@/lib/services/league");
+const { LEAGUE_SIDES_REFUSAL } = await import("@/lib/domain/league-meeting");
 
 const club: string[] = [];
 const week: string[] = [];
@@ -249,8 +250,7 @@ describe("drawing a league week", () => {
   });
 
   it("the generic draw and auto-draw refuse a league, and leave the week alone", async () => {
-    const msg =
-      "This tournament is run as a league. Nominate pairs and draw the week in the League section.";
+    const msg = LEAGUE_SIDES_REFUSAL;
     expect(await generateTeamMatches(week[0], true)).toEqual({ ok: false, error: msg });
     expect(await autoDrawTeams(week[0], true)).toEqual({ ok: false, error: msg });
     expect(await matchesIn(week[0])).toHaveLength(3);

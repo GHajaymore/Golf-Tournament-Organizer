@@ -71,9 +71,15 @@ describe("the two pages ask the one answer", () => {
   it("Teams hides its LeagueDraw exactly while `drawMoved`, which the page takes from `leagueDrawPlace`", () => {
     const section = readSource("src", "components", "LeagueSection.tsx");
     expect(section).toMatch(/\{drawMoved \? \(/);
-    // B115: handed the sides' COMPLETION lock (`completionLockFor`), so a completed league's Redraw is shut.
-    expect(section).toMatch(/\) : \(\s*<LeagueDraw stageId=\{stageId\} drawn=\{drawn\} locked=\{\(await completionLockFor\(eventId, "sides"\)\) !== null\} \/>\s*\)\}/);
+    // B115 / B115b: handed the sides' COMPLETION lock, so a completed league's Redraw is shut. The section no longer reads it
+    // itself: the page reads it ONCE (`completionLockFor`) and the section takes it as a REQUIRED `lock` prop, so the banner
+    // and every League control come from one read.
+    expect(section).toMatch(/\) : \(\s*<LeagueDraw stageId=\{stageId\} drawn=\{drawn\} locked=\{lock !== null\} \/>\s*\)\}/);
+    expect(section).toMatch(/lock: ScopeLock \| null;/);
+    expect(section, "the section reads its own lock again").not.toMatch(/completionLockFor|scopeLockFor/);
     const teams = readSource("src", "app", "(app)", "teams", "page.tsx");
+    expect(teams).toMatch(/const completedLock = await completionLockFor\(session\.eventId, "sides"\);/);
+    expect(teams).toMatch(/<LeagueSection [^>]*lock=\{completedLock\}/);
     expect(teams).toMatch(/leagueDrawPlace\(roundForPlace, told\.status\.family, teeTimesShown\) === "teeTimes"/);
     expect(teams).toMatch(/drawMoved=\{leagueDrawMoved\}/);
   });
