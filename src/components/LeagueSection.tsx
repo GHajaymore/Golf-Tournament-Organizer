@@ -15,7 +15,7 @@ import { LeaguePlayoffs } from "@/components/LeaguePlayoffs";
 import { PlayoffDecision, type DecidableMeeting } from "@/components/PlayoffDecision";
 import { leagueMeetings as meetingsOfRound } from "@/lib/services/league";
 import { keepingPreview } from "@/lib/services/screens-shown";
-import { completionLockFor } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 
 /**
  * AN INTERCLUB LEAGUE, ON THE SCREEN THAT ALREADY OWNS SIDES.
@@ -34,9 +34,16 @@ export async function LeagueSection({
   stageId,
   canEdit,
   drawMoved,
+  lock,
 }: {
   eventId: string;
   stageId: string;
+  /**
+   * The sides' lock READ COMPLETION-ONLY, the one value the page read for its banner (B115b). REQUIRED, so a second caller
+   * must ask. Null while the tournament is live (a live league nominates, withdraws and draws all season); once completed
+   * the settings, the team sheets, the play-off decision and the draw are all shut and marked.
+   */
+  lock: ScopeLock | null;
   /** Whether the viewer may change the league's rules — the organizer only. */
   canEdit: boolean;
   /**
@@ -90,6 +97,7 @@ export async function LeagueSection({
           pairs={pairs}
           playoffs={event?.leaguePlayoffClubs ?? 0}
           canEdit={canEdit}
+          locked={lock !== null}
         />
       </section>
     );
@@ -167,6 +175,7 @@ export async function LeagueSection({
         pairs={pairs}
         playoffs={event?.leaguePlayoffClubs ?? 0}
         canEdit={canEdit}
+        locked={lock !== null}
       />
 
       <h3 style={{ fontSize: 15, margin: "20px 0 10px" }}>
@@ -176,7 +185,7 @@ export async function LeagueSection({
         {nominations
           .filter((n): n is NonNullable<typeof n> => n !== null)
           .map((club) => (
-            <PairBuilder key={club.clubId} club={club} stageId={stageId} />
+            <PairBuilder key={club.clubId} club={club} stageId={stageId} locked={lock !== null} />
           ))}
       </div>
       {drawMoved ? (
@@ -188,7 +197,7 @@ export async function LeagueSection({
           .
         </p>
       ) : (
-        <LeagueDraw stageId={stageId} drawn={drawn} locked={(await completionLockFor(eventId, "sides")) !== null} />
+        <LeagueDraw stageId={stageId} drawn={drawn} locked={lock !== null} />
       )}
 
       <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>
@@ -213,7 +222,7 @@ export async function LeagueSection({
               hole on a level meeting, and the committee setting a played
               result aside. Staff only — the bracket above shows the answer
               to everybody, this records it. */}
-          {canEdit && <PlayoffDecision meetings={decidable} />}
+          {canEdit && <PlayoffDecision meetings={decidable} locked={lock !== null} />}
         </>
       )}
     </section>
