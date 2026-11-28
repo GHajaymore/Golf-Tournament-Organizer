@@ -31,6 +31,19 @@ export function matchesState(closed: boolean, finished: number, total: number, r
 }
 
 /**
+ * WHAT THE SCORING WINDOW SAYS ABOUT STAYING OPEN (B132): the sentence under the window's three buttons names what is
+ * still to come in. A card round waits for its last card; a match round has no card, so it waits for its last match to
+ * be finished (`matchesState`'s own word). One place, so the control never retypes it.
+ */
+export function windowWords(kind: ClosingKind): { extended: string; keptOpen: string } {
+  const last = kind === "match" ? "the last match is finished" : "the last card is in";
+  return {
+    extended: `Scores are still being accepted even though the date has passed. Set it back to follow the date once ${last}.`,
+    keptOpen: `Scoring will stay open after the Play by date passes. Set it back to follow the date once ${last}.`,
+  };
+}
+
+/**
  * Whether a round has the "This round is finished" tick at all: not a bracket, and not a round of match points, where
  * there is no place for closing to take (the question `RoundOnTheDay` has always asked, said once for both screens).
  */

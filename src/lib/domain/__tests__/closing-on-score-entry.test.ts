@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { playersWithNoCard, noCardReturnedWords, noCardReturnedLabel, closingState } from "../missing-cards";
-import { closingWords, closingTickShown, closingKind, matchesState } from "../closing-words";
+import { closingWords, closingTickShown, closingKind, matchesState, windowWords } from "../closing-words";
 import { storedMatchIsOver } from "../match";
 import { unplacedWorking, CITE } from "../figure-working";
 import { scoreEntryAsksWhere } from "../venue";
@@ -202,5 +202,21 @@ describe("Results has one verb for the last act: the machine's own label", () =>
     // The control: a completed tournament that may not be reopened offers no way back.
     const locked = releaseView("completed", { ...reopen, enabled: false, disabledBecause: "x" }, "", true);
     expect(locked.kind === "final" && locked.reopen).toBeNull();
+  });
+});
+
+describe("the scoring window words (B132)", () => {
+  it("a match round waits for its last match, never a card it does not have", () => {
+    const w = windowWords("match");
+    expect(w.extended).toContain("once the last match is finished.");
+    expect(w.keptOpen).toContain("once the last match is finished.");
+    expect(w.extended + w.keptOpen).not.toMatch(/card/i);
+  });
+
+  it("a stroke or points round still waits for its last card", () => {
+    for (const kind of ["stroke", "points"] as const) {
+      expect(windowWords(kind).extended).toContain("once the last card is in.");
+      expect(windowWords(kind).keptOpen).toContain("once the last card is in.");
+    }
   });
 });

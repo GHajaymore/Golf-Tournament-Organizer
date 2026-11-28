@@ -85,7 +85,7 @@ describe("the helper can see a silent control (control)", () => {
 });
 
 describe("the scoring window: the greyed button of the three is the choice in force, and points at what it does", () => {
-  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2099-01-01", today: "2026-10-11" };
+  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2099-01-01", today: "2026-10-11", kind: "stroke" as const };
   for (const [override, deadline, button, says] of [
     [null, "2099-01-01", "Follow the date", "Scoring follows the Play by date."],
     [true, "2099-01-01", "Close Round 2 now", "No further scores for this round, whatever the date says."],

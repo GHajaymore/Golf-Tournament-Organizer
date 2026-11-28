@@ -98,6 +98,7 @@ export function CloseThisRound({
             deadline={deadline}
             today={today}
             override={deadlineOverride}
+            kind={kind}
             // Never shut while live: closing or reopening scoring is a decision made on the day (2026-09-27).
             locked={false}
           />
