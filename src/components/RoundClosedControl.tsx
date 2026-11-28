@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { setRoundClosed } from "@/app/actions/tournament";
 import { bringIntoView } from "@/lib/bring-into-view";
-import { closingWords } from "@/lib/domain/closing-words";
+import { closingWords, type ClosingKind } from "@/lib/domain/closing-words";
 import FieldInfo from "./FieldInfo";
 import { Icon } from "./Icon";
 import { RoundCloseAsk } from "./RoundCloseAsk";
@@ -28,13 +28,13 @@ import { useAction } from "./useAction";
 export function RoundClosedControl({
   stageId,
   closed,
-  /** True on a points round, where closing changes nothing about who is ranked. */
-  pointsBoard = false,
+  kind,
   infoBehind,
 }: {
   stageId: string;
   closed: boolean;
-  pointsBoard?: boolean;
+  /** REQUIRED: the words the round speaks (`closingKind`) — a points round changes nobody's position, a match round has no card or place. */
+  kind: ClosingKind;
   /**
    * REQUIRED (R12): the redesigned Score entry says what closing does behind an ⓘ and keeps one short line beside the
    * tick; the old Rounds screen draws the whole paragraph exactly as it always did. The words are the same either way
@@ -43,6 +43,7 @@ export function RoundClosedControl({
   infoBehind: boolean;
 }) {
   const { pending, error, setError, startTransition } = useAction();
+  const words = closingWords(kind);
   /** The server's question — a card not yet approved or signed (`roundCloseCheck`) — while it is open. */
   const [asking, setAsking] = useState("");
   const close = (shut: boolean, confirmUnsigned = false) =>
@@ -67,7 +68,7 @@ export function RoundClosedControl({
         <span>
           <span style={{ fontWeight: 500 }}>This round is finished</span>
           <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
-            {infoBehind ? closingWords(pointsBoard).short : closingWords(pointsBoard).whole}
+            {infoBehind ? words.short : words.whole}
           </span>
         </span>
       </label>
@@ -75,12 +76,12 @@ export function RoundClosedControl({
       {infoBehind && (
         <div>
           <FieldInfo label="what closing a round does">
-            <p>{closingWords(pointsBoard).whole}</p>
+            <p>{words.whole}</p>
           </FieldInfo>
         </div>
       )}
 
-      {closed && !pointsBoard && (
+      {closed && words.closedNote && (
         <div
           style={{
             padding: "9px 11px",
@@ -91,8 +92,7 @@ export function RoundClosedControl({
           }}
         >
           <span className="text-muted">
-            <Icon name="check-circle" /> Closed. Untick it to take a late card or correct one — nothing
-            is lost either way.
+            <Icon name="check-circle" /> {words.closedNote}
           </span>
         </div>
       )}
