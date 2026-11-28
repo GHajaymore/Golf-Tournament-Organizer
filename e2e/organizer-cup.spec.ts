@@ -115,14 +115,28 @@ test("a new organizer sets up a team cup", async ({ page }) => {
       await card.getByLabel("Add a player").selectOption({ label: `${p.name} · ${p.index}` });
       // The team's list row — not the captain picker, which names them too.
       await expect(card.getByRole("listitem").filter({ hasText: p.name })).toBeVisible({ timeout: 20_000 });
+      // The card says it saved (the SaveState badge), not only that the row is drawn.
+      await expect(card.getByText("Saved", { exact: true }), `${p.name} was not saved on ${p.team}`).toBeVisible({ timeout: 20_000 });
     }
     await expect(page.locator("main")).toContainText("Everybody entered is on a team.");
     await page.getByRole("group", { name: "Team Blues" }).getByLabel("Captain").selectOption({ label: "Ash Quayle" });
-    await expect(page.getByRole("group", { name: "Team Blues" }).getByText("Captain", { exact: true })).toBeVisible({ timeout: 20_000 });
+    // Ash's own row carries the Captain tag (the "Captain" label above it is always there, so it proves nothing).
+    const blues = page.getByRole("group", { name: "Team Blues" });
+    await expect(blues.getByRole("listitem").filter({ hasText: "Ash Quayle" }).getByText("Captain", { exact: true }), "Ash was not made captain").toBeVisible({ timeout: 20_000 });
+    await expect(blues.getByText("Saved", { exact: true }), "the captain was not saved").toBeVisible({ timeout: 20_000 });
     // And the board says who leads them.
     await expect(page.getByRole("region", { name: "The cup" })).toContainText("Captain Ash Quayle");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, "the Team cup screen scrolls sideways").toBeLessThanOrEqual(1);
+  });
+
+  await test.step("a refused rename says so on the card and never says Saved", async () => {
+    const blues = page.getByRole("group", { name: "Team Blues" });
+    await blues.getByLabel("Team name").fill("Whites");
+    await blues.getByRole("button", { name: "Save name" }).click();
+    // The refusal first, so the absence of Saved below is not a pass on nothing.
+    await expect(blues.locator('p[role="alert"]').filter({ hasText: /already has that name/ }), "the refusal is not said on the card").toBeVisible({ timeout: 20_000 });
+    await expect(blues.getByText("Saved", { exact: true }), "a refused rename says Saved").toHaveCount(0);
   });
 
   await test.step("the guide counts the teams as done, and moves on to the money", async () => {

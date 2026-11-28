@@ -7,6 +7,7 @@ import { indexLabel } from "@/lib/domain/handicap-label";
 import { TEAM_NAME_MAX } from "@/lib/domain/typed-limits";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { ScopeLockMark } from "./ScopeLockBanner";
+import { SaveState, useSaveStatus } from "./SaveState";
 
 interface Person {
   id: string;
@@ -109,6 +110,8 @@ function TeamCard({ team, unplaced, busy, locked }: { team: Team; unplaced: Pers
   // Who is on which team and what they are called are the cup scope's (the machine's `cup` lock, drawn above by `ScopeLockBanner`);
   // the captain is the day's work and stays open.
   const pending = acting || locked;
+  // Saving… then Saved for every press on this card (rename, captain, add, take off), as the other screens do.
+  const saveStatus = useSaveStatus(acting);
   const [name, setName] = useState(team.name);
   const renamed = name.trim() !== team.name && name.trim() !== "";
   return (
@@ -142,6 +145,8 @@ function TeamCard({ team, unplaced, busy, locked }: { team: Team; unplaced: Pers
           Save name
         </button>
         {locked && <ScopeLockMark />}
+        {/* A refused press says so in the alert and never "Saved" beside it. */}
+        <SaveState status={error ? "idle" : saveStatus} />
         {!name.trim() && (
           <p role="alert" className="form-error" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
             A team needs a name. Type one to save it.
