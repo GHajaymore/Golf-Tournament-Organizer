@@ -63,6 +63,17 @@ offline replay say it where the press was (the queue keeps the copy on the phone
 `a-closed-round-takes-no-taps.audit.test.ts` (each path against real rows), `every-player-match-write-asks-the-sink.test.ts`
 (a new writer that skips the sink is red) and `e2e/closed-round-refuses-a-tap.spec.ts`.
 
+## A redraw and a tap at the same moment (B134, 28 Nov 2026)
+
+`drawLeagueWeek`, `generateTeamMatches` and `autoDrawTeams` re-ask the redraw rule inside their transaction through ONE function,
+`redrawRefusalUnderLock` (`services/round-cards.ts`), which first locks `FOR UPDATE`, in this order, **Event, Team (the round's sides),
+Match, MatchScorecard, TeamScorecard**, each `ORDER BY id`, with `SET LOCAL lock_timeout = '3s'`. The score WRITERS take no lock and gain no
+statement: a tap's `UPDATE "Match"` already takes that row's lock and a card INSERT takes `FOR KEY SHARE` on its parent through the foreign
+key, so a tap in flight is waited for and seen (the redraw is refused in words), and one arriving later waits and finds its row gone (told,
+never silently lost). Keep the order: another order can deadlock two redraws. The premise is that every writer is ONE statement; a new writer
+that locks Match and then Team or Event in a multi-statement transaction breaks it (a deadlock or lock timeout is told as
+`REDRAW_BUSY_REFUSAL`, not lost). Held by `a-redraw-and-a-tap-meet.audit.test.ts`.
+
 ## On screen
 
 A screen that draws a locked control reads `screenLocksFor(eventId, [scope…])`, mounts `ScopeLockBanner`, and hands the control

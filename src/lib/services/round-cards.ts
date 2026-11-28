@@ -271,9 +271,47 @@ export async function roundStrokes(eventId: string, stageId?: string): Promise<P
 
 /**
  * The one redraw rule, asked with its words: a round holding any recorded result (a stroke card, a team card, a match
- * card, a tapped hole) is never redrawn. `db` lets an in-transaction re-check be this same function on `tx`.
+ * card, a tapped hole) is never redrawn. This is the PRE-check, asked on no transaction; the re-check inside a redraw's
+ * transaction is `redrawRefusalUnderLock`, the only way to ask on `tx` (B134), so a redraw written later cannot re-check
+ * without the locks.
  */
-export async function redrawRefusalFor(eventId: string, stageId: string, db: LockDb = prisma): Promise<string | null> {
+export async function redrawRefusalFor(eventId: string, stageId: string): Promise<string | null> {
+  return redrawRefusalOn(prisma, eventId, stageId);
+}
+
+async function redrawRefusalOn(db: LockDb, eventId: string, stageId: string): Promise<string | null> {
   const stages = await db.stage.findMany({ where: { eventId }, select: { id: true, type: true, position: true } });
   return redrawRefusal(roundLabel(stages, stageId), await enteredCardCount(eventId, stageId, db));
+}
+
+/** Said when a redraw cannot get the round's rows because scores are being written to them this instant (B134). */
+export const REDRAW_BUSY_REFUSAL = "Scores are being entered on this round right now. Try the redraw again in a moment.";
+
+/** A lock wait that ran out (55P03), a deadlock (40P01) or a transaction that could not start (P2034) — told in words. */
+export function redrawBusy(e: unknown): boolean {
+  const err = e as { code?: string; message?: string; meta?: { code?: string } } | null;
+  const text = `${err?.code ?? ""} ${err?.meta?.code ?? ""} ${err?.message ?? ""}`;
+  return /55P03|40P01|P2034|lock timeout|deadlock detected/i.test(text);
+}
+
+/**
+ * THE REDRAW'S RE-CHECK, MADE UNDER LOCK (B134). Asked inside the redraw's transaction: it takes, `FOR UPDATE` and in ONE
+ * fixed order, the rows every result hangs from, and only then asks the one redraw rule on `tx`.
+ *
+ *   Event -> Team (this round's sides) -> Match -> MatchScorecard -> TeamScorecard, each `ORDER BY id`.
+ *
+ * The score writers do not change and gain no statement: a hole tap's `UPDATE "Match"` already takes that row's lock, and a
+ * card INSERT already takes `FOR KEY SHARE` on its parent through the foreign key. So a tap in flight is waited for and then
+ * SEEN by the re-check (refused in words), and a tap arriving after waits for this commit and finds its row gone (told,
+ * never silently lost). Do not change the order: another order risks a deadlock with a second redraw.
+ * `SET LOCAL lock_timeout` is transaction-scoped, so it is safe on a pooled connection.
+ */
+export async function redrawRefusalUnderLock(tx: LockDb, eventId: string, stageId: string): Promise<string | null> {
+  await tx.$executeRaw`SET LOCAL lock_timeout = '3s'`;
+  await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM "Team" WHERE "eventId" = ${eventId} AND "stageId" = ${stageId} ORDER BY id FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM "Match" WHERE "eventId" = ${eventId} AND "stageId" = ${stageId} ORDER BY id FOR UPDATE`;
+  await tx.$queryRaw`SELECT ms.id FROM "MatchScorecard" ms JOIN "Match" m ON m.id = ms."matchId" WHERE m."stageId" = ${stageId} ORDER BY ms.id FOR UPDATE OF ms`;
+  await tx.$queryRaw`SELECT id FROM "TeamScorecard" WHERE "stageId" = ${stageId} ORDER BY id FOR UPDATE`;
+  return redrawRefusalOn(tx, eventId, stageId);
 }

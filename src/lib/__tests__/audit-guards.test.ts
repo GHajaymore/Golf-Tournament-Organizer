@@ -354,6 +354,37 @@ describe("team match generation", () => {
     expect(asks, "generateTeamMatches no longer asks the one redraw rule").toBeGreaterThan(-1);
     expect(asks).toBeLessThan(body.indexOf("deleteMany"));
   });
+
+  /**
+   * B134: the re-check inside a redraw's transaction is `redrawRefusalUnderLock(tx, ...)`, which locks the round's rows
+   * first. In each of the three doors it comes before the first delete, and nobody asks `redrawRefusalFor` on a transaction.
+   */
+  const bodyOf = (file: string[], name: string) => {
+    const text = readSource(...file);
+    const from = text.indexOf(`export async function ${name}`);
+    const rest = text.slice(from + 1);
+    const next = rest.indexOf("\nexport ");
+    return rest.slice(0, next === -1 ? undefined : next);
+  };
+  it.each([
+    [["src", "app", "actions", "league.ts"], "drawLeagueWeek"],
+    [["src", "app", "actions", "teams.ts"], "generateTeamMatches"],
+    [["src", "app", "actions", "teams.ts"], "autoDrawTeams"],
+  ] as [string[], string][])("%s %s re-asks the redraw rule under lock before it deletes", (file, name) => {
+    const body = bodyOf(file, name);
+    const locked = body.indexOf("redrawRefusalUnderLock(tx");
+    expect(locked, `${name} does not lock before its re-check`).toBeGreaterThan(-1);
+    expect(locked).toBeLessThan(body.indexOf("deleteMany", locked));
+    expect(body.slice(0, locked)).not.toMatch(/deleteMany/);
+  });
+  const askedOnATransaction = (text: string) => /redrawRefusalFor\([^()]*,[^()]*,/.test(text);
+  it("no redrawRefusalFor call takes a third argument (the transaction re-check is the locked function)", () => {
+    // A planted control: the sweep sees the old shape.
+    expect(askedOnATransaction("await redrawRefusalFor(eventId, stageId, tx);")).toBe(true);
+    for (const f of [["src", "app", "actions", "league.ts"], ["src", "app", "actions", "teams.ts"]]) {
+      expect(askedOnATransaction(readSource(...f)), f.join("/")).toBe(false);
+    }
+  });
 });
 
 describe("the flight generator leaves team rounds alone", () => {

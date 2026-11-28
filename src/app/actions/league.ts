@@ -13,7 +13,7 @@ import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
 import { isLeaguePlayoffSize } from "@/lib/domain/league-playoff";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
-import { redrawRefusalFor } from "@/lib/services/round-cards";
+import { REDRAW_BUSY_REFUSAL, redrawBusy, redrawRefusalFor, redrawRefusalUnderLock } from "@/lib/services/round-cards";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { needsTeams } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -568,8 +568,11 @@ export async function drawLeagueWeek(
    * see an empty week and both write one. The matches are counted again here, under the lock, and the second to get in sees
    * the first's week and asks (or, with a yes, replaces it) instead of doubling it.
    */
-  const outcome = await prisma.$transaction(async (tx): Promise<LeagueDrawResult | null> => {
+  let outcome: LeagueDrawResult | null;
+  try {
+  outcome = await prisma.$transaction(async (tx): Promise<LeagueDrawResult | null> => {
     await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
+    // B134: the rows are locked (in `redrawRefusalUnderLock`'s one order) before the re-check, so a tap in flight is seen.
     const completed = await refuseIfCompleted(eventId, "sides", "draw a league week", tx);
     if (completed) return completed;
     const drawn = await tx.match.count({ where: { eventId, stageId } });
@@ -577,30 +580,33 @@ export async function drawLeagueWeek(
       return { ok: false, error: "This week is already drawn.", needsConfirm: true, existing: drawn };
     }
     if (drawn > 0) {
-      const scored = await redrawRefusalFor(eventId, stageId, tx);
+      const scored = await redrawRefusalUnderLock(tx, eventId, stageId);
       if (scored) return { ok: false, error: scored };
       await tx.match.deleteMany({ where: { eventId, stageId } });
     }
-    for (const [i, draw] of draws.entries()) {
-      for (const [teamAId, teamBId] of draw.matches) {
-        await tx.match.create({
-          data: {
-            eventId,
-            stageId,
-            groupId,
-            // One number per meeting, so a meeting's four-balls sort together.
-            round: i + 1,
-            playerAId: "",
-            playerBId: "",
-            teamAId,
-            teamBId,
-            holes: emptyHoles,
-          },
-        });
-      }
-    }
+    // ONE statement (B134): the locks above are held for as short a time as the week takes to write.
+    await tx.match.createMany({
+      data: draws.flatMap((draw, i) =>
+        draw.matches.map(([teamAId, teamBId]) => ({
+          eventId,
+          stageId,
+          groupId,
+          // One number per meeting, so a meeting's four-balls sort together.
+          round: i + 1,
+          playerAId: "",
+          playerBId: "",
+          teamAId,
+          teamBId,
+          holes: emptyHoles,
+        })),
+      ),
+    });
     return null;
   });
+  } catch (e) {
+    if (redrawBusy(e)) return { ok: false, error: REDRAW_BUSY_REFUSAL };
+    throw e;
+  }
   if (outcome) return outcome;
 
   revalidatePath("/", "layout");

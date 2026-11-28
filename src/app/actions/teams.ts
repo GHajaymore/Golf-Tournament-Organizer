@@ -13,7 +13,7 @@ import { refuseIfLocked } from "@/lib/services/tournament-status";
 import { afterTermChange, beforeTermChange } from "@/lib/services/round-change";
 import { roundWordsFor } from "@/lib/services/action-shared";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
-import { enteredCardCount, redrawRefusalFor } from "@/lib/services/round-cards";
+import { enteredCardCount, REDRAW_BUSY_REFUSAL, redrawBusy, redrawRefusalFor, redrawRefusalUnderLock } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem, LEAGUE_SIDES_REFUSAL } from "@/lib/domain/league-meeting";
 import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
 import { generatesPairings } from "@/lib/stage-types";
@@ -368,13 +368,18 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
    * concurrent delete, a constraint, a dropped connection) leaves the round as
    * it was, never a part-drawn round robin.
    */
-  const refusedInside = await prisma.$transaction(async (tx): Promise<string | null> => {
-    if (existing.length > 0) {
-      // THE SAME RULE AGAIN ON THE TRANSACTION (B115b): a hole tapped since the check above is read before the delete.
-      const scoredNow = await redrawRefusalFor(eventId, stageId, tx);
-      if (scoredNow) return scoredNow;
-      await tx.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
-    }
+  let refusedInside: DrawResult | null;
+  try {
+  refusedInside = await prisma.$transaction(async (tx): Promise<DrawResult | null> => {
+    // THE SAME RULE AGAIN ON THE TRANSACTION, UNDER LOCK (B115b, B134): the round's rows are locked first, so a tap in
+    // flight is seen and a later one waits. The matches are then READ AGAIN under the lock (two first presses together each
+    // saw none above and each wrote a round robin) and deleted by the ROUND, never by the ids read before the lock.
+    const scoredNow = await redrawRefusalUnderLock(tx, eventId, stageId);
+    const drawnNow = await tx.match.count({ where: { eventId, stageId } });
+    // Only a round ALREADY drawn is a redraw; a first draw is not refused by cards that cannot belong to matches.
+    if (scoredNow && drawnNow > 0) return { ok: false, error: scoredNow };
+    if (drawnNow > 0 && !replace) return { ok: false, needsConfirm: true, existing: drawnNow };
+    if (drawnNow > 0) await tx.match.deleteMany({ where: { eventId, stageId } });
 
     /**
      * THE CARRIER for this round's team matches, found by the ROUND.
@@ -441,7 +446,11 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
     });
     return null;
   });
-  if (refusedInside) return { ok: false, error: refusedInside };
+  } catch (e) {
+    if (redrawBusy(e)) return { ok: false, error: REDRAW_BUSY_REFUSAL };
+    throw e;
+  }
+  if (refusedInside) return refusedInside;
 
   await refresh();
   return { ok: true };
@@ -488,7 +497,6 @@ export async function autoDrawTeams(
     // Sides are deleted under their matches, so ask the one rule of the round (a card with a stroke OR a tapped hole).
     const scored = await redrawRefusalFor(eventId, stageId);
     if (scored) return { ok: false, error: scored };
-    await prisma.team.deleteMany({ where: { id: { in: existing.map((t) => t.id) } } });
   }
 
   const players = await prisma.player.findMany({
@@ -528,16 +536,41 @@ export async function autoDrawTeams(
     select: { id: true, _count: { select: { teams: true } } },
   });
   const empty = others.filter((s) => s._count.teams === 0).map((s) => s.id);
-  for (const round of [stageId, ...empty]) {
-    for (let i = 0; i < sides.length; i += 1) {
-      const team = await prisma.team.create({
-        data: { eventId, stageId: round, name: `Team ${i + 1}`, seed: i + 1 },
-      });
-      await prisma.teamMember.createMany({
-        data: sides[i].map((p, pos) => ({ teamId: team.id, playerId: p.id, position: pos })),
-      });
-    }
+  /**
+   * ALL OR NOTHING, AND UNDER LOCK (B124, B134): the old sides' removal and the new sides' writing are ONE transaction, and
+   * it re-asks the redraw rule under the round's row locks before deleting anything. Two statements per round (the sides,
+   * then their members), not two per side, so sixty pairs over two rounds stays well inside the timeout.
+   */
+  let refusedInside: DrawResult | null;
+  try {
+    refusedInside = await prisma.$transaction(
+      async (tx): Promise<DrawResult | null> => {
+        const scoredNow = await redrawRefusalUnderLock(tx, eventId, stageId);
+        const nowThere = await tx.team.count({ where: { eventId, stageId } });
+        if (nowThere > 0 && scoredNow) return { ok: false, error: scoredNow };
+        if (nowThere > 0 && !replace) return { ok: false, needsConfirm: true, existing: nowThere };
+        if (nowThere > 0) await tx.team.deleteMany({ where: { eventId, stageId } });
+        for (const round of [stageId, ...empty]) {
+          const made = await tx.team.createManyAndReturn({
+            data: sides.map((_, i) => ({ eventId, stageId: round, name: `Team ${i + 1}`, seed: i + 1 })),
+            select: { id: true, seed: true },
+          });
+          const idBySeed = new Map(made.map((t) => [t.seed, t.id]));
+          await tx.teamMember.createMany({
+            data: sides.flatMap((side, i) =>
+              side.map((p, pos) => ({ teamId: idBySeed.get(i + 1)!, playerId: p.id, position: pos })),
+            ),
+          });
+        }
+        return null;
+      },
+      { timeout: 10_000 },
+    );
+  } catch (e) {
+    if (redrawBusy(e)) return { ok: false, error: REDRAW_BUSY_REFUSAL };
+    throw e;
   }
+  if (refusedInside) return refusedInside;
 
   await refresh();
   return { ok: true, alsoRounds: empty.length };
