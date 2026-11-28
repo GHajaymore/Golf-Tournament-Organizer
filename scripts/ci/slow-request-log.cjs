@@ -28,6 +28,8 @@ const os = require("node:os");
 const path = require("node:path");
 
 const MARK = "[slow-request]";
+/** What follows the mark on the line printed when the hook first times a request (B135). */
+const HOOKED_TEXT = "hooked: first request timed";
 
 /** Where the lines are appended. The same answer for the server and for the watchdog that reads it. */
 function logFile(env = process.env) {
@@ -61,9 +63,16 @@ function install(env = process.env, write) {
     });
 
   const original = http.Server.prototype.emit;
+  let hooked = false;
   const wrapped = function emit(event, req, res) {
     if (event === "request" && req && res) {
       try {
+        if (!hooked) {
+          // B135: THE SECOND CONTROL. The "on" line proves the setting arrived (npx and npm print it
+          // too); this one is printed by the listening server the first time the hook really times a request.
+          hooked = true;
+          out(`${new Date().toISOString()} ${MARK} ${HOOKED_TEXT}`);
+        }
         watch(req, res, limit, out);
       } catch {
         /* observe only */
@@ -130,4 +139,4 @@ if (thresholdMs()) {
   announce();
 }
 
-module.exports = { install, announce, logFile, thresholdMs, MARK };
+module.exports = { install, announce, logFile, thresholdMs, MARK, HOOKED_TEXT };

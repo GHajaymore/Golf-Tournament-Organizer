@@ -6,7 +6,7 @@ import { join, relative } from "node:path";
 import { readSource } from "./source";
 import { tmpdir } from "node:os";
 import { watchNavigation, serverLinesSince } from "../../../e2e/goto-watchdog";
-import { slowRequestEnv, controlLineSince, controlLineRefusal, SLOW_REQUEST_MS, SLOW_REQUEST_PRELOAD } from "../../../scripts/ci/slow-request-env.mjs";
+import { slowRequestEnv, controlLineSince, controlLineRefusal, hookLineSince, slowLogRefusal, SLOW_REQUEST_MS, SLOW_REQUEST_PRELOAD } from "../../../scripts/ci/slow-request-env.mjs";
 
 /**
  * B112 (27 Nov 2026): the test server's slow-request log and the navigation watchdog that reads it.
@@ -73,7 +73,11 @@ describe("the slow-request log is off unless the e2e server turns it on", () => 
     const port = (server.address() as { port: number }).port;
     try {
       await get(port, "/fast?x=1");
-      expect(lines).toEqual([]);
+      // Only the hooked line (B135): a fast request is timed but not reported.
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatch(/^\S+ \[slow-request\] hooked: first request timed$/);
+      expect(hookLineSince(lines[0])).toBe(true);
+      expect(lines.some((l) => / (OPEN|SLOW) /.test(l))).toBe(false);
       await get(port, "/slow?bust=123");
       const open = lines.find((l) => l.includes(" OPEN "));
       const slow = lines.find((l) => l.includes(" SLOW "));
@@ -233,6 +237,37 @@ ${at} [slow-request] on, threshold 5000 ms
     }
   });
 
+  it("the hooked line is printed once, by the first request the hook times, and the detector needs it (B135)", async () => {
+    const lines: string[] = [];
+    freshLog().install({ E2E_SLOW_REQUEST_MS: "5000" }, (l) => lines.push(l));
+    const server = createServer((_req, res) => res.end("ok"));
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const port = (server.address() as { port: number }).port;
+    try {
+      expect(lines).toEqual([]); // loading the hook alone is not a request timed
+      await get(port, "/a");
+      await get(port, "/b");
+      expect(lines.filter((l) => l.includes("hooked: first request timed"))).toHaveLength(1);
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  });
+
+  it("CONTROL: the 'on' line alone is refused, 'on' plus 'hooked' passes, and a stale hooked line does not count", () => {
+    const at = "2026-11-28T10:00:00.000Z";
+    const later = "2026-11-28T10:00:01.000Z";
+    const on = `${at} [slow-request] on, threshold 5000 ms`;
+    const hooked = `${later} [slow-request] hooked: first request timed`;
+    expect(slowLogRefusal(on)).toMatch(/never '\[slow-request\] hooked/);
+    expect(slowLogRefusal(`${on}\n${hooked}\n`)).toBeNull();
+    expect(slowLogRefusal(`${on}\r\n${hooked}`)).toBeNull();
+    expect(slowLogRefusal(hooked)).toMatch(/slow-request log is OFF/); // no 'on' line: the existing refusal
+    expect(slowLogRefusal(`${on}\n${hooked}`, Date.parse(later) + 1)).toMatch(/OFF/); // both are older than this start
+    expect(slowLogRefusal(`${on}\n${hooked}`, Date.parse(at))).toBeNull();
+    for (const bad of ["", "hooked: first request timed", `${later} [slow-request] hooked: soon`, `${later} [slow-request] OPEN GET /x`]) expect(hookLineSince(bad)).toBe(false);
+    expect(hookLineSince(hooked, Date.parse(later) + 1)).toBe(false);
+  });
+
   it("every file that starts \"next start\" takes slowRequestEnv(), and the known start sites are among them", () => {
     const starters: string[] = [];
     const walk = (dir: string) => {
@@ -266,13 +301,13 @@ ${at} [slow-request] on, threshold 5000 ms
 
   it("round.mjs refuses to run a layer against a server without the control line, as INCOMPLETE", () => {
     const round = readSource("scripts/qa/round.mjs");
-    expect(round).toContain("controlLineRefusal(");
+    expect(round).toContain("slowLogWhy(");
     expect(round).toMatch(/if \(slowLogRefusal\) \{[\s\S]*?infra: true/);
   });
 
   it("e2e/global-setup.ts refuses a CI run whose own server never printed it", () => {
     const setup = readSource("e2e/global-setup.ts");
-    expect(setup).toContain("controlLineRefusal(");
+    expect(setup).toContain("slowLogRefusal(");
     expect(setup).toContain("E2E_RUN_STARTED");
   });
 });
