@@ -1335,6 +1335,11 @@ export interface RoundCloseFacts {
   staffApproves: boolean;
   /** Cards and match results in this round somebody has said are wrong. */
   disputed: number;
+  /**
+   * Whether the round has a RESULT of any kind — `roundsWithResultsFrom`, the one rule (a hole on any card or match, a
+   * match card, a forfeit), never a second copy. REQUIRED: a reader that forgot it would close an unplayed round silently.
+   */
+  played: boolean;
 }
 
 /** "Ann Lee’s", "Ann Lee’s and Bo Park’s", "Ann Lee’s, Bo Park’s and Cy Ode’s". */
@@ -1371,6 +1376,15 @@ export function roundCloseCheck(r: RoundCloseFacts): { refuse: string } | { ask:
     return {
       refuse: `${r.disputed} result${one ? "" : "s"} in ${r.label} ${one ? "is" : "are"} disputed, so the round can’t be closed yet. Settle ${one ? "it" : "them"} on Score entry, then close the round.`,
     };
+  }
+  // NOTHING PLAYED: asked, not refused and not accepted silently (Golf Pro ruling, B113). Abandoning a round without
+  // replaying it is the Committee's call (Rule 5.7; Committee Procedures, cancelling a round), so the app asks; a round
+  // washed out and then closed takes every place away on a stroke board and settles a knockout's qualifying, so the
+  // question says to keep it open and move its day when play was rained off. A conceded match is a result
+  // (`roundsWithResultsFrom`: a forfeit counts), so it is never asked. Cannot meet the unsigned question below:
+  // an unsigned card holds scores, and scores are a result.
+  if (!r.played) {
+    return { ask: `Nobody has played a hole in ${r.label} yet. Close it anyway? If play was rained off, keep it open and change its day on Rounds & formats instead.` };
   }
   const n = r.unsigned.length;
   if (n === 0) return null;
