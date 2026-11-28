@@ -115,10 +115,13 @@ test("a new organizer sets up a team cup", async ({ page }) => {
       await card.getByLabel("Add a player").selectOption({ label: `${p.name} · ${p.index}` });
       // The team's list row — not the captain picker, which names them too.
       await expect(card.getByRole("listitem").filter({ hasText: p.name })).toBeVisible({ timeout: 20_000 });
+      // The card says it saved (the SaveState badge), not only that the row is drawn.
+      await expect(card.getByText("Saved", { exact: true }), `${p.name} was not saved on ${p.team}`).toBeVisible({ timeout: 20_000 });
     }
     await expect(page.locator("main")).toContainText("Everybody entered is on a team.");
     await page.getByRole("group", { name: "Team Blues" }).getByLabel("Captain").selectOption({ label: "Ash Quayle" });
     await expect(page.getByRole("group", { name: "Team Blues" }).getByText("Captain", { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("group", { name: "Team Blues" }).getByText("Saved", { exact: true }), "the captain was not saved").toBeVisible({ timeout: 20_000 });
     // And the board says who leads them.
     await expect(page.getByRole("region", { name: "The cup" })).toContainText("Captain Ash Quayle");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
