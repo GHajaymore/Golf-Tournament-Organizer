@@ -13,7 +13,7 @@ import { refuseIfLocked } from "@/lib/services/tournament-status";
 import { afterTermChange, beforeTermChange } from "@/lib/services/round-change";
 import { roundWordsFor } from "@/lib/services/action-shared";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
-import { enteredCardCount } from "@/lib/services/round-cards";
+import { enteredCardCount, redrawRefusalFor } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem, LEAGUE_SIDES_REFUSAL } from "@/lib/domain/league-meeting";
 import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
 import { generatesPairings } from "@/lib/stage-types";
@@ -357,12 +357,9 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
     return { ok: false, needsConfirm: true, existing: existing.length };
   }
   if (existing.length > 0) {
-    const scored = await prisma.teamScorecard.count({
-      where: { stageId, NOT: { strokes: "[]" } },
-    });
-    if (scored > 0) {
-      return { ok: false, error: "Scores have already been recorded for this round." };
-    }
+    // ONE rule for "has this round a result": a card with a stroke OR a tapped hole (B115b).
+    const scored = await redrawRefusalFor(eventId, stageId);
+    if (scored) return { ok: false, error: scored };
   }
 
   /**
