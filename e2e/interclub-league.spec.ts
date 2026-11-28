@@ -655,6 +655,31 @@ test("a secretary runs a four-club league from its first week to its champion, a
     await expect(league.getByText(`${runnerUp.name} won the play-off hole (recorded by L. Secretary)`)).toBeVisible();
     expect((await prisma.leaguePlayoffHole.findFirstOrThrow({ where: { stageId: weeks[3] } })).winnerId).toBe(clubs[Y].id);
 
+    // ── 12b. B127: the season is completed while this screen is open; the play-off press is refused WHERE IT WAS PRESSED ─
+    // The screen drawn at completion has the decision shut (`locked`), so there is nothing to press on a fresh load; the
+    // press exists only on a screen drawn BEFORE the close. `page` is that screen: the play-off is recorded and the card
+    // is still open to a second press. The organizer completes it elsewhere (a row write, as locked-setup-refuses-in-words
+    // does), then presses to give the other club the hole. Reopen puts it back for step 13.
+    const closeAndPress = decision.getByRole("button", { name: "Record the play-off hole" });
+    await expect(closeAndPress, "the recorded play-off is not open to a second press while live").toBeEnabled();
+    await prisma.event.update({ where: { id: fx.event.id }, data: { status: "completed" } });
+    try {
+      await closeAndPress.click();
+      await decision.getByRole("button", { name: `${top.name} won the hole`, exact: true }).click();
+      const refused = decision.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: /Locked because the tournament is completed\..* to record a play-off result\./ });
+      await expect(refused, "the refusal was not said beside the play-off press").toBeVisible({ timeout: 20_000 });
+      await expect(refused, "the refusal was said off screen").toBeInViewport();
+      expect((await prisma.leaguePlayoffHole.findFirstOrThrow({ where: { stageId: weeks[3] } })).winnerId, "a completed league's play-off winner was changed").toBe(clubs[Y].id);
+      expect(await prisma.leaguePlayoffHole.count({ where: { stageId: weeks[3] } }), "a second play-off row was written").toBe(1);
+      await page.reload();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(league.getByText(`Champions: ${runnerUp.name}`, { exact: true }), "the champion changed after the refused press").toBeVisible();
+      await expect(league.getByText(`${runnerUp.name} won the play-off hole (recorded by L. Secretary)`)).toBeVisible();
+      await expect(decision.getByRole("button", { name: "Record the play-off hole" }), "a completed league still offers the play-off press").toBeDisabled();
+    } finally {
+      await prisma.event.update({ where: { id: fx.event.id }, data: { status: "live" } });
+    }
+
     // ── 13. what a member of a club sees: the week, the table and the champion, and nothing to press ─
     const theirs = await browser.newContext();
     try {
