@@ -13,6 +13,7 @@ import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
 import { isLeaguePlayoffSize } from "@/lib/domain/league-playoff";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
+import { redrawRefusalFor } from "@/lib/services/round-cards";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { needsTeams } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -541,12 +542,9 @@ export async function drawLeagueWeek(
     };
   }
   if (existing.length > 0) {
-    const scored = await prisma.teamScorecard.count({
-      where: { stageId, NOT: { strokes: "[]" } },
-    });
-    if (scored > 0) {
-      return { ok: false, error: "Scores have already been recorded for this round." };
-    }
+    // ONE rule for "has this round a result": a card with a stroke OR a tapped hole (B115b).
+    const scored = await redrawRefusalFor(eventId, stageId);
+    if (scored) return { ok: false, error: scored };
   }
 
   const groupId = await matchCarrierGroup(
@@ -579,8 +577,8 @@ export async function drawLeagueWeek(
       return { ok: false, error: "This week is already drawn.", needsConfirm: true, existing: drawn };
     }
     if (drawn > 0) {
-      const scored = await tx.teamScorecard.count({ where: { stageId, NOT: { strokes: "[]" } } });
-      if (scored > 0) return { ok: false, error: "Scores have already been recorded for this round." };
+      const scored = await redrawRefusalFor(eventId, stageId, tx);
+      if (scored) return { ok: false, error: scored };
       await tx.match.deleteMany({ where: { eventId, stageId } });
     }
     for (const [i, draw] of draws.entries()) {

@@ -51,7 +51,6 @@ const dayOffset = (n) => {
 /** Par everywhere, with some holes changed: `{ 3: 2 }` is a two on the 3rd. */
 const card = (changes = {}) => Array.from({ length: 18 }, (_, i) => changes[i + 1] ?? PARS[i]);
 /** Strokes received on a hole, for a playing handicap up to 18 (stroke index `si`). */
-const shot = (h, si) => (si <= h ? 1 : 0);
 
 export const NAMES = [
   "Ailsa Thorne",

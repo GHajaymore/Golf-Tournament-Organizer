@@ -126,7 +126,7 @@ test("a side game is started, joined, paid into, won, tied, opened to the field 
     };
 
     // ── a stake that is not an amount starts nothing ────────────────────────
-    let card = await sideBets();
+    const card = await sideBets();
     await card.getByRole("button", { name: "Add a game" }).click();
     await card.getByLabel("Game", { exact: true }).selectOption({ label: "Closest to the pin" });
     await card.getByLabel("Hole (optional)").fill("7");

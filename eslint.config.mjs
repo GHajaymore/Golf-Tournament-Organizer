@@ -60,4 +60,13 @@ export default [
       "react/no-unescaped-entities": "off",
     },
   },
+  {
+    // Browser tests. Playwright's fixture callback is named `use` (not a React hook), and a spec
+    // reads a later `const` from inside a closure that runs after it is set; both are correct here.
+    files: ["e2e/**"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+      "@typescript-eslint/no-use-before-define": "off",
+    },
+  },
 ];

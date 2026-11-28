@@ -1,5 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { test, expect, type Page, type Locator } from "./coverage";
+import { test, expect, type Locator } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";

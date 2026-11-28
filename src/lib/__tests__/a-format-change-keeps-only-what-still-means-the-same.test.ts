@@ -73,7 +73,8 @@ describe("over every format × every kind of round", () => {
           // And the allowance in force is the committee's only where it kept its meaning.
           const inForce = effectiveAllowance(to, next.handicapAllowance, type);
           expect(inForce).toBe(same ? 77 : recommendedAllowance(to, type));
-          if (from !== to) (same ? kept++ : cleared++);
+          if (from !== to && same) kept++;
+          if (from !== to && !same) cleared++;
         }
       }
     }
