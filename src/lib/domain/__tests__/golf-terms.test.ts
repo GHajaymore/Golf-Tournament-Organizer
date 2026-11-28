@@ -68,9 +68,9 @@ const BY_COUNTRY: Record<string, {
   CA: { register: "us", community: "league", golfGroup: "golf group", outing: "outing", group: "foursome", cart: "cart", organizer: "organizer", charityDay: "charity outing", honoursBoard: "honors board" },
   GB: { register: "uk", community: "society", golfGroup: "society", outing: "society day", group: "fourball", cart: "buggy", organizer: "organiser", charityDay: "charity day", honoursBoard: "honours board" },
   IE: { register: "uk", community: "society", golfGroup: "society", outing: "society day", group: "fourball", cart: "buggy", organizer: "organiser", charityDay: "charity day", honoursBoard: "honours board" },
-  AU: { register: "au", community: "society", golfGroup: "society", outing: "golf day", group: "fourball", cart: "cart", organizer: "organiser", charityDay: "charity golf day", honoursBoard: "honours board" },
-  NZ: { register: "au", community: "society", golfGroup: "society", outing: "golf day", group: "fourball", cart: "cart", organizer: "organiser", charityDay: "charity golf day", honoursBoard: "honours board" },
-  ZA: { register: "au", community: "society", golfGroup: "society", outing: "golf day", group: "fourball", cart: "cart", organizer: "organiser", charityDay: "charity golf day", honoursBoard: "honours board" },
+  AU: { register: "au", community: "golfGroup", golfGroup: "golf group", outing: "golf day", group: "fourball", cart: "cart", organizer: "organiser", charityDay: "charity golf day", honoursBoard: "honours board" },
+  NZ: { register: "au", community: "golfGroup", golfGroup: "golf group", outing: "golf day", group: "fourball", cart: "cart", organizer: "organiser", charityDay: "charity golf day", honoursBoard: "honours board" },
+  ZA: { register: "au", community: "golfGroup", golfGroup: "golf group", outing: "golf day", group: "fourball", cart: "cart", organizer: "organiser", charityDay: "charity golf day", honoursBoard: "honours board" },
 };
 
 describe("every country reads its own golf", () => {
@@ -106,8 +106,9 @@ describe("the words", () => {
       const w = GOLF_TERMS[k as keyof typeof GOLF_TERMS];
       return w.au !== w.uk;
     });
-    // cart, carts, outing, outings, charityDay, strokeCompetition, strokeRound.
-    expect(differ.length).toBeLessThanOrEqual(8);
+    // cart, carts, outing, outings, charityDay, strokeCompetition, strokeRound,
+    // and since 2026-10-26 community, golfGroup, golfGroups ("golf group", not "society").
+    expect(differ.length).toBeLessThanOrEqual(11);
     expect(differ).toContain("cart");
     expect(differ).toContain("outing");
   });

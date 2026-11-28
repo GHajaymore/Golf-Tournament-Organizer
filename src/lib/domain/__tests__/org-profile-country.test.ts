@@ -34,8 +34,11 @@ describe("the community noun follows the club's own country", () => {
 
   it("says what each golf country says, from the register", () => {
     for (const c of ["US", "Canada"]) expect(orgProfile("community", c).noun, c).toBe("league");
-    for (const c of ["GB", "Ireland", "Australia", "New Zealand", "South Africa", "DE"]) {
-      expect(orgProfile("community", c).noun, c).toBe("society");
+    for (const c of ["GB", "Ireland", "DE"]) expect(orgProfile("community", c).noun, c).toBe("society");
+    // Never "society" down under (the panel, 2026-10-26).
+    for (const c of ["Australia", "New Zealand", "South Africa"]) {
+      expect(orgProfile("community", c).noun, c).toBe("golf group");
+      expect(orgProfile("community", c).settingsLabel, c).toBe("Golf group settings");
     }
   });
 
@@ -68,19 +71,23 @@ describe("the community noun follows the club's own country", () => {
     }
   });
 
-  it("does NOT call an Australian community a club", () => {
+  it("does NOT call an Australian community a club, by default or by choice", () => {
     /**
-     * The register's third example — an AU outfit is "often just a club" — is
-     * deliberately not implemented, and this pins the decision so it is made
-     * rather than drifted into.
-     *
-     * Calling a `community` a "club" collides head-on with the `club` KIND: an
-     * Australian society and an Australian golf club would then read
-     * identically on every screen, which is worse than the British word. If
-     * somebody decides that trade is worth making, this test is where they say
-     * so.
+     * An AU outfit is "often just a club", and plain "club" collides head-on
+     * with the `club` KIND: an Australian social club and an Australian golf
+     * club would then read identically on every screen. The panel's ruling
+     * (2026-10-26) is "golf group" by default and "social club" by choice —
+     * two words, never the bare one.
      */
-    expect(orgProfile("community", "AU").noun).toBe("society");
+    expect(orgProfile("community", "AU").noun).toBe("golf group");
+    expect(orgProfile("community", "AU", "socialClub").noun).toBe("social club");
+    for (const country of ["", "US", "GB", "AU"]) {
+      for (const voice of ["", "society", "league", "association", "golfGroup", "socialClub"]) {
+        const p = orgProfile("community", country, voice);
+        expect(p.groupLabel, `${country}/${voice}`).not.toBe(orgProfile("club", country).groupLabel);
+        expect(p.settingsLabel, `${country}/${voice}`).not.toBe(orgProfile("club", country).settingsLabel);
+      }
+    }
   });
 });
 
