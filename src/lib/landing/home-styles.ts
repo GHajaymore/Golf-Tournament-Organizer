@@ -871,6 +871,14 @@ export const HOME_CSS = `
 .m-home .m-answer { display: grid; gap: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--m-line); }
 .m-home .m-answer p { color: var(--m-on-ground-soft); }
 .m-home .m-answer a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 600; justify-self: start; }
+/* The one primary call to action, repeated quietly between sections: the outline button, centred, no panel of its own. */
+.m-home .m-quiet { display: flex; justify-content: center; min-width: 0; padding: 0 16px clamp(48px, 6vw, 72px); }
+.m-home .m-quiet .m-btn { max-width: 100%; min-width: 0; }
+/* "No fees. We never touch the money.": a rule above, one line of words, and the way to the worked example. */
+.m-home .m-nofee { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; min-width: 0; max-width: 86ch; margin-top: clamp(28px, 4vw, 44px); padding-top: 22px; border-top: 1px solid var(--m-line); color: var(--m-on-ground-soft); }
+.m-home .m-nofee b { color: var(--m-on-ground); }
+.m-home .m-nofee span { min-width: 0; }
+.m-home .m-nofee a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 600; }
 /* The closing glow reaches below its section on purpose, and that reach was scrollable: the page ran
    some 250px past the footer into nothing. Clipped where the page's main part ends, with clip and not hidden, so nothing
    that sticks while scrolling loses the viewport it sticks to. */
