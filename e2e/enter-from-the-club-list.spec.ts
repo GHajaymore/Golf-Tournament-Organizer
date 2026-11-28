@@ -64,7 +64,7 @@ let myEmail = "";
 let myPhone = "";
 let clubId = "";
 let secondSession = "";
-let madeMembership: string[] = [];
+const madeMembership: string[] = [];
 
 async function sweep() {
   await prisma.event.deleteMany({ where: { name: { startsWith: MARK } } });

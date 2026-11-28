@@ -15,7 +15,6 @@ import {
   saidBeside,
   addDays,
   dayIn,
-  NAMES,
 } from "./rounds-fixture";
 import { withTeeTimesAs } from "./console/teeTimes";
 

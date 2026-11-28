@@ -87,7 +87,7 @@ export async function seedPrint({ sfField = 12, zone = process.env.E2E_TZ || "Eu
       },
     });
     const white = await prisma.tee.create({ data: { courseId: course.id, name: "White", courseRating: 71.3, slopeRating: 128, par: PAR, position: 0 } });
-    const red = await prisma.tee.create({
+    await prisma.tee.create({
       data: { courseId: course.id, name: "Red", gender: "female", courseRating: 73.4, slopeRating: 126, par: PAR + 1, position: 1 },
     });
     const organizer = await prisma.user.create({ data: { email: email("secretary"), name: "S. Ecretary", password: "x:unusable" } });

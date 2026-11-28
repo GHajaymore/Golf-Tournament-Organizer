@@ -1,5 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { test, expect, type Page } from "./coverage";
+import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
