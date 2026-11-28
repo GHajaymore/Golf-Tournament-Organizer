@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
 import { heldFromBoard } from "../domain/board-hold";
+import { redrawRefusal } from "../domain/tournament-status";
+import { roundLabel } from "../domain/round-label";
+import type { LockDb } from "./tournament-facts";
 
 /**
  * How many cards a round already holds.
@@ -20,7 +23,7 @@ import { heldFromBoard } from "../domain/board-hold";
  * placeholder — so it is not counted, and an untouched round reports zero and
  * changes without a fuss.
  */
-export async function enteredCardCount(eventId: string, stageId?: string): Promise<number> {
+export async function enteredCardCount(eventId: string, stageId?: string, db: LockDb = prisma): Promise<number> {
   /**
    * Omit the round to ask about the WHOLE EVENT.
    *
@@ -40,16 +43,16 @@ export async function enteredCardCount(eventId: string, stageId?: string): Promi
   const throughMatch = stageId ? { match: { stageId } } : {};
 
   const [stroke, team, match, matchHoles, bracketWins] = await Promise.all([
-    prisma.scorecard.findMany({
+    db.scorecard.findMany({
       where: { eventId, ...round },
       select: { strokes: true },
     }),
-    prisma.teamScorecard.findMany({
+    db.teamScorecard.findMany({
       where: { eventId, ...round },
       select: { strokes: true },
     }),
     // Match cards are keyed on the match, so the round is reached through it.
-    prisma.matchScorecard.findMany({
+    db.matchScorecard.findMany({
       where: { eventId, ...throughMatch },
       select: { strokes: true },
     }),
@@ -62,7 +65,7 @@ export async function enteredCardCount(eventId: string, stageId?: string): Promi
      * through. Found by pointing the guard at a real round rather than by
      * reading it back.
      */
-    prisma.match.findMany({
+    db.match.findMany({
       where: stageId ? { stageId } : { eventId },
       select: { holes: true },
     }),
@@ -89,7 +92,7 @@ export async function enteredCardCount(eventId: string, stageId?: string): Promi
      */
     stageId
       ? Promise.resolve([] as { winnerId: string }[])
-      : prisma.bracketWinner.findMany({ where: { eventId }, select: { winnerId: true } }),
+      : db.bracketWinner.findMany({ where: { eventId }, select: { winnerId: true } }),
   ]);
 
   const cards = [...stroke, ...team, ...match].filter((r) => hasAStroke(r.strokes)).length;
@@ -264,4 +267,13 @@ export async function roundStrokes(eventId: string, stageId?: string): Promise<P
   if (dq.length === 0) return out;
   const ruledOut = new Set(dq.map((p) => p.id));
   return out.filter((r) => !ruledOut.has(r.playerId));
+}
+
+/**
+ * The one redraw rule, asked with its words: a round holding any recorded result (a stroke card, a team card, a match
+ * card, a tapped hole) is never redrawn. `db` lets an in-transaction re-check be this same function on `tx`.
+ */
+export async function redrawRefusalFor(eventId: string, stageId: string, db: LockDb = prisma): Promise<string | null> {
+  const stages = await db.stage.findMany({ where: { eventId }, select: { id: true, type: true, position: true } });
+  return redrawRefusal(roundLabel(stages, stageId), await enteredCardCount(eventId, stageId, db));
 }

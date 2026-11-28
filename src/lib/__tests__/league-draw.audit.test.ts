@@ -203,7 +203,7 @@ describe("drawing a league week", () => {
     });
     try {
       const res = await drawLeagueWeek(week[0], true);
-      expect(res).toEqual({ ok: false, error: "Scores have already been recorded for this round." });
+      expect(res).toEqual({ ok: false, error: expect.stringMatching(/^Round [0-9]+ has scores — clear them on Score entry first[.]$/) });
       expect(await matchesIn(week[0])).toHaveLength(3);
     } finally {
       await prisma.teamScorecard.delete({ where: { id: card.id } });
