@@ -10,6 +10,7 @@ import {
   type MissingCardPlayer,
 } from "@/lib/domain/missing-cards";
 import { MissingCards } from "./MissingCards";
+import { matchesState, type ClosingKind } from "@/lib/domain/closing-words";
 
 /**
  * CLOSING A ROUND AND ITS SCORING WINDOW, where the cards are (R12). Score entry draws this under the round it scores while
@@ -30,7 +31,8 @@ export function CloseThisRound({
   closed,
   tick,
   cardsCounted,
-  pointsBoard,
+  kind,
+  matches,
   deadline,
   deadlineOverride,
   today,
@@ -45,7 +47,10 @@ export function CloseThisRound({
   tick: boolean;
   /** Whether cards are counted here: an individual stroke or Stableford round. A match is a result and a side's card is the side's. */
   cardsCounted: boolean;
-  pointsBoard: boolean;
+  /** Which words the section speaks (`closingKind`): strokes and places, points, or matches. */
+  kind: ClosingKind;
+  /** A match round: how many of its matches are over (`storedMatchIsOver`), or null where matches are not what the round is. */
+  matches: { finished: number; total: number } | null;
   /** The round's play-by date, as stored. */
   deadline: string;
   /** true = closed by hand, false = extended past the date, null = follow it. */
@@ -60,7 +65,14 @@ export function CloseThisRound({
   const working = noCardReturnedWords(label);
   // A round with no tick holds only the window, and says so: a bracket or a round of match points has no place for closing to take.
   const title = tick ? `Close ${label}` : `Scoring window for ${label}`;
-  const state = cardsCounted ? closingState(closed, missing.length, label) : closed ? `${label} is closed` : "Open";
+  // A match round counts MATCHES (`matchesState`), never cards or places; any other round without cards says only open or closed.
+  const state = cardsCounted
+    ? closingState(closed, missing.length, label)
+    : matches
+      ? matchesState(closed, matches.finished, matches.total, label)
+      : closed
+        ? `${label} is closed`
+        : "Open";
   return (
     <SectionFold id="close-round" title={title} state={state} needsYou={waiting} openOnPhone={waiting}>
       <div data-close-round style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
@@ -75,7 +87,7 @@ export function CloseThisRound({
         {tick && (
           <div>
             <p className="card-title" style={{ fontSize: 14, margin: "0 0 6px" }}>Is this round over?</p>
-            <RoundClosedControl stageId={stageId} closed={closed} pointsBoard={pointsBoard} infoBehind />
+            <RoundClosedControl stageId={stageId} closed={closed} kind={kind} infoBehind />
           </div>
         )}
         <div>

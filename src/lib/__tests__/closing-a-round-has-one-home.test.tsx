@@ -71,7 +71,7 @@ const count = (html: string, needle: string) => html.split(needle).length - 1;
 
 const scoreEntryDraws = () =>
   renderToStaticMarkup(
-    <CloseThisRound stageId="r1" label="Round 1" closed={false} tick cardsCounted pointsBoard={false} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
+    <CloseThisRound stageId="r1" label="Round 1" closed={false} tick cardsCounted kind="stroke" matches={null} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
   );
 
 describe("the tick is drawn in exactly one room", () => {
@@ -114,7 +114,7 @@ describe("the cards still to come, with the two answers", () => {
         closed={over.closed ?? false}
         tick
         cardsCounted
-        pointsBoard={false}
+        kind="stroke" matches={null}
         deadline=""
         deadlineOverride={null}
         today="2026-10-11"
@@ -191,7 +191,7 @@ describe("every staff branch of Score entry carries the close section", () => {
 
   it("a team round draws the tick and the window, and no cards to come", () => {
     const html = renderToStaticMarkup(
-      <CloseThisRound stageId="r1" label="Round 1" closed={false} tick cardsCounted={false} pointsBoard={false} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
+      <CloseThisRound stageId="r1" label="Round 1" closed={false} tick cardsCounted={false} kind="stroke" matches={null} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
     );
     expect(html).toContain(TICK);
     expect(html).toContain("Scoring window");
@@ -200,7 +200,7 @@ describe("every staff branch of Score entry carries the close section", () => {
 
   it("a round with no tick is titled for what it holds", () => {
     const html = renderToStaticMarkup(
-      <CloseThisRound stageId="r1" label="Round 1" closed={false} tick={false} cardsCounted={false} pointsBoard={false} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
+      <CloseThisRound stageId="r1" label="Round 1" closed={false} tick={false} cardsCounted={false} kind="stroke" matches={null} deadline="" deadlineOverride={null} today="2026-10-11" missing={[]} withdrawDoor={null} />,
     );
     expect(html).toContain("Scoring window for Round 1");
     expect(html).not.toContain(TICK);

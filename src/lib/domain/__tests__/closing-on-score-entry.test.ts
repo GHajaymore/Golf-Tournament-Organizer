@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { playersWithNoCard, noCardReturnedWords, noCardReturnedLabel, closingState } from "../missing-cards";
-import { closingWords, closingTickShown } from "../closing-words";
+import { closingWords, closingTickShown, closingKind, matchesState } from "../closing-words";
+import { storedMatchIsOver } from "../match";
 import { unplacedWorking, CITE } from "../figure-working";
 import { scoreEntryAsksWhere } from "../venue";
 import { releaseView } from "../release-results";
@@ -64,13 +65,13 @@ describe("the close section's state, said on its folded line", () => {
 
 describe("what the tick says about itself", () => {
   it("keeps the old screen's whole paragraph word for word, and the short line is a line of it", () => {
-    const stroke = closingWords(false);
+    const stroke = closingWords("stroke");
     expect(stroke.whole).toBe(
       "Tell the board the round is over, which makes its result official — the public board reads Final rather than All in. Anybody without a complete card for it is then shown without a place, the same as a card that stopped short — they have not completed the competition. Leave it unticked while cards are still coming in.",
     );
     expect(stroke.short.length).toBeLessThan(stroke.whole.length);
     expect(stroke.whole.startsWith(stroke.short.replace(/\.$/, ""))).toBe(true);
-    const points = closingWords(true);
+    const points = closingWords("points");
     expect(points.whole).toContain("changes nobody's position");
     expect(points.whole.startsWith(points.short.replace(/\.$/, ""))).toBe(true);
   });
@@ -79,6 +80,58 @@ describe("what the tick says about itself", () => {
     expect(closingTickShown({ type: "Stroke Play Round", format: "Stroke Play", scoringBasis: "gross" })).toBe(true);
     expect(closingTickShown({ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross" })).toBe(false);
     expect(closingTickShown({ type: "Round Robin", format: "Match Play", scoringBasis: "gross" })).toBe(false);
+  });
+});
+
+describe("a round played as matches speaks in matches (B113)", () => {
+  const fourBall = { format: "Four-Ball", scoringBasis: "gross", scoreInput: null };
+  const NOT_A_MATCH_WORD = /\b(cards?|places?|strokes?)\b/i;
+
+  it("is chosen from how the round is played, tapped or on cards, not from the format's engine", () => {
+    // Four-Ball's engine counts strokes (`standingsUnit`), but a cup session of four-balls is matches either way.
+    expect(closingKind({ ...fourBall, type: "Team Session", matchKeptBy: "holes" })).toBe("match");
+    expect(closingKind({ ...fourBall, type: "Team Session", matchKeptBy: "cards" })).toBe("match");
+    expect(closingKind({ ...fourBall, type: "Team Session", matchKeptBy: null })).toBe("match");
+  });
+
+  it("CONTROL: a four-ball MEDAL is not matches, and keeps the stroke words; a Stableford round keeps the points words", () => {
+    expect(closingKind({ ...fourBall, type: "Stroke Play Round", matchKeptBy: null })).toBe("stroke");
+    expect(closingKind({ type: "Stroke Play Round", format: "Stableford", scoringBasis: "stableford", scoreInput: null, matchKeptBy: null })).toBe("points");
+  });
+
+  it("says the match words, with no card or place anywhere in them", () => {
+    const m = closingWords("match");
+    expect(m.short).toBe("Tell the board this round's matches are over.");
+    expect(m.whole).toBe(
+      "Tell the board this round's matches are over, which makes its results official. A match that isn't finished keeps the holes it has, and the committee decides it. Leave it unticked while matches are still on the course.",
+    );
+    expect(m.whole.startsWith(m.short.replace(/\.$/, ""))).toBe(true);
+    for (const said of [m.short, m.whole, m.closedNote ?? ""]) expect(said).not.toMatch(NOT_A_MATCH_WORD);
+    // It says nothing about taps after the close: that is undecided (side finding A), so it is not promised.
+    expect(m.whole + (m.closedNote ?? "")).not.toMatch(/\btap/i);
+    // CONTROL: the stroke words DO say card and place, so the pattern above can fail.
+    expect(closingWords("stroke").whole).toMatch(NOT_A_MATCH_WORD);
+  });
+
+  it("counts matches finished: 'finished' is by holes or a forfeit, so the caller counts storedMatchIsOver", () => {
+    expect(matchesState(false, 1, 2, "Round 2")).toBe("1 of 2 matches finished");
+    expect(matchesState(false, 0, 2, "Round 2")).toBe("0 of 2 matches finished");
+    expect(matchesState(false, 2, 2, "Round 2")).toBe("All 2 matches finished");
+    expect(matchesState(false, 1, 1, "Round 2")).toBe("The match is finished");
+    expect(matchesState(false, 0, 1, "Round 2")).toBe("0 of 1 match finished");
+    expect(matchesState(true, 1, 2, "Round 2")).toBe("Round 2 is closed");
+    expect(matchesState(false, 0, 0, "Round 2")).toBe("Open");
+    for (const s of [matchesState(false, 1, 2, "R"), matchesState(false, 2, 2, "R"), matchesState(true, 1, 2, "Round 2")]) {
+      expect(s).not.toMatch(NOT_A_MATCH_WORD);
+    }
+  });
+
+  it("a match is finished by holes (3&2 is over after 16) or a forfeit, never by the count of holes entered", () => {
+    const won32 = JSON.stringify([...Array(3).fill("A"), ...Array(13).fill("H"), null, null]);
+    const live = JSON.stringify([...Array(4).fill("A"), ...Array(14).fill(null)]);
+    expect(storedMatchIsOver({ holes: won32 })).toBe(true);
+    expect(storedMatchIsOver({ holes: live })).toBe(false);
+    expect(storedMatchIsOver({ holes: JSON.stringify(Array(18).fill(null)), forfeitedBy: "team-a" })).toBe(true);
   });
 });
 

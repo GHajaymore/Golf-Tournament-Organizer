@@ -63,9 +63,10 @@ describe("the actions ask the machine", () => {
     const check = close.indexOf("roundCloseCheck(facts)");
     const write = close.indexOf("prisma.stage.update(");
     // The cut's refusal stays, and is asked first; both before anything is written.
+    // B113: the confirm must be the BOOLEAN true (a public endpoint takes whatever it is sent), so a truthy string never skips the question.
     expect(cut).toBeGreaterThan(-1);
     expect(check).toBeGreaterThan(cut);
     expect(write).toBeGreaterThan(check);
-    expect(close).toMatch(/if \(check && "ask" in check && !confirmUnsigned\) return \{ ok: false, needsUnsignedConfirm: true, error: check\.ask \};/);
+    expect(close).toMatch(/if \(check && "ask" in check && confirmUnsigned !== true\) return \{ ok: false, needsUnsignedConfirm: true, error: check\.ask \};/);
   });
 });
