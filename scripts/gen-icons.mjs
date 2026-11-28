@@ -32,7 +32,6 @@ const BALL = "#56c74c"; // --color-accent-2-400: lifted one step off the in-app
 const CUP = "#3f424d"; // --color-neutral-800 on the dark ground: a hole,
 //                        readable against the tile without an outline
 //                         green, which goes muddy at 48px
-const EDGE = "#55605a"; // the cup's rim, brightened for small sizes
 
 /**
  * The mark on a 512 grid — Logo.tsx's 32-unit viewBox scaled 16x.

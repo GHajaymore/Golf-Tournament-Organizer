@@ -12,8 +12,8 @@ const nextConfig = {
   reactStrictMode: true,
   // `next lint` reads only its default folders (app, pages, components, lib, src) unless told, so
   // e2e/ was never linted and an unused import sat in a spec unseen (B131). One definition: CI,
-  // the local gate and `next build` all lint these. scripts/ is left out: it holds ~20 findings.
-  eslint: { dirs: ["src", "e2e"] },
+  // the local gate and `next build` all lint these, scripts/ included (B131b).
+  eslint: { dirs: ["src", "e2e", "scripts"] },
   // The server does not say what it is built with. Next adds `X-Powered-By: Next.js` to every
   // answer unless told not to — a small thing, and the first line of anybody's notes on what to
   // try against a site. Found by `e2e/security.spec.ts` the first time anything asked (2026-10-13).

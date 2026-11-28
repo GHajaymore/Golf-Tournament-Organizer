@@ -22,6 +22,7 @@
  *
  * It only observes: the request event is passed on untouched, and a failure in this file is swallowed.
  */
+/* eslint-disable @typescript-eslint/no-require-imports -- CommonJS preload loaded with node -r */
 const http = require("node:http");
 const fs = require("node:fs");
 const os = require("node:os");

@@ -9,6 +9,7 @@
  *   npx tsx --require ./scripts/server-shim.cjs scripts/your-script.ts
  */
 // `server-only` exists to throw when a server module is pulled into a client
+/* eslint-disable @typescript-eslint/no-require-imports -- a CommonJS preload loaded by `--require`; it cannot use import */
 // bundle. A script IS the server, so it resolves to nothing here.
 const Module = require("module");
 const path = require("path");
