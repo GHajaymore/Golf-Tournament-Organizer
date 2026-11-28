@@ -98,23 +98,23 @@ describe("the redraw is one transaction", () => {
     expect(await matchIds()).toHaveLength(2);
   });
 
-  it("a create that fails on the second match leaves the OLD week whole, and a reader between the creates sees it whole", async () => {
+  it("a write that fails after the old matches are deleted leaves the OLD week whole, and a reader between the creates sees it whole", async () => {
     const before = await matchIds();
     expect(before).toHaveLength(2);
     const real = appPrisma.$transaction.bind(appPrisma);
     let seenMidway: string[] | null = null;
     vi.spyOn(appPrisma, "$transaction").mockImplementation(((fn: unknown, ...rest: unknown[]) => {
       if (typeof fn !== "function") return (real as (...a: unknown[]) => unknown)(fn, ...rest);
-      return (real as (...a: unknown[]) => unknown)(async (tx: { match: { create: (a: unknown) => Promise<unknown> } }) => {
-        const create = tx.match.create.bind(tx.match);
+      return (real as (...a: unknown[]) => unknown)(async (tx: { match: { createMany: (a: unknown) => Promise<unknown> } }) => {
+        const create = tx.match.createMany.bind(tx.match);
         let n = 0;
-        tx.match.create = async (args: unknown) => {
+        tx.match.createMany = async (args: unknown) => {
           n += 1;
-          if (n === 2) {
-            // Mid-redraw: the old matches are deleted and one new one is created INSIDE the transaction. A reader outside it
-            // must still see the old week, whole.
+          if (n === 1) {
+            // Mid-redraw (B134: the week is written by ONE createMany): the old matches are deleted INSIDE the transaction.
+            // A reader outside it must still see the old week, whole.
             seenMidway = await matchIds();
-            throw new Error("zz-injected failure on the second match");
+            throw new Error("zz-injected failure on the write");
           }
           return create(args);
         };
