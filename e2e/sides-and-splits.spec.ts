@@ -121,7 +121,7 @@ test("a round robin of four sides is drawn as six matches, and is not redrawn ov
     const ask = page.locator(".card", { has: page.getByText("Replace this round's matches?", { exact: true }) });
     await expect(ask.getByText(/This round already has 6 matches\./), "the question does not say how many matches it would replace").toBeVisible();
     await ask.getByRole("button", { name: "Replace them", exact: true }).click();
-    const refused = page.getByText("Scores have already been recorded for this round.", { exact: true });
+    const refused = page.getByText(/^Round [0-9]+ has scores — clear them on Score entry first[.]$/);
     await expect(refused, "a redraw over a recorded score was not refused in words").toBeVisible();
     await saidBeside(refused, regenerate, "regenerating a round robin that has a score");
     expect((await matches()).map((m) => m.id), "the refused redraw changed the matches").toEqual(drawn.map((m) => m.id));
