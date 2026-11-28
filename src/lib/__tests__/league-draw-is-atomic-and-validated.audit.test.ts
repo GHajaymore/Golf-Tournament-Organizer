@@ -140,8 +140,8 @@ describe("a completion that commits between the check and the write", () => {
   it("leaves the old week standing, and says why in the machine's words", async () => {
     const before = await matchIds();
     // The step between the lock check and the transaction: complete the tournament there, once.
-    const realFind = appPrisma.teamScorecard.count.bind(appPrisma.teamScorecard);
-    vi.spyOn(appPrisma.teamScorecard, "count").mockImplementation((async (args: never) => {
+    const realFind = appPrisma.scorecard.findMany.bind(appPrisma.scorecard);
+    vi.spyOn(appPrisma.scorecard, "findMany").mockImplementation((async (args: never) => {
       await setStatus("completed");
       return realFind(args);
     }) as never);
