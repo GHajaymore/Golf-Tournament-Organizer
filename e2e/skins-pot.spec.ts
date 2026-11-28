@@ -194,6 +194,8 @@ test.describe("@redesign", () => {
           message: "the stake was not stored",
         })
         .toBe(500);
+      // The pot's Save has no badge: it is disabled while the action and the refresh run (SkinsPotClient.tsx:314, `disabled={pending || locked}`).
+      await expect(pot.getByRole("button", { name: "Save", exact: true }), "the pot's Save is still busy").toBeEnabled();
       await page.reload();
       await expect(screen.skinsCard().getByLabel(/^Buy-in \(/), "the stake did not survive a reload").toHaveValue(/^5(\.00)?$/);
     } finally {

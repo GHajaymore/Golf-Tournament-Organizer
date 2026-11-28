@@ -20,23 +20,13 @@ import { readSource, readVerbatim } from "./source";
  * screen with no indicator it passes at once, so wait on the saved thing on the screen instead (the SITES list
  * below). A screen with no indicator is an Engineer follow-up (a SaveState), not something a spec can supply.
  *
- * A reload directly after a press is listed by `file:line-text` in `KNOWN_DIRECT_RELOADS`, CAPPED at
- * KNOWN_DIRECT_RELOADS_CAP and may only shrink. Eight today (27 Nov 2026), none in the twelve specs of B122.
+ * A reload directly after a press would be listed by `file:line-text` in `KNOWN_DIRECT_RELOADS`, CAPPED at
+ * KNOWN_DIRECT_RELOADS_CAP and may only shrink. It is EMPTY and the cap is 0 (B122b, 27 Nov 2026): a new bare reload fails.
  */
-export const KNOWN_DIRECT_RELOADS: readonly string[] = [
-  // 27 Nov 2026, found by the tightened rule in specs OUTSIDE B122's twelve; owner Test Engineer, follow-up "B122b": give each a real wait.
-  "closing-a-round-where-the-cards-are.spec.ts:await section.getByRole(\"button\", { name: \"Keep it open\" }).click();",
-  "closing-team-cup-and-tap-rounds.spec.ts:await section.getByRole(\"button\", { name: \"Keep it open\" }).click();",
-  "event-setup-calm.spec.ts:await screen.teeSelect().selectOption(tee.id);",
-  "event-setup-calm.spec.ts:await screen.lastDay().fill(\"2099-06-16\");",
-  "event-setup-calm.spec.ts:await more.getByLabel(/No fixed course/).check();",
-  "net-without-tees-says-so.spec.ts:await screen.teeSelect().selectOption(tee.id);",
-  "organizer-tees.spec.ts:await screen.teeSelect().selectOption(white.id);",
-  "organizer-tees.spec.ts:await screen.teeSelect().selectOption(\"\");",
-];
+export const KNOWN_DIRECT_RELOADS: readonly string[] = [];
 
-/** The list's size today (8). NEVER RAISE: put a real wait before the reload instead. */
-export const KNOWN_DIRECT_RELOADS_CAP = 8;
+/** The list is EMPTY (B122b, 27 Nov 2026). NEVER RAISE: put a real wait before the reload instead. */
+export const KNOWN_DIRECT_RELOADS_CAP = 0;
 
 /** The least number of `.reload(` calls in the specs today (measured on this head). Raise it, never lower it. */
 export const MIN_RELOADS = 100;
@@ -100,6 +90,15 @@ describe("a spec waits on the save before it reloads", () => {
       "side-game-renamed.spec.ts": /the new name is not on Side games before the reload/,
       "tournament-access.spec.ts": /the removed helper is still listed before the reload/,
       "weekly-sign-up.spec.ts": /the list does not count the player out before the reload/,
+      // B122b / B116: the waits that replaced the eight listed reloads and the three B116 sites still open.
+      "closing-a-round-where-the-cards-are.spec.ts": /Keep it open was not stored before the reload/,
+      "closing-team-cup-and-tap-rounds.spec.ts": /Keep it open was not stored before the reload/,
+      "event-setup-calm.spec.ts": /the course mode was not stored before the reload/,
+      "net-without-tees-says-so.spec.ts": /the tee was not stored before the reload/,
+      "organizer-tees.spec.ts": /the White tees were not stored before the reload/,
+      "named-side-bet.spec.ts": /savedBeforeReload\(card\(\)\)/,
+      "skins-pot.spec.ts": /the pot's Save is still busy/,
+      "rounds-and-formats.spec.ts": /the holes are still saving/,
     };
     for (const [f, re] of Object.entries(SITES)) expect(readVerbatim("e2e", f), `${f} lost its wait before the reload`).toMatch(re);
   });

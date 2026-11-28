@@ -83,9 +83,15 @@ test.describe("@redesign closing a round where the cards are", () => {
       const section = await screen.openClose();
       // The fixture's own words: Round 1's play-by date is yesterday in the club's zone, so the window is shut by the date.
       await expect(section).toContainText("Closed — the deadline has passed");
-      const answered = page.waitForResponse((r) => r.request().method() === "POST");
       await section.getByRole("button", { name: "Keep it open" }).click();
-      await answered;
+      // The label is drawn at once from the press (RoundDeadlineControl sets its own state first), so the screen cannot say the
+      // save is kept: the stored override can. `false` is "extended past the date" (setStageDeadlineOverride, tournament.ts).
+      await expect
+        .poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: day.round1 }, select: { deadlineOverride: true } })).deadlineOverride, {
+          message: "Keep it open was not stored before the reload",
+          timeout: 20_000,
+        })
+        .toBe(false);
 
       await page.reload();
       await page.getByRole("heading", { level: 1, name: "Score entry" }).waitFor({ state: "visible" });
