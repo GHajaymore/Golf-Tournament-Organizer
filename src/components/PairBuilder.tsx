@@ -4,6 +4,9 @@ import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState, useTransition } from "react";
 import { nominatePair, withdrawPair } from "@/app/actions/league";
 import { Icon } from "@/components/Icon";
+import { ScopeLockMark } from "@/components/ScopeLockBanner";
+import { useCaughtUp } from "@/components/useAction";
+import { bringIntoView } from "@/lib/bring-into-view";
 import type { ClubNominations } from "@/lib/services/league-nomination";
 
 /**
@@ -26,7 +29,10 @@ import type { ClubNominations } from "@/lib/services/league-nomination";
  * public HTTP endpoint. The two-at-a-time limit here is to stop a captain
  * clicking a third name, not to keep anything safe.
  */
-export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId: string }) {
+export function PairBuilder({ club, stageId, locked }: { club: ClubNominations; stageId: string; locked: boolean }) {
+  // Once the tournament is completed (`locked`, the sides' lock read completion-only) both presses are shut and marked; a
+  // press made on a screen drawn before it is refused in words beside the press and the screen catches up (B115b).
+  const caughtUp = useCaughtUp();
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState("");
   /**
@@ -57,7 +63,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
   const nominate = () => {
     startTransition(async () => {
       setWithdrawRefused("");
-      const result = await nominatePair(stageId, club.clubId, picked);
+      const result = caughtUp(await nominatePair(stageId, club.clubId, picked));
       if (result.ok) setPicked([]);
       else setError(result.error);
     });
@@ -67,7 +73,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
     startTransition(async () => {
       setError("");
       setWithdrawRefused("");
-      const result = await withdrawPair(pairId);
+      const result = caughtUp(await withdrawPair(pairId));
       if (!result.ok) setWithdrawRefused(result.error);
     });
   };
@@ -123,10 +129,11 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
                 }}
               >
                 <span>{p.name}</span>
+                {locked && <ScopeLockMark />}
                 <button
                   className="btn btn-ghost"
                   type="button"
-                  disabled={pending}
+                  disabled={pending || locked}
                   onClick={() => withdraw(p.id)}
                 >
                   Withdraw
@@ -136,7 +143,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
           </ul>
         )}
         {withdrawRefused && (
-          <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
+          <p role="alert" ref={bringIntoView} style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
             {withdrawRefused}
           </p>
         )}
@@ -193,18 +200,20 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
         )}
 
         {error && (
-          <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>{error}</p>
+          <p role="alert" ref={bringIntoView} style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>{error}</p>
         )}
 
-        <button
-          className="btn btn-primary"
-          type="button"
-          disabled={pending || picked.length !== 2}
-          onClick={nominate}
-          style={{ alignSelf: "flex-start", marginTop: 12 }}
-        >
-          <Icon name="user-plus" /> Nominate pair
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, alignSelf: "flex-start" }}>
+          {locked && <ScopeLockMark />}
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={pending || locked || picked.length !== 2}
+            onClick={nominate}
+          >
+            <Icon name="user-plus" /> Nominate pair
+          </button>
+        </div>
       </div>
     </div>
   );

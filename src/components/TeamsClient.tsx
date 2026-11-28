@@ -301,7 +301,7 @@ export function TeamsClient({
 
       {league && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          This tournament is run as a league. Each club nominates its pairs and the week is drawn
+          This tournament is run as a league. Each club nominates or withdraws its pairs, and the week is drawn,
           in the League section below.
         </p>
       )}
@@ -454,13 +454,17 @@ export function TeamsClient({
                     tap too, and a confirmation on it would be noise. */}
                 {/* One padlock per side, not one per control on it: the side's
                     Remove, its members' remove and Add player shut together. */}
-                {locked && <ScopeLockMark />}
-                <ConfirmButton
-                  title="Remove team"
-                  confirmLabel="Remove the team"
-                  disabled={busy}
-                  onConfirm={() => run(async () => caughtUp(await deleteTeam(t.id)))}
-                />
+                {/* A LEAGUE'S SIDE CARD IS READ-ONLY (B115b): a pair has one door, the League section (nominate,
+                    withdraw). `deleteTeam`, `addTeamMember` and `removeTeamMember` refuse a league, so none is offered. */}
+                {!league && locked && <ScopeLockMark />}
+                {!league && (
+                  <ConfirmButton
+                    title="Remove team"
+                    confirmLabel="Remove the team"
+                    disabled={busy}
+                    onConfirm={() => run(async () => caughtUp(await deleteTeam(t.id)))}
+                  />
+                )}
               </div>
               {nameSaid?.id === t.id && (
                 <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
@@ -479,15 +483,17 @@ export function TeamsClient({
                         <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>
                           {indexLabel(m)}
                         </span>
-                        <button
-                          type="button"
-                          className="btn btn-icon"
-                          title={`Remove ${m.name}`}
-                          disabled={busy}
-                          onClick={() => removeMember(t.id, m.playerId, m.name, false)}
-                        >
-                          <Icon name="x" />
-                        </button>
+                        {!league && (
+                          <button
+                            type="button"
+                            className="btn btn-icon"
+                            title={`Remove ${m.name}`}
+                            disabled={busy}
+                            onClick={() => removeMember(t.id, m.playerId, m.name, false)}
+                          >
+                            <Icon name="x" />
+                          </button>
+                        )}
                       </div>
                       {/* Against the member it is about, not at the foot of the
                           side — a side has several people and the question is
@@ -515,7 +521,7 @@ export function TeamsClient({
                 </p>
               )}
 
-              {addingTo === t.id ? (
+              {league ? null : addingTo === t.id ? (
                 <select
                   className="input"
                   autoFocus

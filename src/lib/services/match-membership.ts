@@ -6,6 +6,8 @@ import { keeperGate } from "@/lib/services/group-keeping";
 import type { Session } from "@/lib/auth";
 import { playerEntryRefusal } from "@/lib/domain/round-scoring";
 import { cleanSettings } from "@/lib/tournament-settings";
+import { roundClosedRefusal } from "@/lib/services/scorecard-write";
+import { SIGNED_OFF_MATCH_REFUSAL } from "@/lib/domain/pending-card";
 
 /**
  * WHO IS IN A MATCH, and whether a player may write it — once (2026-11-04).
@@ -59,8 +61,32 @@ export async function playersInMatch(match: MatchSidesRow): Promise<string[]> {
  *
  * Returns the refusal in words, or the epoch the scorer holds. Staff never
  * come here: entering the whole field's cards is their job.
+ *
+ * B128 (27 Nov 2026): THE SINK FOR "WHEN", not only "who". Every player write
+ * of a match's holes or result asks here (the round code's three, and the
+ * signed-in player's through `assertOwnMatch`), so a CLOSED round and a
+ * CONFIRMED result are refused once, for all of them, in the one sentence each
+ * already has. A writer added later that asks "may I" gets the close for free.
+ * `a-closed-round-takes-no-taps.audit.test.ts` and
+ * `every-player-match-write-asks-the-sink.test.ts` hold it.
  */
 export async function mayWriteMatch(input: {
+  eventId: string;
+  match: MatchSidesRow & { id: string; stageId: string };
+  actorIds: readonly string[];
+  epoch: number | undefined;
+}): Promise<{ ok: true; epoch: number | null } | { ok: false; error: string; keeperName?: string }> {
+  const who = await mayWriteMatchWho(input);
+  if (!who.ok) return who;
+  const closed = await roundClosedRefusal(input.eventId, input.match.stageId);
+  if (closed) return { ok: false, error: closed };
+  // Read fresh: the caller's row may be older than a sign-off that has landed since.
+  const row = await prisma.match.findFirst({ where: { id: input.match.id, eventId: input.eventId }, select: { scoreStatus: true } });
+  if (row?.scoreStatus === "confirmed") return { ok: false, error: SIGNED_OFF_MATCH_REFUSAL };
+  return who;
+}
+
+async function mayWriteMatchWho(input: {
   eventId: string;
   match: MatchSidesRow & { stageId: string };
   actorIds: readonly string[];
