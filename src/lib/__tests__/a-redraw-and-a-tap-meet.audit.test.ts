@@ -325,6 +325,28 @@ describe("autoDrawTeams: a team card inserted in flight", () => {
   }, 30_000);
 });
 
+describe("a tap that holds its row past the lock timeout", () => {
+  for (const door of DOORS) {
+    it(`6. ${door} says the busy words and writes nothing`, async () => {
+      const { REDRAW_BUSY_REFUSAL } = await import("@/lib/services/round-cards");
+      const s = await scenario(door);
+      const before = await s.ids();
+      const tap = holdWrite((t) => t.match.update({ where: { id: s.matchId }, data: { holes: TAPPED } }));
+      try {
+        await tap.held;
+        // The tap is not committed, so the pre-check passes; the locked re-check waits 3 s, then gives up in words.
+        expect(await s.redraw()).toEqual({ ok: false, error: REDRAW_BUSY_REFUSAL });
+        tap.release();
+        await tap.done;
+        expect(await s.ids()).toEqual(before);
+      } finally {
+        tap.release();
+        await tap.done.catch(() => {});
+      }
+    }, 30_000);
+  }
+});
+
 describe("CONTROLS: nothing racing", () => {
   for (const door of DOORS) {
     it(`5. ${door} redraws, and the ids change`, async () => {
