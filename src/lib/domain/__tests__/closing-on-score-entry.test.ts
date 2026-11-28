@@ -206,6 +206,14 @@ describe("Results has one verb for the last act: the machine's own label", () =>
 });
 
 describe("the scoring window words (B132)", () => {
+  it("a knockout round is match play: matchKeptBy says null, the window still speaks matches", () => {
+    const bracket = { type: "Bracket Stage", format: "Match Play", scoringBasis: "gross", scoreInput: null, matchKeptBy: null };
+    expect(closingKind(bracket)).toBe("match");
+    expect(windowWords(closingKind(bracket)).extended).not.toMatch(/card/i);
+    // The control: a stroke round with the same nulls keeps the card words.
+    expect(closingKind({ ...bracket, type: "Stroke Play Round", format: "Stroke Play" })).toBe("stroke");
+  });
+
   it("a match round waits for its last match, never a card it does not have", () => {
     const w = windowWords("match");
     expect(w.extended).toContain("once the last match is finished.");
