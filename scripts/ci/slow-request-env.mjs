@@ -44,6 +44,32 @@ export function controlLineSince(text, sinceMs = 0) {
   return false;
 }
 
+/** The line the hook prints when it first times a request: `<ISO time> [slow-request] hooked: first request timed` (B135). */
+const HOOKED = /^(\S+) \[slow-request\] hooked: first request timed$/;
+
+/** Whether `text` holds the hooked line, stamped at or after `sinceMs`. Printed only by a server that listens. */
+export function hookLineSince(text, sinceMs = 0) {
+  for (const line of String(text).split(/\r?\n/)) {
+    const m = HOOKED.exec(line.trim());
+    if (!m) continue;
+    const at = Date.parse(m[1]);
+    if (Number.isFinite(at) && at >= sinceMs) return true;
+  }
+  return false;
+}
+
+/**
+ * Why a server's log shows the slow-request log was not on, or was on but its request hook never fired
+ * (the control line proves only that the setting arrived; the hooked line proves a request was timed); null when both.
+ */
+export function slowLogRefusal(text, sinceMs = 0) {
+  const off = controlLineRefusal(text, sinceMs);
+  if (off) return off;
+  return hookLineSince(text, sinceMs)
+    ? null
+    : "the test server printed the slow-request 'on' line but never '[slow-request] hooked: first request timed', so its request hook did not fire (the preload is loaded but not timing requests)";
+}
+
 /** Why a server's log shows the slow-request log was not on; null when it was. */
 export function controlLineRefusal(text, sinceMs = 0) {
   return controlLineSince(text, sinceMs)

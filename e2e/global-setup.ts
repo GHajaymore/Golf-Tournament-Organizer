@@ -2,7 +2,7 @@ import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { seed } from "./fixture.mjs";
-import { controlLineRefusal } from "../scripts/ci/slow-request-env.mjs";
+import { slowLogRefusal } from "../scripts/ci/slow-request-env.mjs";
 
 const nodeRequire = createRequire(`${process.cwd()}/package.json`);
 
@@ -26,7 +26,7 @@ export default async function globalSetup() {
     } catch {
       /* no file is the same as no line */
     }
-    const why = controlLineRefusal(text, Number(process.env.E2E_RUN_STARTED ?? 0) - 1_000);
+    const why = slowLogRefusal(text, Number(process.env.E2E_RUN_STARTED ?? 0) - 1_000);
     if (why) throw new Error(`Slow-request log: ${why}. Log read: ${file}`);
   }
   const data = await seed();

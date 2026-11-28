@@ -124,3 +124,7 @@ fails `verify` unless, for every project the config declares, the union of its s
 the list, each test in one shard (Security's condition for the split). Its table is on the run's
 summary page. `verify` itself now RUNS when a job it needs is red and goes red, rather than being
 skipped: a skipped required check reads as passing.
+
+## The slow-request log proves itself twice (B112, B135)
+
+The e2e server loads `scripts/ci/slow-request-log.cjs`. It prints `[slow-request] on, threshold N ms` when it loads (npx and npm print it too, so it proves only that the setting arrived) and `[slow-request] hooked: first request timed` the first time the listening server's request hook really times a request. `round.mjs` (INCOMPLETE) and `e2e/global-setup.ts` (CI error) require both, through `slowLogRefusal()` in `scripts/ci/slow-request-env.mjs`; the request `answers()` or Playwright's webServer URL poll makes is the one that prints it. Whether it lands in a real server is CI-only.

@@ -50,7 +50,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { controlLineRefusal, slowRequestEnv } from "../ci/slow-request-env.mjs";
+import { slowLogRefusal as slowLogWhy, slowRequestEnv } from "../ci/slow-request-env.mjs";
 import { join } from "node:path";
 import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES, targetLine } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
@@ -194,11 +194,12 @@ async function serve(mode) {
   for (let i = 0; i < 45; i += 1) {
     if (await answers()) {
       serving = mode;
-      // THE CONTROL: this start's own output (not an earlier server's) must hold the preload's line.
+      // THE CONTROL: this start's own output (not an earlier server's) must hold the preload's "on" line and
+      // the "hooked" line (the request answers() just made was timed, B135).
       // The pipe can lag the first answer by a moment, so ask for up to 10 s.
       slowLogRefusal = "unread";
       for (let k = 0; k < 10 && slowLogRefusal; k += 1) {
-        slowLogRefusal = controlLineRefusal(readFileSync(logPath).subarray(logFrom).toString("utf8"));
+        slowLogRefusal = slowLogWhy(readFileSync(logPath).subarray(logFrom).toString("utf8"));
         if (slowLogRefusal) await new Promise((r) => setTimeout(r, 1000));
       }
       return true;
